@@ -258,15 +258,20 @@ export function vlApplyLayoutToSpec(
     if (axisLabels.x.separation !== undefined) axisXConfig.labelSeparation = axisLabels.x.separation;
     if (axisLabels.y.separation !== undefined) axisYConfig.labelSeparation = axisLabels.y.separation;
 
+    // The template's own config stands where the layout sets nothing.
+    const templateConfig = vgObj.config ?? {};
     vgObj.config = {
+        ...templateConfig,
         view: {
+            ...templateConfig.view,
             continuousWidth: layout.subplotWidth,
             continuousHeight: layout.subplotHeight,
             ...((!vgObj.encoding || vgObj._hideViewStroke) && { stroke: null }),
         },
-        axisX: axisXConfig,
-        axisY: axisYConfig,
+        axisX: { ...templateConfig.axisX, ...axisXConfig },
+        axisY: { ...templateConfig.axisY, ...axisYConfig },
         legend: {
+            ...templateConfig.legend,
             labelFontSize: layout.legendFontSize,
             titleFontSize: layout.titleFontSize,
         },

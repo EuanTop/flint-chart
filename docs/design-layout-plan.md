@@ -198,6 +198,21 @@ y title, column facet headers), and lays the plot out again with that room kept,
 the canvas. One pass: a narrower step that turns labels is not measured again. The result is
 `plan.reserve`, pinned on every replan.
 
+## §4.9 Views
+
+`plan.views` (`core/views.ts`) states the views a chart draws and how they stand, as a tree: a
+`view` (a plot, a column of text, or a tile, with its plot-area size), a `concat` of views in a row
+or a column, and a `facet` repeating one view over a grid (columns, rows, panel count). Gaps are the
+space the backend keeps between neighbouring views' bounds, axes and headers included, as it draws
+it. A single-view chart is one `view`; facets on the column and row fields are planned from the
+fields and the layout's wrap; a template that composes its own views states them (§5).
+
+The tree records what is drawn. Facet panels are laid out once more for the gap the plan draws
+between them, which it then keeps, and emit writes that gap where Vega-Lite reads it: on each row
+and column field, on a facet operator's spec, and again after the theme moves the facet; the config
+holds a `{ row, column }` pair only for a wrapped facet, since a field without its own gap takes a
+config pair whole.
+
 # §5 Templates in the plan
 
 The theme's room decisions need to know what a chart draws before the template builds it. Templates
@@ -210,6 +225,12 @@ its conditions with `instantiate` through one function.
 
 Decisions a template makes about its own layout are stated through its declaration
 (`declareLayoutMode`): band shapes, axis flags, parameter overrides, and tick labels it sets itself.
+
+A template that composes several views states them through `planViews`, which runs in the plan
+after the plot: radar's panels, the pyramid's halves, the violin's panels, Sparkline's three columns
+of strips, KPI tiles, and Bar Table's columns. Each keeps its own sizing method in a function the plan
+calls (`barTableLayout`, `sparklineSizes`, `kpiGrid`); `instantiate` draws the sizes and gaps it
+finds in `context.views`.
 
 `tests/chart-structure.test.ts` compares each template's stated structure with the facts read from
 what it built, over every generated test case in no theme and each preset, so a template's two halves
@@ -274,7 +295,11 @@ Live layout plans each zoom window from the whole-data analysis with the plot pi
 (`replan({ window, pinPlot })` through `liveLayoutPlanner`); filters replan with `replan({ rows })`.
 `surface.layout.plot` reports the planned plot on charts that draw one plot at that size, follows a
 filter's replan and a resize, and is undefined on composite charts, charts with a category rail, and
-where a later stage changed the plot.
+where a later stage changed the plot. `surface.layout.views` and `surface.layout.block` report each
+drawn view's box and the block the views make with their axes and headers, read from Vega's scene
+after each render (`readDrawnLayout`), each view taking the role the plan states. Positions are not
+planned: Vega sets axes past what panels draw, which only the render knows; a static compile reports
+sizes only.
 
 **Resize in place.** A chart mounted for a room (`availableSize`; React `fit="relayout"`) binds its
 layout values to one signal (`bindLiveValues`): each axis, title, key, header, scale and mark property
@@ -289,6 +314,10 @@ false and the host remounts. A push keeps selections, filters, zoom and updates.
 # §9 Checks
 
 - **Structure drift** (`tests/chart-structure.test.ts`, §5).
+- **Views** (`tests/plan-views.test.ts`): every chart of several views, in no theme and each preset,
+  draws the planned views (each view's plot size, panel and view counts, the grid) as Vega's
+  scenegraph reads them, and the planned gaps as Vega's layout padding; a list of known departures
+  fails when an entry goes unused.
 - **Honour** (`tests/plan-honour.test.ts`): `vegaLiteHonour` plans and emits a chart and reads every
   decision back from the spec (each view's tick labels, ruler and zero, orders and size ranges, facet
   gap and scales, a flat y title's lift, series-end names, each key's edge and columns, value labels,
@@ -317,15 +346,16 @@ false and the host remounts. A push keeps selections, filters, zoom and updates.
 | 5 | Theme room decisions in the planner | done: labels, title, keys, value labels, ruler, facets, dots, room kept |
 | 6 | Live layout on `replan` | done |
 | 7 | Filters on `replan` | done; a filter pushes the steps, not labels and ticks |
-| 8 | Composite charts: a plan for their views | next |
+| 8 | Composite charts: a plan for their views | done: views planned (§4.9), titles, keys and closing rules across them, drawn boxes in `surface.layout` |
 | 9 | Planner review: coverage, faithfulness, cost | cost done (§11); coverage and faithfulness after 8 |
 
 # §11 Cost
 
 Compiling the comparison corpus (11,157 cases) in a browser took 1.6 ms a chart before the plan,
 3.9 ms with the theme's room decisions and measured text in it, and 1.17 ms after a profile of the
-planner by stage. Three hot spots made the difference, each fixed as a move (every compile
-unchanged):
+planner by stage; planning views brings it to 1.33 ms, since Bar Table and Sparkline still run their
+sizing again when they build their spec, and facet charts are laid out twice (§4.9). Three hot spots made the difference, each fixed as a move
+(every compile unchanged):
 
 | Hot spot | Share before | Fix |
 |---|---|---|
@@ -342,7 +372,15 @@ interactions again.
 
 | Item | Revisit when |
 |---|---|
-| Composite views lay out their own panels (Bar Table, Sparkline, pyramid, KPI, violin, radar); their titles and keys are fitted after the plan; radar spoke labels keep no room | milestone 8 |
+| A chart's block is its plot or views widened by 7% for axes plus the category labels; measured axes and headers would make it exact | the block box, checked against Vega's drawn size |
+| Radar spoke labels keep no room | the block box |
+| Title fitting estimates text at 0.55 em a character rather than measuring it as the renderer does | a fix to titles in every chart |
+| A theme's closing rules wrap the chart after the plan, their room unplanned (826) | the block box |
+| A violin sizes its panels for no gap and draws the facet gap | the block box |
+| Bar Table re-derives the facet height budget | the block box |
+| The honour check's Bar Table and Sparkline exemptions (y labels, orders, independent y) | declarations, with the fixes |
+| Planned view positions and an exact block: Vega sets axes past what panels draw and labels past plot ends; reaching 1 px would rebuild its layout (single charts measured 52% exact) | a host that needs positions before render |
+| A filter keeps the mounted closing rules' width while panels go | filters push all re-planned values |
 | Resizes that remount: a part appears or goes (a label angle, a key's direction or columns, rows an overflow drops), or a number emitted inside an expression changes (value-label thresholds, temporal label sets, facet column counts); 45% of corpus resizes at ±25% | emit states those as values a signal can carry |
 | A filter pushes only the steps; its replan's ticks, domains and labels could push through the same binding with the data source's rows left out of the comparison | a filter that needs its labels re-planned |
 | Live values are bound only on charts mounted for a room | a host that resizes a chart mounted without one |
@@ -382,6 +420,36 @@ gives the reason for each choice and what it changed.
   zoomed chart keeps its zoom through a resize.
 - The planner's cost is fixed by search order and kept results, never by a cheaper rule: each fix
   is a move, so the corpus compiles the same.
+
+**Views**
+
+- The view tree states what is drawn, so the check against Vega is exact; where a template asked
+  for a gap Vega-Lite never drew (a violin's touching panels), the plan keeps the gap readers saw.
+- Facet panels are laid out for the gap drawn between them, one correction like the room kept for
+  furniture (2,324 compiles). Emit writes the gap where Vega-Lite reads it; a theme's `{ row, column }`
+  gap had made the violin's rows collide.
+- Templates measure their text as the plan does, in the theme's body family (378 compiles); a
+  template's own config stands where the layout sets nothing (480).
+- Facet panels draw the theme's ruler like a single plot of their size; a y that wrapped panels
+  scale for themselves keeps its own. A faceted chart's theme labels join the panels' spec; they had
+  been dropped beside the facet (610 compiles gain them).
+- Every faceted panel stands on a floor drawn as the x axis line, at its own bottom edge, and the
+  axis draws none: the theme's lowest gridline floated above padded panels, doubled the bottom row's
+  line, and was missing for a facet given as a channel. Stacked panels keep the room their y ruler
+  labels take where rows meet, unless the theme flushes them; a violin grid's columns touch.
+- A chart of several views is titled and keyed across the width its views span, by the method a
+  single plot uses (252 compiles); the theme no longer measures one panel from the spec.
+- A faceted chart's y axis stands 1–4 px past the panels, where Vega lays it beside what the panels
+  draw; laying out by the panels' edges (`bounds: 'flush'`) crowded a facet's field title into its
+  headers. An axis without a line drops the ticks that could not meet the grid instead, and the
+  1 px that remains under an axis line is left.
+- Positions are reported, not planned: measuring the block to 1 px means simulating Vega's
+  bounds-based layout, which the plan does not do (it stays cheap, above); a mounted chart reads its
+  views and block from the scene, exact and cheap. Titles, keys and closing rules use the block
+  estimate, where a few pixels do not show.
+- A theme's closing rules are planned: sized to the block without the canvas floor a title keeps,
+  their room taken from the plot where its height is stated (905 compiles); a theme carrying its grid
+  past the plot as ticks has that room kept (308).
 
 **Templates**
 

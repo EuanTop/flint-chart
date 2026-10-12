@@ -32,8 +32,9 @@ const TITLES = [{ title: LONG_TITLE, subtitle: LONG_DECK, width: 320 }, { title:
 const TITLED_THEMES: Array<string | undefined> = [undefined, 'nyt', 'economist', 'datawrapper'];
 
 describe('title plan', () => {
-    // Realization applies the plan's title fit; on its own it must reach the same fit from the built spec.
-    it('fits every test case and theme as realization would', () => {
+    // Realization applies the plan's title fit; on its own it must reach the same fit from a single
+    // view's built spec. A chart of several views is fitted across its planned views instead.
+    it('fits every single-view test case and theme as realization would', () => {
         const mismatches: string[] = [];
         const themes = [undefined, ...Object.keys(THEME_PRESETS)];
         for (const [section, generate] of Object.entries(TEST_GENERATORS as Record<string, () => any[]>)) {
@@ -48,8 +49,8 @@ describe('title plan', () => {
                 for (const theme of themes) {
                     const titled = TITLED_THEMES.includes(theme);
                     for (const title of titled ? [undefined, ...TITLES] : [undefined]) {
-                        const { planned, own } = vegaLiteTitleFits(input(testCase, theme, title));
-                        if (JSON.stringify(planned) !== JSON.stringify(own)) {
+                        const { planned, own, composite } = vegaLiteTitleFits(input(testCase, theme, title));
+                        if (!composite && JSON.stringify(planned) !== JSON.stringify(own)) {
                             mismatches.push(`${section} | ${testCase.title} | ${theme ?? 'none'} | ${title ? title.width : 'untitled'}`);
                         }
                     }

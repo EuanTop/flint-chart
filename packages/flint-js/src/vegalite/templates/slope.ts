@@ -227,6 +227,10 @@ export const slopeChartDef: ChartTemplateDef = {
                         text: { field: '__slopeLabel', type: 'nominal' },
                     },
                 });
+                // Facet channels split the data and stay on the outer spec: inside a layer they are ignored.
+                const { column, row, facet, ...drawn } = spec.encoding as Record<string, unknown>;
+                const split = Object.fromEntries(Object.entries({ column, row, facet }).filter(([, def]) => def !== undefined));
+                spec.encoding = drawn;
                 const lineLayer: Record<string, unknown> = { mark: spec.mark, encoding: spec.encoding };
                 if (spec.transform) lineLayer.transform = spec.transform;
                 spec.layer = [
@@ -235,8 +239,9 @@ export const slopeChartDef: ChartTemplateDef = {
                     endLayer(last, 'left'),
                 ];
                 delete spec.mark;
-                delete spec.encoding;
                 delete spec.transform;
+                if (Object.keys(split).length) spec.encoding = split;
+                else delete spec.encoding;
             }
         }
     },

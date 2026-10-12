@@ -92,11 +92,33 @@ function widestTick(channel: 'x' | 'y', inputs: ReserveInputs): number | undefin
     return cut(Math.max(...ends.map((value) => widthOf(text(value)))));
 }
 
+type AxisDecided = NonNullable<DesignDecisions['axes']['x']>;
+
+/** How far a measure axis's grid runs on past the plot to end under its label, where the theme draws no ticks. */
+export function gridOvershoot(axis: AxisDecided): number {
+    return Math.max(4, Math.round((axis.label.padding ?? 4) * 0.75));
+}
+
+/**
+ * Whether a faceted chart's y axis drops its ticks: where it draws no axis line, its ticks only carry
+ * the grid on to the labels, and beside facet panels Vega sets the axis apart from the grid's ends.
+ */
+export function facetDropsTicks(axis: AxisDecided): boolean {
+    return !axis.domain.show;
+}
+
+/** The tick a themed axis draws: its own, or its grid carried past the plot to the label. */
+export function drawnTickSize(axis: AxisDecided, facetY = false): number {
+    if (facetY && facetDropsTicks(axis)) return 0;
+    if (axis.ticks.show) return axis.ticks.size;
+    return axis.grid.show && axis.role === 'measure' && axis.label.show !== false ? gridOvershoot(axis) : 0;
+}
+
 /** The tick, its padding and the labels' depth across an axis. */
 function tickDepth(channel: 'x' | 'y', inputs: ReserveInputs, labelDepth: number): number {
     const { design, themed, spacing } = inputs;
     const axis = themed ? design.axes[channel] : undefined;
-    const tick = axis ? (axis.ticks.show ? axis.ticks.size : 0) : spacing.tickSize;
+    const tick = axis ? drawnTickSize(axis, channel === 'y' && Boolean(inputs.layout.facet)) : spacing.tickSize;
     return tick + (axis?.label.padding ?? spacing.labelPadding) + labelDepth;
 }
 

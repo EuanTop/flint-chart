@@ -405,7 +405,8 @@ export function computeLayout(
     // Facet overhead: fixed (axis labels, titles) + per-panel gap (spacing).
     const fixW = options.facetFixedPadding?.width ?? 0;
     const fixH = options.facetFixedPadding?.height ?? 0;
-    const gap = options.facetGap ?? 0;
+    const gapX = options.facetGapColumn ?? options.facetGap ?? 0;
+    const gapY = options.facetGapRow ?? options.facetGap ?? 0;
 
     const baseRefSize = 300;
     const sizeRatio = Math.max(defaultChartWidth, defaultChartHeight) / baseRefSize;
@@ -588,7 +589,7 @@ export function computeLayout(
     if (facetCols > 1) {
         const stretch = Math.min(maxStretchX, Math.pow(facetCols, facetElasticityVal));
         subplotWidth = Math.round(Math.max(minContinuousSizeX,
-            (defaultChartWidth * stretch - fixW) / facetCols - gap));
+            (defaultChartWidth * stretch - fixW) / facetCols - gapX));
     } else {
         subplotWidth = defaultChartWidth;
     }
@@ -597,7 +598,7 @@ export function computeLayout(
     if (facetRows > 1) {
         const stretch = Math.min(maxStretchY, Math.pow(facetRows, facetElasticityVal));
         subplotHeight = Math.round(Math.max(minContinuousSizeY,
-            (defaultChartHeight * stretch - fixH) / facetRows - gap));
+            (defaultChartHeight * stretch - fixH) / facetRows - gapY));
     } else {
         subplotHeight = defaultChartHeight;
     }
@@ -734,12 +735,12 @@ export function computeLayout(
                 const perSubplotCanvasW = facetCols > 1
                     ? Math.max(minContinuousSizeX,
                         (defaultChartWidth * Math.min(maxStretchX, Math.pow(facetCols, facetElasticityVal)) - fixW)
-                        / facetCols - gap)
+                        / facetCols - gapX)
                     : defaultChartWidth;
                 const perSubplotCanvasH = facetRows > 1
                     ? Math.max(minContinuousSizeY,
                         (defaultChartHeight * Math.min(maxStretchY, Math.pow(facetRows, facetElasticityVal)) - fixH)
-                        / facetRows - gap)
+                        / facetRows - gapY)
                     : defaultChartHeight;
 
                 // --- Gas pressure: per-axis raw stretches ---
@@ -823,10 +824,10 @@ export function computeLayout(
                 // Hard ceiling per subplot: canvas × maxStretch shared
                 // across facet panels.
                 const availW = facetCols > 1
-                    ? Math.max(minContinuousSizeX, (defaultChartWidth * maxStretchX - fixW) / facetCols - gap)
+                    ? Math.max(minContinuousSizeX, (defaultChartWidth * maxStretchX - fixW) / facetCols - gapX)
                     : defaultChartWidth * maxStretchX;
                 const availH = facetRows > 1
-                    ? Math.max(minContinuousSizeY, (defaultChartHeight * maxStretchY - fixH) / facetRows - gap)
+                    ? Math.max(minContinuousSizeY, (defaultChartHeight * maxStretchY - fixH) / facetRows - gapY)
                     : defaultChartHeight * maxStretchY;
 
                 // Scale down to fit: if either axis exceeds its budget,
@@ -1005,8 +1006,8 @@ export function computeLayout(
     // Cap the per-subplot dimensions so total canvas never exceeds
     // canvasWidth × maxStretch (and canvasHeight × maxStretch).
     // Formula: effectiveW = W × maxStretch − fixedPad; each panel costs subplot + gap.
-    const maxSubplotW = (defaultChartWidth * maxStretchX - fixW) / facetCols - gap;
-    const maxSubplotH = (defaultChartHeight * maxStretchY - fixH) / facetRows - gap;
+    const maxSubplotW = (defaultChartWidth * maxStretchX - fixW) / facetCols - gapX;
+    const maxSubplotH = (defaultChartHeight * maxStretchY - fixH) / facetRows - gapY;
 
     // Clamp step sizes for discrete/banded axes so VL step-based
     // sizing respects the same budget.
@@ -1310,7 +1311,7 @@ export function computeLayout(
             subplotWidth,
             subplotHeight,
         } : undefined,
-        effectiveFacetGap: gap,
+        effectiveFacetGap: gapX,
         truncations: [],  // Overflow truncations are handled by filterOverflow
     };
 }

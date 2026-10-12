@@ -68,3 +68,11 @@ export const tableTextMeasurer: TextMeasurer = (fontSize, font, weight) => {
 
 /** Vega's own estimate where it has no canvas, as in Node: 0.8 em a character, truncated to whole px. */
 export const vegaEstimateMeasurer: TextMeasurer = (fontSize) => (text) => Math.trunc(0.8 * text.length * fontSize);
+
+/** Text widths in px in one font family, as a template asks for them. */
+export type FamilyMeasure = (text: string, fontSize: number, weight?: string | number) => number;
+
+/** A measurer bound to the family a chart's text is set in. */
+export function familyMeasure(measure: TextMeasurer, family: string): FamilyMeasure {
+    return (text, fontSize, weight = 'normal') => measure(fontSize, family, weight, 'normal')(text);
+}

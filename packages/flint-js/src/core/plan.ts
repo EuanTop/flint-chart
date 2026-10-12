@@ -9,17 +9,20 @@ import { axisTitles, chartDisplayNames, chartStructure, segmentedBands, stackedA
 import { continuousBandSpan, freeHeadroom, measureDomain, measureExtent, type MeasureDomain } from './measure-domain';
 import { planValueLabels, type ValueLabelPlan } from './value-label-plan';
 import { niceDomain, spacingRuler, type AxisRuler } from './ruler';
-import { planFurniture, type FurniturePlan } from './furniture-plan';
+import { planFurniture, rulerOverhang, type FurniturePlan } from './furniture-plan';
 import { categoryOrder, encodedType, sizeRange, type CategoryOrder } from './channel-decisions';
 import { planLegendPlacement, type RunValueScale } from './series-end';
 import { keysToLayout, planLegend, type LegendPlan } from './legend-plan';
-import { tableTextMeasurer } from './text-width';
+import { familyMeasure, tableTextMeasurer } from './text-width';
 import { planKeyLayout, type TextMeasurer } from './legend-layout';
 import { encodingTitle } from './structure';
 import { format as formatNumber } from 'd3-format';
-import { heightAfterTitle, planTitle, type TitlePlan } from './title-plan';
+import { chartBlock, heightAfterTitle, planTitle, type TitlePlan } from './title-plan';
+import { planRules, withRules, type ClosingRule } from './rule-plan';
+import { plotHeightAfter } from './title-fit';
 import { planAxisLabels, type AxisLabelFacts, type AxisLabelPlan } from './axis-labels';
 import { measureReserve, NO_RESERVE, type FurnitureReserve, type FurnitureSpacing } from './furniture-reserve';
+import { facetViews, gapOf, shortenViews, viewsExtent, type ViewNode } from './views';
 
 /** The layout options a backend lays out with when neither the caller, the theme, nor the template sets them. */
 export interface BackendLayoutProfile {
@@ -50,6 +53,12 @@ export interface LayoutPlan {
     plot: { width: number; height: number };
     /** Whether the chart draws several views (facets, or a composite template), so it has no single plot. */
     composite: boolean;
+    /** The views the chart draws and how they stand; undefined where a template has not stated them. */
+    views?: ViewNode;
+    /** The views as laid out, before a broken title and a theme's rules take height from the plot; a template draws these. */
+    laidOutViews?: ViewNode;
+    /** The rules a theme closes the chart's block with, and whether their room came out of the plot. */
+    rules?: { rules: ClosingRule[]; room: number; fromPlot: boolean };
     layout: LayoutResult;
     /** The theme's axis label size at this plot size; undefined without a theme. */
     axisLabelFontSize: number | undefined;
@@ -620,9 +629,22 @@ export function planLayout(analysis: PlanAnalysis, context: PlanContext): Layout
         budgets, allMarkTypes,
     );
 
-    const prepared: PreparedPlan = { analysis, context, declaration, options: effectiveOptions, facetGrid: budgets.facetGrid, overflow: overflowResult, report };
+    let prepared: PreparedPlan = { analysis, context, declaration, options: effectiveOptions, facetGrid: budgets.facetGrid, overflow: overflowResult, report };
     const pinned = context.pins?.reserve;
-    const first = planAroundPlot(prepared, pinned ?? NO_RESERVE);
+    let first = planAroundPlot(prepared, pinned ?? NO_RESERVE);
+    // Panels are laid out once more for the gap the plan draws between them, which it then keeps.
+    if (first.layout.facet) {
+        const drawn = gapOf(first.furniture.facets.spacing, 0);
+        const sized = prepared.options.facetGap ?? 0;
+        if (drawn.column !== sized || drawn.row !== sized) {
+            prepared = {
+                ...prepared,
+                facetSpacing: first.furniture.facets.spacing,
+                options: { ...prepared.options, facetGapColumn: drawn.column, facetGapRow: drawn.row },
+            };
+            first = planAroundPlot(prepared, pinned ?? NO_RESERVE);
+        }
+    }
     if (pinned) return { ...first, reserve: pinned };
     const along = { width: first.layout.xStepFitted === true, height: first.layout.yStepFitted === true };
     if (!along.width && !along.height) return first;
@@ -657,6 +679,8 @@ interface PreparedPlan {
     facetGrid: ReturnType<typeof computeChannelBudgets>['facetGrid'];
     overflow: ReturnType<typeof filterOverflow>;
     report: ThemeReport[];
+    /** The gap between facet panels the plan laid them out for and draws. */
+    facetSpacing?: FurniturePlan['facets']['spacing'];
 }
 
 /**
@@ -722,7 +746,7 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
         );
     }
 
-    const plot = template.planPlot?.({
+    const plotContext: PlotPlanContext = {
         layout: layoutResult,
         canvasSize: size.baseSize,
         assembleOptions: effectiveOptions,
@@ -731,7 +755,9 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
         fullTable: convertedData,
         semanticTypes: context.semanticTypes,
         chartProperties,
-    }) ?? {
+        measureText: familyMeasure(measureText, theme ? themeBodyFamily(theme) ?? 'sans-serif' : 'sans-serif'),
+    };
+    const plot = template.planPlot?.(plotContext) ?? {
         width: layoutResult.xNominalCount > 0 ? bandSpan('x') : layoutResult.subplotWidth,
         height: layoutResult.yNominalCount > 0 ? bandSpan('y') : layoutResult.subplotHeight,
     };
@@ -824,10 +850,11 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
     const titles = axisTitles(structure, {
         encodings, channelSemantics, displayNames: chartDisplayNames(context.fieldDisplayNames, analysis.staticSeries ?? undefined), spellField: profile.spellField,
     });
-    const titlePlan = composite ? undefined : context.pins?.title ?? planTitle({
+    const titleInputs = {
         structure, design, layout: layoutResult, axisLabels, axisTitles: titles, plot, rows: values,
         title: context.title, rowFacet: channelSemantics.row?.field, themed: Boolean(theme),
-    });
+    };
+    let titlePlan = composite ? undefined : context.pins?.title ?? planTitle(titleInputs);
 
     let valueLabels = planValueLabels({ design, structure, segmented, channelSemantics, rows: values });
     const domains = measureDomains(structure, segmented, channelSemantics, values);
@@ -863,14 +890,54 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
         : undefined;
     const pointSize = theme ? planPointSize(design, structure, values, plot, channelSemantics, report) : undefined;
     const points = theme ? pointPadding(structure, design, values, pointSize, domains, bandSpans, typeOf, channelSemantics) : undefined;
-    const rulers = theme && !composite && !options.liveLayoutSignal ? measureRulers({
-        structure, design, domains, channelSemantics, encodings, axisLabels, valueLabels,
-        length: drawnLengths(plot, titlePlan, valueLabels), measure: measureText, points,
-    }) : {};
     const furniture = planFurniture({
         structure, design: theme ? design : undefined, channelSemantics, declaration, layout: layoutResult,
         options: effectiveOptions, rows: values, data, canvas: size.baseSize, chartProperties,
+        ...(prepared.facetSpacing !== undefined ? { spacing: prepared.facetSpacing } : {}),
     });
+    // Facet panels share their scales, so each panel draws the ruler a single plot of its size would;
+    // a template's own composite, and a y each wrapped panel scales for itself, keep theirs.
+    const measured = theme && !template.composite && !options.liveLayoutSignal ? measureRulers({
+        structure, design, domains, channelSemantics, encodings, axisLabels, valueLabels,
+        length: drawnLengths(plot, titlePlan, valueLabels), measure: measureText, points,
+    }) : {};
+    const rulers: typeof measured = furniture.facets.independentY ? { ...(measured.x ? { x: measured.x } : {}) } : measured;
+    const displayNames = chartDisplayNames(context.fieldDisplayNames, analysis.staticSeries ?? undefined);
+    const channelTitles: Partial<Record<string, string>> = {};
+    for (const [channel, encoding] of Object.entries(encodings)) {
+        if (!encoding) continue;
+        const { title } = encodingTitle(channel, encoding, channelSemantics[channel], displayNames, profile.spellField);
+        if (title !== undefined) channelTitles[channel] = title;
+    }
+    const facetColumns = facetGridResult?.columns ?? (nominalCounts.column || 1);
+    const views = template.planViews
+        ? template.planViews({ ...plotContext, plot, spacing: furniture.facets.spacing, titles: channelTitles, facetColumns, rulerOverhang: rulerOverhang(structure, theme ? design : undefined) })
+        : template.composite ? undefined : facetViews(
+            plot,
+            { column: channelSemantics.column?.field, row: channelSemantics.row?.field, wrapColumns: facetColumns },
+            values,
+            furniture.facets.spacing,
+        );
+    // A chart of several views is titled and keyed across all of them.
+    const extent = composite && views ? viewsExtent(views) : undefined;
+    if (extent) titlePlan = context.pins?.title ?? planTitle({ ...titleInputs, viewsWidth: extent.width });
+    // The rules a theme closes the block with, and the height they and a broken title take from
+    // the plot, where its height is stated rather than counted in bands.
+    const rules = theme ? planRules({
+        design, structure, views,
+        block: chartBlock({ ...titleInputs, ...(extent ? { viewsWidth: extent.width } : {}) }, false) ?? 0,
+    }) : undefined;
+    if (rules && 'refused' in rules) report.push({ stage: 'realize', path: 'furniture', code: rules.refused, message: rules.message });
+    const bandedY = (type: string | undefined) => type === 'nominal' || type === 'ordinal';
+    const plotGives = Boolean(template.planViews) || !(bandedY(structure.y?.type) || bandedY(typeOf('y')) || layoutResult.yNominalCount > 0);
+    const ruled = rules && 'rules' in rules ? rules : undefined;
+    const drawnViews = views && (ruled || titlePlan) && plotGives
+        ? shortenViews(views, (height) => {
+            const titled = heightAfterTitle(height, titlePlan);
+            return ruled ? plotHeightAfter(titled, ruled.room) : titled;
+        })
+        : views;
+    const viewsDrawn = drawnViews && ruled ? withRules(drawnViews, ruled.rules) : drawnViews;
     const legend = planLegend({
         placement: planLegendPlacement({
             design, structure, channelSemantics, orders, rows: values,
@@ -878,8 +945,8 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
         }),
         structure, design: theme ? design : undefined, channelSemantics, orders, rows: values,
         layout: layoutResult, plot, composite, flatYTitle: (furniture.yTitle?.top ?? 0) > 0,
+        ...(extent ? { viewsWidth: extent.width } : {}),
     });
-    const displayNames = chartDisplayNames(context.fieldDisplayNames, analysis.staticSeries ?? undefined);
     const keyTitles: Partial<Record<string, string>> = {};
     for (const key of legend.keys) {
         const encoding = encodings[key.channel];
@@ -901,10 +968,10 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
         const { arrangement, titlePosition, align } = design.legend;
         legend.preferences = { ...(arrangement ? { arrangement } : {}), ...(titlePosition ? { titlePosition } : {}), ...(align ? { align } : {}) };
     }
-    if (!template.composite) {
+    if (extent || !template.composite) {
         legend.layout = planKeyLayout(
             legend.keyInputs,
-            { width: plot.width * columns + Math.max(0, columns - 1) * gap, height: plot.height * facetRows + Math.max(0, facetRows - 1) * gap },
+            extent ?? { width: plot.width * columns + Math.max(0, columns - 1) * gap, height: plot.height * facetRows + Math.max(0, facetRows - 1) * gap },
             measureText,
             legend.preferences,
         );
@@ -914,6 +981,9 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
     return {
         plot,
         composite,
+        ...(viewsDrawn ? { views: viewsDrawn } : {}),
+        ...(views ? { laidOutViews: views } : {}),
+        ...(ruled ? { rules: { ...ruled, fromPlot: plotGives } } : {}),
         structure,
         design,
         axisTitles: titles,

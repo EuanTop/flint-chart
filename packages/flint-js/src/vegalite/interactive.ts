@@ -32,6 +32,7 @@ import {
 } from './interactions/live-layout';
 import { mountVegaInteractions } from './interactions/runtime';
 import { advanceLiveValues, bindLiveValues, LIVE_VALUES_SIGNAL, liveValuesChange } from './live-values';
+import { readDrawnLayout } from './drawn-layout';
 import { vegaRendererOrigin } from './interactions/hit-adapter';
 
 /**
@@ -508,7 +509,10 @@ export function createVegaInteractiveRenderer(
                 viewports,
                 warnings: interactionPlan?.warnings ?? [],
                 get layout() {
-                    return currentPlot ? { plot: currentPlot } : undefined;
+                    if (destroyed || viewports.length > 0) return undefined;
+                    const drawnLayout = readDrawnLayout(view, drawn.plan.views);
+                    if (!currentPlot && !drawnLayout) return undefined;
+                    return { ...(currentPlot ? { plot: currentPlot } : {}), ...drawnLayout };
                 },
                 getInteractionContext() {
                     return interactionController?.getInteractionContext() ?? fallbackContext();

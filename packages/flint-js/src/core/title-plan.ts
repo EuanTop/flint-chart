@@ -31,6 +31,8 @@ export interface TitlePlanInputs {
     rowFacet?: string;
     /** Whether a theme is applied, so it moves axis titles to the deck where it keeps them there. */
     themed: boolean;
+    /** The width the views of a chart of several views span, which its title sits over in place of one plot. */
+    viewsWidth?: number;
 }
 
 /**
@@ -95,16 +97,28 @@ function labelGutter(inputs: TitlePlanInputs): number {
 }
 
 /**
- * Fit a single-view chart's title to the block it sits over: the plot, widened a little for its
- * axes, plus the category labels beside it, and never narrower than the canvas the theme sizes to.
+ * The width of the block a chart's title and rules span: the plot, or the views of a chart of
+ * several, widened a little for their axes, plus the category labels beside them. A title spans
+ * at least the canvas the theme sizes to (`toCanvas`); a rule closes only what is drawn.
  */
-export function planTitle(inputs: TitlePlanInputs): TitlePlan | undefined {
+export function chartBlock(inputs: TitlePlanInputs, toCanvas = true): number | undefined {
     const { structure, design, layout, plot, rows } = inputs;
     const field = structure.x?.derived ? undefined : structure.x?.fields[0];
     const bands = layout.xNominalCount > 0 && field ? new Set(rows.map((row) => row?.[field]).filter((v) => v != null)).size : 0;
-    const plotWidth = Math.round((bands ? layout.xStep * bands : plot.width) * 1.07);
-    const block = Math.max(plotWidth + labelGutter(inputs), design.layout.canvasWidth ?? 0);
-    if (!block || !Number.isFinite(block)) return undefined;
+    const plotWidth = Math.round((inputs.viewsWidth ?? (bands ? layout.xStep * bands : plot.width)) * 1.07);
+    const block = Math.max(plotWidth + labelGutter(inputs), toCanvas ? design.layout.canvasWidth ?? 0 : 0);
+    return block && Number.isFinite(block) ? block : undefined;
+}
+
+/**
+ * Fit a chart's title to the block it sits over: the plot, or the views of a chart of several,
+ * widened a little for their axes, plus the category labels beside them, and never narrower than
+ * the canvas the theme sizes to.
+ */
+export function planTitle(inputs: TitlePlanInputs): TitlePlan | undefined {
+    const { structure, design } = inputs;
+    const block = chartBlock(inputs);
+    if (!block) return undefined;
     const headlineText = inputs.title?.text ?? structure.title;
     const headline = headlineText && headlineText.trim()
         ? fitHeadlineText(headlineText, block, design.title.headline.fontSize ?? 14, design.title.deck.fontSize ?? 11)

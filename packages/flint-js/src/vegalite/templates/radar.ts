@@ -1,7 +1,8 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-import { ChartTemplateDef, ChartPropertyDef } from '../../core/types';
+import { ChartTemplateDef, ChartPropertyDef, type ViewPlanContext } from '../../core/types';
+import { distinctOf, type ViewNode } from '../../core/views';
 import { resolveSeriesTarget } from '../../core/interaction-semantics';
 import { annotationCandidates, presentAnnotationUpdate } from '../../interactive/presentation/annotation';
 
@@ -285,6 +286,34 @@ function radarSize(canvasSize: { width: number; height: number } | undefined): n
 /** The smallest panel a faceted radar draws. */
 const RADAR_MIN_PANEL = 200;
 
+/** The gap between a faceted radar's panels, and between its rows. */
+const RADAR_PANEL_GAP = 5;
+
+/**
+ * A faceted radar's panels: one per column value in a row, one row per row value, each holding
+ * only the groups with rows of their own, `RADAR_PANEL_GAP` apart.
+ */
+function radarViews(ctx: ViewPlanContext): ViewNode | undefined {
+    const columnField = ctx.channelSemantics.column?.field;
+    const rowField = ctx.channelSemantics.row?.field;
+    const panel: ViewNode = { kind: 'view', role: 'plot', width: ctx.plot.width, height: ctx.plot.height };
+    if (!ctx.table?.length || !ctx.channelSemantics.x?.field || !ctx.channelSemantics.y?.field) return undefined;
+    if (!columnField && !rowField) return panel;
+    const filled = (filter: (row: any) => boolean) => ctx.table.some(filter);
+    const columnGroups = columnField ? distinctOf(ctx.table, columnField) : ['_all'];
+    const rowGroups = rowField ? distinctOf(ctx.table, rowField) : ['_all'];
+    const row = (children: ViewNode[]): ViewNode => ({ kind: 'concat', direction: 'row', gap: RADAR_PANEL_GAP, children });
+    const column = (children: ViewNode[]): ViewNode => ({ kind: 'concat', direction: 'column', gap: RADAR_PANEL_GAP, children });
+    if (rowField && columnField) {
+        return column(rowGroups
+            .map((rg) => columnGroups.filter((cg) => filled((r) => String(r[rowField]) === rg && String(r[columnField]) === cg)).map(() => panel))
+            .filter((panels) => panels.length > 0)
+            .map(row));
+    }
+    if (columnField) return row(columnGroups.filter((cg) => filled((r) => String(r[columnField]) === cg)).map(() => panel));
+    return column(rowGroups.filter((rg) => filled((r) => String(r[rowField!]) === rg)).map(() => panel));
+}
+
 export const radarChartDef: ChartTemplateDef = {
     planPlot: (ctx) => {
         if (!ctx.table || ctx.table.length === 0 || !ctx.channelSemantics.x?.field || !ctx.channelSemantics.y?.field) return undefined;
@@ -293,6 +322,7 @@ export const radarChartDef: ChartTemplateDef = {
         const panel = faceted ? Math.max(RADAR_MIN_PANEL, size) : size;
         return { width: panel, height: panel };
     },
+    planViews: radarViews,
     chart: "Radar Chart",
     template: {
         description: "Radar / Spider chart",
@@ -404,7 +434,7 @@ export const radarChartDef: ChartTemplateDef = {
         };
 
         let finalSpec: any;
-        const concatSpacing = 5;
+        const concatSpacing = ctx.views?.kind === 'concat' ? ctx.views.gap : RADAR_PANEL_GAP;
 
         if (rowField && columnField) {
             const vconcat: any[] = [];

@@ -40,6 +40,8 @@ export interface FurnitureInputs {
     data: any[];
     canvas: { width: number; height: number };
     chartProperties?: Record<string, any>;
+    /** The gap the panels were laid out for, which the plan keeps. */
+    spacing?: FacetFurniture['spacing'];
 }
 
 const REFERENCE_SUBPLOT = 100;
@@ -113,6 +115,16 @@ function flatYTitle(design: DesignDecisions, structure: ChartStructure, topHeade
 }
 
 /**
+ * How far a panel's y ruler labels hang past its top and bottom together: half a line each, unless
+ * the theme flushes them inside the panel or the axis prints no ruler.
+ */
+export function rulerOverhang(structure: ChartStructure, design: DesignDecisions | undefined): number {
+    const yLabels = design?.axes.y?.label;
+    const ruled = structure.y !== undefined && ['quantitative', 'temporal'].includes(structure.y.type ?? '');
+    return ruled && yLabels?.show !== false && !yLabels?.flush ? Math.ceil(yLabels?.fontSize ?? 10) : 0;
+}
+
+/**
  * What a chart draws around its plot, as far as it takes room. Panels sit a scaled gap apart; a
  * theme may set its own, and widens the gap between rows to hold a header line (1.7 em) or a flat
  * y title that every row repeats.
@@ -136,8 +148,16 @@ export function planFurniture(inputs: FurnitureInputs): FurniturePlan {
         if (needed > row) spacing = { row: needed, column: base };
         else if (themed != null) spacing = themed;
     }
+    // Stacked panels each print their y ruler, whose end labels hang half a line past the panel
+    // unless flushed inside it: the gap between rows holds the two that meet.
+    const stacked = Boolean(channelSemantics.row?.field) || (Boolean(wrapField) && (layout.facet?.rows ?? 1) > 1);
+    const overhang = rulerOverhang(structure, design);
+    if (stacked && overhang > 0) {
+        const { row, column } = typeof spacing === 'number' ? { row: spacing, column: spacing } : spacing;
+        spacing = { row: row + overhang, column };
+    }
     return {
-        facets: { spacing, independentY: independent, binned: binnedFacets(inputs, gap) },
+        facets: { spacing: inputs.spacing ?? spacing, independentY: independent, binned: binnedFacets(inputs, gap) },
         ...(yTitle ? { yTitle } : {}),
     };
 }

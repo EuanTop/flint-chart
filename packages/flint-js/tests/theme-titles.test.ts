@@ -1,3 +1,5 @@
+import { vegaLiteStages } from '../src/vegalite/assemble';
+import { textPx } from '../src/core/title-fit';
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
@@ -115,7 +117,7 @@ describe('axis titles', () => {
     });
 
     it.each([240, 640])('appends a shared faceted measure once and fits its subtitle at %i px', async width => {
-        const spec: any = assembleVegaLite({
+        const input: any = {
             data: { values: [
                 { Year: 2024, Site: 'A', Mass: 10 },
                 { Year: 2025, Site: 'A', Mass: 20 },
@@ -132,7 +134,9 @@ describe('axis titles', () => {
                 baseSize: { width, height: 320 },
             },
             theme_spec: 'mckinsey',
-        });
+        };
+        const spec: any = assembleVegaLite(input);
+        const planned = vegaLiteStages(input).plan.title?.block ?? width;
         const view = new View(parse(compile(spec).spec), { renderer: 'none' });
         try {
             await view.runAsync();
@@ -144,9 +148,13 @@ describe('axis titles', () => {
             visit((view.scenegraph() as any).root);
             expect(subtitles.flatMap(item => [item.text].flat()).join(' '))
                 .toBe('Recorded at two sites in consecutive years; Shipment mass (kg)');
-            const blockWidth = Math.max(width, spec._theme.decisions.layout.plotWidth * 2);
+            // Node draws text with Vega's 0.8 em estimate, so each line is measured as title fitting
+            // measures it for a browser, against the block the plan fitted it to: both panels and the gap.
+            const blockWidth = planned;
             for (const item of subtitles) {
-                expect(item.bounds.width()).toBeLessThanOrEqual(blockWidth * 1.18);
+                for (const line of [item.text].flat()) {
+                    expect(textPx(String(line), item.fontSize)).toBeLessThanOrEqual(blockWidth * 1.18);
+                }
             }
         } finally {
             view.finalize();
@@ -294,7 +302,7 @@ describe('axis titles', () => {
                 structure: { axis: { measure: { placement: 'opposite' } } },
             },
         } as any) as any;
-        const y = spec.encoding?.y ?? spec.spec?.encoding?.y;
+        const y = spec.encoding?.y ?? spec.spec?.encoding?.y ?? spec.spec?.layer?.[0]?.encoding?.y;
         expect(y.axis.orient).toBe('right');
         expect(y.axis.titleY).toBeLessThanOrEqual(-30);
     });

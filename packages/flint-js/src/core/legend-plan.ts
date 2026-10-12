@@ -108,6 +108,8 @@ export interface LegendInputs {
     layout: LayoutResult;
     plot: { width: number; height: number };
     composite: boolean;
+    /** The width the views of a chart of several views span, which its keys are planned along. */
+    viewsWidth?: number;
     /** Whether a flat y title sits above the plot and no facet header holds that line. */
     flatYTitle: boolean;
 }
@@ -193,10 +195,10 @@ export function planLegend(inputs: LegendInputs): LegendPlan {
     const valueKeys = keys.filter((key) => key.show && key.valueKey && NAMING_CHANNELS.has(key.channel)).length;
     const untitled = Boolean(design) && named && !design!.legend.title && valueKeys === 0;
     let gradient: LegendPlan['gradient'];
-    if (design && named && !design.legend.gradientLength && (placement.direction ?? 'horizontal') === 'horizontal' && !composite) {
+    if (design && named && !design.legend.gradientLength && (placement.direction ?? 'horizontal') === 'horizontal' && (!composite || inputs.viewsWidth)) {
         const field = structure.x?.derived ? undefined : structure.x?.fields[0];
         const bands = layout.xNominalCount > 0 && field ? new Set(rows.map((row) => row?.[field]).filter((v) => v != null)).size : 0;
-        const block = Math.round((bands ? layout.xStep * bands : plot.width) * 1.07);
+        const block = Math.round((inputs.viewsWidth ?? (bands ? layout.xStep * bands : plot.width)) * 1.07);
         if (block) gradient = { length: Math.round(Math.min(200, Math.max(80, block * 0.45))), block };
     }
     // Names drawn at the ends of lines take the right margin, so the other keys move below the plot.

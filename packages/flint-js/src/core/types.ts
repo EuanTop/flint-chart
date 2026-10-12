@@ -9,6 +9,8 @@ import type { GeometryKind, ThemeGeometry, ThemeSpec } from './theme/types';
 import type { ChartInteractionSupport, InteractionSpec } from './interaction-spec';
 import type { ChartUpdateOp, UpdateTarget } from './interaction-contracts';
 import type { ChartStructure, StructureContext } from './structure';
+import type { ViewNode } from './views';
+import type { FamilyMeasure } from './text-width';
 
 /**
  * Core types for the chart engine library.
@@ -506,7 +508,19 @@ export interface LayoutResult {
  * inputs.
  */
 /** What a template reads to size its plot in the plan. */
-export type PlotPlanContext = Pick<InstantiateContext, 'layout' | 'canvasSize' | 'assembleOptions' | 'channelSemantics' | 'table' | 'fullTable' | 'semanticTypes' | 'chartProperties'>;
+export type PlotPlanContext = Pick<InstantiateContext, 'layout' | 'canvasSize' | 'assembleOptions' | 'channelSemantics' | 'table' | 'fullTable' | 'semanticTypes' | 'chartProperties' | 'measureText'>;
+
+/** What a template reads to plan its views: the plot the plan sized and the gap it keeps between facet panels. */
+export type ViewPlanContext = PlotPlanContext & {
+    plot: { width: number; height: number };
+    spacing: number | { row: number; column: number };
+    /** The title each encoded channel prints, where it prints one. */
+    titles: Partial<Record<string, string>>;
+    /** The columns a facet on the column field alone wraps into. */
+    facetColumns: number;
+    /** How far a panel's y ruler labels hang past its top and bottom together; rows stacked by the template keep it between them. */
+    rulerOverhang: number;
+};
 
 export interface InstantiateContext {
     /** Per-channel semantic decisions (Phase 0) */
@@ -517,6 +531,10 @@ export interface InstantiateContext {
 
     /** The plot the plan sized; a template that sets its own size draws at this one. */
     plot?: { width: number; height: number };
+    /** The views the plan stated, where the template plans them; it draws their sizes and gaps. */
+    views?: ViewNode;
+    /** How wide text is in the family the chart's text is set in, as the plan measures it. */
+    measureText?: FamilyMeasure;
 
     /** The data table (array of row objects, post-overflow filtering) */
     table: any[];
@@ -1048,6 +1066,13 @@ export interface ChartTemplateDef {
     planPlot?: (context: PlotPlanContext) => { width: number; height: number } | undefined;
 
     /**
+     * The views this chart type draws and how they stand, where it composes them itself rather
+     * than faceting one plot by its column and row fields. Runs in the plan, after the plot;
+     * `instantiate` draws the sizes and gaps it finds in `context.views`.
+     */
+    planViews?: (context: ViewPlanContext) => ViewNode | undefined;
+
+    /**
      * What the chart draws, where `instantiate` builds marks, fields or stacking its skeleton does
      * not show. Runs before the plan sizes the chart; a test keeps it equal to what `instantiate`
      * builds. Undefined derives the structure from the skeleton.
@@ -1374,6 +1399,9 @@ export interface AssembleOptions {
      * Each backend sets its own value (VL ≈ 10, ECharts ≈ 14); core uses 0.
      */
     facetGap?: number;
+    /** The gap between facet columns and between facet rows the panels are laid out for, where it differs from `facetGap`; set by the plan. */
+    facetGapColumn?: number;
+    facetGapRow?: number;
     /**
      * Explicit number of facet COLUMNS for a column-wrapped facet, overriding
      * the auto-computed wrap. When set (≥ 1) the layout uses this many columns

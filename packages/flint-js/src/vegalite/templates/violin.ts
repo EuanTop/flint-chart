@@ -31,7 +31,8 @@
  * Reuses density.ts's bandwidth wiring and the boxplot's discrete-axis handling.
  */
 
-import { ChartTemplateDef, ChartPropertyDef, PlotPlanContext } from '../../core/types';
+import { ChartTemplateDef, ChartPropertyDef, PlotPlanContext, type ViewPlanContext } from '../../core/types';
+import { gapOf, type ViewNode } from '../../core/views';
 import { skeletonStructure } from '../../core/structure';
 import { resolveSeriesTarget } from '../../core/interaction-semantics';
 import {
@@ -177,7 +178,32 @@ function violinGrid(
     return { useGrid, columns, panel: { width: panelW, height: panelH } };
 }
 
+/**
+ * A violin's panels: one per category, wrapped into rows the plan's facet gap apart, or crossed
+ * with the sub-groups (or an outer row field) into a grid of touching columns and rows the facet
+ * gap apart.
+ */
+function violinViews(ctx: ViewPlanContext): ViewNode | undefined {
+    const catField = ctx.channelSemantics.x?.field;
+    if (!catField || !ctx.channelSemantics.y?.field) return undefined;
+    const colorField = ctx.channelSemantics.color?.field;
+    const rowField = ctx.channelSemantics.row?.field;
+    const { useGrid, columns } = violinGrid(ctx, catField, colorField, rowField);
+    const panel: ViewNode = { kind: 'view', role: 'plot', width: ctx.plot.width, height: ctx.plot.height };
+    const categories = Math.max(1, distinctValues(ctx.table, catField).length);
+    const gap = gapOf(ctx.spacing, 0);
+    const crossed = useGrid ? colorField : rowField;
+    if (crossed) {
+        // Columns of a grid share each row's ruler, so they touch and its grid lines run unbroken.
+        const rows = Math.max(1, distinctValues(ctx.table, crossed).length);
+        const row = useGrid ? gap.row + ctx.rulerOverhang : gap.row;
+        return { kind: 'facet', columns: categories, rows, panels: categories * rows, gap: { row, column: 0 }, panel };
+    }
+    return { kind: 'facet', columns, rows: Math.ceil(categories / columns), panels: categories, gap, panel };
+}
+
 export const violinPlotDef: ChartTemplateDef = {
+    planViews: violinViews,
     planPlot: (ctx) => {
         const catField = ctx.channelSemantics.x?.field;
         if (!catField || !ctx.channelSemantics.y?.field) return undefined;
@@ -334,13 +360,10 @@ export const violinPlotDef: ChartTemplateDef = {
         const { useGrid, columns, panel } = violinGrid(ctx, catField, colorField, rowField);
         const panelW = ctx.plot?.width ?? panel.width;
         const panelH = ctx.plot?.height ?? panel.height;
-        const spacing = 0;
-
         const facetDef: any = {
             field: catField,
             type: catType,
             ...(x?.sort !== undefined ? { sort: x.sort } : {}),
-            spacing,
             header: { titleOrient: 'bottom', labelOrient: 'bottom', labelPadding: 2 },
         };
 

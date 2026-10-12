@@ -25,7 +25,8 @@ import { OWNED_AXIS_KEYS } from './owned-axis-keys.js';
 import { CONTINUOUS_BAR_STEP_FILL, coverageSizedMarks } from './templates/utils.js';
 import { LOCAL_DODGE_LANE_FILL } from './templates/bar.js';
 import { CANVAS_FURNITURE_KEY, readCanvasFurniture, type CanvasFurnitureItem } from './canvas-furniture.js';
-import { withInteractionLegendLabel, withInteractionTextLabel } from './interaction-provenance.js';
+import { withInteractionDecorative, withInteractionLegendLabel, withInteractionTextLabel } from './interaction-provenance.js';
+import { facetDropsTicks, gridOvershoot } from '../core/furniture-reserve';
 import type { ValueLabelPlan } from '../core/value-label-plan';
 import { pointOutlineWidth, type LayoutPlan } from '../core/plan';
 import type { FurniturePlan } from '../core/furniture-plan';
@@ -344,9 +345,9 @@ function titleOf(enc: any): string | undefined {
 
 export function realizeThemeVegaLite(
     spec: any, d: DesignDecisions, table: any[] = [],
-    planned: Partial<Pick<LayoutPlan, 'axisLabels' | 'title' | 'valueLabels' | 'furniture' | 'legend' | 'points' | 'pointSize'>> = {},
+    planned: Partial<Pick<LayoutPlan, 'axisLabels' | 'title' | 'valueLabels' | 'furniture' | 'legend' | 'points' | 'pointSize' | 'rules'>> = {},
 ): ThemeReport[] {
-    const { axisLabels, title, valueLabels, furniture, legend, points, pointSize } = planned;
+    const { axisLabels, title, valueLabels, furniture, legend, points, pointSize, rules } = planned;
     const report: ThemeReport[] = [];
     const say: ReportDeparture = (path, code, message) => report.push({ stage: 'realize', path, code, message });
 
@@ -373,7 +374,7 @@ export function realizeThemeVegaLite(
     applyPrintedUnits(spec, d);
     applyStatistics(spec, d, table);
     fitTitle(spec, d, table, say, title);
-    const wrapped = applyFurniture(spec, d, table, say);
+    const wrapped = applyFurniture(spec, d, rules);
 
     return wrapped ? report : report;
 }
@@ -661,7 +662,7 @@ function applyAxes(
         // ink. A house that draws its own ticks already has a mark there.
         if (themed.grid && axis.role === 'measure' && !axis.ticks.show
             && axis.label.show !== false) {
-            const overshoot = Math.max(4, Math.round((axis.label.padding ?? 4) * 0.75));
+            const overshoot = gridOvershoot(axis);
             themed.ticks = true;
             themed.tickColor = axis.grid.color;
             themed.tickWidth = axis.grid.width;
@@ -3269,39 +3270,76 @@ function applyFacetChrome(spec: any, config: any, d: DesignDecisions): void {
         ...(f.header.show ? {} : { labels: false }),
         ...(f.header.fieldTitle ? {} : { title: null }),
     };
+    // A faceted chart draws its x axis line under the bottom row only, so every panel stands on a
+    // floor drawn as that line at its own bottom edge, and the axis draws none.
+    const spine = config.axisX ?? {};
+    const drawsSpine = spine.domain !== false && spine.domainColor && spine.domainColor !== 'transparent'
+        && (spine.domainWidth ?? 1) > 0;
+    const floored: any[] = [];
     walk(spec, node => {
-        if (!node.facet || !node.spec) return;
-        const wrapped = !!node.facet.field && typeof node.columns === 'number';
-        if (!wrapped && !node.facet.row) return;
-        const spine = config.axisX ?? {};
-        const grid = config.axisY ?? {};
+        const operator = Boolean(node.facet && node.spec);
+        const wrapped = operator ? !!node.facet.field && typeof node.columns === 'number' : Boolean(node.encoding?.facet);
+        const rowed = operator ? Boolean(node.facet.row) : Boolean(node.encoding?.row);
+        if (!wrapped && !rowed) return;
         let hasSpine = false;
-        walk(node.spec, child => {
+        walk(operator ? node.spec : node, child => {
             const axis = child.encoding?.x;
             if (axis?.field && axis.axis !== null && axis.axis?.domain !== false) hasSpine = true;
         });
-        const sharedSpine = hasSpine && node.resolve?.axis?.x !== 'independent'
-            && node.resolve?.scale?.x !== 'independent' && spine.domain !== false
-            && spine.domainColor && spine.domainColor !== 'transparent' && (spine.domainWidth ?? 1) > 0;
+        const shared = node.resolve?.axis?.x !== 'independent' && node.resolve?.scale?.x !== 'independent';
+        if (drawsSpine && hasSpine && shared) floored.push(node);
+    });
+    for (const node of floored) {
+        // The floor is every panel's x axis line, the bottom row's too.
+        walk(node.facet && node.spec ? node.spec : node, child => {
+            const x = child.encoding?.x;
+            if (x?.field && x.axis !== null) x.axis = { ...(x.axis ?? {}), domain: false };
+        });
+        const top = spine.orient === 'top';
+        const offset = spine.offset ?? 0;
+        appendLayer(node, withInteractionDecorative({
+            __themeSynthetic: true,
+            transform: [{ window: [{ op: 'row_number', as: '__flintFloor' }], groupby: [] }, { filter: 'datum.__flintFloor === 1' }],
+            mark: {
+                type: 'rule',
+                color: spine.domainColor,
+                strokeWidth: spine.domainWidth ?? 1,
+                ...(spine.domainDash ? { strokeDash: spine.domainDash } : {}),
+                ...(offset ? { yOffset: top ? -offset : offset } : {}),
+            },
+            encoding: {
+                y: { value: top ? 0 : 'height' },
+                x: { value: 0 },
+                x2: { value: 'width' },
+            },
+        }));
+    }
+    const yAxis = d.axes.y;
+    if (yAxis && facetDropsTicks(yAxis)) {
+        walk(spec, node => {
+            const operator = Boolean(node.facet && node.spec);
+            if (!operator && !node.encoding?.facet && !node.encoding?.row && !node.encoding?.column) return;
+            walk(operator ? node.spec : node, child => {
+                const encoding = child.encoding?.y;
+                if (!encoding?.field || encoding.axis === null || !['quantitative', 'temporal'].includes(encoding.type)) return;
+                encoding.axis = { ...(encoding.axis ?? {}), ticks: false };
+            });
+        });
+    }
+    walk(spec, node => {
+        if (!node.facet || !node.spec) return;
+        const wrapped = !!node.facet.field && typeof node.columns === 'number';
+        if (!wrapped) return;
         walk(node.spec, child => {
             const encoding = child.encoding?.y;
             if (!encoding?.field || encoding.axis === null) return;
             const axis = encoding.axis ??= {};
-            if (wrapped && node.resolve?.axis?.y !== 'independent' && node.resolve?.scale?.y !== 'independent'
+            if (node.resolve?.axis?.y !== 'independent' && node.resolve?.scale?.y !== 'independent'
                 && axis.titleAngle === 0 && axis.title !== null && typeof axis.titleY === 'number' && axis.titleY < 0) {
                 const title = axis.title ?? titleOf(encoding);
                 if (typeof title === 'string') {
                     axis.title = { expr: `parent.data === 0 ? ${JSON.stringify(title)} : ''` };
                 }
-            }
-            if (sharedSpine && ['quantitative', 'temporal'].includes(encoding.type)) {
-                const boundary = `datum.index === ${spine.orient === 'top' ? 1 : 0}`;
-                axis.grid = true;
-                axis.gridColor = { condition: { test: boundary, value: spine.domainColor },
-                    value: grid.grid ? grid.gridColor : 'transparent' };
-                axis.gridWidth = { condition: { test: boundary, value: spine.domainWidth ?? 1 },
-                    value: grid.grid ? grid.gridWidth ?? 1 : 0 };
-                axis.gridDash = { condition: { test: boundary, value: [] }, value: grid.gridDash ?? [] };
             }
         });
     });
@@ -3969,6 +4007,8 @@ function stripAxis(enc: any): any {
 }
 
 function appendLayer(body: any, layer: any): void {
+    // A facet operator draws its spec in every panel; the layer joins that spec.
+    if (body.facet && body.spec) { appendLayer(body.spec, layer); return; }
     if (body.layer) { body.layer.push(layer); return; }
     const base: any = { mark: body.mark };
     if (body.encoding) base.encoding = body.encoding;
@@ -4787,52 +4827,7 @@ function applyStatistics(spec: any, d: DesignDecisions, table: any[]): void {
 // Furniture
 // ---------------------------------------------------------------------------
 
-/**
- * A chart whose radial mark cannot survive being wrapped in a concatenation to
- * hang furniture beneath it. A pie is a disc of angles and rides inside a
- * `vconcat` unharmed; but a *rose* sizes its petals by radius, and a *faceted*
- * disc splits into panels, and in either case Vega-Lite reads the panel's width
- * signal to lay the mark out — a signal the concat wrapper either rescopes out
- * of the mark's reach (the facet: an unresolved `child_width`) or leaves the
- * radius scale to collapse against (the rose: petals shrunk to a compass). The
- * chart is already its own block; a rule across it has no single width to take.
- */
-function radialResistsFurniture(spec: any): boolean {
-    let faceted = false;
-    let arc = false;
-    let radiusArc = false;
-    walk(spec, (node) => {
-        if (node.facet) faceted = true;
-        for (const ch of ['facet', 'row', 'column'] as const) {
-            if (node.encoding?.[ch]) faceted = true;
-        }
-        if (markTypeOf(node.mark) === 'arc') {
-            arc = true;
-            if (node.encoding?.radius) radiusArc = true;
-        }
-    });
-    return radiusArc || (arc && faceted);
-}
-
-/**
- * A faceted *table* — a `facet` operator whose panel is itself a concatenation
- * (a bar-table's label / bar / value columns laid side by side) — meets the
- * same wall as the faceted disc in `radialResistsFurniture`, one level deeper.
- * Wrapping `facet > concat` in an outer furniture `vconcat` yields
- * `concat > facet > concat`, and Vega-Lite rescopes the inner panels' width
- * signals out of the concat's reach: every column collapses and the whole
- * block renders empty. A plain faceted unit (line-facet, area-facet) has no
- * such nested signal and rides the wrapper unharmed, so this stays narrow —
- * only the facet-of-concat is refused. Like the disc, the table is already its
- * own stack of blocks, with no single width for a rule to run across.
- */
-function facetedTableResistsFurniture(spec: any): boolean {
-    if (!spec.facet) return false;
-    const panel = spec.spec;
-    return !!(panel && (panel.hconcat || panel.vconcat || panel.concat));
-}
-
-function applyFurniture(spec: any, d: DesignDecisions, table: any[], say: ReportDeparture): boolean {
+function applyFurniture(spec: any, d: DesignDecisions, planned: LayoutPlan['rules']): boolean {
     if (!d.furniture.length) return false;
 
     // Two kinds of furniture with different homes. A masthead tab is *branding*
@@ -4850,47 +4845,22 @@ function applyFurniture(spec: any, d: DesignDecisions, table: any[], say: Report
     let handled = false;
     if (canvas.length) handled = applyCanvasFurniture(spec, canvas, d) || handled;
 
-    if (!rules.length) return handled;
+    if (!rules.length || !planned || 'refused' in planned) return handled;
 
-    if (spec.vconcat || spec.hconcat || spec.concat) {
-        say('furniture', 'rule-not-drawn', 'the closing rule is not drawn — the chart is already a concatenation');
-        return handled;
-    }
-    // A rose or a faceted disc cannot be wrapped in a block to hang a rule
-    // beneath it — see `radialResistsFurniture`. It is already its own block.
-    if (radialResistsFurniture(spec)) {
-        say('furniture', 'rule-not-drawn', 'the closing rule is not drawn — a radial chart is already its own block, with no edge to close');
-        return handled;
-    }
-    // A faceted table (facet of concat) collapses when wrapped — see
-    // `facetedTableResistsFurniture`. It is already its own stack of blocks.
-    if (facetedTableResistsFurniture(spec)) {
-        say('furniture', 'rule-not-drawn', 'the closing rule is not drawn — a faceted table is already its own stack of blocks, with no single edge to close');
-        return handled;
-    }
-
-    // A rule closes a block, so its length is the block's, and a house that
-    // draws one does not state a number for it. Falling back to a stub leaves a
-    // dash in the corner that looks like a mistake rather than an edge.
+    // The plan sized each rule to the block it closes and took their room from the plot.
     const before: any[] = [];
     const after: any[] = [];
-    const block = blockWidth(spec, table);
-    for (const item of rules) {
-        const width = item.width ?? block;
-        if (width == null) {
-            say('furniture', 'rule-not-drawn', `the house draws a ${item.kind} across the block, but the chart states no width to draw it across — left out`);
-            continue;
-        }
-        const isTop = (item.anchor ?? 'topLeft').startsWith('top');
+    for (const item of planned.rules) {
         const rect = {
             __themeSynthetic: true,
             mark: { type: 'rect', color: item.color ?? d.text.primary },
-            width,
-            height: item.height ?? 2,
+            width: item.width,
+            height: item.height,
             data: { values: [{}] },
         };
-        (isTop ? before : after).push(rect);
+        (item.edge === 'top' ? before : after).push(rect);
     }
+    takeFromPlotHeight(spec, planned.room);
     if (!before.length && !after.length) return handled;
 
     const inner: any = { ...spec };

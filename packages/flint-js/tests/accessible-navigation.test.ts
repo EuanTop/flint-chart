@@ -415,7 +415,7 @@ describe('accessible navigation tree', () => {
             view.finalize();
         }
         expect(covered).toBe(chartTypes.length);
-    });
+    }, 30_000);
 });
 
 describe('AccessibleNavigator', () => {

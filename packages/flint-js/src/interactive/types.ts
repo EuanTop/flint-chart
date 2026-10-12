@@ -64,9 +64,25 @@ export interface ChartChange {
 export type ChartChangeReport = Omit<ChartChange, 'changed' | 'previous'>;
 
 /** What the chart's layout plan decided, as far as a host reads it. */
+/** A box in pixels from the top left of the drawn chart. */
+export interface LayoutBox {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+
 export interface ChartLayout {
-    /** The plot box in pixels: the data area, inside axes, legend and titles. */
-    plot: { width: number; height: number };
+    /** The plot box in pixels: the data area, inside axes, legend and titles; only on a chart that draws one plot. */
+    plot?: { width: number; height: number };
+    /**
+     * Each view the chart draws, as drawn: a plot, a column of text, a tile or a theme's rule, in
+     * draw order (facet panels row by row). Read from the rendered chart, so it follows filters,
+     * resizes and zoom.
+     */
+    views?: Array<{ role: 'plot' | 'text' | 'tile' | 'rule'; box: LayoutBox }>;
+    /** The box the views take with their axes and headers, without the title and keys. */
+    block?: LayoutBox;
 }
 
 export interface InteractiveRenderer {
@@ -137,9 +153,10 @@ export interface InteractiveChartSurface {
     /** Every warning about this chart's interactions, once the mount has settled. Never rejects. */
     readonly warnings: Promise<readonly ChartWarning[]>;
     /**
-     * The layout the chart is drawn with now; a filter that re-lays the chart out updates it. Undefined
-     * before the mount, on a chart that draws several views (facets, or a composite such as a bar
-     * table), on a chart with a category rail, and on backends that do not plan one.
+     * The layout the chart is drawn with now, following filters and resizes. `plot` is the planned
+     * plot on a chart that draws one plot at that size; `views` and `block` are read from what the
+     * chart drew. Undefined before the mount, on a chart with a category rail, and on backends that
+     * do not report one; a static compile reports sizes only, in its plan.
      */
     readonly layout: ChartLayout | undefined;
     getViewportState(): ViewportState;

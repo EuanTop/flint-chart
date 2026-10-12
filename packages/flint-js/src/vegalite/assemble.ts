@@ -62,6 +62,8 @@ import { vlGetTemplateDef } from './templates';
 import { getRegistryEntry } from '../core/type-registry';
 import type { SemanticAnnotation } from '../core/field-semantics';
 import { resolveBaseSize, withCanvasSize } from '../core/compute-layout';
+import { gapOf, type ViewNode } from '../core/views';
+import { plotHeightAfter } from '../core/title-fit';
 import { inWindow, positionOf } from '../core/window';
 import { vegaLiteSort } from './sort';
 import { vegaLiteDepartures } from './honour';
@@ -74,7 +76,8 @@ import { resolveChartDefaults, resolveCompileDefaults, resolveGeometry, resolveV
 import { resolveThemeSpec } from '../core/theme/presets';
 import { realizeThemeVegaLite, realizeValueLabelsVegaLite, vegaLiteBuiltFacts } from './theme';
 import { vlWriteKeyLayout } from './key-layout';
-import { tableTextMeasurer, vegaEstimateMeasurer } from '../core/text-width';
+import { familyMeasure, tableTextMeasurer, vegaEstimateMeasurer } from '../core/text-width';
+import { themeBodyFamily } from '../core/theme/ground';
 import { chartDisplayNames, encodingTitle, TIGHT_X_MARKS, titleText, type BuiltFacts, type ChartStructure } from '../core/structure';
 import { heightAfterTitle, type TitlePlan } from '../core/title-plan';
 
@@ -183,12 +186,17 @@ export function indexAxisOf(
 }
 
 /** The plot's stated size — the view's continuous size, and the plot view's width and height — as one string. */
-function plotSizeFields(spec: any, title?: TitlePlan): string {
-    const height = (value: unknown) => (typeof value === 'number' ? heightAfterTitle(value, title) : value);
-    // A theme may wrap the plot in a concatenation with its furniture; the plot is the first view.
+function plotSizeFields(spec: any, title?: TitlePlan, ruleRoom = 0): string {
+    const height = (value: unknown) => {
+        if (typeof value !== 'number') return value;
+        const titled = heightAfterTitle(value, title);
+        return ruleRoom ? plotHeightAfter(titled, ruleRoom) : titled;
+    };
+    // A theme may wrap the plot in a concatenation with its rules; the plot is its first view that is not one.
     let plot = spec;
     while (plot && !plot.mark && !plot.layer && !plot.facet && !plot.spec && (plot.vconcat ?? plot.hconcat ?? plot.concat)) {
-        plot = (plot.vconcat ?? plot.hconcat ?? plot.concat)[0];
+        const views: any[] = plot.vconcat ?? plot.hconcat ?? plot.concat;
+        plot = views.find((view) => !view.__themeSynthetic) ?? views[0];
     }
     return JSON.stringify([
         spec.config?.view?.continuousWidth, height(spec.config?.view?.continuousHeight),
@@ -397,6 +405,7 @@ function instantiateVegaLite(
         channelSemantics,
         layout: layoutResult,
         plot: plan.plot,
+        ...(plan.laidOutViews ? { views: plan.laidOutViews } : {}),
         table: values,
         fullTable: convertedData,
         resolvedEncodings,
@@ -408,6 +417,10 @@ function instantiateVegaLite(
         chartType,
         assembleOptions: effectiveOptions,
         geometry: chartGeometry,
+        measureText: familyMeasure(
+            VEGA_LITE_LAYOUT.measureText!,
+            prepared.themeSpec ? themeBodyFamily(prepared.themeSpec) ?? 'sans-serif' : 'sans-serif',
+        ),
     };
 
     chartTemplate.instantiate(vgObj, instantiateContext);
@@ -478,7 +491,7 @@ export function buildVegaLite(input: ChartAssemblyInput, prepared: VegaLitePrepa
     // Apply the planned panel gap so Vega-Lite uses it for spacing.
     const facets = plan.furniture.facets;
     vgObj.config = vgObj.config || {};
-    vgObj.config.facet = { spacing: facets.spacing };
+    writeFacetGap(vgObj, plannedFacetGap(plan.views) ?? gapOf(facets.spacing, 0));
 
     for (const channel of facets.binned) {
         const enc = vgObj.encoding?.[channel] ?? (channel === 'column' ? vgObj.encoding?.facet : undefined);
@@ -532,7 +545,7 @@ function emitVegaLite(input: ChartAssemblyInput, prepared: VegaLitePreparation, 
     // fits, so it must see the finished spec. Only realization is gated on a
     // named house, so an untheme'd chart gets its numbers without also getting
     // a house's ink, type and furniture.
-    const plannedPlotSize = plotSizeFields(vgObj, plan.title);
+    const plannedPlotSize = plotSizeFields(vgObj, plan.title, plan.rules?.room);
     // Some templates write their own text on the marks. Where they do, the
     // label layer stands down (it will not print a second number beside the
     // template's), so the toggle would be a control that changes nothing.
@@ -565,6 +578,13 @@ function emitVegaLite(input: ChartAssemblyInput, prepared: VegaLitePreparation, 
         }];
     }
 
+    // The theme may have moved the facet; the gap is written again where the final spec reads it.
+    if (plan.layout.facet || plannedFacetGap(plan.views)) {
+        const ruled = Array.isArray(vgObj.vconcat) && vgObj.vconcat.some((child: any) => child.__themeSynthetic)
+            ? vgObj.vconcat.find((child: any) => !child.__themeSynthetic)
+            : undefined;
+        writeFacetGap(ruled ?? vgObj, plannedFacetGap(plan.views) ?? gapOf(plan.furniture.facets.spacing, 0), vgObj.config);
+    }
     chartTemplate.postProcess?.(vgObj, instantiateContext);
     vlFinalizeTemporalAxes(vgObj, instantiateContext);
     vlWriteKeyLayout(vgObj, plan.legend, plan.plot, plan.layout, VEGA_LITE_LAYOUT.measureText!);
@@ -851,7 +871,7 @@ export interface VegaLiteSession {
  * A chart's title and plot size as the plan fits the title, and as realization fits it on its own
  * from the built spec. Kept equal by a test.
  */
-export function vegaLiteTitleFits(input: ChartAssemblyInput): { planned: unknown; own: unknown } {
+export function vegaLiteTitleFits(input: ChartAssemblyInput): { planned: unknown; own: unknown; composite: boolean } {
     const prepared = prepareVegaLite(input);
     const analysis = analyzeChart(input, prepared.template, prepared.chartProperties, vlGetTemplateDef);
     const plan = planLayout(analysis, vegaLitePlanContext(input, prepared, analysis));
@@ -859,6 +879,7 @@ export function vegaLiteTitleFits(input: ChartAssemblyInput): { planned: unknown
     return {
         planned: fitted(emitVegaLite(input, prepared, analysis, plan).spec),
         own: fitted(emitVegaLite(input, prepared, analysis, { ...plan, title: undefined }).spec),
+        composite: plan.composite,
     };
 }
 
@@ -890,6 +911,12 @@ export function vegaLiteHonour(input: ChartAssemblyInput): PlanDeparture[] {
     return vegaLiteDepartures(plan, spec, plotAsPlanned, fields);
 }
 
+/** The plot's height once a broken title and a theme's closing rules have taken theirs from it. */
+function drawnHeight(plan: LayoutPlan): number {
+    const titled = heightAfterTitle(plan.plot.height, plan.title);
+    return plan.rules?.fromPlot ? plotHeightAfter(titled, plan.rules.room) : titled;
+}
+
 export function openVegaLiteSession(
     input: ChartAssemblyInput,
     options: { pins?: Pick<NonNullable<PlanContext['pins']>, 'axisLabels' | 'reserve'> } = {},
@@ -902,7 +929,7 @@ export function openVegaLiteSession(
     };
     const drawnPlot = (planned: LayoutPlan, plotAsPlanned: boolean) =>
         planned.composite || !plotAsPlanned ? undefined
-            : { width: planned.plot.width, height: heightAfterTitle(planned.plot.height, planned.title) };
+            : { width: planned.plot.width, height: drawnHeight(planned) };
     const emitted = (prepared: VegaLitePreparation, plan: LayoutPlan): Replanned => {
         const out = emitVegaLite(input, prepared, analysis, plan);
         return { spec: out.spec, plot: drawnPlot(plan, out.plotAsPlanned), axisLabels: plan.axisLabels, dataLabels: plan.design.dataLabels, plan };
@@ -1197,6 +1224,32 @@ function buildVLEncodings(
  *   1. Moves `encoding.column` → `encoding.facet` (with `columns: N`).
  *   2. For layered specs, hoists to top-level `facet` + `spec`.
  */
+/** The gap the plan states between facet panels: the outermost facet's, or that of the facets a concat sets side by side. */
+function plannedFacetGap(views: ViewNode | undefined): { row: number; column: number } | undefined {
+    if (!views || views.kind === 'view') return undefined;
+    if (views.kind === 'facet') return views.gap;
+    for (const child of views.children) {
+        const gap = plannedFacetGap(child);
+        if (gap) return gap;
+    }
+    return undefined;
+}
+
+/**
+ * Writes the facet gap where Vega-Lite reads it: each row and column field, the spec of a facet
+ * operator, and the config, a pair only for a wrapped facet, since a row or column field without
+ * its own gap takes a config pair whole.
+ */
+function writeFacetGap(vgObj: any, gap: { row: number; column: number }, config: any = vgObj.config): void {
+    const spacing = gap.row === gap.column ? gap.row : { row: gap.row, column: gap.column };
+    const fields = vgObj.facet && vgObj.spec ? vgObj.facet : vgObj.encoding;
+    const wrapped = Boolean(fields?.facet || (vgObj.facet && vgObj.spec && vgObj.facet.field));
+    config.facet = { ...config.facet, spacing: wrapped ? spacing : gap.column };
+    if (vgObj.facet && vgObj.spec) vgObj.spacing = spacing;
+    if (fields?.row && typeof fields.row === 'object') fields.row.spacing = gap.row;
+    if (fields?.column && typeof fields.column === 'object') fields.column.spacing = gap.column;
+}
+
 function restructureFacets(
     vgObj: any,
     nominalCounts: Record<string, number>,

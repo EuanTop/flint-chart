@@ -237,7 +237,13 @@ const stop = surface.onChange(({ phase, state }) => {
 });
 ```
 
-`surface.layout` reports what the chart's layout decided, once `surface.ready` resolves: `layout.plot` is the plot box in pixels, the data area inside axes, legend, and titles. A host reads it to size or align things around the chart without compiling the spec again. Sizes are in the chart's own pixels, before any CSS scaling. When a filter re-lays the chart out, `layout` follows it; read it again after `onChange`. It is set on Vega-Lite charts that draw one plot, and `undefined` on faceted and composite charts (a bar table, a pyramid, KPI cards, sparklines), on charts with a category rail, and on other backends.
+`surface.layout` reports where the chart is drawn, once `surface.ready` resolves. A host reads it to size or align things around the chart without compiling the spec again.
+
+- `layout.plot` is the plot box in pixels, the data area inside axes, legend, and titles, on a chart that draws one plot.
+- `layout.views` lists each view the chart draws, `{ role, box: { x, y, width, height } }`: a plot, a column of text (a bar table's values), a tile (a KPI card), or a theme's rule, with facet panels row by row.
+- `layout.block` is the box the views take with their axes and headers, without the title and keys.
+
+Boxes are in pixels from the top left of the drawn chart, before any CSS scaling, and are read from what the chart drew, so they follow filters, resizes, and zoom; read them again after `onChange`. `layout` is `undefined` on charts with a category rail and on other backends. A static compile reports sizes only.
 
 ## Lifecycle and cleanup
 

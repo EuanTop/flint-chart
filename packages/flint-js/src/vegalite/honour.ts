@@ -1,4 +1,5 @@
 import type { LayoutPlan } from '../core/plan';
+import { gapOf, type ViewNode } from '../core/views';
 import { sameDecision, type PlanDeparture } from '../core/honour';
 import { INTERACTION_PROVENANCE } from './interaction-provenance';
 import { vegaLiteSort } from './sort';
@@ -139,13 +140,35 @@ function encodingDepartures(plan: LayoutPlan, spec: any, fields: Partial<Record<
     }
 }
 
+/** The gap the plan states between facet panels: the outermost facet's, or that of the facets a concat sets side by side. */
+function facetGapOf(views: ViewNode | undefined): { row: number; column: number } | undefined {
+    if (!views || views.kind === 'view') return undefined;
+    if (views.kind === 'facet') return views.gap;
+    for (const child of views.children) {
+        const gap = facetGapOf(child);
+        if (gap) return gap;
+    }
+    return undefined;
+}
+
 /** How a faceted chart's panels sit, and a flat y title's lift. */
 function furnitureDepartures(plan: LayoutPlan, spec: any, out: PlanDeparture[]): void {
     const facets = plan.furniture.facets;
     const faceted = nodesOf(spec).find((node) => node.facet || node.encoding?.row || node.encoding?.column || node.encoding?.facet);
     if (plan.layout.facet && faceted) {
-        const spacing = faceted.spacing ?? spec.config?.facet?.spacing;
-        if (!sameDecision(facets.spacing, spacing)) out.push({ decision: 'furniture.facets.spacing', planned: facets.spacing, drawn: spacing });
+        const planned = facetGapOf(plan.views) ?? gapOf(facets.spacing, 0);
+        const config = gapOf(spec.config?.facet?.spacing, 0);
+        const stated = gapOf(faceted.spacing, Number.NaN);
+        const fields = faceted.facet && faceted.spec ? faceted.facet : faceted.encoding ?? {};
+        const drawn = {
+            row: fields.row?.spacing ?? (Number.isNaN(stated.row) ? config.row : stated.row),
+            column: fields.column?.spacing ?? (Number.isNaN(stated.column) ? config.column : stated.column),
+        };
+        const rows = Boolean(fields.row || fields.facet || fields.field || plan.views?.kind === 'facet' && plan.views.rows > 1);
+        const columns = Boolean(fields.column || fields.facet || fields.field);
+        if ((rows && drawn.row !== planned.row) || (columns && drawn.column !== planned.column)) {
+            out.push({ decision: 'views.gap', planned, drawn });
+        }
         const independent = [faceted, spec].some((node) => node.resolve?.scale?.y === 'independent');
         if (independent !== facets.independentY) out.push({ decision: 'furniture.facets.independentY', planned: facets.independentY, drawn: independent });
         for (const channel of facets.binned) {

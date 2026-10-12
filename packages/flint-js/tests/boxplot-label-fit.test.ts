@@ -390,12 +390,14 @@ describe('faceted labels across themes', () => {
         expect(titles).toHaveLength(1);
         expect(panels).toHaveLength(4);
         expect(titles[0].bottom).toBeLessThan(Math.min(...panels.map(panel => panel.top)));
-        expect(spec.config.facet.spacing.row ?? spec.config.facet.spacing).toBeLessThanOrEqual(20);
+        // The gap between rows holds the y ruler labels that meet there, and stays compact.
+        expect(spec.config.facet.spacing.row ?? spec.config.facet.spacing).toBeLessThanOrEqual(30);
         expect(spec.config.legend.offset ?? 18).toBeLessThanOrEqual(18);
+        // Each panel stands on a floor drawn as the x axis line, across its full width.
         const boundaries: any[] = [];
         const findBoundaries = (item: any): void => {
-          if (item.mark?.role === 'axis-grid' && item.datum?.value === 0
-            && item.stroke && item.stroke !== 'transparent' && item.strokeWidth > 0) boundaries.push(item);
+          if (item.mark?.marktype === 'rule' && item.stroke === spec.config.axisX.domainColor
+            && Math.abs((item.x2 ?? item.x) - item.x - (item.mark.group?.width ?? -1)) < 1) boundaries.push(item);
           for (const child of item.items ?? []) findBoundaries(child);
         };
         findBoundaries((view.scenegraph() as any).root);
