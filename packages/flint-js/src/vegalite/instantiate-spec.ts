@@ -33,6 +33,7 @@ import {
     utcMillisecond, utcSecond, utcMinute, utcHour, utcDay, utcWeek, utcMonth, utcYear,
 } from 'd3-time';
 import { timeFormat, utcFormat } from 'd3-time-format';
+import { hostTextMeasurer } from '../core/text-width';
 
 const DEFAULT_QUANTITATIVE_AXIS_FORMAT = ',.12~g';
 const VEGA_AXIS_LABEL_LIMIT = AXIS_LABEL_LIMIT;
@@ -820,7 +821,8 @@ function planTemporalTicks({
     const canvas = typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d');
     if (canvas) canvas.font = `${settings.labelFontStyle ?? 'normal'} ${settings.labelFontWeight ?? 'normal'} ${fontSize}px ${settings.labelFont ?? 'sans-serif'}`;
     const angle = (typeof settings.labelAngle === 'number' ? settings.labelAngle : 0) * Math.PI / 180;
-    const textWidth = (text: string): number => canvas ? canvas.measureText(text).width : text.length * fontSize * 0.8;
+    const host = canvas ? undefined : hostTextMeasurer()?.(fontSize, settings.labelFont ?? 'sans-serif', settings.labelFontWeight ?? 'normal', settings.labelFontStyle ?? 'normal');
+    const textWidth = (text: string): number => canvas ? canvas.measureText(text).width : host ? host(text) : text.length * fontSize * 0.8;
     const extent = (text: string): number => {
         const width = textWidth(text);
         return vertical ? Math.abs(Math.sin(angle)) * width + Math.abs(Math.cos(angle)) * fontSize

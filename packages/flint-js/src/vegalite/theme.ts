@@ -19,7 +19,8 @@ import { format as formatNumber } from 'd3-format';
 import { contrastingInk, parseColor, luminance, mixHex, toHex } from '../core/theme/presence.js';
 import type { AxisLabelPlan } from '../core/axis-labels.js';
 import { bandsHoldSeveral, KEY_CHANNELS, statedStacking, type BuiltFacts, type Stacking } from '../core/structure.js';
-import { fitDeckText, fitHeadlineText, plotHeightAfter, textPx } from '../core/title-fit.js';
+import { fitDeckText, fitHeadlineText, plotHeightAfter, textPx, titleMeasures } from '../core/title-fit.js';
+import { tableTextMeasurer } from '../core/text-width.js';
 import type { TitlePlan } from '../core/title-plan.js';
 import { OWNED_AXIS_KEYS } from './owned-axis-keys.js';
 import { CONTINUOUS_BAR_STEP_FILL, coverageSizedMarks } from './templates/utils.js';
@@ -496,11 +497,12 @@ function fitTitle(spec: any, d: DesignDecisions, table: any[], say: ReportDepart
     const block = Math.max((plot ?? 0) + gutters.left + gutters.right, d.layout.canvasWidth ?? 0);
     if (!block || !Number.isFinite(block)) return;
     const headline = typeof spec.title === 'string' ? spec.title : spec.title?.text;
+    const measure = titleMeasures(d.title, d.font, tableTextMeasurer);
     applyHeadlineFit(spec, d, block, typeof headline === 'string' && headline.trim()
-        ? fitHeadlineText(headline, block, d.title.headline.fontSize ?? 14, d.title.deck.fontSize ?? 11) : undefined, say);
+        ? fitHeadlineText(headline, block, d.title.headline.fontSize ?? 14, d.title.deck.fontSize ?? 11, measure.headline) : undefined, say);
     const subtitle = spec.title && typeof spec.title === 'object' ? spec.title.subtitle : undefined;
     const deck = Array.isArray(subtitle) ? subtitle.join(' ') : subtitle;
-    applyDeckFit(spec, block, typeof deck === 'string' && deck.trim() ? fitDeckText(deck, block, d.title.deck.fontSize ?? 11) : undefined, say);
+    applyDeckFit(spec, block, typeof deck === 'string' && deck.trim() ? fitDeckText(deck, block, d.title.deck.fontSize ?? 11, measure.deck) : undefined, say);
 }
 
 function moveAxisTitlesToSubtitle(

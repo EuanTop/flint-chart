@@ -1,5 +1,6 @@
 import { vegaLiteStages } from '../src/vegalite/assemble';
-import { textPx } from '../src/core/title-fit';
+import { titleMeasures } from '../src/core/title-fit';
+import { tableTextMeasurer } from '../src/core/text-width';
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
@@ -149,11 +150,13 @@ describe('axis titles', () => {
             expect(subtitles.flatMap(item => [item.text].flat()).join(' '))
                 .toBe('Recorded at two sites in consecutive years; Shipment mass (kg)');
             // Node draws text with Vega's 0.8 em estimate, so each line is measured as title fitting
-            // measures it for a browser, against the block the plan fitted it to: both panels and the gap.
+            // measures it, in the deck's font, against the block the plan fitted it to: both panels and the gap.
             const blockWidth = planned;
+            const design = vegaLiteStages(input).plan.design;
+            const measure = titleMeasures(design.title, design.font, tableTextMeasurer).deck;
             for (const item of subtitles) {
                 for (const line of [item.text].flat()) {
-                    expect(textPx(String(line), item.fontSize)).toBeLessThanOrEqual(blockWidth * 1.18);
+                    expect(measure(String(line), item.fontSize)).toBeLessThanOrEqual(blockWidth);
                 }
             }
         } finally {
@@ -585,13 +588,13 @@ describe('a headline wider than its block', () => {
     }
 
     /** A wide plot, where a headline of ordinary length only just overhangs. */
-    function scattered(headline: string, themeId: string): any {
+    function scatteredInput(headline: string, themeId: string): any {
         const rows = Array.from({ length: 40 }, (_, i) => ({
             flipper: 178 + (i % 20) * 3,
             mass: 3200 + ((i * 137) % 2800),
             species: ['Adelie', 'Chinstrap', 'Gentoo'][i % 3],
         }));
-        return assembleVegaLite({
+        return {
             data: { values: rows },
             semantic_types: { flipper: 'Amount', mass: 'Amount', species: 'Category' },
             chart_spec: {
@@ -600,17 +603,25 @@ describe('a headline wider than its block', () => {
                 encodings: { x: 'flipper', y: 'mass', color: 'species' },
             },
             theme_spec: (THEME_PRESETS as any)[themeId].spec,
-        } as any) as any;
+        };
+    }
+
+    function scattered(headline: string, themeId: string): any {
+        return assembleVegaLite(scatteredInput(headline, themeId)) as any;
     }
 
     it('leaves a headline that fits alone', () => {
         expect(titled('Rain keeps falling').title.text).toBe('Rain keeps falling');
     });
 
-    it('lets a headline that only overhangs stand, in every house', () => {
+    it('keeps every headline line inside its block, in every house', () => {
         for (const id of Object.keys(THEME_PRESETS)) {
-            const text = scattered(PENGUINS, id).title.text;
-            expect(Array.isArray(text), `${id} broke a headline it could have carried`).toBe(false);
+            const { plan, spec } = vegaLiteStages(scatteredInput(PENGUINS, id));
+            const measure = titleMeasures(plan.design.title, plan.design.font, tableTextMeasurer).headline;
+            const size = spec.title.fontSize ?? spec.config?.title?.fontSize ?? plan.design.title.headline.fontSize ?? 14;
+            for (const line of [spec.title.text].flat()) {
+                expect(measure(String(line), size), `${id}: "${line}"`).toBeLessThanOrEqual(plan.title!.block);
+            }
         }
     });
 

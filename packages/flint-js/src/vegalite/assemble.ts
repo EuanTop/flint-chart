@@ -76,7 +76,7 @@ import { resolveChartDefaults, resolveCompileDefaults, resolveGeometry, resolveV
 import { resolveThemeSpec } from '../core/theme/presets';
 import { realizeThemeVegaLite, realizeValueLabelsVegaLite, vegaLiteBuiltFacts } from './theme';
 import { vlWriteKeyLayout } from './key-layout';
-import { familyMeasure, tableTextMeasurer, vegaEstimateMeasurer } from '../core/text-width';
+import { familyMeasure, rendererTextMeasurer } from '../core/text-width';
 import { themeBodyFamily } from '../core/theme/ground';
 import { chartDisplayNames, encodingTitle, TIGHT_X_MARKS, titleText, type BuiltFacts, type ChartStructure } from '../core/structure';
 import { heightAfterTitle, type TitlePlan } from '../core/title-plan';
@@ -109,8 +109,7 @@ import { heightAfterTitle, type TitlePlan } from '../core/title-plan';
 /** How Vega-Lite lays a chart out where nothing else says. */
 const VEGA_LITE_LAYOUT: BackendLayoutProfile = {
     spellField: (name) => escapeVlFieldName(name),
-    // The plan measures text as the renderer will: a canvas, which the width table is calibrated to, or Vega's estimate without one.
-    measureText: (fontSize, font, weight, style) => (typeof document === 'undefined' ? vegaEstimateMeasurer : tableTextMeasurer)(fontSize, font, weight, style),
+    measureText: rendererTextMeasurer,
     defaults: {
         // Vega-Lite's native width:{step} preserves the authored category pitch.
         bandStepFit: 0,

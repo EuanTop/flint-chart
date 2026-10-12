@@ -2,7 +2,7 @@ import { planKeyLayout, type KeyLayout, type KeyToLayout, type LegendLayoutPlan,
 import type { LayoutResult } from '../core/types';
 import type { LegendPlan } from '../core/legend-plan';
 import { KEY_CHANNELS } from '../core/structure';
-import { tableTextMeasurer, vegaEstimateMeasurer } from '../core/text-width';
+import { rendererTextMeasurer } from '../core/text-width';
 import { plannedKeyFor } from './theme';
 
 
@@ -188,7 +188,7 @@ function keyFromSpec(spec: any, channel: string, encoding: any, table: any[], la
 export function vlWrapLegendText(
     spec: any,
     context: Pick<import('../core/types').InstantiateContext, 'layout' | 'canvasSize' | 'table' | 'plot'> & { encodings?: Record<string, any> },
-    measure: TextMeasurer = typeof document === 'undefined' ? vegaEstimateMeasurer : tableTextMeasurer,
+    measure: TextMeasurer = rendererTextMeasurer,
 ): void {
     if (spec.config?.legend?.disable) return;
     const groups: Array<{ channel: string; encoding: any; refs: any[] }> = [];

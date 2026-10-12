@@ -16,6 +16,8 @@ export interface AxisDescription {
     range?: boolean;
     /** A measure computed from the fields. */
     derived?: DerivedMeasure;
+    /** The names a band computed from the fields shows, in order, where the template sets them. */
+    categories?: string[];
     /** Whether a measure is read from zero, or fitted to the data; unset leaves Flint's zero decision. */
     baseline?: 'zero' | 'data';
     /** The values a measure the template computes spans, where the template can say. */

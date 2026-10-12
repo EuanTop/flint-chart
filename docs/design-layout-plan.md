@@ -147,7 +147,11 @@ before it moved into the plan; a fix corrects its inputs (§13).
 
 `planTitle` (`core/title-plan.ts`) fits a single-view chart's headline and deck to its block: set
 down a size, or broken over even lines whose extra height comes out of the plot. The deck is the
-author's plus the axis titles a theme moves there.
+author's plus the axis titles a theme moves there. A title is measured with the width table in its
+own font and weight, in every environment, since it is drawn with real glyphs even where a chart is
+compiled without a canvas; a title that runs past its block at all is fitted. A template whose
+category axis it computes itself states the names (`AxisDescription.categories`), so the block
+counts their labels.
 
 ## §4.4 Keys and series names
 
@@ -347,7 +351,7 @@ false and the host remounts. A push keeps selections, filters, zoom and updates.
 | 6 | Live layout on `replan` | done |
 | 7 | Filters on `replan` | done; a filter pushes each plain size its replan changes (steps, view and rule widths), not labels and ticks |
 | 8 | Composite charts: a plan for their views | done: views planned (§4.9), titles, keys and closing rules across them, drawn boxes in `surface.layout` |
-| 9 | Planner review: coverage, faithfulness, cost | cost done (§11); coverage and faithfulness after 8 |
+| 9 | Planner review: coverage, faithfulness, cost | cost done (§11, against the compile before the redesign); faithfulness: the honour check covers every case with five template exemptions; coverage: the room decisions still made in emit are listed in §12 |
 
 # §11 Cost
 
@@ -368,13 +372,33 @@ room costs 0.17 ms more to bind its live values; a relayout costs 1.5 ms (replan
 compile 0.57, compare 0.08), against a remount that also parses the Vega spec and mounts the
 interactions again.
 
+Against the compile before the redesign (e55b7dd), measured 2026-10-12 in a browser, best of three
+rounds over the same 11,171 cases, and over every eighth case for what a reader waits for (Flint
+compile, Vega-Lite compile, Vega parse and first run, headless):
+
+| Per chart | Before | Now |
+|---|---|---|
+| Flint compile alone | 1.54 ms | 1.33 ms |
+| Mount | 4.9 ms | 4.8 ms |
+| Resize by −20% | 4.4 ms (compile and mount again) | 3.7 ms (pushed in place for 46%, remount otherwise) |
+| Filter keeping half the rows | 3.6 ms (compile and mount again) | 2.6 ms (replan, push sizes and rows) |
+
+The plan does more than the old compile did, but the profile fixes above more than pay for it, and
+a mounted chart no longer compiles and mounts again for each resize or filter.
+
 # §12 Open items
 
 | Item | Revisit when |
 |---|---|
 | A chart's block is its plot or views widened by 7% for axes plus the category labels; measured axes and headers would make it exact | the block box, checked against Vega's drawn size |
+| Facet headers of more than six panels set 9 px in emit, over the theme's size the reserve measured; header limits are a fixed rule | headers planned with the reserve |
+| A theme that thins index-axis ticks (`tickLabels`) chooses them in realization with a 0.6 em estimate, and the temporal tick planner then skips that axis | the theme's tick preference goes to the planner |
+| A theme's units on ticks and titles ("420 ppm", "(lb)") are added after the plan measured labels and the reserve | units in the plan's label text |
+| Band-end names (stacked areas) are placed inside or outside in emit with a 0.55 em estimate; the reserve counts other weight and size | series-end naming for bands in `planLegendPlacement` |
+| A row-faceted chart folds its y title into the row header after the plan counted a turned y title | the plan folds it |
+| Room no reserve counts: outside value labels' fallback padding, flipped inside labels, the masthead tab, the statistics caption, Gantt duration labels | the block box |
+| Dots on a line shrink by view width in realization and by canvas width in the template, beside `plan.pointSize` for clouds | dots on lines in `planPointSize` |
 | Radar spoke labels keep no room | the block box |
-| Title fitting estimates text at 0.55 em a character rather than measuring it as the renderer does; measured with the width table, titles run past narrow charts, since the 1.18 overhang tolerance and the canvas floor of the block were set against the estimate | a choice of overhang tolerance for measured titles |
 | A theme's closing rules wrap the chart after the plan, their room unplanned (826) | the block box |
 | A violin sizes its panels for no gap and draws the facet gap | the block box |
 | The honour check's Bar Table and Sparkline exemptions (y labels, orders, independent y) | declarations, with the fixes |

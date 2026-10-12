@@ -19,6 +19,7 @@ import {
     valueAnnotationText,
 } from '../../interactive/presentation/annotation';
 import { formatSpecToVegaExpr } from '../format';
+import { hostTextMeasurer } from '../../core/text-width';
 
 /**
  * Bar Table — a ranked horizontal "data bar table".
@@ -1058,7 +1059,10 @@ export const barTableDef: ChartTemplateDef = {
                 const lineHeight = Math.ceil(fontSize * 1.2);
                 const cache = new Map<string, number>();
                 const widthOf = (text: string): number => {
-                    if (!canvas) return text.length * fontSize * 0.62;
+                    const host = hostTextMeasurer();
+                    if (!canvas) return host
+                        ? host(fontSize, settings.labelFont ?? spec.config?.font ?? 'sans-serif', settings.labelFontWeight ?? 'normal', settings.labelFontStyle ?? 'normal')(text)
+                        : text.length * fontSize * 0.62;
                     if (!cache.has(text)) {
                         canvas.font = `${settings.labelFontStyle ?? 'normal'} ${settings.labelFontWeight ?? 'normal'} ${fontSize}px ${settings.labelFont ?? spec.config?.font ?? 'sans-serif'}`;
                         cache.set(text, canvas.measureText(text).width);

@@ -117,7 +117,7 @@ export const vlCalendarHeatmapDef: ChartTemplateDef = {
         return {
             ...structure,
             x: { type: 'ordinal', fields: [date], derived: 'week' },
-            y: { type: 'ordinal', fields: [date], derived: 'weekday' },
+            y: { type: 'ordinal', fields: [date], derived: 'weekday', categories: WEEKDAY_ORDER },
             series: value ? { field: value, type: 'quantitative' } : { derived: 'days', type: 'quantitative' },
             axisTitles: { x: null, y: null },
         };

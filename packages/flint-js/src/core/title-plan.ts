@@ -1,7 +1,8 @@
 import type { AxisLabelPlan } from './axis-labels';
 import type { ChartStructure } from './structure';
 import type { DesignDecisions } from './theme/types';
-import { fitDeckText, fitHeadlineText, plotHeightAfter, textPx } from './title-fit';
+import { tableTextMeasurer } from './text-width';
+import { fitDeckText, fitHeadlineText, plotHeightAfter, textPx, titleMeasures } from './title-fit';
 import type { LayoutResult } from './types';
 
 /** How a single-view chart's title is fitted to the block it sits over. */
@@ -79,10 +80,10 @@ function labelGutter(inputs: TitlePlanInputs): number {
     const y = structure.y;
     const field = y?.derived ? undefined : y?.fields[0];
     const axis = design.axes.y;
-    if (!field || (y!.type !== 'nominal' && y!.type !== 'ordinal')) return 0;
+    if ((!field && !y?.categories) || (y!.type !== 'nominal' && y!.type !== 'ordinal')) return 0;
     if (axis?.label.show === false || (axisLabels.y.angle ?? 0) !== 0) return 0;
     const names = [
-        ...rows.map((row) => row?.[field]),
+        ...(field ? rows.map((row) => row?.[field]) : y!.categories!),
         ...layout.truncations.filter((truncation) => truncation.channel === 'y').map((truncation) => truncation.placeholder),
     ];
     let width = 0;
@@ -119,12 +120,15 @@ export function planTitle(inputs: TitlePlanInputs): TitlePlan | undefined {
     const { structure, design } = inputs;
     const block = chartBlock(inputs);
     if (!block) return undefined;
+    // Measured as the glyphs draw, in every environment: a title is drawn with real metrics even where
+    // a chart is compiled without a canvas.
+    const measure = titleMeasures(design.title, design.font, tableTextMeasurer);
     const headlineText = inputs.title?.text ?? structure.title;
     const headline = headlineText && headlineText.trim()
-        ? fitHeadlineText(headlineText, block, design.title.headline.fontSize ?? 14, design.title.deck.fontSize ?? 11)
+        ? fitHeadlineText(headlineText, block, design.title.headline.fontSize ?? 14, design.title.deck.fontSize ?? 11, measure.headline)
         : undefined;
     const deck = deckText(inputs);
-    const deckFit = deck && deck.trim() ? fitDeckText(deck, block, design.title.deck.fontSize ?? 11) : undefined;
+    const deckFit = deck && deck.trim() ? fitDeckText(deck, block, design.title.deck.fontSize ?? 11, measure.deck) : undefined;
     return { block, ...(headline ? { headline } : {}), ...(deck !== undefined ? { deck } : {}), ...(deckFit ? { deckFit } : {}) };
 }
 

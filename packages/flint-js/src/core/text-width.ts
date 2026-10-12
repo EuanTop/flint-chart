@@ -69,6 +69,28 @@ export const tableTextMeasurer: TextMeasurer = (fontSize, font, weight) => {
 /** Vega's own estimate where it has no canvas, as in Node: 0.8 em a character, truncated to whole px. */
 export const vegaEstimateMeasurer: TextMeasurer = (fontSize) => (text) => Math.trunc(0.8 * text.length * fontSize);
 
+let hostMeasurer: TextMeasurer | undefined;
+
+/**
+ * Sets how the renderer a host draws with measures text, such as a canvas a server renders with;
+ * undefined goes back to the default.
+ */
+export function setTextMeasurer(measure: TextMeasurer | undefined): void {
+    hostMeasurer = measure;
+}
+
+/** How the host says its renderer measures text, if it does. */
+export function hostTextMeasurer(): TextMeasurer | undefined {
+    return hostMeasurer;
+}
+
+/**
+ * Measures text as a renderer will: as the host says, else a canvas, which the width table is
+ * calibrated to, or Vega's estimate without one.
+ */
+export const rendererTextMeasurer: TextMeasurer = (fontSize, font, weight, style) =>
+    (hostMeasurer ?? (typeof document === 'undefined' ? vegaEstimateMeasurer : tableTextMeasurer))(fontSize, font, weight, style);
+
 /** Text widths in px in one font family, as a template asks for them. */
 export type FamilyMeasure = (text: string, fontSize: number, weight?: string | number) => number;
 
