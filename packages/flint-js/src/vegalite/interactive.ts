@@ -1,3 +1,4 @@
+import type { ViewNode } from '../core/views';
 import { applyCategoryViewports, resolveCategoryViewport } from '../core/filter-overflow';
 import type { CategoryViewport, ChartAssemblyInput } from '../core/types';
 import { convertTemporalData, temporalFieldValue } from '../core/resolve-semantics';
@@ -207,6 +208,35 @@ export function scaleAwareCanvasPicking(handler: any): void {
  */
 type LayoutSignal = { dimension: 'width' | 'height'; signal: string; kind: 'step' | 'size' };
 
+/** The panel count of the first facet in a tree of views. */
+function facetPanels(node: ViewNode | undefined): number | undefined {
+    if (!node || node.kind === 'view') return undefined;
+    if (node.kind === 'facet') return node.panels;
+    for (const child of node.children) {
+        const panels = facetPanels(child);
+        if (panels !== undefined) return panels;
+    }
+    return undefined;
+}
+
+/** The wrap count of the first facet in a tree of views. */
+function facetColumns(node: ViewNode | undefined): number | undefined {
+    if (!node || node.kind === 'view') return undefined;
+    if (node.kind === 'facet') return node.columns;
+    for (const child of node.children) {
+        const columns = facetColumns(child);
+        if (columns !== undefined) return columns;
+    }
+    return undefined;
+}
+
+/** The signals of a compiled Vega spec that hold a plain number: the sizes and steps of its views. */
+function plainSignals(vegaSpec: any): Map<string, number> {
+    return new Map((vegaSpec.signals ?? [])
+        .filter((signal: any) => typeof signal.value === 'number' && signal.update === undefined && signal.on === undefined)
+        .map((signal: any) => [signal.name, signal.value]));
+}
+
 export function layoutSignals(vegaSpec: any): LayoutSignal[] {
     const signals: any[] = vegaSpec.signals ?? [];
     return (['width', 'height'] as const).flatMap((dimension): LayoutSignal[] => {
@@ -276,6 +306,9 @@ export function createVegaInteractiveRenderer(
             let stepsFor = new WeakMap<readonly Record<string, unknown>[], Record<string, number>>();
             let plotFor = new WeakMap<readonly Record<string, unknown>[], { width: number; height: number } | undefined>();
             let filteredRows: readonly Record<string, unknown>[] | undefined;
+            // The plain signals a re-plan or a new size has set apart from the mounted chart, such as a
+            // view's width or a rule's; a filter sets each of them on every later change of rows.
+            const relaidNames = new Set<string>();
             const inputRows: readonly Record<string, unknown>[] = interactiveInput.data.values ?? [];
             // The windows over the rows now current: a filter leaves fewer categories to scroll through.
             let currentViewports = viewports;
@@ -381,7 +414,8 @@ export function createVegaInteractiveRenderer(
                 interactionPlan.initialDataRows = interactionPlan.prepareDataRows(firstInput.data.values ?? []);
                 interactionPlan.temporalValue = (field, value) => temporalFieldValue(field, value, firstInput.semantic_types ?? {});
                 if (viewports.length > 0) interactionPlan.windowDataRows = (rows) => windowRows(rows ?? inputRows);
-                if (relaidSignals.length > 0) {
+                if (filtersRows) {
+                    const mountedSignals = plainSignals(vegaSpec);
                     // Flint lays the chart out again for the rows a filter leaves: fewer bars get thicker steps and a shorter chart.
                     interactionPlan.dataSignals = (rows) => {
                         const current = rows ?? inputRows;
@@ -397,6 +431,16 @@ export function createVegaInteractiveRenderer(
                                 const value = entry.kind === 'step' ? size?.step : replanned.plot?.[entry.dimension] ?? size;
                                 return typeof value === 'number' ? [[entry.signal, value]] : [];
                             }));
+                            // A mounted facet keeps its wrap count: panels sized for another count would overrun the chart.
+                            const panels = facetPanels(replanned.plan.views);
+                            const mountedColumns = facetColumns(drawn.plan.views);
+                            const sameGrid = panels === undefined || mountedColumns === undefined
+                                || Math.min(panels, mountedColumns) === Math.min(panels, facetColumns(replanned.plan.views) ?? mountedColumns);
+                            if (sameGrid) for (const [name, value] of plainSignals(shape(replanned).vegaSpec)) {
+                                if (!mountedSignals.has(name) || relaidSignals.some((entry) => entry.signal === name)) continue;
+                                if (mountedSignals.get(name) !== value) relaidNames.add(name);
+                                signals[name] = value;
+                            }
                             stepsFor.set(current, signals);
                             // The chart now draws the re-planned size on each dimension a signal sets, and
                             // keeps the mounted size on the others.
@@ -407,7 +451,8 @@ export function createVegaInteractiveRenderer(
                             } : undefined);
                         }
                         if (viewports.length === 0) currentPlot = plotFor.get(current);
-                        return signals;
+                        const relaidEntries = new Set(relaidSignals.map((entry) => entry.signal));
+                        return Object.fromEntries(Object.entries(signals).filter(([name]) => relaidEntries.has(name) || relaidNames.has(name)));
                     };
                 }
             }
@@ -581,7 +626,10 @@ export function createVegaInteractiveRenderer(
                     if (!change || !next.livePlanner !== !livePlanner) return false;
                     liveValues = advanceLiveValues(liveValues, next.vegaSpec, change);
                     view.signal(LIVE_VALUES_SIGNAL, liveValues.values);
-                    for (const [name, value] of Object.entries(change.signals)) view.signal(name, value);
+                    for (const [name, value] of Object.entries(change.signals)) {
+                        view.signal(name, value);
+                        relaidNames.add(name);
+                    }
                     if (change.width !== undefined) view.width(change.width);
                     if (change.height !== undefined) view.height(change.height);
                     framePlot = replanned.plot;

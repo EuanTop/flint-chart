@@ -345,7 +345,7 @@ false and the host remounts. A push keeps selections, filters, zoom and updates.
 | 4 | Resize through `replan` | done: in place where the chart keeps its parts (55% of corpus resizes at ±25%), remount otherwise |
 | 5 | Theme room decisions in the planner | done: labels, title, keys, value labels, ruler, facets, dots, room kept |
 | 6 | Live layout on `replan` | done |
-| 7 | Filters on `replan` | done; a filter pushes the steps, not labels and ticks |
+| 7 | Filters on `replan` | done; a filter pushes each plain size its replan changes (steps, view and rule widths), not labels and ticks |
 | 8 | Composite charts: a plan for their views | done: views planned (§4.9), titles, keys and closing rules across them, drawn boxes in `surface.layout` |
 | 9 | Planner review: coverage, faithfulness, cost | cost done (§11); coverage and faithfulness after 8 |
 
@@ -374,15 +374,13 @@ interactions again.
 |---|---|
 | A chart's block is its plot or views widened by 7% for axes plus the category labels; measured axes and headers would make it exact | the block box, checked against Vega's drawn size |
 | Radar spoke labels keep no room | the block box |
-| Title fitting estimates text at 0.55 em a character rather than measuring it as the renderer does | a fix to titles in every chart |
+| Title fitting estimates text at 0.55 em a character rather than measuring it as the renderer does; measured with the width table, titles run past narrow charts, since the 1.18 overhang tolerance and the canvas floor of the block were set against the estimate | a choice of overhang tolerance for measured titles |
 | A theme's closing rules wrap the chart after the plan, their room unplanned (826) | the block box |
 | A violin sizes its panels for no gap and draws the facet gap | the block box |
-| Bar Table re-derives the facet height budget | the block box |
 | The honour check's Bar Table and Sparkline exemptions (y labels, orders, independent y) | declarations, with the fixes |
 | Planned view positions and an exact block: Vega sets axes past what panels draw and labels past plot ends; reaching 1 px would rebuild its layout (single charts measured 52% exact) | a host that needs positions before render |
-| A filter keeps the mounted closing rules' width while panels go | filters push all re-planned values |
 | Resizes that remount: a part appears or goes (a label angle, a key's direction or columns, rows an overflow drops), or a number emitted inside an expression changes (value-label thresholds, temporal label sets, facet column counts); 45% of corpus resizes at ±25% | emit states those as values a signal can carry |
-| A filter pushes only the steps; its replan's ticks, domains and labels could push through the same binding with the data source's rows left out of the comparison | a filter that needs its labels re-planned |
+| A filter pushes its replan's plain sizes, not its ticks, domains and labels: those sit in expressions that name the rows (label lookups, value-label thresholds), so its spec differs from the mounted one in shape for nearly every chart; a filter that changes a wrapped facet's column count keeps the mounted panels | emit states those as values a signal can carry |
 | Live values are bound only on charts mounted for a room | a host that resizes a chart mounted without one |
 | ECharts, Chart.js and Plotly on the plan | each backend gets an emitter that reads it |
 | Per-kind key options (`legend.valueKeys`) | a theme needs a key to values placed apart from its series key |

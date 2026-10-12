@@ -263,6 +263,18 @@ export function resolveBaseSize(
 }
 
 /**
+ * The length of one facet panel along a dimension: the canvas, stretched by the panel count to
+ * the elasticity's power up to the cap, less the fixed room, shared by the panels, less the gap
+ * between them.
+ */
+export function facetPanelLength(
+    canvas: number, panels: number, cap: number, elasticity: number, fixed: number, gap: number,
+): number {
+    const stretch = Math.min(cap, Math.pow(panels, elasticity));
+    return (canvas * stretch - fixed) / panels - gap;
+}
+
+/**
  * The input with the size available to the chart as its `canvasSize` ceiling. A side the
  * host leaves open keeps the ceiling the chart had: the spec's, the house's, or the base
  * size times `maxStretch`. The base size is untouched; the assembler clamps it to the ceiling.
@@ -587,18 +599,16 @@ export function computeLayout(
 
     let subplotWidth: number;
     if (facetCols > 1) {
-        const stretch = Math.min(maxStretchX, Math.pow(facetCols, facetElasticityVal));
         subplotWidth = Math.round(Math.max(minContinuousSizeX,
-            (defaultChartWidth * stretch - fixW) / facetCols - gapX));
+            facetPanelLength(defaultChartWidth, facetCols, maxStretchX, facetElasticityVal, fixW, gapX)));
     } else {
         subplotWidth = defaultChartWidth;
     }
 
     let subplotHeight: number;
     if (facetRows > 1) {
-        const stretch = Math.min(maxStretchY, Math.pow(facetRows, facetElasticityVal));
         subplotHeight = Math.round(Math.max(minContinuousSizeY,
-            (defaultChartHeight * stretch - fixH) / facetRows - gapY));
+            facetPanelLength(defaultChartHeight, facetRows, maxStretchY, facetElasticityVal, fixH, gapY)));
     } else {
         subplotHeight = defaultChartHeight;
     }

@@ -3,6 +3,7 @@
 
 import { ChartTemplateDef, ChartPropertyDef, ChannelSemantics, type PlotPlanContext, type ViewPlanContext } from '../../core/types';
 import { facetViews, type ViewNode } from '../../core/views';
+import { facetPanelLength, resolveStretchCaps } from '../../core/compute-layout';
 import { getRegistryEntry } from '../../core/type-registry';
 import { fitTwoLineLabels } from '../../core/decisions';
 import { resolveDisplayUnit, titleWithDisplayUnit, type FormatSpec } from '../../core/field-semantics';
@@ -327,14 +328,11 @@ function barTableLayout(
     const subplotWidth = hasFacet ? (ctx.layout?.subplotWidth ?? canvasSize?.width) : canvasSize?.width;
     const layoutSubplotHeight = hasFacet ? (ctx.layout?.subplotHeight ?? canvasSize?.height) : canvasSize?.height;
     const facetHeightBudget = hasFacet && facetRowsForSizing > 1
-        ? (() => {
-            const maxStretch = ctx.assembleOptions?.maxStretchY ?? ctx.assembleOptions?.maxStretch ?? 2;
-            const facetElasticity = ctx.assembleOptions?.facetElasticity ?? 0.3;
-            const fixH = ctx.assembleOptions?.facetFixedPadding?.height ?? 0;
-            const gap = ctx.layout?.effectiveFacetGap ?? ctx.assembleOptions?.facetGap ?? 0;
-            const stretch = Math.min(maxStretch, Math.pow(facetRowsForSizing, facetElasticity));
-            return Math.max(0, Math.round((canvasSize.height * stretch - fixH) / facetRowsForSizing - gap));
-        })()
+        ? Math.max(0, Math.round(facetPanelLength(
+            canvasSize.height, facetRowsForSizing, resolveStretchCaps(ctx.assembleOptions ?? {}).y,
+            ctx.assembleOptions?.facetElasticity ?? 0.3, ctx.assembleOptions?.facetFixedPadding?.height ?? 0,
+            ctx.assembleOptions?.facetGapRow ?? ctx.layout?.effectiveFacetGap ?? ctx.assembleOptions?.facetGap ?? 0,
+        )))
         : layoutSubplotHeight;
 
     // ── Sizing constants (responsive to row density) ────────
