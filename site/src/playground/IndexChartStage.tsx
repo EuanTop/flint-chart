@@ -51,7 +51,11 @@ function chartInput(rows: ReturnType<typeof deriveIndexChartState>['indexedRows'
     },
     options: { addTooltips: false },
     interaction_spec: {
-      interactions: [{ type: 'inspect-index', id: INSPECT_INTERACTION_ID, options: { axis: 'x', show: 'all' } }],
+      // Every series reads 0 at the reference date, so value labels would only repeat the baseline;
+      // the host's badge names the date.
+      interactions: [{
+        type: 'inspect-index', id: INSPECT_INTERACTION_ID, options: { axis: 'x', show: 'all', displayValue: false },
+      }],
     },
     chart_spec: {
       chartType: 'Line Chart',

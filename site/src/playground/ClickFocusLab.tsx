@@ -693,10 +693,50 @@ function realFacetedCases(): InteractionCase[] {
   ];
 }
 
+/**
+ * Gapminder 2007 as a bubble chart: one large, named mark per country, which a click, hold, or
+ * double-click lands on easily. Drawn largest first, so small countries stay on top and reachable.
+ */
+function gapminderBubbleCase(): InteractionCase {
+  const rows = gapminderRows
+    .filter(({ Year }) => Year === 2007)
+    .map(({ Year: _year, Population, ...row }) => ({ ...row, 'Population (M)': Math.round(Population / 1e5) / 10 }))
+    .sort((left, right) => right['Population (M)'] - left['Population (M)']);
+  return {
+    id: 'Scatter Plot-Gapminder 2007 bubbles',
+    chartType: 'Scatter Plot',
+    title: 'Gapminder 2007 — income, life expectancy, and population',
+    expectation: 'Each bubble is a country, sized by its population (Gapminder, 2007).',
+    input: {
+      semantic_types: {
+        Country: 'Country',
+        Continent: 'Category',
+        'Population (M)': 'Quantity',
+        'GDP per capita': 'Quantity',
+        'Life expectancy': 'Quantity',
+      },
+      chart_spec: {
+        chartType: 'Scatter Plot',
+        encodings: {
+          x: { field: 'GDP per capita' },
+          y: { field: 'Life expectancy' },
+          size: { field: 'Population (M)' },
+          color: { field: 'Continent' },
+          detail: { field: 'Country' },
+        },
+        chartProperties: { logScale_x: true },
+        baseSize: SIZE,
+      },
+      data: { values: rows },
+    },
+  };
+}
+
 export const interactionCases: InteractionCase[] = [
   ...representativeCases(),
   multiLegendCase('shape'),
   multiLegendCase('size'),
+  gapminderBubbleCase(),
   ...indexInspectCases(),
   ...realFacetedCases(),
 ];
@@ -753,6 +793,8 @@ const RANGED_DOT = 'Ranged Dot Plot-Life expectancy gap, male vs female (2021)';
 const RANGE_AREA = 'Range Area Chart-Seattle average monthly temperature range';
 const REGRESSION = 'Regression-Auto MPG — horsepower vs fuel economy';
 const SCATTER = 'Scatter Plot-Palmer Penguins — flipper length vs body mass';
+/** Gestures aimed at one mark use bubbles: a penguin dot is too small to hit and too small to show its highlight. */
+const BUBBLE = 'Scatter Plot-Gapminder 2007 bubbles';
 const STACKED_BAR = 'Stacked Bar Chart-Electricity generation mix by country, 2023';
 const STREAMGRAPH = 'Streamgraph-World population by region, 1950–2020';
 const STRIP = 'Strip Plot-Iris petal length by species';
@@ -764,11 +806,11 @@ const VIOLIN = 'Violin Plot-Exam scores by class (basic)';
  * capability (index inspection, pan & zoom).
  */
 const GALLERY_CASES: Partial<Record<InteractionMode, readonly string[]>> = {
-  'click-highlight': [BAR, SCATTER, STACKED_BAR, PIE, HEATMAP],
+  'click-highlight': [BAR, BUBBLE, STACKED_BAR, PIE, HEATMAP],
   'click-group-focus': ['scatter-color-shape', MULTI_LINE, FACETED_SCATTER, `${FACETED_SCATTER}-continent`, FACETED_BARS],
   'hover-group-focus': ['scatter-color-shape', MULTI_LINE, FACETED_SCATTER, `${FACETED_SCATTER}-continent`, FACETED_BARS],
   'linked-brush': ['Scatter Plot-Gapminder-faceted-four-years', 'Scatter Plot-Auto MPG-faceted-origin', FACETED_BARS, 'Bar Chart-Titanic survival — row facets by sex-faceted'],
-  annotate: [LINE, SCATTER, BAR, LOLLIPOP],
+  annotate: [LINE, BUBBLE, BAR, LOLLIPOP],
   select: [SCATTER, REGRESSION, STRIP, HEATMAP, CONNECTED_SCATTER, 'scatter-color-size', STACKED_BAR, FACETED_SCATTER],
   lasso: [SCATTER, REGRESSION, CONNECTED_SCATTER, 'scatter-color-size'],
   'context-menu': [SCATTER, STRIP, BAR, REGRESSION],
@@ -776,10 +818,10 @@ const GALLERY_CASES: Partial<Record<InteractionMode, readonly string[]>> = {
   'brush-y': [BAR, RANGED_DOT, SCATTER, STRIP, LOLLIPOP, BOXPLOT, REGRESSION, VIOLIN],
   'brush-angle': [PIE, DONUT, ROSE, RADAR],
   inspect: [SCATTER, STRIP, BOXPLOT, REGRESSION],
-  'long-press': [BAR, SCATTER, PIE],
-  'double-activate': [BAR, SCATTER, HEATMAP],
+  'long-press': [BAR, BUBBLE, PIE],
+  'double-activate': [BAR, BUBBLE, HEATMAP],
   'drag-reorder': [BAR, STACKED_BAR, HEATMAP, BOXPLOT],
-  'keyboard-focus': [BAR, SCATTER, PIE],
+  'keyboard-focus': [BAR, BUBBLE, PIE],
   'legend-toggle': [SCATTER, STACKED_BAR, STREAMGRAPH, MULTI_LINE, PIE],
   'accessible-navigation': [BAR, LINE, SCATTER, GROUPED_BAR, PIE],
 };

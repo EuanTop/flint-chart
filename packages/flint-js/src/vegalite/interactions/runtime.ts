@@ -111,6 +111,15 @@ const EMPTY_SEMANTIC_SELECTION_KEY = '__flint_empty_semantic_selection';
 
 export { mergeContiguousSelectionBounds } from './presentation/focus-overlay';
 
+// Readouts speak the chart's language: Vega labels axes in en-US whatever the browser's locale.
+const inspectValueFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
+
+/** A numeric inspect readout. A value inverted from a pixel lands a hair off zero; one that rounds to zero reads "0", not "-0". */
+export function inspectNumberText(value: unknown): string {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return '';
+    return inspectValueFormatter.format(Math.abs(value) < 0.005 ? 0 : value);
+}
+
 export function resolveLegendPresentationTarget(
     legend: LegendTargetValue,
     resolve: ChartInteractionResolver,
@@ -2019,11 +2028,9 @@ export function mountVegaInteractions(
         const modes = inspectModes(interaction);
         return modes[inspectModeIndices.get(interaction.id) ?? 0] ?? modes[0];
     };
-    // Readouts speak the chart's language: Vega labels axes in en-US whatever the browser's locale.
-    const inspectValueFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
     const inspectValueText = (value: unknown): string => value instanceof Date
         ? inspectDateFormatter('day').format(value)
-        : typeof value === 'number' && Number.isFinite(value) ? inspectValueFormatter.format(value) : '';
+        : inspectNumberText(value);
     // A snapped reading names the observation at the data's own grain; one between observations names the day.
     const inspectIndexText = (
         scale: any, coordinate: number, continuous: boolean, snapped: boolean, field: string,

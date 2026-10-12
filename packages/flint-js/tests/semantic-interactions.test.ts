@@ -1125,6 +1125,43 @@ describe('Vega-Lite semantic interactions', () => {
         view.finalize();
     });
 
+    it('holds the domain at the zoom limit instead of drifting toward the cursor', async () => {
+        const spec = assembleVegaLite({
+            chart_spec: {
+                chartType: 'Scatter Plot',
+                encodings: { x: { field: 'x' }, y: { field: 'y' } },
+            },
+            semantic_types: { x: 'Number', y: 'Number' },
+            data: { values: [{ x: 0, y: 0 }, { x: 100, y: 100 }] },
+        }) as any;
+        const plan = addVegaLiteInteractions(spec, [navigate()])!;
+        const compiled = compile(spec).spec as any;
+        const axes = injectVegaNavigationSignals(compiled, plan.navigationChannels);
+        const view = new View(parse(compiled), { renderer: 'none' });
+        await view.runAsync();
+        const initial = view.scale('x').domain().map(Number);
+        const controller = createVegaNavigationController(view, axes);
+        const guard = { minVisibleFraction: 0.1, maxVisibleFraction: 1, overscrollFraction: 0 };
+        const zoomIn = async () => {
+            const update = controller.resolve({
+                type: 'navigation', phase: 'commit', operation: 'zoom', axes: 'x',
+                factor: 1.25, anchor: { x: 0.2, y: 0.5 },
+            }, guard);
+            controller.apply(update!);
+            await view.runAsync();
+            return view.scale('x').domain().map(Number);
+        };
+
+        let domain = initial;
+        for (let step = 0; step < 20; step += 1) domain = await zoomIn();
+        expect(domain[1] - domain[0]).toBeCloseTo((initial[1] - initial[0]) * guard.minVisibleFraction);
+        for (let step = 0; step < 20; step += 1) {
+            const next = await zoomIn();
+            next.forEach((value, index) => expect(value).toBeCloseTo(domain[index], 6));
+        }
+        view.finalize();
+    });
+
     it('tweens a Vega scale domain to its target and keeps the tween through a render', async () => {
         const spec = assembleVegaLite({
             chart_spec: {

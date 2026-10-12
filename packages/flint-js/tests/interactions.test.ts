@@ -96,6 +96,7 @@ import {
     resolveAssistDistance,
     reorderProjectionBounds,
     resolveSupportedOperation,
+    inspectNumberText,
 } from '../src/vegalite/interactions/runtime';
 import {
     activeReorderAxis,
@@ -3347,6 +3348,17 @@ describe('legend, inspect, zoom, and touch presets', () => {
         expect(() => inspectIndex({ show: 'single' })).toThrow('requires seriesBy');
         expect(() => inspectIndex({ show: { series: 'Forecast' } }))
             .toThrow('requires seriesBy');
+    });
+
+    it('reads a value that rounds to zero as 0, never -0', () => {
+        expect(inspectNumberText(-1.1e-16)).toBe('0');
+        expect(inspectNumberText(-0)).toBe('0');
+        expect(inspectNumberText(-0.004)).toBe('0');
+        expect(inspectNumberText(-0.005)).toBe('-0.01');
+        expect(inspectNumberText(-1234.567)).toBe('-1,234.57');
+        expect(inspectNumberText(0.3)).toBe('0.3');
+        expect(inspectNumberText(Number.NaN)).toBe('');
+        expect(inspectNumberText('1')).toBe('');
     });
 
     it('starts single-series inspection from the first or preferred available series', () => {
