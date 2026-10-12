@@ -30,6 +30,7 @@ function calInput(extraEnc?: Record<string, unknown>) {
             encodings: { x: { field: 'date' }, color: { field: 'value', ...extraEnc } },
             baseSize: { width: 420, height: 160 },
         },
+        options: { themeDecisions: true },
     };
 }
 
@@ -201,7 +202,7 @@ describe('Vega-Lite Calendar Heatmap', () => {
             },
         }],
     ])('applies the house ramp, tile gap, type, and surface to %s calendars', (_name, input) => {
-        const spec = assembleVegaLite({ ...input, theme_spec: THEME_PRESETS.pop.spec } as any) as any;
+        const spec = assembleVegaLite({ ...input, theme_spec: THEME_PRESETS.pop.spec, options: { themeDecisions: true } } as any) as any;
         const cell = calendarCell(spec);
         expect(cell.encoding.color.scale.scheme).toBeUndefined();
         expect(cell.encoding.color.scale.range).toEqual(spec._theme.decisions.series.range);

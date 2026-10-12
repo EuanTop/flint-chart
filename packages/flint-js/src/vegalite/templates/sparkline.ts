@@ -1,7 +1,10 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-import { ChartTemplateDef, ChartPropertyDef, ChartEncoding } from '../../core/types';
+import { ChartTemplateDef, ChartPropertyDef, ChartEncoding, type ViewPlanContext } from '../../core/types';
+import type { ViewNode } from '../../core/views';
+import type { FamilyMeasure } from '../../core/text-width';
+import { skeletonStructure } from '../../core/structure';
 import type { FormatSpec } from '../../core/field-semantics';
 import {
     fieldsFromEncodingChannels,
@@ -112,10 +115,121 @@ const approxNum = (v: number): string => {
 const approxFormattedNum = (v: number, fmt?: FormatSpec): string =>
     `${fmt?.prefix ?? ''}${approxNum(v)}${fmt?.suffix ?? ''}${fmt?.pattern ? '0' : ''}`;
 
+const SPARK_HEADER_H = 18;
+/** The strip gap the sparkline sizes its strips for. */
+const SPARK_STRIP_GAP = 6;
+const SPARK_COLUMN_GAP = 8;
+
+/**
+ * A sparkline's rows: one per series (a single blank series where there is no series field), in
+ * order of first appearance, with each series' mean or median.
+ */
+function sparklineRows(table: Array<Record<string, any>>, regionField: string | undefined, yField: string, useMedian: boolean) {
+    // A synthetic single-row facet when there is no series field, so the
+    // grid machinery below is uniform (one table row, blank category cell).
+    const facetField = regionField ?? 'flintSparkSeries';
+    const trendData = regionField ? table : table.map(r => ({ ...r, [facetField]: '' }));
+
+    // Row order = first appearance, kept stable across all three panels.
+    const regions: any[] = [];
+    const seen = new Set<any>();
+    for (const r of trendData) {
+        const v = r[facetField];
+        if (!seen.has(v)) { seen.add(v); regions.push(v); }
+    }
+
+    // Per-series central tendency for the value column (and width budget).
+    const groups = new Map<any, number[]>();
+    for (const r of trendData) {
+        const v = Number(r[yField]);
+        if (!Number.isFinite(v)) continue;
+        const k = r[facetField];
+        const arr = groups.get(k);
+        if (arr) arr.push(v); else groups.set(k, [v]);
+    }
+    const aggOf = (k: any): number => {
+        const a = groups.get(k) ?? [];
+        return useMedian ? median(a) : mean(a);
+    };
+    return { facetField, trendData, regions, aggOf };
+}
+
+interface SparklineSizes { stripH: number; catW: number; avgW: number; trendW: number; gap: number }
+
+/**
+ * Column widths follow their longest text; the trend takes the rest. Strips divide the height
+ * and pack tighter as the series count grows.
+ */
+function sparklineSizes(input: {
+    regions: any[]; averages: number[]; categoryTitle: string; avgTitle: string; valueFmt?: FormatSpec;
+    canvas: { width: number; height: number }; trendWidth: unknown; measure?: FamilyMeasure;
+}): SparklineSizes {
+    const { regions, canvas, measure } = input;
+    const N = Math.max(1, regions.length);
+    const stripH = Math.min(64, Math.max(16,
+        Math.floor((canvas.height - SPARK_HEADER_H - (N - 1) * SPARK_STRIP_GAP) / N)));
+    // Text is set at 11 px, the averages in bold; four characters are the narrowest a column runs.
+    const widthOf = (text: unknown, weight?: number) => measure ? measure(String(text ?? ''), 11, weight) : textWidth(text) * CHAR_PX;
+    const catText = Math.max(widthOf(input.categoryTitle), 4 * CHAR_PX, ...regions.map((r) => widthOf(r)));
+    const avgText = Math.max(widthOf(input.avgTitle), 4 * CHAR_PX,
+        ...input.averages.map((v) => widthOf(approxFormattedNum(v, input.valueFmt), 600)));
+    const catW = Math.min(200, Math.max(40, Math.round(catText) + 10));
+    const avgW = Math.min(96, Math.max(34, Math.round(avgText) + 8));
+    // Compact by default (DEFAULT_TREND_W), tunable via `trendWidth`, and
+    // always clamped to the base width left after the two text columns.
+    const avail = canvas.width - catW - avgW - 2 * SPARK_COLUMN_GAP;
+    const tunedTrendW = Number(input.trendWidth) || DEFAULT_TREND_W;
+    const trendW = Math.max(90, Math.min(tunedTrendW, avail));
+    return { stripH, catW, avgW, trendW, gap: SPARK_COLUMN_GAP };
+}
+
+/** The sizes a sparkline's planned views state: its three columns of strips. */
+function plannedSizes(views: ViewNode | undefined): SparklineSizes | undefined {
+    if (views?.kind !== 'concat' || views.children.length !== 3) return undefined;
+    const [names, trend, averages] = views.children.map((child) => child.kind === 'facet' && child.panel.kind === 'view' ? child.panel : undefined);
+    if (!names || !trend || !averages) return undefined;
+    return { stripH: trend.height, catW: names.width, avgW: averages.width, trendW: trend.width, gap: views.gap };
+}
+
+/**
+ * A sparkline's views: the series names, the trends and the averages, three columns of strips
+ * side by side, each strip the gap it was sized for below the last.
+ */
+function sparklineViews(ctx: ViewPlanContext): ViewNode | undefined {
+    const regionField = ctx.channelSemantics.row?.field;
+    const yField = ctx.channelSemantics.y?.field;
+    if (!ctx.channelSemantics.x?.field || !yField) return undefined;
+    const useMedian = ((ctx.chartProperties?.baseline as string) ?? 'mean') === 'median';
+    const { regions, aggOf } = sparklineRows((ctx.fullTable ?? ctx.table ?? []) as Array<Record<string, any>>, regionField, yField, useMedian);
+    const sizes = sparklineSizes({
+        regions, averages: regions.map(aggOf),
+        categoryTitle: String(ctx.titles.row ?? regionField ?? ''), avgTitle: useMedian ? 'Median' : 'Average',
+        valueFmt: ctx.channelSemantics.y?.format, canvas: ctx.canvasSize ?? { width: 480, height: 320 },
+        trendWidth: ctx.chartProperties?.trendWidth, measure: ctx.measureText,
+    });
+    const strips = (role: 'plot' | 'text', width: number): ViewNode => ({
+        kind: 'facet', columns: 1, rows: regions.length, panels: regions.length, gap: { row: SPARK_STRIP_GAP, column: SPARK_STRIP_GAP },
+        panel: { kind: 'view', role, width, height: sizes.stripH },
+    });
+    return {
+        kind: 'concat', direction: 'row', gap: sizes.gap,
+        children: [strips('text', sizes.catW), strips('plot', sizes.trendW), strips('text', sizes.avgW)],
+    };
+}
+
 export const sparklineDef: ChartTemplateDef = {
     chart: 'Sparkline',
+    composite: true,
+    planViews: sparklineViews,
     template: { mark: 'line', encoding: {} },
     channels: ['x', 'y', 'color', 'detail', 'row', 'column'],
+    structure: (ctx) => {
+        // Each panel names its own series, so no key is drawn.
+        const structure = { ...skeletonStructure(sparklineDef.template, ctx), keys: [] };
+        if (!ctx.channelSemantics.x?.field || !ctx.channelSemantics.y?.field) return structure;
+        const baseline = (ctx.chartProperties?.baseline as string) ?? 'mean';
+        return { ...structure, marks: ['text', 'line', ...(baseline !== 'none' ? ['rule'] : [])], axisTitles: { x: null, y: null } };
+    },
     interactionSupport: {
         elements: true,
         region: ['cartesian'],
@@ -194,34 +308,9 @@ export const sparklineDef: ChartTemplateDef = {
             return;
         }
 
-        const table = (ctx.fullTable ?? ctx.table ?? []) as Array<Record<string, any>>;
-
-        // A synthetic single-row facet when there is no series field, so the
-        // grid machinery below is uniform (one table row, blank category cell).
-        const facetField = regionField ?? 'flintSparkSeries';
-        const trendData = regionField ? table : table.map(r => ({ ...r, [facetField]: '' }));
-
-        // Row order = first appearance, kept stable across all three panels.
-        const regions: any[] = [];
-        const seen = new Set<any>();
-        for (const r of trendData) {
-            const v = r[facetField];
-            if (!seen.has(v)) { seen.add(v); regions.push(v); }
-        }
-
-        // Per-series central tendency for the value column (and width budget).
-        const groups = new Map<any, number[]>();
-        for (const r of trendData) {
-            const v = Number(r[yField]);
-            if (!Number.isFinite(v)) continue;
-            const k = r[facetField];
-            const arr = groups.get(k);
-            if (arr) arr.push(v); else groups.set(k, [v]);
-        }
-        const aggOf = (k: any): number => {
-            const a = groups.get(k) ?? [];
-            return useMedian ? median(a) : mean(a);
-        };
+        const { facetField, trendData, regions, aggOf } = sparklineRows(
+            (ctx.fullTable ?? ctx.table ?? []) as Array<Record<string, any>>, regionField, yField, useMedian,
+        );
 
         const categoryTitle = String(enc.row?.title ?? regionField ?? '');
         const trendTitle = String(enc.y?.title ?? yField ?? '');
@@ -247,26 +336,15 @@ export const sparklineDef: ChartTemplateDef = {
         // sizing doesn't apply to a hand-built hconcat). Column widths follow
         // their longest text; the trend takes the rest. Strips divide the
         // height and pack tighter as the series count grows.
-        const canvas = ctx.canvasSize ?? { width: 480, height: 320 };
-        const N = Math.max(1, regions.length);
-        const HEADER_H = 18;
-        const STRIP_GAP = 6;
-        const INTER_GAP = 8;
-        const stripH = Math.min(64, Math.max(16,
-            Math.floor((canvas.height - HEADER_H - (N - 1) * STRIP_GAP) / N)));
-        const maxCatChars = Math.max(textWidth(categoryTitle), 4,
-            ...regions.map(r => textWidth(r)));
-        const maxAvgChars = Math.max(textWidth(avgTitle), 4,
-            ...avgData.map(d => textWidth(approxFormattedNum(d.flintSparkAvg, valueFmt))));
-        const catW = Math.min(200, Math.max(40, Math.round(maxCatChars * CHAR_PX) + 10));
-        const avgW = Math.min(96, Math.max(34, Math.round(maxAvgChars * CHAR_PX) + 8));
-        // Compact by default (DEFAULT_TREND_W), tunable via `trendWidth`, and
-        // always clamped to the base width left after the two text columns.
-        const avail = canvas.width - catW - avgW - 2 * INTER_GAP;
-        const tunedTrendW = Number(ctx.chartProperties?.trendWidth) || DEFAULT_TREND_W;
-        const trendW = Math.max(90, Math.min(tunedTrendW, avail));
+        const planned = plannedSizes(ctx.views);
+        const { stripH, catW, avgW, trendW, gap } = planned ?? sparklineSizes({
+            regions, averages: avgData.map((d) => d.flintSparkAvg), categoryTitle, avgTitle, valueFmt,
+            canvas: ctx.canvasSize ?? { width: 480, height: 320 }, trendWidth: ctx.chartProperties?.trendWidth,
+            measure: ctx.measureText,
+        });
 
-        const facetRow = { field: facetField, type: 'nominal', sort: regions, header: null };
+        const stripGap = ctx.views?.kind === 'concat' && ctx.views.children[0]?.kind === 'facet' ? ctx.views.children[0].gap.row : SPARK_STRIP_GAP;
+        const facetRow = { field: facetField, type: 'nominal', sort: regions, header: null, spacing: stripGap };
         const lineMark = applyInterpolate({ type: 'line', strokeWidth: 1.5 }, ctx.chartProperties);
 
         // Inset the trace's y range a couple px inside the strip. A faceted
@@ -285,7 +363,7 @@ export const sparklineDef: ChartTemplateDef = {
                 x: { ...enc.x, axis: null },
                 y: { ...enc.y, axis: null, scale: { ...(enc.y as any).scale, ...trendYScale } },
                 ...(hasColor
-                    ? { color: { field: facetField, type: 'nominal', legend: null } }
+                    ? { color: { field: facetField, type: 'nominal', legend: null, sort: null } }
                     : { color: { value: MONO_LINE } }),
             },
         }];
@@ -338,7 +416,7 @@ export const sparklineDef: ChartTemplateDef = {
                     x: { value: avgW },
                     text: avgTextEncoding,
                     ...(hasColor
-                        ? { color: { field: facetField, type: 'nominal', legend: null } }
+                        ? { color: { field: facetField, type: 'nominal', legend: null, sort: null } }
                         : { color: { value: MONO_VALUE } }),
                 },
             },
@@ -348,7 +426,7 @@ export const sparklineDef: ChartTemplateDef = {
         delete spec.mark;
         delete spec.encoding;
         spec.hconcat = [catPanel, trendPanel, avgPanel];
-        spec.spacing = INTER_GAP;
+        spec.spacing = gap;
         // Trend owns the only real y scale; its per-row resolution is set on the
         // panel above. At the hconcat level keep y independent so VL never tries
         // to unify the trend's faceted scale with the text columns' value-y.
@@ -356,7 +434,7 @@ export const sparklineDef: ChartTemplateDef = {
         spec.config = {
             view: { stroke: null },
             axis: { grid: false, domain: false, ticks: false },
-            facet: { spacing: STRIP_GAP },
+            facet: { spacing: SPARK_STRIP_GAP },
         };
     },
 

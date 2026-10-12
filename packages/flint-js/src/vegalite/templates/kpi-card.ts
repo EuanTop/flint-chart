@@ -1,7 +1,8 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-import { ChartTemplateDef, ChartPropertyDef } from '../../core/types';
+import { ChartTemplateDef, ChartPropertyDef, type ViewPlanContext } from '../../core/types';
+import type { ViewNode } from '../../core/views';
 import {
     fieldsFromEncodingChannels,
     targetFromHits,
@@ -58,8 +59,103 @@ const CARD_FILL   = '#ffffff';
 const CARD_STROKE = '#e6e9ef';
 const CARD_RADIUS = 8;
 
+interface KpiGrid { layout: Layout; cols: number; rows: number; tileW: number; tileH: number; spacing: number }
+
+/** How many tiles a KPI card draws: one per row with a value, or one placeholder. */
+function kpiTileCount(table: readonly any[], valueField: string | undefined): number {
+    const valued = valueField ? table.filter((row) => row && row[valueField] != null).length : 0;
+    return Math.max(1, valued);
+}
+
+/** How a KPI card's tiles stand and how large each is, for `n` tiles on a base width. */
+function kpiGrid(n: number, requested: unknown, baseW: number): KpiGrid {
+    // baseH unused: tile height is derived from tile width via the
+    // target aspect ratio (see TARGET_ASPECT below) rather than from
+    // the canvas height.
+    const requestedLayout = (requested as Layout) || 'auto' as any;
+    const layout: Layout =
+        requestedLayout === 'horizontal' || requestedLayout === 'vertical' || requestedLayout === 'grid'
+            ? requestedLayout
+            : 'grid';
+
+    let cols: number;
+    let rows: number;
+    if (layout === 'horizontal') {
+        cols = n; rows = 1;
+    } else if (layout === 'vertical') {
+        cols = 1; rows = n;
+    } else {
+        cols = Math.ceil(Math.sqrt(n));
+        rows = Math.ceil(n / cols);
+    }
+    const spacing = 4;
+    // Sizing strategy
+    // ───────────────
+    // Cards target an aspect ratio (W:H) in the 1.2–1.5 range, which
+    // is what Tableau / Power BI / Looker scorecards converge on.
+    // Width is driven by the panel + tile-count budget; height is
+    // *derived* from width via TARGET_ASPECT so cards stay in shape
+    // whether they're compressed or expanded.
+    //
+    // Each tile *wants* to be TARGET_TILE_W wide. The canvas may
+    // stretch up to baseW × MAX_STRETCH (the "budget"). If granting
+    // every tile its wish would exceed that, tiles compress to share
+    // what the budget allows. If even that compression would push
+    // them below MIN_TILE_W, we let the canvas grow past the budget
+    // — readability wins. tileH is then derived from tileW.
+    const MAX_STRETCH   = 1.6;
+    const TARGET_ASPECT = 1.4;  // card W:H — within Tableau/Power BI range
+    const TARGET_TILE_W = 220;
+    const MIN_TILE_W    = 130;
+    const MIN_TILE_H    = Math.round(MIN_TILE_W / TARGET_ASPECT); // ~93
+
+    const wishW        = cols * TARGET_TILE_W + (cols - 1) * spacing;
+    const budgetW      = baseW * MAX_STRETCH;
+    const minRequiredW = cols * MIN_TILE_W + (cols - 1) * spacing;
+
+    const W = Math.max(
+        minRequiredW,
+        Math.min(budgetW, Math.max(baseW, wishW)),
+    );
+
+    // Tile dimensions follow the (possibly stretched) canvas; tileH
+    // is derived from tileW via the target aspect ratio so cards
+    // never go wider than ~1.5:1 or taller than ~1.2:1.
+    const tileW = Math.max(MIN_TILE_W, Math.floor((W - spacing * (cols - 1)) / cols));
+    const tileH = Math.max(MIN_TILE_H, Math.round(tileW / TARGET_ASPECT));
+    return { layout, cols, rows, tileW, tileH, spacing };
+}
+
+/** The tile size and gap a KPI card's planned views state. */
+function plannedTile(views: ViewNode | undefined): { tileW: number; tileH: number; spacing: number } | undefined {
+    if (views?.kind === 'view') return { tileW: views.width, tileH: views.height, spacing: 4 };
+    if (views?.kind !== 'concat') return undefined;
+    const first = views.children[0];
+    const tile = first?.kind === 'concat' ? first.children[0] : first;
+    return tile?.kind === 'view' ? { tileW: tile.width, tileH: tile.height, spacing: views.gap } : undefined;
+}
+
+/** A KPI card's tiles: one tile alone, a row, a column, or rows of a grid, all the gap apart. */
+function kpiViews(ctx: ViewPlanContext): ViewNode {
+    const n = kpiTileCount(ctx.fullTable ?? ctx.table ?? [], ctx.channelSemantics.value?.field);
+    const { layout, cols, rows, tileW, tileH, spacing } = kpiGrid(n, ctx.chartProperties?.layout, ctx.canvasSize.width);
+    const tile: ViewNode = { kind: 'view', role: 'tile', width: tileW, height: tileH };
+    if (n === 1) return tile;
+    const tiles = (count: number) => Array.from({ length: count }, () => tile);
+    if (layout === 'horizontal') return { kind: 'concat', direction: 'row', gap: spacing, children: tiles(n) };
+    if (layout === 'vertical') return { kind: 'concat', direction: 'column', gap: spacing, children: tiles(n) };
+    const rowsOf: ViewNode[] = [];
+    for (let r = 0; r < rows; r++) {
+        const count = Math.min(cols, n - r * cols);
+        if (count > 0) rowsOf.push({ kind: 'concat', direction: 'row', gap: spacing, children: tiles(count) });
+    }
+    return { kind: 'concat', direction: 'column', gap: spacing, children: rowsOf };
+}
+
 export const kpiCardDef: ChartTemplateDef = {
     chart: "KPI Card",
+    composite: true,
+    planViews: kpiViews,
     template: { layer: [] },
     channels: ["metric", "value", "goal"],
     interactionSupport: {
@@ -78,6 +174,17 @@ export const kpiCardDef: ChartTemplateDef = {
             'right', 'left', 'top', 'bottom', 'center',
         )),
     }),
+    structure: (ctx) => {
+        // Tiles of text, each on a card frame unless the style turns it off, with a progress bar
+        // where a value and a nonzero goal are both numbers.
+        const valueField = ctx.channelSemantics.value?.field;
+        const goalField = ctx.channelSemantics.goal?.field;
+        const numeric = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+        const progress = Boolean(valueField && goalField) && ctx.fullTable.some((row) =>
+            numeric(row?.[valueField!]) && numeric(row?.[goalField!]) && row[goalField!] !== 0);
+        const framed = ctx.chartProperties?.style !== false;
+        return { marks: [...(framed || progress ? ['rect'] : []), 'text'], stacking: 'none' };
+    },
     instantiate: (spec, ctx) => {
         const { metric, value, goal } = ctx.resolvedEncodings;
         const config = ctx.chartProperties || {};
@@ -142,65 +249,10 @@ export const kpiCardDef: ChartTemplateDef = {
         }
 
         // ── Layout ─────────────────────────────────────────────────────────
-        const baseW = ctx.canvasSize.width;
-        // baseH unused: tile height is derived from tile width via the
-        // target aspect ratio (see TARGET_ASPECT below) rather than from
-        // the canvas height.
-        const n = tiles.length;
-
-        const requestedLayout = (config.layout as Layout) || 'auto' as any;
-        const layout: Layout =
-            requestedLayout === 'horizontal' || requestedLayout === 'vertical' || requestedLayout === 'grid'
-                ? requestedLayout
-                : 'grid';
-
-        let cols: number;
-        let rows: number;
-        if (layout === 'horizontal') {
-            cols = n; rows = 1;
-        } else if (layout === 'vertical') {
-            cols = 1; rows = n;
-        } else {
-            cols = Math.ceil(Math.sqrt(n));
-            rows = Math.ceil(n / cols);
-        }
-
-        const spacing = 4;
-        // Sizing strategy
-        // ───────────────
-        // Cards target an aspect ratio (W:H) in the 1.2–1.5 range, which
-        // is what Tableau / Power BI / Looker scorecards converge on.
-        // Width is driven by the panel + tile-count budget; height is
-        // *derived* from width via TARGET_ASPECT so cards stay in shape
-        // whether they're compressed or expanded.
-        //
-        // Each tile *wants* to be TARGET_TILE_W wide. The canvas may
-        // stretch up to baseW × MAX_STRETCH (the "budget"). If granting
-        // every tile its wish would exceed that, tiles compress to share
-        // what the budget allows. If even that compression would push
-        // them below MIN_TILE_W, we let the canvas grow past the budget
-        // — readability wins. tileH is then derived from tileW.
-        const MAX_STRETCH   = 1.6;
-        const TARGET_ASPECT = 1.4;  // card W:H — within Tableau/Power BI range
-        const TARGET_TILE_W = 220;
-        const MIN_TILE_W    = 130;
-        const MIN_TILE_H    = Math.round(MIN_TILE_W / TARGET_ASPECT); // ~93
-
-        const wishW        = cols * TARGET_TILE_W + (cols - 1) * spacing;
-        const budgetW      = baseW * MAX_STRETCH;
-        const minRequiredW = cols * MIN_TILE_W + (cols - 1) * spacing;
-
-        const W = Math.max(
-            minRequiredW,
-            Math.min(budgetW, Math.max(baseW, wishW)),
-        );
-
-        // Tile dimensions follow the (possibly stretched) canvas; tileH
-        // is derived from tileW via the target aspect ratio so cards
-        // never go wider than ~1.5:1 or taller than ~1.2:1.
-        const tileW = Math.max(MIN_TILE_W, Math.floor((W - spacing * (cols - 1)) / cols));
-        const tileH = Math.max(MIN_TILE_H, Math.round(tileW / TARGET_ASPECT));
-        const H     = rows * tileH + (rows - 1) * spacing;
+        const planned = plannedTile(ctx.views);
+        const grid = kpiGrid(tiles.length, config.layout, ctx.canvasSize.width);
+        const { layout, cols, rows } = grid;
+        const { tileW, tileH, spacing } = planned ?? grid;
 
         // Card horizontal inset (must match cardLeft below) and inner
         // horizontal padding for text. Computed before font sizing so we
@@ -224,30 +276,35 @@ export const kpiCardDef: ChartTemplateDef = {
         const CHAR_W_BOLD    = 0.66;
         const CHAR_W_REGULAR = 0.58;
 
-        const maxValueChars   = tiles.reduce((m, t) => Math.max(m, t.valueText.length), 1);
-        const maxCaptionChars = tiles.reduce((m, t) => Math.max(m, t.caption.length), 1);
+        // Widths in em: measured where the plan measures text, else estimated per character.
+        const emOf = (text: string, bold: boolean) => ctx.measureText
+            ? ctx.measureText(text, 1, bold ? 'bold' : 'normal')
+            : text.length * (bold ? CHAR_W_BOLD : CHAR_W_REGULAR);
+        const valueEm   = tiles.reduce((m, t) => Math.max(m, emOf(t.valueText, true)), CHAR_W_BOLD);
+        const captionEm = tiles.reduce((m, t) => Math.max(m, ctx.measureText
+            ? emOf(t.caption, false) / 2
+            : Math.ceil(t.caption.length / 2) * CHAR_W_REGULAR), CHAR_W_REGULAR);
         // Sub-line text is either "<pct>% of <goal>" (when both value and
         // goal are numeric) or "Goal: <goal>" (otherwise). Predict the
         // longest possible form per tile so the font shrinks accordingly.
-        const maxSubChars = tiles.reduce((m, t) => {
+        const subEm = tiles.reduce((m, t) => {
             if (t.progress) {
                 const pct  = Math.round(t.progress.fraction * 100);
                 const text = `${pct}% of ${t.goalText ?? ''}`;
-                return Math.max(m, text.length);
+                return Math.max(m, emOf(text, false));
             }
-            if (t.goalText != null) return Math.max(m, (`Goal: ${t.goalText}`).length);
+            if (t.goalText != null) return Math.max(m, emOf(`Goal: ${t.goalText}`, false));
             return m;
-        }, 1);
+        }, CHAR_W_REGULAR);
 
-        const fontFitsWidth = (chars: number, charW: number) =>
-            Math.floor(cardInnerW / Math.max(1, chars * charW));
+        const fontFitsWidth = (em: number) => Math.floor(cardInnerW / Math.max(1, em));
 
-        const valueFontByWidth   = fontFitsWidth(maxValueChars,   CHAR_W_BOLD);
+        const valueFontByWidth   = fontFitsWidth(valueEm);
         // Captions may use two lines. Size them for roughly half the longest
         // caption rather than shrinking a long title to an unreadable single
         // line; the final text mark also has a hard pixel limit as a safety net.
-        const captionFontByWidth = fontFitsWidth(Math.ceil(maxCaptionChars / 2), CHAR_W_REGULAR);
-        const subFontByWidth     = fontFitsWidth(maxSubChars,     CHAR_W_REGULAR);
+        const captionFontByWidth = fontFitsWidth(captionEm);
+        const subFontByWidth     = fontFitsWidth(subEm);
 
         // Detect sub-line presence early — used both to size value (more
         // vertical room when there's no sub) and to lay out vertically below.
@@ -274,31 +331,41 @@ export const kpiCardDef: ChartTemplateDef = {
             1,
             Math.floor(cardInnerW / Math.max(1, captionFont * CHAR_W_REGULAR)),
         );
+        const fits = (text: string) => ctx.measureText
+            ? ctx.measureText(text, captionFont) <= cardInnerW
+            : text.length <= captionCharsPerLine;
+        // The most characters of `text` a line holds, with room for an ellipsis where asked.
+        const lineChars = (text: string, ellipsis: boolean) => {
+            if (!ctx.measureText) return ellipsis ? Math.max(1, captionCharsPerLine - 1) : captionCharsPerLine;
+            let count = 1;
+            while (count < text.length && fits(text.slice(0, count + 1) + (ellipsis ? '…' : ''))) count += 1;
+            return count;
+        };
         const wrapCaption = (text: string): { text: string; lines: number } => {
-            if (text.length <= captionCharsPerLine) return { text, lines: 1 };
+            if (fits(text)) return { text, lines: 1 };
 
             const words = text.trim().split(/\s+/);
             let first = '';
             let splitAt = 0;
             for (; splitAt < words.length; splitAt++) {
                 const candidate = first ? `${first} ${words[splitAt]}` : words[splitAt];
-                if (candidate.length > captionCharsPerLine && first) break;
+                if (!fits(candidate) && first) break;
                 first = candidate;
             }
 
             // A single unbroken token still needs a deterministic hard wrap.
-            if (splitAt === words.length && first.length > captionCharsPerLine) {
-                const firstLine = first.slice(0, captionCharsPerLine);
-                const remainder = first.slice(captionCharsPerLine);
-                const secondLine = remainder.length > captionCharsPerLine
-                    ? `${remainder.slice(0, Math.max(1, captionCharsPerLine - 1))}…`
+            if (splitAt === words.length && !fits(first)) {
+                const firstLine = first.slice(0, lineChars(first, false));
+                const remainder = first.slice(firstLine.length);
+                const secondLine = !fits(remainder)
+                    ? `${remainder.slice(0, lineChars(remainder, true))}…`
                     : remainder;
                 return { text: `${firstLine}\n${secondLine}`, lines: 2 };
             }
 
             const remainder = words.slice(splitAt).join(' ');
-            const second = remainder.length > captionCharsPerLine
-                ? `${remainder.slice(0, Math.max(1, captionCharsPerLine - 1)).trimEnd()}…`
+            const second = !fits(remainder)
+                ? `${remainder.slice(0, lineChars(remainder, true)).trimEnd()}…`
                 : remainder;
             return { text: `${first}\n${second}`, lines: 2 };
         };

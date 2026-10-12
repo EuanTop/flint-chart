@@ -44,6 +44,20 @@ const STATUS_COLORS = { below: '#c44e52', met: '#2f855a' };
 const STATUS_BELOW = 'Below target';
 const STATUS_MET = 'Meets target';
 
+/** The rows of each gray performance band, from each category's own goal in quarters. */
+function bulletZones(table: readonly Record<string, any>[], categoryField: string, goalField: string): Array<Array<Record<string, any>>> {
+    const zoneData: Array<Array<Record<string, any>>> = [[], [], []];
+    for (const r of table) {
+        const cat = r[categoryField];
+        const g = Number(r[goalField]);
+        if (cat == null || !Number.isFinite(g) || g <= 0) continue;
+        zoneData[0].push({ [categoryField]: cat, __lo: 0, __hi: 0.25 * g });
+        zoneData[1].push({ [categoryField]: cat, __lo: 0.25 * g, __hi: 0.5 * g });
+        zoneData[2].push({ [categoryField]: cat, __lo: 0.5 * g, __hi: 0.75 * g });
+    }
+    return zoneData;
+}
+
 export const bulletChartDef: ChartTemplateDef = {
     chart: "Bullet Chart",
     template: {
@@ -94,6 +108,26 @@ export const bulletChartDef: ChartTemplateDef = {
     declareLayoutMode: () => ({
         axisFlags: { y: { banded: true } },
     }),
+    structure: (ctx) => {
+        // One bar per category reads its value against its goal; gray bands shade the lower quarters
+        // of the goal, and the bar's colour says whether the goal was met unless a field colours it.
+        const { x, y, goal, color } = ctx.channelSemantics;
+        const zoned = Boolean(x?.field && y?.field && goal?.field)
+            && bulletZones(ctx.table, y!.field!, goal!.field!).some((rows) => rows.length > 0);
+        const xType = ctx.resolvedTypes?.x ?? x?.type;
+        const yType = ctx.resolvedTypes?.y ?? y?.type;
+        return {
+            marks: [...(zoned ? ['rect'] : []), 'bar', ...(goal ? ['tick'] : [])],
+            ...(x ? { x: { ...(xType ? { type: xType } : {}), fields: [x.field, goal?.field].filter((f): f is string => Boolean(f)), baseline: 'zero' } } : {}),
+            ...(y ? { y: { ...(yType ? { type: yType } : {}), fields: y.field ? [y.field] : [] } } : {}),
+            ...(color?.field ? { series: { field: color.field, type: color.type } }
+                : x?.field && goal?.field ? { series: { derived: 'goal status', type: 'nominal' } } : {}),
+            ...(color?.field ? {} : x?.field && goal?.field
+                ? { keys: [{ channel: 'color' as const, derived: 'goal status', type: 'nominal', via: '__status', entries: [STATUS_BELOW, STATUS_MET] }] } : {}),
+            stacking: 'none',
+            axisTitles: { y: null },
+        };
+    },
     instantiate: (spec, ctx) => {
         const { x, y, goal, color, column, row } = ctx.resolvedEncodings;
 
@@ -116,17 +150,8 @@ export const bulletChartDef: ChartTemplateDef = {
         // Breakpoints come from each row's own goal in quarters; only the lower
         // performance ranges are shaded, leaving 75% of target and above on the
         // white plot background.
-        if (x?.field && y?.field && goal?.field && table.length > 0) {
-            const zoneData: Array<Array<Record<string, any>>> = [[], [], []];
-            for (const r of table) {
-                const cat = r[y.field];
-                const g = Number(r[goal.field]);
-                if (cat == null || !Number.isFinite(g) || g <= 0) continue;
-                zoneData[0].push({ [y.field]: cat, __lo: 0, __hi: 0.25 * g });
-                zoneData[1].push({ [y.field]: cat, __lo: 0.25 * g, __hi: 0.5 * g });
-                zoneData[2].push({ [y.field]: cat, __lo: 0.5 * g, __hi: 0.75 * g });
-            }
-            zoneData.forEach((rows, i) => {
+        if (x?.field && y?.field && goal?.field) {
+            bulletZones(table, y.field, goal.field).forEach((rows, i) => {
                 if (rows.length === 0) return;
                 layers.push({
                     data: { values: rows },

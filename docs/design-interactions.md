@@ -106,7 +106,7 @@ kind of change.
 ## §2.4 The surface
 
 `mountChart(container, input, options)` returns an `InteractiveChartSurface`:
-`ready`, `warnings`, `applyUpdate`, `setUpdates`, `clearUpdate`, `dispatch`, `getState`,
+`ready`, `warnings`, `layout`, `applyUpdate`, `setUpdates`, `clearUpdate`, `dispatch`, `getState`,
 `onChange`, `refresh`, `destroy`. The container emits a `flint-interaction` DOM event for every
 semantic event, with the interaction id and the resolved target, so a host can listen without
 knowing the preset.

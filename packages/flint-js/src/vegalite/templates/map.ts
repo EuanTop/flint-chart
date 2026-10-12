@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-import { ChartTemplateDef, ChartPropertyDef, OptionEvalContext } from '../../core/types';
+import { ChartTemplateDef, ChartPropertyDef, InstantiateContext, OptionEvalContext, PlotPlanContext } from '../../core/types';
 import {
     resolveUsState, resolveCountry, GeoResolver,
     type MapScope, inferBubbleScope, inferChoroplethScope, semanticScope, pickMapScope,
@@ -285,6 +285,31 @@ const levelProperty: ChartPropertyDef = {
     check: (ctx) => ({ applicable: ctx.chartProperties?.region !== 'world' }),
 };
 
+/** The region a bubble map shows: the caller's choice, else what the coordinates span. */
+function bubbleScope(ctx: PlotPlanContext, lonField: string | undefined, latField: string | undefined): MapScope {
+    const rows = ctx.fullTable ?? ctx.table ?? [];
+    return pickMapScope(ctx.chartProperties, undefined, () => inferBubbleScope(rows, lonField, latField));
+}
+
+/** The region a choropleth shows: the caller's choice, else the id field's semantic type, else its values. */
+function choroplethScope(ctx: PlotPlanContext, idField: string | undefined): MapScope {
+    const rows = ctx.fullTable ?? ctx.table ?? [];
+    const semType = idField ? toTypeString(ctx.semanticTypes?.[idField]) : '';
+    return pickMapScope(ctx.chartProperties, semanticScope(semType), () => inferChoroplethScope(rows, idField));
+}
+
+/** A map is drawn at its region's size. */
+function scopeSize(scope: MapScope): { width: number; height: number } {
+    const g = SCOPE_GEO[scope];
+    return { width: g.width, height: g.height };
+}
+
+function drawAtPlannedSize(spec: any, ctx: InstantiateContext): void {
+    if (!ctx.plot) return;
+    spec.width = ctx.plot.width;
+    spec.height = ctx.plot.height;
+}
+
 export const mapDef: ChartTemplateDef = {
     chart: "Map",
     template: {
@@ -332,13 +357,15 @@ export const mapDef: ChartTemplateDef = {
             )),
         };
     },
+    planPlot: (ctx) => scopeSize(bubbleScope(ctx, ctx.channelSemantics.longitude?.field, ctx.channelSemantics.latitude?.field)),
     instantiate: (spec, ctx) => {
         const rows = ctx.fullTable ?? ctx.table ?? [];
         const lonField = ctx.resolvedEncodings.longitude?.field;
         const latField = ctx.resolvedEncodings.latitude?.field;
-        const scope = pickMapScope(ctx.chartProperties, undefined, () => inferBubbleScope(rows, lonField, latField));
+        const scope = bubbleScope(ctx, lonField, latField);
 
         configureBubble(spec, scope);
+        drawAtPlannedSize(spec, ctx);
         // `baseMapUrl` swaps the region's base map for a GeoJSON
         // FeatureCollection of the host's own (a country's provinces, say);
         // the projection still fits to it.
@@ -504,22 +531,17 @@ export const choroplethDef: ChartTemplateDef = {
             legendFields: colorField ? { color: colorField } : undefined,
         };
     },
+    planPlot: (ctx) => scopeSize(choroplethScope(ctx, ctx.channelSemantics.id?.field)),
     instantiate: (spec, ctx) => {
-        const rows = ctx.fullTable ?? ctx.table ?? [];
         const idField = ctx.resolvedEncodings.id?.field;
-        const semType = idField ? toTypeString(ctx.semanticTypes?.[idField]) : '';
-        const semScope = semanticScope(semType);
-        const scope = pickMapScope(
-            ctx.chartProperties,
-            semScope,
-            () => inferChoroplethScope(rows, idField),
-        );
+        const scope = choroplethScope(ctx, idField);
 
         const requestedLevel = ctx.chartProperties?.level;
         const level: ChoroplethLevel = requestedLevel === 'county' || requestedLevel === 'auto'
             ? requestedLevel
             : 'state';
         configureChoropleth(spec, scope, level);
+        drawAtPlannedSize(spec, ctx);
         // County rows carry numeric FIPS ids, which the state resolver passes through.
         const resolver: GeoResolver = scope === 'us' ? resolveUsState : resolveCountry;
         buildChoroplethJoin(spec, ctx, resolver);

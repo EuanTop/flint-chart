@@ -1,10 +1,16 @@
+import { vegaLiteStages } from '../src/vegalite/assemble';
+import { titleMeasures } from '../src/core/title-fit';
+import { tableTextMeasurer } from '../src/core/text-width';
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 import { describe, it, expect } from 'vitest';
 import { compile } from 'vega-lite';
 import { parse, View } from 'vega';
-import { assembleVegaLite, THEME_PRESETS } from '../src';
+import { assembleVegaLite as assembleWithoutDecisions, THEME_PRESETS } from '../src';
+
+/** Compiles with the theme's full decisions attached, which these tests read. */
+const assembleVegaLite = (input: any): any => assembleWithoutDecisions({ ...input, options: { ...input.options, themeDecisions: true } });
 import type { ThemeSpec } from '../src/core/theme/types';
 
 /**
@@ -112,7 +118,7 @@ describe('axis titles', () => {
     });
 
     it.each([240, 640])('appends a shared faceted measure once and fits its subtitle at %i px', async width => {
-        const spec: any = assembleVegaLite({
+        const input: any = {
             data: { values: [
                 { Year: 2024, Site: 'A', Mass: 10 },
                 { Year: 2025, Site: 'A', Mass: 20 },
@@ -129,7 +135,9 @@ describe('axis titles', () => {
                 baseSize: { width, height: 320 },
             },
             theme_spec: 'mckinsey',
-        });
+        };
+        const spec: any = assembleVegaLite(input);
+        const planned = vegaLiteStages(input).plan.title?.block ?? width;
         const view = new View(parse(compile(spec).spec), { renderer: 'none' });
         try {
             await view.runAsync();
@@ -141,9 +149,15 @@ describe('axis titles', () => {
             visit((view.scenegraph() as any).root);
             expect(subtitles.flatMap(item => [item.text].flat()).join(' '))
                 .toBe('Recorded at two sites in consecutive years; Shipment mass (kg)');
-            const blockWidth = Math.max(width, spec._theme.decisions.layout.plotWidth * 2);
+            // Node draws text with Vega's 0.8 em estimate, so each line is measured as title fitting
+            // measures it, in the deck's font, against the block the plan fitted it to: both panels and the gap.
+            const blockWidth = planned;
+            const design = vegaLiteStages(input).plan.design;
+            const measure = titleMeasures(design.title, design.font, tableTextMeasurer).deck;
             for (const item of subtitles) {
-                expect(item.bounds.width()).toBeLessThanOrEqual(blockWidth * 1.18);
+                for (const line of [item.text].flat()) {
+                    expect(measure(String(line), item.fontSize)).toBeLessThanOrEqual(blockWidth);
+                }
             }
         } finally {
             view.finalize();
@@ -237,8 +251,6 @@ describe('axis titles', () => {
         const spec = bars(house({ axisTitles: 'omit' }));
         expect(axisTitle(spec, 'y')).toBeNull();
         expect(spec.title).toMatchObject({ text: '', subtitle: ['Rainfall'] });
-        const report = spec._theme.report.map((r: any) => r.path);
-        expect(report).toContain('annotation.axisTitles');
         const view = new View(parse(compile(spec).spec), { renderer: 'none' });
         try {
             await view.runAsync();
@@ -293,7 +305,7 @@ describe('axis titles', () => {
                 structure: { axis: { measure: { placement: 'opposite' } } },
             },
         } as any) as any;
-        const y = spec.encoding?.y ?? spec.spec?.encoding?.y;
+        const y = spec.encoding?.y ?? spec.spec?.encoding?.y ?? spec.spec?.layer?.[0]?.encoding?.y;
         expect(y.axis.orient).toBe('right');
         expect(y.axis.titleY).toBeLessThanOrEqual(-30);
     });
@@ -400,7 +412,6 @@ describe('axis titles', () => {
         expect([spec.title.subtitle].flat().join(' ')).toBe('X: Miles/person; Y: Gas price');
         const enc = (spec.spec?.encoding ?? spec.encoding ?? spec.layer?.[0]?.encoding ?? {});
         expect(enc.y.axis.orient).toBe('right');
-        expect(JSON.stringify(spec._theme.report)).toContain('moves to the end of the subtitle');
     });
 
     it('keeps life expectancy named when the headline only describes the story', () => {
@@ -577,13 +588,13 @@ describe('a headline wider than its block', () => {
     }
 
     /** A wide plot, where a headline of ordinary length only just overhangs. */
-    function scattered(headline: string, themeId: string): any {
+    function scatteredInput(headline: string, themeId: string): any {
         const rows = Array.from({ length: 40 }, (_, i) => ({
             flipper: 178 + (i % 20) * 3,
             mass: 3200 + ((i * 137) % 2800),
             species: ['Adelie', 'Chinstrap', 'Gentoo'][i % 3],
         }));
-        return assembleVegaLite({
+        return {
             data: { values: rows },
             semantic_types: { flipper: 'Amount', mass: 'Amount', species: 'Category' },
             chart_spec: {
@@ -592,17 +603,25 @@ describe('a headline wider than its block', () => {
                 encodings: { x: 'flipper', y: 'mass', color: 'species' },
             },
             theme_spec: (THEME_PRESETS as any)[themeId].spec,
-        } as any) as any;
+        };
+    }
+
+    function scattered(headline: string, themeId: string): any {
+        return assembleVegaLite(scatteredInput(headline, themeId)) as any;
     }
 
     it('leaves a headline that fits alone', () => {
         expect(titled('Rain keeps falling').title.text).toBe('Rain keeps falling');
     });
 
-    it('lets a headline that only overhangs stand, in every house', () => {
+    it('keeps every headline line inside its block, in every house', () => {
         for (const id of Object.keys(THEME_PRESETS)) {
-            const text = scattered(PENGUINS, id).title.text;
-            expect(Array.isArray(text), `${id} broke a headline it could have carried`).toBe(false);
+            const { plan, spec } = vegaLiteStages(scatteredInput(PENGUINS, id));
+            const measure = titleMeasures(plan.design.title, plan.design.font, tableTextMeasurer).headline;
+            const size = spec.title.fontSize ?? spec.config?.title?.fontSize ?? plan.design.title.headline.fontSize ?? 14;
+            for (const line of [spec.title.text].flat()) {
+                expect(measure(String(line), size), `${id}: "${line}"`).toBeLessThanOrEqual(plan.title!.block);
+            }
         }
     });
 

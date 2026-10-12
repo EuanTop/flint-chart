@@ -10,6 +10,7 @@ export type {
     TargetFeedbackOptions,
     BuildInteractiveChartOptions,
     ChartChange,
+    ChartLayout,
     ChartChangePhase,
     ChartChangeSource,
     ChartStateFacet,
@@ -244,6 +245,7 @@ export function mountChart(
                                 keyboard: keyboardTargeting ? {} : false,
                             },
                             keyboardTargeting,
+                            liveValues: availableSize !== undefined,
                         }).mount(chartContainer, await sized(chartInput));
                     },
                 },

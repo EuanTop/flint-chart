@@ -359,6 +359,12 @@ export interface ThemeLegend {
      */
     maxSwatches?: number;
     swatch?: 'auto';
+    /** Several keys above or below the plot: side by side, or one above another. A preference: it gives way where the keys would overflow. */
+    arrangement?: 'row' | 'stack';
+    /** A key's title above its entries, or before them on their line, above or below the plot. A preference. */
+    titlePosition?: 'above' | 'inline';
+    /** Where keys stand along their edge: from its start, centred, at its end, or spread across it. */
+    align?: 'start' | 'center' | 'end' | 'spread';
     /** The legend restates the categorical axis — delete it. */
     suppressWhenAxisNames?: boolean;
     /** The legend restates a number already printed in every mark — delete it. */
@@ -583,7 +589,8 @@ export interface ThemeGeometry {
  * Keyed by chart type id, or `*` for every chart. Values are chart-property
  * keys the template already declares. It is a *default*: anything the caller
  * set explicitly wins, and a key the template does not offer is reported and
- * dropped.
+ * dropped. So is a key that changes how the data is read rather than how the
+ * chart looks: axis type, zero baseline, log scale, transform, encoding actions.
  */
 export interface ThemeChartDefaults {
     [chartType: string]: Record<string, unknown>;
@@ -701,12 +708,21 @@ export interface ThemePreset {
  * A downgrade or approximation. Silent fallbacks are indistinguishable from
  * bugs, so every one of these is surfaced on `spec._theme.report`.
  */
+/**
+ * Where a chart departs from what its theme or author stated, or where a stated option cannot apply
+ * to this chart, and why. A setting applied as stated is not reported.
+ */
 export interface ThemeReport {
     stage: 'ground' | 'realize';
     /** Dotted ThemeSpec path this concerns, e.g. `legend.placement`. */
     path: string;
+    /** What kind of departure, in kebab case, e.g. `straight-refused`: stable for code and tests to read. */
+    code: string;
     message: string;
 }
+
+/** Records a departure: the ThemeSpec path it concerns, its code, and a message saying why. */
+export type ReportDeparture = (path: string, code: string, message: string) => void;
 
 export interface ResolvedText {
     font?: string;
@@ -735,6 +751,8 @@ export interface ResolvedAxis {
     title: { show: boolean; placement?: 'rotated' | 'flatAboveAxis' | 'inline' | 'subtitle'; gap?: number; unit?: string } & ResolvedText;
     /** Preferred tick count; undefined = let the renderer choose. */
     tickCount?: number;
+    /** The px between labels a measure axis is graduated at. */
+    tickSpacing?: number;
     /**
      * Which ticks carry a label. `all` leaves the choice to the renderer's own
      * scale; the rest ask for the values the data actually holds, thinned or
@@ -798,6 +816,10 @@ export interface ResolvedLegend {
     gradientLength?: number;
     /** The most entries a key to values may spend. */
     maxSwatches?: number;
+    /** How several keys stand, as the theme prefers; unset leaves it to the plan. */
+    arrangement?: ThemeLegend['arrangement'];
+    titlePosition?: ThemeLegend['titlePosition'];
+    align?: ThemeLegend['align'];
 }
 
 export interface ResolvedDataLabels {

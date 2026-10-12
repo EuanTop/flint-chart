@@ -185,7 +185,7 @@ export const AXIS_LABEL_LIMIT = 180;
  * them. Updates the layout's step and label sizing in place; `skip` leaves a channel alone.
  */
 export function planBandLabels(
-    context: InstantiateContext,
+    context: Pick<InstantiateContext, 'layout' | 'canvasSize' | 'channelSemantics' | 'assembleOptions' | 'table'>,
     options: { fontSize?: number; skip?: (channel: 'x' | 'y') => boolean } = {},
 ): void {
     const { layout, canvasSize, channelSemantics } = context;
@@ -260,6 +260,18 @@ export function resolveBaseSize(
         width: Math.min(base.width, ceiling.width),
         height: Math.min(base.height, ceiling.height),
     };
+}
+
+/**
+ * The length of one facet panel along a dimension: the canvas, stretched by the panel count to
+ * the elasticity's power up to the cap, less the fixed room, shared by the panels, less the gap
+ * between them.
+ */
+export function facetPanelLength(
+    canvas: number, panels: number, cap: number, elasticity: number, fixed: number, gap: number,
+): number {
+    const stretch = Math.min(cap, Math.pow(panels, elasticity));
+    return (canvas * stretch - fixed) / panels - gap;
 }
 
 /**
@@ -371,6 +383,7 @@ const SQUARE_CELL_TOLERANCE = 1.5;
  *                           counts instead of counting from data — this
  *                           eliminates the circularity between wrapping and
  *                           banded axis sizing.
+ * @param pinnedPlot         A plot size that stays as given, whatever the rows would stretch it to.
  */
 export function computeLayout(
     channelSemantics: Record<string, ChannelSemantics>,
@@ -379,6 +392,7 @@ export function computeLayout(
     canvasSize: { width: number; height: number },
     options: AssembleOptions = {},
     facetGrid?: { columns: number; rows: number },
+    pinnedPlot?: { width: number; height: number },
 ): LayoutResult {
     const {
         elasticity: elasticityVal = 0.5,
@@ -403,7 +417,8 @@ export function computeLayout(
     // Facet overhead: fixed (axis labels, titles) + per-panel gap (spacing).
     const fixW = options.facetFixedPadding?.width ?? 0;
     const fixH = options.facetFixedPadding?.height ?? 0;
-    const gap = options.facetGap ?? 0;
+    const gapX = options.facetGapColumn ?? options.facetGap ?? 0;
+    const gapY = options.facetGapRow ?? options.facetGap ?? 0;
 
     const baseRefSize = 300;
     const sizeRatio = Math.max(defaultChartWidth, defaultChartHeight) / baseRefSize;
@@ -584,18 +599,16 @@ export function computeLayout(
 
     let subplotWidth: number;
     if (facetCols > 1) {
-        const stretch = Math.min(maxStretchX, Math.pow(facetCols, facetElasticityVal));
         subplotWidth = Math.round(Math.max(minContinuousSizeX,
-            (defaultChartWidth * stretch - fixW) / facetCols - gap));
+            facetPanelLength(defaultChartWidth, facetCols, maxStretchX, facetElasticityVal, fixW, gapX)));
     } else {
         subplotWidth = defaultChartWidth;
     }
 
     let subplotHeight: number;
     if (facetRows > 1) {
-        const stretch = Math.min(maxStretchY, Math.pow(facetRows, facetElasticityVal));
         subplotHeight = Math.round(Math.max(minContinuousSizeY,
-            (defaultChartHeight * stretch - fixH) / facetRows - gap));
+            facetPanelLength(defaultChartHeight, facetRows, maxStretchY, facetElasticityVal, fixH, gapY)));
     } else {
         subplotHeight = defaultChartHeight;
     }
@@ -732,12 +745,12 @@ export function computeLayout(
                 const perSubplotCanvasW = facetCols > 1
                     ? Math.max(minContinuousSizeX,
                         (defaultChartWidth * Math.min(maxStretchX, Math.pow(facetCols, facetElasticityVal)) - fixW)
-                        / facetCols - gap)
+                        / facetCols - gapX)
                     : defaultChartWidth;
                 const perSubplotCanvasH = facetRows > 1
                     ? Math.max(minContinuousSizeY,
                         (defaultChartHeight * Math.min(maxStretchY, Math.pow(facetRows, facetElasticityVal)) - fixH)
-                        / facetRows - gap)
+                        / facetRows - gapY)
                     : defaultChartHeight;
 
                 // --- Gas pressure: per-axis raw stretches ---
@@ -821,10 +834,10 @@ export function computeLayout(
                 // Hard ceiling per subplot: canvas × maxStretch shared
                 // across facet panels.
                 const availW = facetCols > 1
-                    ? Math.max(minContinuousSizeX, (defaultChartWidth * maxStretchX - fixW) / facetCols - gap)
+                    ? Math.max(minContinuousSizeX, (defaultChartWidth * maxStretchX - fixW) / facetCols - gapX)
                     : defaultChartWidth * maxStretchX;
                 const availH = facetRows > 1
-                    ? Math.max(minContinuousSizeY, (defaultChartHeight * maxStretchY - fixH) / facetRows - gap)
+                    ? Math.max(minContinuousSizeY, (defaultChartHeight * maxStretchY - fixH) / facetRows - gapY)
                     : defaultChartHeight * maxStretchY;
 
                 // Scale down to fit: if either axis exceeds its budget,
@@ -943,6 +956,8 @@ export function computeLayout(
     let yStepSize: number;
     let xStepUnit: 'item' | 'group' | undefined;
     let yStepUnit: 'item' | 'group' | undefined;
+    let xStepFitted = false;
+    let yStepFitted = false;
 
     if (xIsDiscrete && xHasGrouping) {
         const itemsPerGroup = nominalCount.group;
@@ -956,10 +971,10 @@ export function computeLayout(
         const groupStep = Math.max(minGroupStep, Math.min(defaultGroupStep, groupAxis.step));
         xStepSize = groupStep;
         xStepUnit = 'group';
-    } else if (xIsDiscrete) {
+        xStepFitted = groupAxis.fitted;
+    } else if (xIsDiscrete || xContinuousAsDiscrete > 0) {
         xStepSize = Math.max(minStepVal, Math.min(maxStepSize, xAxis.step));
-    } else if (xContinuousAsDiscrete > 0) {
-        xStepSize = Math.max(minStepVal, Math.min(maxStepSize, xAxis.step));
+        xStepFitted = xAxis.fitted;
     } else {
         xStepSize = defaultStepSize;
     }
@@ -976,10 +991,10 @@ export function computeLayout(
         const groupStep = Math.max(minGroupStep, Math.min(defaultGroupStep, groupAxis.step));
         yStepSize = groupStep;
         yStepUnit = 'group';
-    } else if (yIsDiscrete) {
+        yStepFitted = groupAxis.fitted;
+    } else if (yIsDiscrete || yContinuousAsDiscrete > 0) {
         yStepSize = Math.max(minStepVal, Math.min(maxStepSize, yAxis.step));
-    } else if (yContinuousAsDiscrete > 0) {
-        yStepSize = Math.max(minStepVal, Math.min(maxStepSize, yAxis.step));
+        yStepFitted = yAxis.fitted;
     } else {
         yStepSize = defaultStepSize;
     }
@@ -1001,8 +1016,8 @@ export function computeLayout(
     // Cap the per-subplot dimensions so total canvas never exceeds
     // canvasWidth × maxStretch (and canvasHeight × maxStretch).
     // Formula: effectiveW = W × maxStretch − fixedPad; each panel costs subplot + gap.
-    const maxSubplotW = (defaultChartWidth * maxStretchX - fixW) / facetCols - gap;
-    const maxSubplotH = (defaultChartHeight * maxStretchY - fixH) / facetRows - gap;
+    const maxSubplotW = (defaultChartWidth * maxStretchX - fixW) / facetCols - gapX;
+    const maxSubplotH = (defaultChartHeight * maxStretchY - fixH) / facetRows - gapY;
 
     // Clamp step sizes for discrete/banded axes so VL step-based
     // sizing respects the same budget.
@@ -1126,6 +1141,10 @@ export function computeLayout(
     // Clamp continuous subplot dimensions.
     subplotWidth = Math.min(subplotWidth, Math.round(maxSubplotW));
     subplotHeight = Math.min(subplotHeight, Math.round(maxSubplotH));
+    // A banded continuous axis spreads its values across the clamped plot, so its step is what the
+    // plot leaves each value, even below the minimum step it was asked for.
+    if (xContinuousAsDiscrete > 0) xStepSize = Math.min(xStepSize, subplotWidth / (xContinuousAsDiscrete + 1));
+    if (yContinuousAsDiscrete > 0) yStepSize = Math.min(yStepSize, subplotHeight / (yContinuousAsDiscrete + 1));
 
     // --- Band AR blending ---
     // When one axis is banded (discrete) and the other is continuous,
@@ -1159,6 +1178,14 @@ export function computeLayout(
                     Math.max(minContinuousSizeX, Math.min(blendedW, subplotWidth)));
             }
         }
+    }
+
+    // --- Pinned plot ---
+    // A pinned plot keeps its size; the steps stay as the rows decide them, so planning the
+    // same rows again into the same plot gives the same layout.
+    if (pinnedPlot) {
+        subplotWidth = pinnedPlot.width;
+        subplotHeight = pinnedPlot.height;
     }
 
     // --- Label sizing ---
@@ -1277,6 +1304,8 @@ export function computeLayout(
         yStep: yStepSize,
         xStepUnit,
         yStepUnit,
+        xStepFitted,
+        yStepFitted,
         xContinuousAsDiscrete,
         yContinuousAsDiscrete,
         xNominalCount: xTotalNominalCount,
@@ -1292,7 +1321,7 @@ export function computeLayout(
             subplotWidth,
             subplotHeight,
         } : undefined,
-        effectiveFacetGap: gap,
+        effectiveFacetGap: gapX,
         truncations: [],  // Overflow truncations are handled by filterOverflow
     };
 }

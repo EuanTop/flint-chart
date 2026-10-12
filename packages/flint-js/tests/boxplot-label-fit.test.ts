@@ -126,6 +126,7 @@ describe('word-wrapped categorical axis labels', () => {
         encodings: horizontal ? { x: 'Total', y: 'Team' } : { x: 'Team', y: 'Total' },
         baseSize: { width: 480, height: 320 },
       },
+      options: { themeDecisions: true },
     };
   }
 
@@ -389,12 +390,14 @@ describe('faceted labels across themes', () => {
         expect(titles).toHaveLength(1);
         expect(panels).toHaveLength(4);
         expect(titles[0].bottom).toBeLessThan(Math.min(...panels.map(panel => panel.top)));
-        expect(spec.config.facet.spacing.row ?? spec.config.facet.spacing).toBeLessThanOrEqual(20);
+        // The gap between rows holds the y ruler labels that meet there, and stays compact.
+        expect(spec.config.facet.spacing.row ?? spec.config.facet.spacing).toBeLessThanOrEqual(30);
         expect(spec.config.legend.offset ?? 18).toBeLessThanOrEqual(18);
+        // Each panel stands on a floor drawn as the x axis line, across its full width.
         const boundaries: any[] = [];
         const findBoundaries = (item: any): void => {
-          if (item.mark?.role === 'axis-grid' && item.datum?.value === 0
-            && item.stroke && item.stroke !== 'transparent' && item.strokeWidth > 0) boundaries.push(item);
+          if (item.mark?.marktype === 'rule' && item.stroke === spec.config.axisX.domainColor
+            && Math.abs((item.x2 ?? item.x) - item.x - (item.mark.group?.width ?? -1)) < 1) boundaries.push(item);
           for (const child of item.items ?? []) findBoundaries(child);
         };
         findBoundaries((view.scenegraph() as any).root);
@@ -407,6 +410,17 @@ describe('faceted labels across themes', () => {
       for (const axis of axes) {
         const labels = axis.items.filter((item: any) => item.opacity !== 0 && item.text != null);
         for (let index = 1; index < labels.length; index++) {
+          // Turned names are parallel lines of text: they clear each other when their anchors stand a
+          // line apart across the turn, however much their upright bounding boxes overlap.
+          const angle = labels[index].angle ?? 0;
+          if (angle % 90 !== 0) {
+            const turn = (angle * Math.PI) / 180;
+            const dx = labels[index].x - labels[index - 1].x;
+            const dy = labels[index].y - labels[index - 1].y;
+            expect(Math.abs(dy * Math.cos(turn) - dx * Math.sin(turn)),
+              `${labels[index - 1].text} / ${labels[index].text}`).toBeGreaterThanOrEqual(labels[index].fontSize * 0.9);
+            continue;
+          }
           const previous = labels[index - 1].bounds;
           const current = labels[index].bounds;
           const overlapX = Math.min(previous.x2, current.x2) - Math.max(previous.x1, current.x1);

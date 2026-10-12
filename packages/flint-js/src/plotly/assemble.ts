@@ -48,6 +48,7 @@ import { bandedSpan, plApplyBandLabels, plApplyCartesianAxisSpacing, plApplyLayo
 import { plCombineFacetPanels, niceBounds, type PlotlyFacetPanel } from './facet';
 import { normalizeStaticSeries } from '../core/static-series';
 import { normalizeChartProperties } from '../core/normalize-properties';
+import { analysisReadsProperty } from '../core/analyze';
 import { groundTheme, resolveChartDefaults, resolveCompileDefaults, resolveThemeFontSize } from '../core/theme/ground';
 import { resolveThemeSpec } from '../core/theme/presets';
 import {
@@ -128,6 +129,7 @@ export function assemblePlotly(input: ChartAssemblyInput): any {
         ? resolveChartDefaults(
             themeSpec, chartType, chartTemplate.properties,
             input.chart_spec.chartProperties, chartProperties,
+            (key) => analysisReadsProperty(chartTemplate, key),
         )
         : [];
 

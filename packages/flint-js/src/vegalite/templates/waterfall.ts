@@ -33,6 +33,43 @@ function waterfallAnnotationCandidates(): readonly AnnotationCandidate[] {
  *
  * Uses a layered spec: bars + connector rules.
  */
+/** Whether value labels fit a step's band; a chart planned without one assumes they do. */
+/**
+ * The kind of each step: the bound type column's, else a start total first and an end total last
+ * as the totals mode asks.
+ */
+function stepKinds(rows: any[], typeField: string | undefined, values: number[], totals: unknown): string[] {
+    if (typeField) return rows.map((row) => String(row?.[typeField]));
+    const mode = resolveTotalsMode(values, totals);
+    return rows.map((_, index) => (index === 0 && (mode === 'first' || mode === 'both') ? 'start'
+        : index === rows.length - 1 && (mode === 'last' || mode === 'both') ? 'end' : 'delta'));
+}
+
+/**
+ * The levels a waterfall's bars span, in row order: the running sum, where an end total stands
+ * from zero to the sum before it.
+ */
+export function waterfallExtent(rows: any[], yField: string, kinds: string[]): [number, number] | undefined {
+    let lo = Infinity;
+    let hi = -Infinity;
+    let raw = 0;
+    rows.forEach((row, index) => {
+        const value = Number(row?.[yField]);
+        if (!Number.isFinite(value)) return;
+        raw += value;
+        const end = kinds[index] === 'end';
+        const sum = end ? raw - value : raw;
+        const prev = end ? 0 : sum - value;
+        lo = Math.min(lo, sum, prev);
+        hi = Math.max(hi, sum, prev);
+    });
+    return Number.isFinite(lo) ? [lo, hi] : undefined;
+}
+
+function labelsFit(xStep: number | undefined): boolean {
+    return (xStep || 40) >= 18;
+}
+
 export const waterfallChartDef: ChartTemplateDef = {
     chart: "Waterfall Chart",
     template: { mark: "bar", encoding: {} },
@@ -86,6 +123,28 @@ export const waterfallChartDef: ChartTemplateDef = {
             x: resolveDiscreteType(cs.x?.type ?? 'nominal', cs.x?.field, table ?? []),
         },
     }),
+    structure: (ctx) => {
+        // Each step's bar spans the running total before and after it; colour tells increases,
+        // decreases and totals apart, from the type column where one is bound.
+        const { x, y, color } = ctx.channelSemantics;
+        const yField = y?.field || 'Amount';
+        const values = ((ctx.fullTable ?? ctx.table) ?? []).map((row: any) => Number(row?.[yField]));
+        const labelled = Boolean(ctx.chartProperties?.showTextLabels && labelsFit(ctx.steps.x));
+        const extent = waterfallExtent(ctx.table ?? [], yField, stepKinds(ctx.table ?? [], color?.field, values, ctx.chartProperties?.totals));
+        return {
+            marks: ['bar', 'rule', ...(labelled ? ['text'] : [])],
+            // The steps stand in the order of the running total they add up.
+            x: { type: 'ordinal', fields: [x?.field || 'Category'], order: { order: { by: 'data' }, fixed: true } },
+            y: {
+                type: 'quantitative', fields: [yField], derived: 'running-total', ...(extent ? { extent } : {}),
+                ...(labelled ? { ownScale: true } : {}),
+            },
+            series: color?.field ? { field: color.field, type: color.type } : { derived: 'step kind', type: 'nominal' },
+            // The key names the kind of each step, through the column the bars are coloured by.
+            keys: [{ channel: 'color', derived: 'step kind', type: 'nominal', via: '__wf_color', title: 'Type', entries: ['total', 'increase', 'decrease'] }],
+            stacking: 'none',
+        };
+    },
     instantiate: (spec, ctx) => {
         const { x, y, color, column, row } = ctx.resolvedEncodings;
         const config = ctx.chartProperties;
@@ -197,7 +256,6 @@ export const waterfallChartDef: ChartTemplateDef = {
             ...x,
             field: xField,
             type: "ordinal" as const,
-            sort: null,
             // x2 binds the synthetic `__wf_lead` field for the connector span;
             // without an explicit title Vega-Lite folds that helper's name into
             // the axis title ("Month, __wf_lead"). Pinning the resolved title
@@ -220,22 +278,16 @@ export const waterfallChartDef: ChartTemplateDef = {
         // heatmap). Font steps down with the band; very narrow bands skip labels.
         const showLabels = !!config?.showTextLabels;
         const labelStep = xStep || 40;
-        const labelFits = labelStep >= 18;
+        const labelFits = labelsFit(xStep);
         const labelFontSize = labelStep >= 40 ? 10 : labelStep >= 26 ? 9 : 8;
         const labelFormat = labelStep >= 36 ? ',' : '~s';
 
         // Minimum bar height (in data units) needed to hold the inner delta text.
         // Derived from the running-cumulative span vs the plot height so the gate
         // is resolution-aware; short bars skip the inner label (outer total stays).
-        const wfLevels = (() => {
-            const vals = ((ctx.fullTable ?? ctx.table) ?? []).map((r: any) => Number(r[yField]) || 0);
-            const lv = [0];
-            let racc = 0;
-            for (const v of vals) { racc += v; lv.push(racc); }
-            return lv;
-        })();
-        const yMin = Math.min(...wfLevels);
-        const yMax = Math.max(...wfLevels);
+        const tableRows = ctx.table ?? [];
+        const values = ((ctx.fullTable ?? ctx.table) ?? []).map((r: any) => Number(r[yField]));
+        const [yMin, yMax] = waterfallExtent(tableRows, yField, stepKinds(tableRows, colorField, values, config?.totals)) ?? [0, 0];
         const ySpan = (yMax - yMin) || 1;
         const plotH = ctx.layout?.subplotHeight || 300;
         const minDataHeight = ((labelFontSize + 4) / plotH) * ySpan;
@@ -297,7 +349,7 @@ export const waterfallChartDef: ChartTemplateDef = {
                     strokeWidth: 1,
                 },
                 encoding: {
-                    x: { field: xField, type: "ordinal", sort: null, bandPosition: 0 },
+                    x: { field: xField, type: "ordinal", sort: xEnc.sort, bandPosition: 0 },
                     x2: { field: "__wf_lead", bandPosition: 1 },
                     y: { field: "__wf_connector_y", type: "quantitative", title: yTitle },
                     tooltip: null,

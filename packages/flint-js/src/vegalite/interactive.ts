@@ -1,3 +1,4 @@
+import type { ViewNode } from '../core/views';
 import { applyCategoryViewports, resolveCategoryViewport } from '../core/filter-overflow';
 import type { CategoryViewport, ChartAssemblyInput } from '../core/types';
 import { convertTemporalData, temporalFieldValue } from '../core/resolve-semantics';
@@ -6,7 +7,7 @@ import { currentFilters, isFilterControls } from '../interactive/filter-controls
 import { createFloatingPanel } from '../interactive/floating-panel';
 import { isCanvasInteraction, type ChartState, type InteractionContext, type InteractionDef } from '../interactive/interactions';
 import type { InteractiveRendererAdapter, TargetFeedbackOptions, ViewportState } from '../interactive/types';
-import { assembleVegaLite } from './assemble';
+import { openVegaLiteSession, type Replanned } from './assemble';
 import { canvasFurnitureMarkup, readCanvasFurniture } from './canvas-furniture';
 import { enableGuideLabelTooltips, planTemporalTickValues } from './instantiate-spec';
 import {
@@ -31,6 +32,8 @@ import {
     type LiveLayoutPlanner,
 } from './interactions/live-layout';
 import { mountVegaInteractions } from './interactions/runtime';
+import { advanceLiveValues, bindLiveValues, LIVE_VALUES_SIGNAL, liveValuesChange } from './live-values';
+import { readDrawnLayout } from './drawn-layout';
 import { vegaRendererOrigin } from './interactions/hit-adapter';
 
 /**
@@ -99,6 +102,8 @@ export interface VegaInteractiveRendererOptions {
     hoverTolerance?: number;
     keyboardTargeting?: boolean;
     targetFeedback?: { assisted: TargetFeedbackOptions | false; keyboard: TargetFeedbackOptions | false };
+    /** Bind the chart's layout values to a signal, so `relayout` can lay it out again in place. */
+    liveValues?: boolean;
 }
 
 /**
@@ -149,6 +154,7 @@ function windowedInput(
  * express. A layer over the rendered chart draws it for either renderer and survives re-renders.
  */
 function mountCanvasFurniture(container: HTMLElement, items: ReturnType<typeof readCanvasFurniture>): void {
+    container.querySelector(':scope > .flint-canvas-furniture')?.remove();
     const rendered = container.querySelector(':scope > canvas, :scope > svg');
     if (items.length === 0 || !rendered) return;
     if (getComputedStyle(container).position === 'static') container.style.position = 'relative';
@@ -201,6 +207,35 @@ export function scaleAwareCanvasPicking(handler: any): void {
  * and a plain width or height. Flint's layout for the remaining rows sets them on each filter.
  */
 type LayoutSignal = { dimension: 'width' | 'height'; signal: string; kind: 'step' | 'size' };
+
+/** The panel count of the first facet in a tree of views. */
+function facetPanels(node: ViewNode | undefined): number | undefined {
+    if (!node || node.kind === 'view') return undefined;
+    if (node.kind === 'facet') return node.panels;
+    for (const child of node.children) {
+        const panels = facetPanels(child);
+        if (panels !== undefined) return panels;
+    }
+    return undefined;
+}
+
+/** The wrap count of the first facet in a tree of views. */
+function facetColumns(node: ViewNode | undefined): number | undefined {
+    if (!node || node.kind === 'view') return undefined;
+    if (node.kind === 'facet') return node.columns;
+    for (const child of node.children) {
+        const columns = facetColumns(child);
+        if (columns !== undefined) return columns;
+    }
+    return undefined;
+}
+
+/** The signals of a compiled Vega spec that hold a plain number: the sizes and steps of its views. */
+function plainSignals(vegaSpec: any): Map<string, number> {
+    return new Map((vegaSpec.signals ?? [])
+        .filter((signal: any) => typeof signal.value === 'number' && signal.update === undefined && signal.on === undefined)
+        .map((signal: any) => [signal.name, signal.value]));
+}
 
 export function layoutSignals(vegaSpec: any): LayoutSignal[] {
     const signals: any[] = vegaSpec.signals ?? [];
@@ -256,11 +291,24 @@ export function createVegaInteractiveRenderer(
             const mountedInput: ChartAssemblyInput = navigatesX
                 ? { ...interactiveInput, options: { ...interactiveInput.options, liveLayoutSignal: LIVE_LAYOUT_SIGNAL } }
                 : interactiveInput;
-            const assembled = assembleVegaLite(mountedInput) as any;
+            const session = openVegaLiteSession(mountedInput);
+            const assembled = session.spec;
             const viewports = (assembled._viewports ?? []) as CategoryViewport[];
             // Only a windowed chart needs its first window assembled again.
             const firstInput = viewports.length > 0 ? windowedInput(mountedInput, viewports, {}) : mountedInput;
-            const vlSpec = viewports.length > 0 ? assembleVegaLite(firstInput) as any : assembled;
+            const drawn = viewports.length > 0 ? openVegaLiteSession(firstInput) : session;
+            const vlSpec = drawn.spec;
+            // The plot the chart draws now; a filter that re-lays the chart out replaces it. A
+            // category rail draws a window of the rows, which the plan does not own, so it reports none.
+            let currentPlot = viewports.length > 0 ? undefined : drawn.plot;
+            // The plot for all rows at the chart's size, and what a filter's re-planned rows set, by those rows.
+            let framePlot = drawn.plot;
+            let stepsFor = new WeakMap<readonly Record<string, unknown>[], Record<string, number>>();
+            let plotFor = new WeakMap<readonly Record<string, unknown>[], { width: number; height: number } | undefined>();
+            let filteredRows: readonly Record<string, unknown>[] | undefined;
+            // The plain signals a re-plan or a new size has set apart from the mounted chart, such as a
+            // view's width or a rule's; a filter sets each of them on every later change of rows.
+            const relaidNames = new Set<string>();
             const inputRows: readonly Record<string, unknown>[] = interactiveInput.data.values ?? [];
             // The windows over the rows now current: a filter leaves fewer categories to scroll through.
             let currentViewports = viewports;
@@ -282,56 +330,68 @@ export function createVegaInteractiveRenderer(
             applyViewportSorts(vlSpec, viewports);
             const interactions = options.interactions ?? [];
             const canvasInteractions = interactions.filter(isCanvasInteraction);
-            const interactionPlan = addVegaLiteInteractions(
-                vlSpec,
-                interactions,
-                options.enableSemanticUpdates,
-            );
-            if (viewports.length === 0 && interactions.some((interaction) =>
-                isFilterControls(interaction) && (interaction.filterControls.options.mode ?? 'filter') === 'filter')) {
-                pinColorDomains(vlSpec);
-            }
-            const vegaSpec = enableGuideLabelTooltips(compile(vlSpec).spec as any);
             const filtersRows = interactions.some((interaction) =>
                 isFilterControls(interaction) && (interaction.filterControls.options.mode ?? 'filter') === 'filter');
-            const relaidSignals = filtersRows ? layoutSignals(vegaSpec) : [];
-            let livePlanner: LiveLayoutPlanner | undefined;
-            if (interactionPlan) {
-                interactionPlan.axisTargets = collectVegaAxisTargets(
-                    vegaSpec,
-                    interactionPlan.axisFields,
-                    interactionPlan.reorderAxes,
-                    (interactionPlan.interactions ?? canvasInteractions).some((interaction) =>
-                        interaction.affordances['axis-label']?.hover)
-                        ? interactionPlan.selectionBoundary?.color ?? '#20262c'
-                        : undefined,
+            // The Vega spec a plan of this chart mounts as, with the interactions compiled in.
+            const shape = (planned: Pick<Replanned, 'spec' | 'axisLabels' | 'dataLabels'>) => {
+                const shapedSpec = planned.spec;
+                const interactionPlan = addVegaLiteInteractions(
+                    shapedSpec,
+                    interactions,
+                    options.enableSemanticUpdates,
                 );
-                if (interactionPlan.semanticStores) {
-                    injectVegaInteractionStore(vegaSpec, interactionPlan);
-                }
-                // A bar on a navigated x axis follows the rows in view: Flint plans its layout again for them.
-                const liveField = interactionPlan.axisFields?.x?.field;
-                const xScale = findVegaAxisScale(vegaSpec, 'x')?.name;
-                if (!interactionPlan.geoNavigation && interactionPlan.navigationChannels?.includes('x')
-                    && viewports.length === 0 && liveField && xScale) {
-                    const planner = liveLayoutPlanner(interactiveInput, liveField, liveLayoutOf(vlSpec, liveField));
-                    if (bindLiveLayout(vegaSpec, xScale, findVegaAxisScale(vegaSpec, 'y')?.name, planner)) {
-                        livePlanner = planner;
-                    }
-                }
-                interactionPlan.navigationAxes = interactionPlan.geoNavigation
-                    ? injectVegaGeoNavigationSignals(vegaSpec, interactionPlan.navigationChannels)
-                    : injectVegaNavigationSignals(
-                        vegaSpec, interactionPlan.navigationChannels, vegaLiteTemporalAxisPlans(vlSpec),
+                if (viewports.length === 0 && filtersRows) pinColorDomains(shapedSpec);
+                const vegaSpec = enableGuideLabelTooltips(compile(shapedSpec).spec as any);
+                const relaidSignals = filtersRows ? layoutSignals(vegaSpec) : [];
+                let livePlanner: LiveLayoutPlanner | undefined;
+                if (interactionPlan) {
+                    interactionPlan.axisTargets = collectVegaAxisTargets(
+                        vegaSpec,
+                        interactionPlan.axisFields,
+                        interactionPlan.reorderAxes,
+                        (interactionPlan.interactions ?? canvasInteractions).some((interaction) =>
+                            interaction.affordances['axis-label']?.hover)
+                            ? interactionPlan.selectionBoundary?.color ?? '#20262c'
+                            : undefined,
                     );
-                if (interactionPlan.geoNavigation && interactionPlan.geoLevels) {
-                    injectVegaGeoLevelFit(vegaSpec, interactionPlan.geoLevels);
+                    if (interactionPlan.semanticStores) {
+                        injectVegaInteractionStore(vegaSpec, interactionPlan);
+                    }
+                    // A bar on a navigated x axis follows the rows in view: Flint plans its layout again for them.
+                    const liveField = interactionPlan.axisFields?.x?.field;
+                    const xScale = findVegaAxisScale(vegaSpec, 'x')?.name;
+                    if (!interactionPlan.geoNavigation && interactionPlan.navigationChannels?.includes('x')
+                        && viewports.length === 0 && liveField && xScale) {
+                        const planner = liveLayoutPlanner(
+                            interactiveInput, liveField,
+                            liveLayoutOf(shapedSpec, liveField, planned.axisLabels, planned.dataLabels), session.replan,
+                        );
+                        if (bindLiveLayout(vegaSpec, xScale, findVegaAxisScale(vegaSpec, 'y')?.name, planner)) {
+                            livePlanner = planner;
+                        }
+                    }
+                    interactionPlan.navigationAxes = interactionPlan.geoNavigation
+                        ? injectVegaGeoNavigationSignals(vegaSpec, interactionPlan.navigationChannels)
+                        : injectVegaNavigationSignals(
+                            vegaSpec, interactionPlan.navigationChannels, vegaLiteTemporalAxisPlans(shapedSpec),
+                        );
+                    if (interactionPlan.geoNavigation && interactionPlan.geoLevels) {
+                        injectVegaGeoLevelFit(vegaSpec, interactionPlan.geoLevels);
+                    }
+                    interactionPlan.reorderAxes = (interactionPlan.reorderAxes ?? [])
+                        .map((axis) => injectVegaReorderSignal(vegaSpec, axis))
+                        .filter((axis): axis is NonNullable<typeof axis> => !!axis);
+                    interactionPlan.reorderAxis = interactionPlan.reorderAxes[0];
                 }
-                interactionPlan.reorderAxes = (interactionPlan.reorderAxes ?? [])
-                    .map((axis) => injectVegaReorderSignal(vegaSpec, axis))
-                    .filter((axis): axis is NonNullable<typeof axis> => !!axis);
-                interactionPlan.reorderAxis = interactionPlan.reorderAxes[0];
-            }
+                return { interactionPlan, vegaSpec, relaidSignals, livePlanner };
+            };
+            const shaped = shape(drawn);
+            const { interactionPlan, vegaSpec, relaidSignals } = shaped;
+            let livePlanner = shaped.livePlanner;
+            // A chart laid out for its room binds its layout values, so a new room is pushed in place.
+            let liveValues = options.liveValues && viewports.length === 0 && !interactionPlan?.geoNavigation
+                ? bindLiveValues(vegaSpec)
+                : undefined;
             const source = vegaSpec.data
                 ?.find((entry: any) => Array.isArray(entry.values) && !INTERACTION_STORES.includes(entry.name))
                 ?.name as string | undefined;
@@ -354,22 +414,45 @@ export function createVegaInteractiveRenderer(
                 interactionPlan.initialDataRows = interactionPlan.prepareDataRows(firstInput.data.values ?? []);
                 interactionPlan.temporalValue = (field, value) => temporalFieldValue(field, value, firstInput.semantic_types ?? {});
                 if (viewports.length > 0) interactionPlan.windowDataRows = (rows) => windowRows(rows ?? inputRows);
-                if (relaidSignals.length > 0) {
+                if (filtersRows) {
+                    const mountedSignals = plainSignals(vegaSpec);
                     // Flint lays the chart out again for the rows a filter leaves: fewer bars get thicker steps and a shorter chart.
-                    const stepsFor = new WeakMap<readonly Record<string, unknown>[], Record<string, number>>();
                     interactionPlan.dataSignals = (rows) => {
                         const current = rows ?? inputRows;
+                        filteredRows = current;
                         let signals = stepsFor.get(current);
                         if (!signals) {
-                            const relaid = assembleVegaLite({ ...interactiveInput, data: { values: [...current] } }) as any;
+                            const replanned = session.replan({ rows: current });
+                            const relaid = replanned.spec;
+                            // A step comes from the spec; a plain size is the planned plot's, which the
+                            // spec states in its view config rather than as a top-level size.
                             signals = Object.fromEntries(relaidSignals.flatMap((entry) => {
                                 const size = relaid[entry.dimension];
-                                const value = entry.kind === 'step' ? size?.step : size;
+                                const value = entry.kind === 'step' ? size?.step : replanned.plot?.[entry.dimension] ?? size;
                                 return typeof value === 'number' ? [[entry.signal, value]] : [];
                             }));
+                            // A mounted facet keeps its wrap count: panels sized for another count would overrun the chart.
+                            const panels = facetPanels(replanned.plan.views);
+                            const mountedColumns = facetColumns(drawn.plan.views);
+                            const sameGrid = panels === undefined || mountedColumns === undefined
+                                || Math.min(panels, mountedColumns) === Math.min(panels, facetColumns(replanned.plan.views) ?? mountedColumns);
+                            if (sameGrid) for (const [name, value] of plainSignals(shape(replanned).vegaSpec)) {
+                                if (!mountedSignals.has(name) || relaidSignals.some((entry) => entry.signal === name)) continue;
+                                if (mountedSignals.get(name) !== value) relaidNames.add(name);
+                                signals[name] = value;
+                            }
                             stepsFor.set(current, signals);
+                            // The chart now draws the re-planned size on each dimension a signal sets, and
+                            // keeps the mounted size on the others.
+                            const applied = new Set(relaidSignals.filter((entry) => entry.signal in signals!).map((entry) => entry.dimension));
+                            plotFor.set(current, replanned.plot && framePlot ? {
+                                width: applied.has('width') ? replanned.plot.width : framePlot.width,
+                                height: applied.has('height') ? replanned.plot.height : framePlot.height,
+                            } : undefined);
                         }
-                        return signals;
+                        if (viewports.length === 0) currentPlot = plotFor.get(current);
+                        const relaidEntries = new Set(relaidSignals.map((entry) => entry.signal));
+                        return Object.fromEntries(Object.entries(signals).filter(([name]) => relaidEntries.has(name) || relaidNames.has(name)));
                     };
                 }
             }
@@ -408,13 +491,12 @@ export function createVegaInteractiveRenderer(
                 : undefined;
 
             let destroyed = false;
+            let shownLayout = livePlanner?.initial;
             if (livePlanner) {
-                const planner = livePlanner;
-                let shown = planner.initial;
                 view.addSignalListener(navigationDomainSignal('x'), (_name, domain) => {
-                    const next = planner.layoutFor(domain);
-                    if (!next || next === shown) return;
-                    shown = next;
+                    const next = livePlanner?.layoutFor(domain);
+                    if (!next || next === shownLayout) return;
+                    shownLayout = next;
                     queueMicrotask(() => {
                         if (destroyed) return;
                         view.signal(LIVE_LAYOUT_SIGNAL, next);
@@ -471,6 +553,12 @@ export function createVegaInteractiveRenderer(
             return {
                 viewports,
                 warnings: interactionPlan?.warnings ?? [],
+                get layout() {
+                    if (destroyed || viewports.length > 0) return undefined;
+                    const drawnLayout = readDrawnLayout(view, drawn.plan.views);
+                    if (!currentPlot && !drawnLayout) return undefined;
+                    return { ...(currentPlot ? { plot: currentPlot } : {}), ...drawnLayout };
+                },
                 getInteractionContext() {
                     return interactionController?.getInteractionContext() ?? fallbackContext();
                 },
@@ -529,6 +617,39 @@ export function createVegaInteractiveRenderer(
                 resize(size) {
                     view.width(size.width).height(size.height);
                     void view.runAsync();
+                },
+                async relayout(size) {
+                    if (destroyed || !liveValues) return false;
+                    const replanned = session.replan({ size });
+                    const next = shape(replanned);
+                    const change = liveValuesChange(liveValues, next.vegaSpec);
+                    if (!change || !next.livePlanner !== !livePlanner) return false;
+                    liveValues = advanceLiveValues(liveValues, next.vegaSpec, change);
+                    view.signal(LIVE_VALUES_SIGNAL, liveValues.values);
+                    for (const [name, value] of Object.entries(change.signals)) {
+                        view.signal(name, value);
+                        relaidNames.add(name);
+                    }
+                    if (change.width !== undefined) view.width(change.width);
+                    if (change.height !== undefined) view.height(change.height);
+                    framePlot = replanned.plot;
+                    currentPlot = framePlot;
+                    stepsFor = new WeakMap();
+                    plotFor = new WeakMap();
+                    if (filteredRows && interactionPlan?.dataSignals) {
+                        for (const [name, value] of Object.entries(interactionPlan.dataSignals(filteredRows))) view.signal(name, value);
+                    }
+                    if (next.livePlanner) {
+                        livePlanner = next.livePlanner;
+                        shownLayout = livePlanner.layoutFor(view.signal(navigationDomainSignal('x'))) ?? livePlanner.initial;
+                        view.signal(LIVE_LAYOUT_SIGNAL, shownLayout);
+                    }
+                    view.resize();
+                    // Vega encodes some guide parts on enter only; running the enter set lets them read the pushed values.
+                    await (view as unknown as { runAsync(encode: string): Promise<unknown> }).runAsync('enter');
+                    if (change.furniture) mountCanvasFurniture(container, readCanvasFurniture(replanned.spec));
+                    interactionController?.refresh();
+                    return true;
                 },
                 destroy() {
                     if (destroyed) return;

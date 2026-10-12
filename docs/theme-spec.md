@@ -69,7 +69,7 @@ Every field is optional. Start with the decisions that matter to your product, t
 | `labels`, `legend`, `dataLabels` | Truncation, placement, visibility, and label ink |
 | `annotation` | Units, axis titles, number formats, point emphasis, and statistics |
 | `layout`, `facets` | Density, title spacing, band steps, panel spacing, and shared scales |
-| `chartDefaults`, `compileDefaults` | House defaults for chart controls, base size, canvas size, and layout limits |
+| `chartDefaults`, `compileDefaults` | House defaults for chart controls, base size, canvas size, and layout limits. `chartDefaults` sets only controls that change how the chart looks; a control that changes how the data is read (axis type, zero baseline, log scale, transform, sort) is reported and dropped |
 | `interaction` | Tooltip formatting and semantic selection-boundary paint |
 | `furniture` | Rules, tabs, and other recurring chart chrome |
 | `variants` | Semantic conditions that adapt policy to a chart's role, density, or shape |

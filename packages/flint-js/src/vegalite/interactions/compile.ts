@@ -37,7 +37,7 @@ import {
     STYLE_SIGNAL,
 } from './stores';
 import type { TemporalAxisPlanInputs } from '../instantiate-spec';
-import { bindTemporalAxisTicks, navigationDomainSignal } from './live-layout';
+import { bindTemporalAxisTicks, navigationDomainSignal, walkVegaGroups } from './live-layout';
 import {
     GEO_AXIS_SCALES,
     GEO_EXTENT_SIGNAL,
@@ -617,6 +617,15 @@ export function injectVegaNavigationSignals(
         const inputs = temporalPlans[channel];
         if (inputs && (scale.type === 'time' || scale.type === 'utc')) {
             bindTemporalAxisTicks(vegaSpec, channel, scale, inputs);
+        } else if (scale.type === 'linear') {
+            // A zoomed window needs its own ticks: past the planned view, the values give way to a count of the same density.
+            walkVegaGroups(vegaSpec, (group) => {
+                for (const axis of group.axes ?? []) {
+                    if (axis.scale !== scale.name || !Array.isArray(axis.values)) continue;
+                    axis.tickCount = axis.tickCount ?? axis.values.length;
+                    axis.values = { signal: `${signal} ? null : ${JSON.stringify(axis.values)}` };
+                }
+            });
         }
         result[channel] = { scale: scale.name, signal, type: scale.type };
     }

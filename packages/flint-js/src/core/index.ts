@@ -135,6 +135,8 @@ export {
 export { resolveChannelSemantics, convertTemporalData } from './resolve-semantics';
 export { filterOverflow, resolveCategoryViewport, applyCategoryViewports } from './filter-overflow';
 export { computeLayout, computeChannelBudgets } from './compute-layout';
+export { setTextMeasurer } from './text-width';
+export type { TextMeasurer } from './legend-layout';
 export {
     normalizeStaticSeries,
     normalizeEncodingShorthand,
@@ -230,6 +232,7 @@ export {
     type GroundingContext,
     groundTheme,
     resolveGeometry,
+    tokenToPx,
     THEME_PRESETS,
     DEFAULT_THEME_ICON,
     listThemePresets,

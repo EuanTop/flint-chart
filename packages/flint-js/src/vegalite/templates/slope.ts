@@ -26,6 +26,7 @@
  */
 
 import { ChartTemplateDef, ChartPropertyDef } from '../../core/types';
+import { skeletonStructure } from '../../core/structure';
 import { resolveDiscreteType } from '../../core/axis-detection';
 import { defaultBuildEncodings } from './utils';
 import {
@@ -65,6 +66,16 @@ function orderedDistinct(table: any[], field: string): any[] {
         return [...values].sort((a, b) => Date.parse(String(a)) - Date.parse(String(b)));
     }
     return values;
+}
+
+/**
+ * How far the two periods sit in from the plot edges, in steps, so the end points and their
+ * value labels are not clipped (classic slopegraph framing): more when the ends carry labels.
+ */
+function periodInset(chartProperties: Record<string, any> | undefined): number {
+    const labelled = chartProperties?.showText === true;
+    const named = labelled && chartProperties?.showSeriesInLabel === true;
+    return named ? 0.75 : labelled ? 0.55 : 0.4;
 }
 
 export const slopeChartDef: ChartTemplateDef = {
@@ -107,7 +118,7 @@ export const slopeChartDef: ChartTemplateDef = {
             ),
         };
     },
-    declareLayoutMode: (cs, table) => {
+    declareLayoutMode: (cs, table, chartProperties) => {
         // Force the period axis to a discrete band so the two periods sit at two
         // equally-spaced positions regardless of the field's native type.
         const resolvedTypes: Record<string, 'nominal' | 'ordinal' | 'quantitative' | 'temporal'> = {};
@@ -117,6 +128,7 @@ export const slopeChartDef: ChartTemplateDef = {
         }
         return {
             axisFlags: { x: { banded: true } },
+            bandAxes: { x: { scale: 'point', padding: periodInset(chartProperties) } },
             ...(Object.keys(resolvedTypes).length ? { resolvedTypes } : {}),
             paramOverrides: {
                 // Spread the two periods well apart and keep the plot from being
@@ -132,6 +144,21 @@ export const slopeChartDef: ChartTemplateDef = {
             },
         };
     },
+    structure: (ctx) => {
+        // A slope is read from where each line starts, so its values are fitted to the data, not to zero.
+        const base = skeletonStructure(slopeChartDef.template, ctx);
+        const periodField = ctx.channelSemantics.x?.field;
+        // The two periods read left to right in their natural order unless the author orders them.
+        const periods = periodField ? orderedDistinct(ctx.table, periodField) : [];
+        const ordered = base.x && periods.length > 1 ? { ...base, x: { ...base.x, order: { order: { by: 'values' as const, values: periods }, fixed: false } } } : base;
+        const structure = ordered.y ? { ...ordered, y: { ...ordered.y, baseline: 'data' as const, rounded: true } } : ordered;
+        const labelled = ctx.chartProperties?.showText === true && Boolean(periodField && ctx.channelSemantics.y?.field)
+            && orderedDistinct(ctx.table, periodField!).length >= 2;
+        // Names printed at the line ends make the colour key redundant.
+        const named = labelled && ctx.chartProperties?.showSeriesInLabel === true;
+        const keyed = named && ctx.channelSemantics.color?.field ? { ...structure, keys: [] } : structure;
+        return labelled ? { ...keyed, marks: [...keyed.marks, 'text'] } : keyed;
+    },
     instantiate: (spec, ctx) => {
         defaultBuildEncodings(spec, ctx.resolvedEncodings);
 
@@ -145,21 +172,7 @@ export const slopeChartDef: ChartTemplateDef = {
             xEnc.type = resolveDiscreteType(xEnc.type, xEnc.field, ctx.table);
         }
 
-        // Order the two period bands. The auto-sort in buildVLEncodings only
-        // fires for fields that were *already* discrete in Phase 0, so a
-        // temporal/numeric period converted here arrives without a sort —
-        // give it an explicit natural order so the periods read left→right.
-        if ((xEnc.type === 'ordinal' || xEnc.type === 'nominal') &&
-            xEnc.sort == null && xEnc.field) {
-            const order = orderedDistinct(ctx.table, xEnc.field);
-            if (order.length > 1) xEnc.sort = order;
-        }
-
-        // Inset the two period bands from the plot edges so the end points and
-        // their value labels are not clipped (classic slopegraph framing).
-        const labelled = ctx.chartProperties?.showText === true;
-        const named = labelled && ctx.chartProperties?.showSeriesInLabel === true;
-        xEnc.scale = { ...xEnc.scale, padding: named ? 0.75 : labelled ? 0.55 : 0.4 };
+        xEnc.scale = { ...xEnc.scale, padding: periodInset(ctx.chartProperties) };
 
         // Give the value axis a little breathing room (in pixels) so the
         // extreme top / bottom end-point markers — common with zero-crossing
@@ -214,6 +227,10 @@ export const slopeChartDef: ChartTemplateDef = {
                         text: { field: '__slopeLabel', type: 'nominal' },
                     },
                 });
+                // Facet channels split the data and stay on the outer spec: inside a layer they are ignored.
+                const { column, row, facet, ...drawn } = spec.encoding as Record<string, unknown>;
+                const split = Object.fromEntries(Object.entries({ column, row, facet }).filter(([, def]) => def !== undefined));
+                spec.encoding = drawn;
                 const lineLayer: Record<string, unknown> = { mark: spec.mark, encoding: spec.encoding };
                 if (spec.transform) lineLayer.transform = spec.transform;
                 spec.layer = [
@@ -222,8 +239,9 @@ export const slopeChartDef: ChartTemplateDef = {
                     endLayer(last, 'left'),
                 ];
                 delete spec.mark;
-                delete spec.encoding;
                 delete spec.transform;
+                if (Object.keys(split).length) spec.encoding = split;
+                else delete spec.encoding;
             }
         }
     },

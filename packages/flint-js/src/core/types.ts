@@ -8,6 +8,9 @@ import type { ColorDecisionResult } from './color-decisions';
 import type { GeometryKind, ThemeGeometry, ThemeSpec } from './theme/types';
 import type { ChartInteractionSupport, InteractionSpec } from './interaction-spec';
 import type { ChartUpdateOp, UpdateTarget } from './interaction-contracts';
+import type { ChartStructure, StructureContext } from './structure';
+import type { ViewNode } from './views';
+import type { FamilyMeasure } from './text-width';
 
 /**
  * Core types for the chart engine library.
@@ -207,6 +210,11 @@ export type MarkCognitiveChannel = 'position' | 'length' | 'area' | 'color';
 /**
  * Template's layout intent — returned by declareLayoutMode().
  */
+/** How a banded axis spaces its bands; its span is the step times the bands it spans. */
+export type BandAxisShape =
+    | { scale: 'band'; nested: boolean }
+    | { scale: 'point'; padding: number };
+
 export interface LayoutDeclaration {
     /**
      * Which axes allocate fixed bands per data position.
@@ -228,6 +236,16 @@ export interface LayoutDeclaration {
      * Template-specific overrides to layout parameters.
      */
     paramOverrides?: Partial<AssembleOptions>;
+
+    /** Tick label decisions a template makes for an axis it labels itself; the plan holds them as given. */
+    axisLabels?: Partial<Record<'x' | 'y', { fontSize?: number; angle?: number }>>;
+
+    /**
+     * How a banded axis spaces its bands, where it is not the default (a band scale,
+     * nested when the axis steps per group): a point scale inset from the plot edges,
+     * or a band whose offset channel does or does not nest within each band.
+     */
+    bandAxes?: Partial<Record<'x' | 'y', BandAxisShape>>;
 
     /**
      * Which axes use binned encoding (e.g. histogram).
@@ -426,6 +444,10 @@ export interface LayoutResult {
     xStepUnit?: 'item' | 'group';
     yStepUnit?: 'item' | 'group';
 
+    /** Whether each step was blended toward the room the plot has (`bandStepFit`), so it moves with what that room reserves. */
+    xStepFitted?: boolean;
+    yStepFitted?: boolean;
+
     /** Number of banded continuous items on each axis (0 if not banded-continuous) */
     xContinuousAsDiscrete: number;
     yContinuousAsDiscrete: number;
@@ -485,12 +507,34 @@ export interface LayoutResult {
  * Phase 2 logic. Combines semantic decisions, layout results, and original
  * inputs.
  */
+/** What a template reads to size its plot in the plan. */
+export type PlotPlanContext = Pick<InstantiateContext, 'layout' | 'canvasSize' | 'assembleOptions' | 'channelSemantics' | 'table' | 'fullTable' | 'semanticTypes' | 'chartProperties' | 'measureText'>;
+
+/** What a template reads to plan its views: the plot the plan sized and the gap it keeps between facet panels. */
+export type ViewPlanContext = PlotPlanContext & {
+    plot: { width: number; height: number };
+    spacing: number | { row: number; column: number };
+    /** The title each encoded channel prints, where it prints one. */
+    titles: Partial<Record<string, string>>;
+    /** The columns a facet on the column field alone wraps into. */
+    facetColumns: number;
+    /** How far a panel's y ruler labels hang past its top and bottom together; rows stacked by the template keep it between them. */
+    rulerOverhang: number;
+};
+
 export interface InstantiateContext {
     /** Per-channel semantic decisions (Phase 0) */
     channelSemantics: Record<string, ChannelSemantics>;
 
     /** Layout decisions (Phase 1) */
     layout: LayoutResult;
+
+    /** The plot the plan sized; a template that sets its own size draws at this one. */
+    plot?: { width: number; height: number };
+    /** The views the plan stated, where the template plans them; it draws their sizes and gaps. */
+    views?: ViewNode;
+    /** How wide text is in the family the chart's text is set in, as the plan measures it. */
+    measureText?: FamilyMeasure;
 
     /** The data table (array of row objects, post-overflow filtering) */
     table: any[];
@@ -1009,6 +1053,32 @@ export interface ChartTemplateDef {
         context: InstantiateContext,
     ) => void;
 
+    /**
+     * Draws several views side by side (columns, halves, tiles, strips, per-category panels),
+     * so the chart has no single plot to report.
+     */
+    composite?: boolean;
+
+    /**
+     * The plot size this chart type draws when it is not the layout's, such as a square pie.
+     * Runs in the plan; `instantiate` draws at `context.plot`. Undefined keeps the layout's size.
+     */
+    planPlot?: (context: PlotPlanContext) => { width: number; height: number } | undefined;
+
+    /**
+     * The views this chart type draws and how they stand, where it composes them itself rather
+     * than faceting one plot by its column and row fields. Runs in the plan, after the plot;
+     * `instantiate` draws the sizes and gaps it finds in `context.views`.
+     */
+    planViews?: (context: ViewPlanContext) => ViewNode | undefined;
+
+    /**
+     * What the chart draws, where `instantiate` builds marks, fields or stacking its skeleton does
+     * not show. Runs before the plan sizes the chart; a test keeps it equal to what `instantiate`
+     * builds. Undefined derives the structure from the skeleton.
+     */
+    structure?: (context: StructureContext) => ChartStructure;
+
     /** Optional configurable properties for the chart type */
     properties?: ChartPropertyDef[];
 
@@ -1329,6 +1399,9 @@ export interface AssembleOptions {
      * Each backend sets its own value (VL ≈ 10, ECharts ≈ 14); core uses 0.
      */
     facetGap?: number;
+    /** The gap between facet columns and between facet rows the panels are laid out for, where it differs from `facetGap`; set by the plan. */
+    facetGapColumn?: number;
+    facetGapRow?: number;
     /**
      * Explicit number of facet COLUMNS for a column-wrapped facet, overriding
      * the auto-computed wrap. When set (≥ 1) the layout uses this many columns
@@ -1375,6 +1448,8 @@ export interface AssembleOptions {
     bandStepFitCapacityX?: number;
     /** Explicit Y-axis capacity for sparse band fitting. Internal assembler bridge. */
     bandStepFitCapacityY?: number;
+    /** Attach the theme's resolved decisions to the spec as `_theme.decisions`, for tools that inspect them. Default: false. */
+    themeDecisions?: boolean;
     /**
      * Chart-specific **floor** on the per-category band step (at a 300px
      * baseline canvas), which a house's `layout.bandStep` may grow but not

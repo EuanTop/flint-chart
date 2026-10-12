@@ -1,7 +1,9 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-import { ChartTemplateDef, ChartPropertyDef, EncodingActionDef } from '../../core/types';
+import { ChartTemplateDef, ChartPropertyDef, EncodingActionDef, type ViewPlanContext } from '../../core/types';
+import type { ViewNode } from '../../core/views';
+import { skeletonStructure, statedStacking } from '../../core/structure';
 import { makeSortAction } from '../../core/encoding-actions';
 import { makeCartesianPivot } from '../../core/pivot';
 import { planBandDodge, resolveDodge } from '../../core/band-dodge';
@@ -238,8 +240,38 @@ export const barChartDef: ChartTemplateDef = {
 
 // ─── Pyramid Chart ──────────────────────────────────────────────────────────
 
+/**
+ * A pyramid's two halves, side by side with no gap: each half takes the base width stretched as
+ * two facet columns would, and the base height, stretched up to twice where the categories need
+ * more than a 20 px step (scaled with the base size) each.
+ */
+function pyramidViews(ctx: ViewPlanContext): ViewNode | undefined {
+    const { table, channelSemantics } = ctx;
+    if (!table) return undefined;
+    const discrete = (channel: 'x' | 'y') => channelSemantics[channel]?.type === 'nominal' || channelSemantics[channel]?.type === 'ordinal';
+    const quantitative = (channel: 'x' | 'y') => channelSemantics[channel]?.type === 'quantitative' || channelSemantics[channel]?.type === 'temporal';
+    const yField = discrete('x') && quantitative('y') ? channelSemantics.x?.field : channelSemantics.y?.field;
+    const baseWidth = ctx.canvasSize?.width ?? 400;
+    const baseHeight = ctx.canvasSize?.height ?? 320;
+    const facetCols = 2;
+    const facetStretch = Math.min(1.5, Math.pow(facetCols, 0.3));
+    const width = Math.round(Math.max(40, baseWidth * facetStretch / facetCols));
+    let height = baseHeight;
+    if (yField) {
+        const yCardinality = new Set(table.map((row: any) => row[yField])).size;
+        const sizeRatio = Math.max(baseWidth, baseHeight) / 300;
+        const defaultStep = Math.round(20 * Math.max(1, sizeRatio));
+        const pressure = (yCardinality * defaultStep) / baseHeight;
+        if (yCardinality > 0 && pressure > 1) height = Math.round(baseHeight * Math.min(2, Math.pow(pressure, 0.5)));
+    }
+    const half: ViewNode = { kind: 'view', role: 'plot', width, height };
+    return { kind: 'concat', direction: 'row', gap: 0, children: [half, half] };
+}
+
 export const pyramidChartDef: ChartTemplateDef = {
     chart: "Pyramid Chart",
+    composite: true,
+    planViews: pyramidViews,
     template: {
         spacing: 0,
         resolve: { scale: { y: "shared" } },
@@ -299,6 +331,16 @@ export const pyramidChartDef: ChartTemplateDef = {
     declareLayoutMode: () => ({
         axisFlags: { y: { banded: true } },
     }),
+    structure: (ctx) => {
+        // The colour field splits the two panels; neither panel encodes it.
+        // Both panels share one domain from zero to the largest value, so the two halves compare.
+        const { series: _series, ...structure } = skeletonStructure(pyramidChartDef.template, ctx);
+        const xField = ctx.channelSemantics.x?.field;
+        const shared = Boolean(ctx.channelSemantics.color?.field && xField && ctx.table?.some((row: any) => typeof row?.[xField] === 'number'));
+        // The left panel mirrors the right, so its measure runs backwards.
+        const x = structure.x ? { ...structure.x, reversed: true, ...(shared ? { ownScale: true } : {}) } : undefined;
+        return { ...structure, ...(x ? { x } : {}), stacking: 'none' };
+    },
     instantiate: (spec, ctx) => {
         let { y, x } = ctx.resolvedEncodings;
         const { color } = ctx.resolvedEncodings;
@@ -326,7 +368,6 @@ export const pyramidChartDef: ChartTemplateDef = {
         // --- Pyramid-specific configuration ---
         const colorField = color?.field;
         const table = ctx.table;
-        const canvasSize = ctx.canvasSize;
 
         try {
             if (table && colorField) {
@@ -372,33 +413,14 @@ export const pyramidChartDef: ChartTemplateDef = {
                     }
                 }
 
-                const baseWidth = canvasSize?.width ?? 400;
-                const baseHeight = canvasSize?.height ?? 320;
-
-                const facetCols = 2;
-                const facetStretch = Math.min(1.5, Math.pow(facetCols, 0.3));
-                const panelWidth = Math.round(Math.max(40, baseWidth * facetStretch / facetCols));
-
-                const yField = spec.hconcat[0].encoding.y?.field;
-                let panelHeight = baseHeight;
-                if (yField) {
-                    const yCardinality = new Set(table.map(r => r[yField])).size;
-                    const baseRefSize = 300;
-                    const sizeRatio = Math.max(baseWidth, baseHeight) / baseRefSize;
-                    const defaultStep = Math.round(20 * Math.max(1, sizeRatio));
-                    if (yCardinality > 0) {
-                        const pressure = (yCardinality * defaultStep) / baseHeight;
-                        if (pressure > 1) {
-                            const stretch = Math.min(2, Math.pow(pressure, 0.5));
-                            panelHeight = Math.round(baseHeight * stretch);
-                        }
-                    }
-                }
-
-                for (const panel of spec.hconcat) {
-                    panel.width = panelWidth;
-                    panel.height = panelHeight;
-                }
+                const planned = ctx.views?.kind === 'concat' ? ctx.views.children : [];
+                if (ctx.views?.kind === 'concat') spec.spacing = ctx.views.gap;
+                spec.hconcat.forEach((panel: any, index: number) => {
+                    const view = planned[index];
+                    if (view?.kind !== 'view') return;
+                    panel.width = view.width;
+                    panel.height = view.height;
+                });
             }
         } catch {
             // ignore errors
@@ -544,6 +566,13 @@ export const stackedBarChartDef: ChartTemplateDef = {
     chart: "Stacked Bar Chart",
     template: { mark: "bar", encoding: {} },
     channels: ["x", "y", "color", "column", "row"],
+    structure: (ctx) => {
+        // The stack mode the author picks stacks the series, side by side when layered.
+        const structure = skeletonStructure(stackedBarChartDef.template, ctx);
+        const mode = ctx.chartProperties?.stackMode;
+        const stated = mode && ctx.channelSemantics.color?.field ? statedStacking(mode === 'layered' ? null : mode) : undefined;
+        return stated ? { ...structure, stacking: stated } : structure;
+    },
     interactionSupport: {
         elements: true,
         region: ['cartesian'],
@@ -627,6 +656,9 @@ export const stackedBarChartDef: ChartTemplateDef = {
 
 // ─── Histogram ──────────────────────────────────────────────────────────────
 
+/** The field a histogram's bars start at, computed by its bin transform. */
+const BIN_START = '__bin_start';
+
 export const histogramDef: ChartTemplateDef = {
     chart: "Histogram",
     template: {
@@ -687,11 +719,11 @@ export const histogramDef: ChartTemplateDef = {
             const sourceField = x.field;
             spec.transform = [
                 ...(spec.transform ?? []),
-                { bin: x.bin ?? true, field: sourceField, as: ['__bin_start', '__bin_end'] },
+                { bin: x.bin ?? true, field: sourceField, as: [BIN_START, '__bin_end'] },
             ];
             spec.encoding.x = {
                 ...x,
-                field: '__bin_start',
+                field: BIN_START,
                 bin: 'binned',
                 title: x.title ?? sourceField,
             };
@@ -719,6 +751,12 @@ export const heatmapDef: ChartTemplateDef = {
     chart: "Heatmap",
     template: { mark: "rect", encoding: {} },
     channels: ["x", "y", "color", "column", "row"],
+    structure: (ctx) => {
+        // Cells print their own values when asked.
+        const structure = skeletonStructure(heatmapDef.template, ctx);
+        return ctx.chartProperties?.showTextLabels && ctx.channelSemantics.color?.field
+            ? { ...structure, marks: [...structure.marks, 'text'] } : structure;
+    },
     interactionSupport: {
         elements: true,
         region: ['cartesian'],

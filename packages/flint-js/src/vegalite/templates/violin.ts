@@ -31,7 +31,9 @@
  * Reuses density.ts's bandwidth wiring and the boxplot's discrete-axis handling.
  */
 
-import { ChartTemplateDef, ChartPropertyDef } from '../../core/types';
+import { ChartTemplateDef, ChartPropertyDef, PlotPlanContext, type ViewPlanContext } from '../../core/types';
+import { gapOf, type ViewNode } from '../../core/views';
+import { skeletonStructure } from '../../core/structure';
 import { resolveSeriesTarget } from '../../core/interaction-semantics';
 import {
     categoryValueAnnotationText,
@@ -129,8 +131,86 @@ function maxGroupBandwidth(table: any[], measure: string, groupby: string[]): nu
     return max;
 }
 
+/**
+ * How a violin chart lays out its per-category panels, and the size of one panel.
+ *
+ * A genuine colour sub-group cannot dodge full shapes inside one panel, so it is laid out by
+ * count: 2 sub-groups split each violin; 3 or more get a category × sub-group grid. Otherwise
+ * the categories sit in one row, wrapping only when the row would get too cramped.
+ */
+/**
+ * Whether a colour field splits each category into three or more sub-groups that share a band,
+ * which the violin lays out as a grid of panels, one row per sub-group.
+ */
+function subgroupGrid(table: any[], catField: string, colorField: string | undefined, rowField: string | undefined): { useGrid: boolean; subgroupCount: number } {
+    const genuineSubgroup = !!colorField && colorField !== catField && !rowField
+        && planBandDodge(table, catField, colorField).maxPerBand > 1;
+    const subgroupCount = genuineSubgroup ? new Set(table.map((r: any) => String(r[colorField!]))).size : 0;
+    return { useGrid: genuineSubgroup && subgroupCount >= 3, subgroupCount };
+}
+
+function violinGrid(
+    ctx: PlotPlanContext,
+    catField: string,
+    colorField: string | undefined,
+    rowField: string | undefined,
+): { useGrid: boolean; columns: number; panel: { width: number; height: number } } {
+    const { useGrid, subgroupCount } = subgroupGrid(ctx.table, catField, colorField, rowField);
+
+    const catCount = Math.max(1, distinctValues(ctx.table, catField).length);
+    const canvasW = ctx.canvasSize?.width ?? 560;
+    const canvasH = ctx.canvasSize?.height ?? 360;
+    const spacing = 0;
+    const reservedW = 60;   // value axis + its title
+    const reservedH = 70;   // facet headers + breathing room
+    const minPanelW = 44;
+
+    if (useGrid) {
+        const panelW = Math.max(minPanelW, Math.min(Math.round((canvasW - reservedW) / catCount), 220));
+        const panelH = Math.max(70, Math.round((canvasH - reservedH) / subgroupCount) - 10);
+        return { useGrid, columns: catCount, panel: { width: panelW, height: panelH } };
+    }
+    const maxPerRow = Math.max(1, Math.floor((canvasW - reservedW) / (minPanelW + spacing)));
+    const columns = Math.min(catCount, maxPerRow);
+    const gridRows = Math.ceil(catCount / columns);
+    const panelW = Math.max(minPanelW, Math.min(Math.round((canvasW - reservedW - (columns - 1) * spacing) / columns), 220));
+    const panelH = Math.max(120, Math.round((canvasH - reservedH) / gridRows) - (gridRows > 1 ? 24 : 0));
+    return { useGrid, columns, panel: { width: panelW, height: panelH } };
+}
+
+/**
+ * A violin's panels: one per category, wrapped into rows the plan's facet gap apart, or crossed
+ * with the sub-groups (or an outer row field) into a grid of touching columns and rows the facet
+ * gap apart.
+ */
+function violinViews(ctx: ViewPlanContext): ViewNode | undefined {
+    const catField = ctx.channelSemantics.x?.field;
+    if (!catField || !ctx.channelSemantics.y?.field) return undefined;
+    const colorField = ctx.channelSemantics.color?.field;
+    const rowField = ctx.channelSemantics.row?.field;
+    const { useGrid, columns } = violinGrid(ctx, catField, colorField, rowField);
+    const panel: ViewNode = { kind: 'view', role: 'plot', width: ctx.plot.width, height: ctx.plot.height };
+    const categories = Math.max(1, distinctValues(ctx.table, catField).length);
+    const gap = gapOf(ctx.spacing, 0);
+    const crossed = useGrid ? colorField : rowField;
+    if (crossed) {
+        // Columns of a grid share each row's ruler, so they touch and its grid lines run unbroken.
+        const rows = Math.max(1, distinctValues(ctx.table, crossed).length);
+        const row = useGrid ? gap.row + ctx.rulerOverhang : gap.row;
+        return { kind: 'facet', columns: categories, rows, panels: categories * rows, gap: { row, column: 0 }, panel };
+    }
+    return { kind: 'facet', columns, rows: Math.ceil(categories / columns), panels: categories, gap, panel };
+}
+
 export const violinPlotDef: ChartTemplateDef = {
+    planViews: violinViews,
+    planPlot: (ctx) => {
+        const catField = ctx.channelSemantics.x?.field;
+        if (!catField || !ctx.channelSemantics.y?.field) return undefined;
+        return violinGrid(ctx, catField, ctx.channelSemantics.color?.field, ctx.channelSemantics.row?.field).panel;
+    },
     chart: 'Violin Plot',
+    composite: true,
     template: {
         mark: { type: 'area', orient: 'horizontal' },
         transform: [{ density: '__measure__', groupby: [], as: ['value', 'density'] }],
@@ -183,6 +263,32 @@ export const violinPlotDef: ChartTemplateDef = {
         const result = detectBandedAxisForceDiscrete(cs, table, { preferAxis: 'x' });
         if (!result) return {};
         return { resolvedTypes: result.resolvedTypes };
+    },
+    structure: (ctx) => {
+        // Each category's shape is the density of the measure, centred on itself; colour tells the
+        // categories (or the colour field) apart. Drawing the evidence over it mirrors the shape by hand.
+        const skeleton = skeletonStructure(violinPlotDef.template, ctx);
+        const { x, y, color } = ctx.channelSemantics;
+        if (!x?.field || !y?.field) return skeleton;
+        const xType = ctx.resolvedTypes?.x ?? x.type;
+        const config = ctx.chartProperties;
+        const extras = [
+            ...(config?.showContour === true ? ['line'] : []),
+            ...(config?.showPoints === true ? ['point'] : []),
+            ...(config?.showMedian === true ? ['rule'] : []),
+        ];
+        return {
+            marks: ['area', ...extras],
+            x: { type: 'quantitative', fields: [y.field], derived: 'density', rounded: true },
+            y: { type: 'quantitative', fields: [y.field], ...(config?.showPoints === true || config?.showMedian === true ? { baseline: 'data' } : {}) },
+            series: color?.field ? { field: color.field, type: color.type }
+                : { field: x.field, type: xType === 'nominal' || xType === 'ordinal' ? xType : 'nominal' },
+            // Panel headers name the categories, and a grid's row headers its sub-groups; only a
+            // colour that splits panels by something else gets a key.
+            keys: color?.field && color.field !== x.field && !subgroupGrid(ctx.table, x.field, color.field, ctx.channelSemantics.row?.field).useGrid
+                ? [{ channel: 'color', field: color.field, ...(color.type ? { type: color.type } : {}) }] : [],
+            stacking: extras.length ? 'none' : 'centered',
+        };
     },
     instantiate: (spec, ctx) => {
         const { x, y, color, row } = ctx.resolvedEncodings;
@@ -250,43 +356,14 @@ export const violinPlotDef: ChartTemplateDef = {
             spec.encoding.color.legend = null;
         }
 
-        // --- Grouped sub-distributions (a genuine colour sub-group) ---
-        // A violin cannot dodge full shapes side-by-side inside one panel — the
-        // KDE owns the continuous axis and VL drops an `xOffset` on a continuous
-        // x. So a genuine sub-group is laid out by count:
-        //   • 2 sub-groups  → SPLIT violin (the `stack:'center'` mirror below
-        //     seats one sub-group on each half — the standard split violin).
-        //   • ≥3 sub-groups → a per-(category × sub-group) small-multiples GRID
-        //     so every sub-group keeps its own independent, un-stacked shape (a
-        //     3-way centre stack misreads each layer's width).
-        // `planBandDodge` gates this so a redundant/1:1 colour (maxPerBand ≤ 1)
-        // stays a plain one-violin-per-category chart rather than dodging.
-        const genuineSubgroup =
-            !!colorField && colorField !== catField && !rowField &&
-            planBandDodge(ctx.table, catField, colorField).maxPerBand > 1;
-        const subgroupCount = genuineSubgroup
-            ? new Set(ctx.table.map((r: any) => String(r[colorField]))).size
-            : 0;
-        const useGrid = genuineSubgroup && subgroupCount >= 3;
-
-        // --- Per-category panels ---
-        const cats = distinctValues(ctx.table, catField);
-        const catCount = Math.max(1, cats.length);
-
-        // Size each violin panel from the canvas + category count (single row,
-        // wrapping only when the row would get too cramped).
-        const canvasW = ctx.canvasSize?.width ?? 560;
-        const canvasH = ctx.canvasSize?.height ?? 360;
-        const spacing = 0;
-        const reservedW = 60;   // value axis + its title
-        const reservedH = 70;   // facet headers + breathing room
-        const minPanelW = 44;
-
+        // --- Per-category panels: a 2-D grid for 3+ sub-groups, else a wrapped row ---
+        const { useGrid, columns, panel } = violinGrid(ctx, catField, colorField, rowField);
+        const panelW = ctx.plot?.width ?? panel.width;
+        const panelH = ctx.plot?.height ?? panel.height;
         const facetDef: any = {
             field: catField,
             type: catType,
             ...(x?.sort !== undefined ? { sort: x.sort } : {}),
-            spacing,
             header: { titleOrient: 'bottom', labelOrient: 'bottom', labelPadding: 2 },
         };
 
@@ -294,9 +371,6 @@ export const violinPlotDef: ChartTemplateDef = {
             // 2-D grid: category across columns, sub-group down rows. Each cell is
             // one clean full violin; the row headers label the sub-group, so the
             // colour legend is redundant.
-            let panelW = Math.round((canvasW - reservedW) / catCount);
-            panelW = Math.max(minPanelW, Math.min(panelW, 220));
-            const panelH = Math.max(70, Math.round((canvasH - reservedH) / subgroupCount) - 10);
             spec.encoding.column = facetDef;
             spec.encoding.row = {
                 field: colorField,
@@ -308,13 +382,6 @@ export const violinPlotDef: ChartTemplateDef = {
             spec.width = panelW;
             spec.height = panelH;
         } else {
-            const maxPerRow = Math.max(1, Math.floor((canvasW - reservedW) / (minPanelW + spacing)));
-            const columns = Math.min(catCount, maxPerRow);
-            const gridRows = Math.ceil(catCount / columns);
-            let panelW = Math.round((canvasW - reservedW - (columns - 1) * spacing) / columns);
-            panelW = Math.max(minPanelW, Math.min(panelW, 220));
-            const panelH = Math.max(120, Math.round((canvasH - reservedH) / gridRows) - (gridRows > 1 ? 24 : 0));
-
             if (row) {
                 // An additional OUTER facet → 2-D grid: category in columns, the
                 // outer field in rows (VL cannot combine a wrap `facet` with `row`).

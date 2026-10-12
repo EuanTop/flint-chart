@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 
 import { ChartTemplateDef, ChartPropertyDef, type InstantiateContext } from '../../core/types';
+import { skeletonStructure } from '../../core/structure';
 import { defaultBuildEncodings, setMarkProp } from './utils';
 import { makeCartesianPivot } from '../../core/pivot';
 import {
@@ -65,10 +66,10 @@ function pointsTooDense(ctx: InstantiateContext): boolean {
     return spacing < 8;
 }
 
-function isContinuousColor(ctx: InstantiateContext): boolean {
-    const color = ctx.resolvedEncodings.color;
+/** Whether the colour channel carries a continuous field. */
+function isContinuousColor(color: { field?: string; type?: string } | undefined, semanticType: string | undefined): boolean {
     if (!color?.field) return false;
-    const type = color.type ?? ctx.channelSemantics.color?.type;
+    const type = color.type ?? semanticType;
     return type === 'quantitative' || type === 'temporal';
 }
 
@@ -170,11 +171,16 @@ export const lineChartDef: ChartTemplateDef = {
             ),
         };
     },
+    structure: (ctx) => {
+        const structure = skeletonStructure(lineChartDef.template, ctx);
+        return isContinuousColor(ctx.channelSemantics.color, ctx.channelSemantics.color?.type)
+            ? { ...structure, marks: ['line', 'point'] } : structure;
+    },
     declareLayoutMode: () => ({
         paramOverrides: { continuousMarkCrossSection: { x: 100, y: 20, seriesCountAxis: 'auto' }, facetAspectRatioResistance: 0.5 },
     }),
     instantiate: (spec, ctx) => {
-        if (isContinuousColor(ctx)) {
+        if (isContinuousColor(ctx.resolvedEncodings.color, ctx.channelSemantics.color?.type)) {
             buildContinuousColorLayers(spec, ctx.resolvedEncodings, ctx.chartProperties);
             return;
         }

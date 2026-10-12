@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 
 import { ChartTemplateDef, ChartPropertyDef } from '../../core/types';
+import { skeletonStructure } from '../../core/structure';
 import { makeCartesianPivot } from '../../core/pivot';
 import {
     firstDiscreteEncodingField,
@@ -67,11 +68,23 @@ export const densityPlotDef: ChartTemplateDef = {
         mark: "area",
         transform: [{ density: "__field__" }],
         encoding: {
-            x: { field: "value", type: "quantitative" },
+            x: { field: "value", type: "quantitative", scale: { zero: false } },
             y: { field: "density", type: "quantitative" },
         },
     },
     channels: ["x", "color", "column", "row"],
+    structure: (ctx) => {
+        // The curve runs along the field's values, fitted to them; its height is the estimated density.
+        const structure = skeletonStructure(densityPlotDef.template, ctx);
+        const measure = ctx.channelSemantics.x?.field;
+        if (!measure) return structure;
+        return {
+            ...structure,
+            x: { type: 'quantitative', fields: [measure], baseline: 'data', rounded: true },
+            y: { type: 'quantitative', fields: [], derived: 'density' },
+            axisTitles: { y: 'density' },
+        };
+    },
     interactionSupport: {
         elements: true,
         region: ['cartesian'],

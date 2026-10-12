@@ -15,6 +15,7 @@ import { z } from 'zod';
 import { renderChart } from './render/index.js';
 import type { RenderBackend } from './render/types.js';
 import { compileChart } from './tools/compile.js';
+import { installFlintTextMeasurer } from './render/fonts.js';
 import { validateChart } from './tools/validate.js';
 import { listChartTypes, listThemes, listInteractionPresets } from './tools/list.js';
 import {
@@ -323,6 +324,7 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
     async (args: any) => {
       try {
         const input = toAssemblyInput(args as AssemblyInputArgs);
+        await installFlintTextMeasurer();
         return jsonResult(compileChart(input, args.backend as RenderBackend, { ...dataSourceOptions, roots: await clientRoots() }));
       } catch (err) {
         return errorResult(err);

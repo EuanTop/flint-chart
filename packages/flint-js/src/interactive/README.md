@@ -99,6 +99,7 @@ The surface API is intentionally small:
 |---|---|
 | `getState()` | Read what the chart shows now: emphasized marks, hidden series, viewport, rail windows |
 | `onChange(callback)` | Hear every change to that state after the render: a gesture frame, a commit, a cancel, a host call |
+| `layout` | Read the plot box the chart is drawn with, once ready; a filter that re-lays the chart out updates it (Vega-Lite charts that draw one plot) |
 | `flint-interaction` event | Receive every resolved canvas action before the chart reacts to it |
 | `applyUpdate(update)` | Apply precomputed retained chart state by ID |
 | `setUpdates(updates)` | Replace the retained update collection |

@@ -4,6 +4,7 @@
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { setTextMeasurer } from 'flint-chart';
 
 /**
  * Default font family for rasterization fallback. We bundle **Liberation Sans**,
@@ -123,6 +124,42 @@ export async function installVegaTextMetrics(vega: any): Promise<void> {
     return ctx.measureText(String(text ?? '')).width;
   };
   vegaTextMetricsInstalled = true;
+}
+
+let flintTextMeasurerInstalled = false;
+
+/**
+ * Point Flint's layout planner at the same `@napi-rs/canvas` measurement Vega
+ * draws with, so a chart compiled here plans its labels and titles for the
+ * glyphs the export shows rather than Vega's font-independent estimate.
+ * Idempotent; a no-op if `@napi-rs/canvas` is unavailable.
+ */
+export async function installFlintTextMeasurer(): Promise<void> {
+  if (flintTextMeasurerInstalled) return;
+  let napiCanvas: any;
+  try {
+    napiCanvas = await import('@napi-rs/canvas');
+  } catch {
+    return;
+  }
+  registerNapiFonts(napiCanvas);
+  const ctx = napiCanvas.createCanvas(64, 64).getContext('2d');
+  const widths = new Map<string, number>();
+  setTextMeasurer((fontSize, font, weight, style) => {
+    const css = `${style} ${weight} ${fontSize}px ${font}`;
+    return (text) => {
+      const key = `${css}\u0000${text}`;
+      let width = widths.get(key);
+      if (width === undefined) {
+        if (widths.size >= 50_000) widths.clear();
+        ctx.font = css;
+        width = ctx.measureText(String(text ?? '')).width as number;
+        widths.set(key, width);
+      }
+      return width;
+    };
+  });
+  flintTextMeasurerInstalled = true;
 }
 
 let napiRegistered = false;

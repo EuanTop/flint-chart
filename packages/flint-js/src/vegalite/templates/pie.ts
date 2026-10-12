@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-import { ChartTemplateDef, ChartPropertyDef } from '../../core/types';
+import { ChartTemplateDef, ChartPropertyDef, PlotPlanContext } from '../../core/types';
 import { computeCircumferencePressure, computeEffectiveBarCount } from '../../core/decisions';
 import {
     fieldsFromEncodingChannels,
@@ -15,6 +15,44 @@ import {
     presentAnnotationUpdate,
 } from '../../interactive/presentation/annotation';
 import { setMarkProp } from './utils';
+import type { ChartStructure } from '../../core/structure';
+
+/** A pie's outer radius and the square it is drawn in, from how many slices it has to hold. */
+function pieLayout(
+    ctx: PlotPlanContext,
+    thetaField: string | undefined,
+    colorField: string | undefined,
+): { radius: number; size: number } {
+    let effectiveCount: number;
+
+    if (thetaField && colorField) {
+        // Aggregate values per color category
+        const agg = new Map<string, number>();
+        for (const row of ctx.table) {
+            const cat = String(row[colorField] ?? '');
+            const val = Number(row[thetaField]) || 0;
+            agg.set(cat, (agg.get(cat) ?? 0) + val);
+        }
+        effectiveCount = computeEffectiveBarCount([...agg.values()]);
+    } else if (colorField) {
+        // Count-based: each category gets equal slice
+        const cats = new Set(ctx.table.map((r: any) => String(r[colorField] ?? '')));
+        effectiveCount = cats.size;
+    } else {
+        effectiveCount = ctx.table.length;
+    }
+
+    const { radius, canvasW, canvasH } = computeCircumferencePressure(
+        effectiveCount, ctx.canvasSize, {
+            minArcPx: 45,
+            minRadius: 60,
+            maxStretch: ctx.assembleOptions?.maxStretch,
+            maxStretchX: ctx.assembleOptions?.maxStretchX,
+            maxStretchY: ctx.assembleOptions?.maxStretchY,
+            margin: 50,   // room for labels around pie
+        });
+    return { radius, size: Math.min(canvasW, canvasH) };
+}
 
 export const pieChartDef: ChartTemplateDef = {
     chart: "Pie Chart",
@@ -51,6 +89,17 @@ export const pieChartDef: ChartTemplateDef = {
         };
     },
     geometryKinds: ['arc'],
+    structure: (ctx): ChartStructure => {
+        // Each slice's angle is its value's share of the whole, or its row count where no value is bound.
+        const { size, color } = ctx.channelSemantics;
+        return {
+            marks: ['arc'],
+            angle: size?.field ? { type: size.type, fields: [size.field] } : { type: 'quantitative', fields: [], derived: 'count' },
+            ...(color?.field ? { series: { field: color.field, type: color.type } } : {}),
+            keys: color?.field ? [{ channel: 'color', field: color.field, ...(color.type ? { type: color.type } : {}) }] : [],
+            stacking: 'none',
+        };
+    },
     instantiate: (spec, ctx) => {
         // Remap abstract channels to VL channels:
         //   "size" → VL "theta" (angular extent of each slice)
@@ -102,39 +151,15 @@ export const pieChartDef: ChartTemplateDef = {
             }
         }
 
-        let effectiveCount: number;
-
-        if (thetaField && colorField) {
-            // Aggregate values per color category
-            const agg = new Map<string, number>();
-            for (const row of ctx.table) {
-                const cat = String(row[colorField] ?? '');
-                const val = Number(row[thetaField]) || 0;
-                agg.set(cat, (agg.get(cat) ?? 0) + val);
-            }
-            effectiveCount = computeEffectiveBarCount([...agg.values()]);
-        } else if (colorField) {
-            // Count-based: each category gets equal slice
-            const cats = new Set(ctx.table.map((r: any) => String(r[colorField] ?? '')));
-            effectiveCount = cats.size;
-        } else {
-            effectiveCount = ctx.table.length;
-        }
-
-        const { radius, canvasW, canvasH } = computeCircumferencePressure(
-            effectiveCount, ctx.canvasSize, {
-                minArcPx: 45,
-                minRadius: 60,
-                maxStretch: ctx.assembleOptions?.maxStretch,
-                maxStretchX: ctx.assembleOptions?.maxStretchX,
-                maxStretchY: ctx.assembleOptions?.maxStretchY,
-                margin: 50,   // room for labels around pie
-            });
-
+        const { radius, size } = pieLayout(ctx, thetaField, colorField);
         spec.mark = setMarkProp(spec.mark, 'outerRadius', radius);
         // Set explicit width/height — overrides config.view defaults
-        spec.width = Math.min(canvasW, canvasH);
-        spec.height = Math.min(canvasW, canvasH);
+        spec.width = ctx.plot?.width ?? size;
+        spec.height = ctx.plot?.height ?? size;
+    },
+    planPlot: (ctx) => {
+        const { size } = pieLayout(ctx, ctx.channelSemantics.size?.field, ctx.channelSemantics.color?.field);
+        return { width: size, height: size };
     },
     properties: [
         { key: "innerRadius", label: "Donut", type: "continuous", min: 0, max: 100, step: 5, defaultValue: 0 },

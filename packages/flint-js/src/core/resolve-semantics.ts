@@ -488,6 +488,70 @@ export function temporalFieldValue(
 // Public API: resolveChannelSemantics
 // ---------------------------------------------------------------------------
 
+/** A field channel's semantic type, its values, and the encoding type it resolves to before aggregation. */
+function resolveFieldChannelType(
+    channel: string,
+    encoding: ChartEncoding,
+    fieldName: string,
+    data: any[],
+    semanticTypes: Record<string, string | SemanticAnnotation>,
+): { semanticType: string; fieldValues: any[]; type: ChannelSemantics['type'] } {
+    const rawAnnotation = semanticTypes[fieldName];
+    const suppliedSemanticType = typeof rawAnnotation === 'string'
+        ? (rawAnnotation || '')
+        : (rawAnnotation?.semanticType ?? '');
+    const fieldValues = data.map(r => r[fieldName]);
+    const semanticType = suppliedSemanticType
+        || inferImplicitSemanticType(fieldName, fieldValues);
+
+    const typeDecision = resolveEncodingTypeDecision(
+        semanticType, fieldValues, channel, data, fieldName,
+    );
+
+    // Apply explicit type override
+    let type: ChannelSemantics['type'] = typeDecision.vlType;
+    if (encoding.type) {
+        type = encoding.type;
+    } else if (channel === 'column' || channel === 'row') {
+        if (type !== 'nominal' && type !== 'ordinal') {
+            type = 'nominal';
+        }
+    }
+
+    // ISO date hack
+    if (type === 'quantitative') {
+        const sampleValues = data.slice(0, 15).filter(r => r[fieldName] != undefined).map(r => r[fieldName]);
+        const isoDateRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?$/;
+        if (sampleValues.length > 0 && sampleValues.every((val: any) => isoDateRegex.test(`${val}`.trim()))) {
+            type = 'temporal';
+        }
+    }
+    return { semanticType, fieldValues, type };
+}
+
+/**
+ * The encoding type each channel resolves to, as {@link resolveChannelSemantics} would
+ * resolve it, without the rest of the channel's semantics.
+ */
+export function resolveChannelTypes(
+    encodings: Record<string, ChartEncoding>,
+    data: any[],
+    semanticTypes: Record<string, string | SemanticAnnotation>,
+): Record<string, ChannelSemantics['type']> {
+    const types: Record<string, ChannelSemantics['type']> = {};
+    for (const [channel, encoding] of Object.entries(encodings)) {
+        const fieldName = encoding.field;
+        if (!fieldName) {
+            if (encoding.aggregate === 'count') types[channel] = 'quantitative';
+            continue;
+        }
+        types[channel] = encoding.aggregate
+            ? 'quantitative'
+            : resolveFieldChannelType(channel, encoding, fieldName, data, semanticTypes).type;
+    }
+    return types;
+}
+
 /**
  * Resolve all channel-level semantic decisions.
  *
@@ -534,36 +598,9 @@ export function resolveChannelSemantics(
         if (!fieldName) continue;
 
         const rawAnnotation = semanticTypes[fieldName];
-        const suppliedSemanticType = typeof rawAnnotation === 'string'
-            ? (rawAnnotation || '')
-            : (rawAnnotation?.semanticType ?? '');
-        const fieldValues = data.map(r => r[fieldName]);
-        const semanticType = suppliedSemanticType
-            || inferImplicitSemanticType(fieldName, fieldValues);
-
-        // Resolve encoding type
-        const typeDecision = resolveEncodingTypeDecision(
-            semanticType, fieldValues, channel, data, fieldName,
+        const { semanticType, fieldValues, type: resolvedType } = resolveFieldChannelType(
+            channel, encoding, fieldName, data, semanticTypes,
         );
-
-        // Apply explicit type override
-        let resolvedType = typeDecision.vlType;
-        if (encoding.type) {
-            resolvedType = encoding.type;
-        } else if (channel === 'column' || channel === 'row') {
-            if (resolvedType !== 'nominal' && resolvedType !== 'ordinal') {
-                resolvedType = 'nominal';
-            }
-        }
-
-        // ISO date hack
-        if (resolvedType === 'quantitative') {
-            const sampleValues = data.slice(0, 15).filter(r => r[fieldName] != undefined).map(r => r[fieldName]);
-            const isoDateRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?$/;
-            if (sampleValues.length > 0 && sampleValues.every((val: any) => isoDateRegex.test(`${val}`.trim()))) {
-                resolvedType = 'temporal';
-            }
-        }
 
         // Build ChannelSemantics entry
         // Stage 1: resolve field-level semantics (data identity)

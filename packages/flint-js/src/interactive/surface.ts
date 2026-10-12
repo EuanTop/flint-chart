@@ -435,6 +435,9 @@ export function mountInteractiveChartSurface(
         chartId,
         ready,
         warnings: ready.then(() => warnings as readonly ChartWarning[], () => warnings as readonly ChartWarning[]),
+        get layout() {
+            return renderer?.layout;
+        },
         getViewportState: () => ({ ...state }),
         setViewport,
         dispatch: async (interactionId, payload) => {
@@ -496,6 +499,11 @@ export function mountInteractiveChartSurface(
         },
         refresh: () => {
             if (!destroyed) renderer?.refresh?.();
+        },
+        relayout: async (size) => {
+            await ready;
+            if (destroyed || !renderer?.relayout) return false;
+            return renderer.relayout(size);
         },
         destroy: () => {
             if (destroyed) return;

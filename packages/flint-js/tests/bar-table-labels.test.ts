@@ -68,7 +68,8 @@ describe('Bar Table labels', () => {
         expect(spec.hconcat[0].encoding.y.axis.labelLimit).toBe(220);
     });
 
-    const titleText = (title: string | string[]) => Array.isArray(title) ? title.join(' ') : title;
+    // A header too wide for its column wraps on underscores and spaces, so compare its words.
+    const titleText = (title: string | string[]) => (Array.isArray(title) ? title.join(' ') : title).split(/[_\s]+/).join(' ');
 
     function barTable(unit?: string, field = 'life_expect_gain'): any {
         return assembleVegaLite({
@@ -96,25 +97,25 @@ describe('Bar Table labels', () => {
         expect(spec.hconcat[0].layer).toBeUndefined();
         const valuePanel = spec.hconcat.at(-1);
         expect(valuePanel.mark.type).toBe('text');
-        expect(titleText(valuePanel.title.text)).toBe('life_expect_gain (years)');
+        expect(titleText(valuePanel.title.text)).toBe(titleText('life_expect_gain (years)'));
         expect(valuePanel.encoding.text.type).toBe('nominal');
         expect(JSON.stringify(valuePanel.transform)).not.toContain('years');
     });
 
     it('prints a declared compact unit beside values', () => {
         const valuePanel = barTable('kg').hconcat.at(-1);
-        expect(titleText(valuePanel.title.text)).toBe('life_expect_gain');
+        expect(titleText(valuePanel.title.text)).toBe(titleText('life_expect_gain'));
         expect(JSON.stringify(valuePanel.transform)).toContain(' kg');
     });
 
     it('does not display an undeclared unit', () => {
         const valuePanel = barTable().hconcat.at(-1);
-        expect(titleText(valuePanel.title.text)).toBe('life_expect_gain');
+        expect(titleText(valuePanel.title.text)).toBe(titleText('life_expect_gain'));
         expect(JSON.stringify(valuePanel.transform)).not.toMatch(/years| kg/);
     });
 
     it('does not duplicate a lexical unit already present in the field name', () => {
         const valuePanel = barTable('years', 'life_expect_gain (years)').hconcat.at(-1);
-        expect(titleText(valuePanel.title.text)).toBe('life_expect_gain (years)');
+        expect(titleText(valuePanel.title.text)).toBe(titleText('life_expect_gain (years)'));
     });
 });

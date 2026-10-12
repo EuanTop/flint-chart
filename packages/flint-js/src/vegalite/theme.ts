@@ -14,13 +14,25 @@
  * Runs LAST, after `vlApplyLayoutToSpec`, which builds `spec.config` wholesale.
  */
 
-import type { DesignDecisions, ThemeReport } from '../core/theme/types.js';
+import type { DesignDecisions, ReportDeparture, ThemeReport } from '../core/theme/types.js';
 import { format as formatNumber } from 'd3-format';
 import { contrastingInk, parseColor, luminance, mixHex, toHex } from '../core/theme/presence.js';
+import type { AxisLabelPlan } from '../core/axis-labels.js';
+import { bandsHoldSeveral, KEY_CHANNELS, statedStacking, type BuiltFacts, type Stacking } from '../core/structure.js';
+import { canvasContentWidth, fitDeckText, fitHeadlineText, plotHeightAfter, textPx, titleMeasures } from '../core/title-fit.js';
+import { tableTextMeasurer } from '../core/text-width.js';
+import type { TitlePlan } from '../core/title-plan.js';
+import { OWNED_AXIS_KEYS } from './owned-axis-keys.js';
 import { CONTINUOUS_BAR_STEP_FILL, coverageSizedMarks } from './templates/utils.js';
 import { LOCAL_DODGE_LANE_FILL } from './templates/bar.js';
 import { CANVAS_FURNITURE_KEY, readCanvasFurniture, type CanvasFurnitureItem } from './canvas-furniture.js';
-import { withInteractionLegendLabel, withInteractionTextLabel } from './interaction-provenance.js';
+import { withInteractionDecorative, withInteractionLegendLabel, withInteractionTextLabel } from './interaction-provenance.js';
+import { facetDropsTicks, gridOvershoot } from '../core/furniture-reserve';
+import type { ValueLabelPlan } from '../core/value-label-plan';
+import { pointOutlineWidth, type LayoutPlan } from '../core/plan';
+import type { FurniturePlan } from '../core/furniture-plan';
+import type { SeriesEndLayout } from '../core/series-end';
+import type { LegendPlan, PlannedKey } from '../core/legend-plan';
 
 /** Mark families that carry data values (as opposed to chrome). */
 const DATA_MARKS = new Set([
@@ -31,13 +43,6 @@ const DATA_MARKS = new Set([
 const LINE_MARKS = new Set(['line', 'trail']);
 
 /** Axis properties this realizer owns; anything a template left is overwritten. */
-const OWNED_AXIS_KEYS = [
-    'grid', 'gridColor', 'gridWidth', 'gridDash', 'gridOpacity',
-    'domain', 'domainColor', 'domainWidth',
-    'ticks', 'tickColor', 'tickWidth', 'tickSize', 'tickOffset',
-    'labelColor', 'labelFont', 'labelFontSize', 'labelFontWeight', 'labelPadding',
-    'titleColor', 'titleFont', 'titleFontSize', 'titleFontWeight',
-];
 
 export function markTypeOf(mark: any): string | undefined {
     if (!mark) return undefined;
@@ -54,33 +59,10 @@ export function collectMarkTypes(spec: any): string[] {
     return [...found];
 }
 
-/** Series marks that draw a connected path — folding several onto one colour
- * key would thread a single line through unrelated readings. */
-const CONNECTED_MARKS = new Set(['line', 'area', 'trail']);
-
-/** True when any mark at or under this node draws a connected series path. */
-function subtreeHasConnectedMark(node: any): boolean {
-    let found = false;
-    walk(node, (n) => {
-        const t = markTypeOf(n.mark);
-        if (t && CONNECTED_MARKS.has(t)) found = true;
-    });
-    return found;
-}
-
 /** Part-to-whole marks whose slices are a share of a summed measure — the
  * overflow tail can be summed into a single "Others" slice at the data level. */
 const PART_TO_WHOLE_MARKS = new Set(['arc']);
 
-/**
- * The distinct-count at which `assemble` shrinks a colour key's labels to fit
- * the field's full cardinality (see `assemble.ts`, "Legend sizing for
- * high-cardinality nominal color/group"). When the overflow fold collapses the
- * key to a short top-K + Others list, only a handful of rows render, so that
- * shrink is recomputed against the folded count and short lists are handed back
- * to the house's own size. Kept in sync with the literal in `assemble.ts`.
- */
-const HIGH_CARDINALITY_LEGEND_MIN = 16;
 
 /** True when the node's own mark is a part-to-whole (share) mark. */
 function isPartToWholeMark(node: any): boolean {
@@ -124,7 +106,9 @@ function addTailAggregate(node: any, thetaField: string, keyField: string): void
  * name its semantic channels `high`/`low`/`open`/`close`; the reader still
  * sees an x and a y, and grounding has to be able to bind them.
  */
-export function collectPositional(spec: any): { x?: { type?: string; field?: string }; y?: { type?: string; field?: string }; color?: { type?: string; field?: string } } {
+export function collectPositional(spec: any): {
+    x?: { type?: string; field?: string }; y?: { type?: string; field?: string }; color?: { type?: string; field?: string }; stacked?: boolean;
+} {
     const out: any = {};
     // The type and the field are collected independently: a layered template
     // states the type once on the shared encoding and the field on each layer.
@@ -162,6 +146,104 @@ export function collectPositional(spec: any): { x?: { type?: string; field?: str
         }
     }
     return out;
+}
+
+/**
+ * What a built Vega-Lite spec draws, read for meaning: its kinds of mark, the data fields each axis
+ * encodes (range ends included), and how it stacks. A stated `stack` says so; else Vega-Lite stacks
+ * bars and areas along a quantitative measure, unless they are dodged or drawn as ranges. Stacking
+ * shows only where some band holds more than one mark.
+ */
+export function vegaLiteBuiltFacts(spec: any, table: any[]): BuiltFacts {
+    const unescape = (field: string) => field.replace(/\\(.)/g, '$1');
+    const fields: BuiltFacts['fields'] = { x: new Set(), y: new Set(), angle: new Set(), radius: new Set() };
+    const transformed = new Set<string>();
+    const collect = (value: unknown): void => {
+        if (typeof value === 'string') {
+            transformed.add(unescape(value));
+            for (const match of value.matchAll(/datum\[['"]([^'"]+)['"]\]|datum\.([A-Za-z_$][\w$]*)/g)) transformed.add(match[1] ?? match[2]);
+        } else if (Array.isArray(value)) value.forEach(collect);
+        else if (value && typeof value === 'object') Object.values(value).forEach(collect);
+    };
+    const baselines: BuiltFacts['baselines'] = {};
+    const ownScales: BuiltFacts['ownScales'] = new Set();
+    const fitted: BuiltFacts['fitted'] = new Set();
+    const rounded: BuiltFacts['rounded'] = {};
+    const reversed: BuiltFacts['reversed'] = new Set();
+    const keys = new Map<string, BuiltFacts['keys'][number]>();
+    walk(spec, (node) => {
+        for (const channel of KEY_CHANNELS) {
+            const encoding = node.encoding?.[channel];
+            if (typeof encoding?.field !== 'string' || encoding.legend === null || encoding.scale === null) continue;
+            const field = unescape(encoding.field);
+            if (!keys.has(`${channel}:${field}`)) {
+                keys.set(`${channel}:${field}`, { channel, field, ...(encoding.legend && 'title' in encoding.legend ? { title: encoding.legend.title } : {}) });
+            }
+        }
+        for (const channel of ['x', 'y'] as const) {
+            if (node.encoding?.[channel]?.scale?.reverse === true) reversed.add(channel);
+        }
+        for (const channel of ['x', 'y'] as const) {
+            const nice = node.encoding?.[channel]?.scale?.nice;
+            if (typeof nice === 'boolean' && node.encoding[channel].type === 'quantitative' && node.encoding[channel].scale?.domain == null) {
+                rounded[channel] = nice;
+            }
+        }
+        for (const step of Array.isArray(node.transform) ? node.transform : []) {
+            const field = step?.regression ?? step?.loess;
+            if (typeof field !== 'string') continue;
+            for (const channel of ['x', 'y'] as const) {
+                if (node.encoding?.[channel]?.field === field) fitted.add(channel);
+            }
+        }
+        for (const channel of ['x', 'y'] as const) {
+            const encoding = node.encoding?.[channel];
+            if (encoding?.type === 'quantitative' && (encoding.scale?.domain != null || encoding.axis?.values != null)) ownScales.add(channel);
+        }
+        if (Array.isArray(node.transform)) collect(node.transform);
+        for (const channel of ['x', 'y'] as const) {
+            const zero = node.encoding?.[channel]?.scale?.zero;
+            if (typeof zero === 'boolean') baselines[channel] = zero ? 'zero' : 'data';
+            else if (node.encoding?.[`${channel}2`]?.datum === 0) baselines[channel] = 'zero';
+        }
+        for (const [channel, keys] of [['x', ['x', 'x2']], ['y', ['y', 'y2']], ['angle', ['theta', 'theta2']], ['radius', ['radius', 'radius2']]] as const) {
+            for (const key of keys) {
+                const field = node.encoding?.[key]?.field;
+                if (typeof field === 'string') fields[channel].add(unescape(field));
+            }
+        }
+    });
+    let stacking: Stacking | undefined;
+    let implicit = false;
+    let segmented = false;
+    for (const body of plotBodies(spec)) {
+        const units = body.layer ? body.layer : [body];
+        for (const unit of units) {
+            const mark = markTypeOf(unit.mark);
+            if (!mark || !DATA_MARKS.has(mark)) continue;
+            const encoding = { ...(body.encoding ?? {}), ...(unit.encoding ?? {}) };
+            const quantitative = (channel: 'x' | 'y') => encoding[channel]?.type === 'quantitative' || Boolean(encoding[channel]?.aggregate);
+            const measure = quantitative('y') && !quantitative('x') ? 'y'
+                : quantitative('x') && !quantitative('y') ? 'x'
+                : encoding.x?.stack !== undefined && encoding.y?.stack === undefined ? 'x' : 'y';
+            const stated = statedStacking(encoding[measure]?.stack);
+            if (stated && (mark === 'bar' || mark === 'area')) {
+                stacking ??= stated;
+                if (stated !== 'none') segmented = true;
+                continue;
+            }
+            if (stated === undefined && (mark === 'bar' || mark === 'area') && quantitative(measure)
+                && !encoding.xOffset && !encoding.yOffset && !encoding[`${measure}2`]) {
+                implicit = true;
+                const band = encoding[measure === 'y' ? 'x' : 'y']?.field;
+                const facet = { ...(spec.facet ?? {}), ...(spec.encoding ?? {}) };
+                const computed = band && !table.some((row) => row && unescape(band) in row);
+                if (computed || bandsHoldSeveral(table, [band, facet.row?.field, facet.column?.field, facet.facet?.field]
+                    .map((field) => (field ? unescape(field) : undefined)))) segmented = true;
+            }
+        }
+    }
+    return { marks: collectMarkTypes(spec), fields, transformed, stacking: stacking ?? (implicit ? 'stacked' : 'none'), segmented, baselines, ownScales, fitted, rounded, reversed, keys: [...keys.values()] };
 }
 
 function walk(node: any, visit: (n: any) => void): void {
@@ -262,33 +344,38 @@ function titleOf(enc: any): string | undefined {
 // Entry point
 // ---------------------------------------------------------------------------
 
-export function realizeThemeVegaLite(spec: any, d: DesignDecisions, table: any[] = []): ThemeReport[] {
+export function realizeThemeVegaLite(
+    spec: any, d: DesignDecisions, table: any[] = [],
+    planned: Partial<Pick<LayoutPlan, 'axisLabels' | 'title' | 'valueLabels' | 'furniture' | 'legend' | 'points' | 'pointSize' | 'rules'>> = {},
+): ThemeReport[] {
+    const { axisLabels, title, valueLabels, furniture, legend, points, pointSize, rules } = planned;
     const report: ThemeReport[] = [];
-    const say = (path: string, message: string) => report.push({ stage: 'realize', path, message });
+    const say: ReportDeparture = (path, code, message) => report.push({ stage: 'realize', path, code, message });
 
     const config = (spec.config ??= {});
 
     applySurface(spec, config, d);
     applyTypography(config, d);
-    applyAxes(spec, config, d, table, say);
-    moveAxisTitlesToSubtitle(spec, d, say);
-    applyZeroRule(spec, d, table, say);
-    applyMarks(spec, d, table, say);
-    applySeriesInk(spec, d, table, say);
+    applyAxes(spec, config, d, table, say, axisLabels, furniture?.yTitle);
+    moveAxisTitlesToSubtitle(spec, d, title?.deck);
+    applyZeroRule(spec, d, table);
+    applyMarks(spec, d, table, say, points, pointSize);
+    applySeriesInk(spec, d, table, say, legend);
     harmonizeLinePoints(spec, d, table, say);
-    applyConnectors(spec, d, say);
+    applyConnectors(spec, d);
     applyRedundantChannels(spec, d, say);
-    const seriesEndLayout = demoteSeriesEnd(spec, d, table, say);
-    applyLegend(spec, config, d, table, say);
+    if (legend?.demoted) say('legend.placement', 'series-end-not-drawn', legend.demoted);
+    const seriesEndLayout = legend?.seriesEnd;
+    if (legend) applyLegend(spec, config, d, table, say, legend);
     applyFacetChrome(spec, config, d);
-    applyPanelTitles(spec, d, say);
-    const valueLayer = applyDataLabels(spec, d, table, say);
-    applySeriesEndLabels(spec, d, valueLayer, table, say, seriesEndLayout);
+    applyPanelTitles(spec, d);
+    const valueLayer = applyDataLabels(spec, d, table, say, valueLabels);
+    applySeriesEndLabels(spec, d, valueLayer, table, say, seriesEndLayout, legend?.secondaryEdge, legend?.ownNames);
     applyPointEmphasis(spec, d, say);
-    applyPrintedUnits(spec, d, say);
-    applyStatistics(spec, d, table, say);
-    fitTitle(spec, d, table, say);
-    const wrapped = applyFurniture(spec, d, table, say);
+    applyPrintedUnits(spec, d);
+    applyStatistics(spec, d, table);
+    fitTitle(spec, d, table, say, title);
+    const wrapped = applyFurniture(spec, d, rules);
 
     return wrapped ? report : report;
 }
@@ -302,14 +389,16 @@ export function realizeThemeVegaLite(spec: any, d: DesignDecisions, table: any[]
  * when the caller named no house, this runs alone over the neutral grounding,
  * rather than dragging the entire visual layer in behind one label.
  */
-export function realizeValueLabelsVegaLite(spec: any, d: DesignDecisions, table: any[] = []): ThemeReport[] {
+export function realizeValueLabelsVegaLite(
+    spec: any, d: DesignDecisions, table: any[] = [], title?: TitlePlan, valueLabels?: ValueLabelPlan | { refused: string },
+): ThemeReport[] {
     const report: ThemeReport[] = [];
-    const say = (path: string, message: string) => report.push({ stage: 'realize', path, message });
-    applyDataLabels(spec, d, table, say);
+    const say: ReportDeparture = (path, code, message) => report.push({ stage: 'realize', path, code, message });
+    applyDataLabels(spec, d, table, say, valueLabels);
     // Staying inside the size the caller asked for is the same kind of concern:
     // Vega-Lite grows the canvas to whatever one unbroken line of title needs,
     // and a long deck took a 420px chart out to 1,249px with no house in sight.
-    fitTitle(spec, d, table, say);
+    fitTitle(spec, d, table, say, title);
     return report;
 }
 
@@ -361,59 +450,6 @@ function applyTypography(config: any, d: DesignDecisions): void {
 // ---------------------------------------------------------------------------
 
 /**
- * Roughly how wide a glyph runs, as a fraction of the font size.
- *
- * Tuned for a browser, where Vega measures text with the canvas API. Node has
- * no canvas backend here, so Vega falls back to an approximation that runs
- * ~45% wider — measurements taken from a headless render read high and are not
- * grounds for raising this.
- */
-const HEADLINE_CHAR_RATIO = 0.55;
-
-/** How far past the block a headline may run before anything is done about it. */
-const STRETCH_TOLERANCE = 1.18;
-
-/** How far the headline may be set down before it is broken instead. */
-const MIN_HEADLINE_SCALE = 0.82;
-
-const CJK_RE = /[\u3000-\u303F\u3400-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF]/;
-
-/** Width of a string in pixels, counting a CJK glyph as a full em. */
-function textPx(s: string, fontSize: number): number {
-    let em = 0;
-    for (const ch of s) em += CJK_RE.test(ch) ? 1 : HEADLINE_CHAR_RATIO;
-    return em * fontSize;
-}
-
-/**
- * Break the headline into `count` lines of even length.
- *
- * Filling each line to the brim and letting the remainder fall through is what
- * leaves a headline ending in a single orphaned word. Aiming at the average
- * line instead spreads the text over the lines it needs.
- */
-function balancedLines(text: string, count: number, fontSize: number): string[] {
-    const words = text.split(/\s+/).filter(Boolean);
-    if (words.length <= 1) return [text];
-    const target = textPx(text, fontSize) / count;
-    const lines: string[] = [];
-    let line = '';
-    for (const word of words) {
-        const candidate = line ? `${line} ${word}` : word;
-        // Break once the line is closer to the target with this word left off.
-        if (line && lines.length < count - 1
-            && textPx(candidate, fontSize) - target > target - textPx(line, fontSize)) {
-            lines.push(line);
-            line = word;
-        } else {
-            line = candidate;
-        }
-    }
-    if (line) lines.push(line);
-    return lines;
-}
-
-/**
  * Fit a headline that runs wider than the block it sits over.
  *
  * Vega-Lite measures the title as one unbroken run and grows the *canvas* to
@@ -427,7 +463,12 @@ function balancedLines(text: string, count: number, fontSize: number): string[] 
  * over even lines rather than one full line and an orphan. Broken lines are
  * taken out of the plot rather than added to the canvas.
  */
-function fitTitle(spec: any, d: DesignDecisions, table: any[], say: (p: string, m: string) => void): void {
+function fitTitle(spec: any, d: DesignDecisions, table: any[], say: ReportDeparture, planned?: TitlePlan): void {
+    if (planned) {
+        applyHeadlineFit(spec, d, planned.block, planned.headline, say);
+        applyDeckFit(spec, planned.block, planned.deckFit, say);
+        return;
+    }
     // A title spans the whole graphic, not just the plot rectangle: the axis
     // gutter under it is the title's to use. Measuring against the plot alone
     // broke a headline that had 150px of room to spare beside the row labels.
@@ -453,13 +494,20 @@ function fitTitle(spec: any, d: DesignDecisions, table: any[], say: (p: string, 
         const ticks = axis.ticks === false ? 0 : Math.max(0, axis.tickSize ?? 5);
         gutters[side] = Math.max(gutters[side], labelWidth + Math.max(0, axis.labelPadding ?? 2) + ticks);
     });
-    const block = Math.max((plot ?? 0) + gutters.left + gutters.right, d.layout.canvasWidth ?? 0);
+    const block = Math.max((plot ?? 0) + gutters.left + gutters.right, canvasContentWidth(d.layout));
     if (!block || !Number.isFinite(block)) return;
-    fitHeadline(spec, d, block, say);
-    fitDeck(spec, d, block, say);
+    const headline = typeof spec.title === 'string' ? spec.title : spec.title?.text;
+    const measure = titleMeasures(d.title, d.font, tableTextMeasurer);
+    applyHeadlineFit(spec, d, block, typeof headline === 'string' && headline.trim()
+        ? fitHeadlineText(headline, block, d.title.headline.fontSize ?? 14, d.title.deck.fontSize ?? 11, measure.headline) : undefined, say);
+    const subtitle = spec.title && typeof spec.title === 'object' ? spec.title.subtitle : undefined;
+    const deck = Array.isArray(subtitle) ? subtitle.join(' ') : subtitle;
+    applyDeckFit(spec, block, typeof deck === 'string' && deck.trim() ? fitDeckText(deck, block, d.title.deck.fontSize ?? 11, measure.deck) : undefined, say);
 }
 
-function moveAxisTitlesToSubtitle(spec: any, decisions: DesignDecisions, say: (path: string, message: string) => void): void {
+function moveAxisTitlesToSubtitle(
+    spec: any, decisions: DesignDecisions, plannedDeck?: string,
+): void {
     if (spec.title === null) return;
     const titles = new Map<string, Set<string>>();
     for (const channel of ['x', 'y'] as const) {
@@ -481,8 +529,7 @@ function moveAxisTitlesToSubtitle(spec: any, decisions: DesignDecisions, say: (p
     const title = typeof spec.title === 'string' || Array.isArray(spec.title)
         ? { text: spec.title } : spec.title ?? { text: '' };
     const subtitle = [title.subtitle ?? []].flat().join(' ');
-    spec.title = { ...title, subtitle: [[subtitle, ...labels].filter(Boolean).join('; ')] };
-    say('title.subtitle', 'omitted axis titles are appended after the authored subtitle');
+    spec.title = { ...title, subtitle: [plannedDeck ?? [subtitle, ...labels].filter(Boolean).join('; ')] };
 }
 
 /**
@@ -493,75 +540,50 @@ function moveAxisTitlesToSubtitle(spec: any, decisions: DesignDecisions, say: (p
  * only ever broken, never set smaller: the deck is already the quietest line in
  * the block, and taking it down again would cost legibility to buy width.
  */
-function fitDeck(spec: any, d: DesignDecisions, block: number, say: (p: string, m: string) => void): void {
-    const title = spec.title;
-    if (!title || typeof title !== 'object') return;
-    const current = title.subtitle;
-    const text = Array.isArray(current) ? current.join(' ') : current;
-    if (typeof text !== 'string' || !text.trim()) return;
-
-    const size = d.title.deck.fontSize ?? 11;
-    const budget = block * STRETCH_TOLERANCE;
-    if (textPx(text, size) <= budget) return;
-
-    // Break to the block itself, not to the tolerance. The tolerance buys a
-    // headline the right to overhang a little, which reads as deliberate; a
-    // deck given the same licence just runs past the plot on every line.
-    const count = Math.max(2, Math.ceil(textPx(text, size) / block));
-    const lines = balancedLines(text, count, size);
-    if (lines.length < 2) return;
-
-    spec.title = { ...spec.title, subtitle: lines };
-    takeFromPlotHeight(spec, Math.round((lines.length - 1) * size * 1.3));
-    say('title.subtitle',
-        `the deck overhangs the ${Math.round(block)}px block, so it breaks over ${lines.length} even lines`
+function applyDeckFit(
+    spec: any, block: number, fit: ReturnType<typeof fitDeckText>, say: ReportDeparture,
+): void {
+    if (!fit || !spec.title || typeof spec.title !== 'object') return;
+    spec.title = { ...spec.title, subtitle: fit.lines };
+    takeFromPlotHeight(spec, fit.taken);
+    say('title.subtitle', 'deck-broken',
+        `the deck overhangs the ${Math.round(block)}px block, so it breaks over ${fit.lines.length} even lines`
         + ' — the height comes out of the plot, not out of the canvas the caller asked for');
 }
 
-function fitHeadline(spec: any, d: DesignDecisions, block: number, say: (p: string, m: string) => void): void {
+function applyHeadlineFit(
+    spec: any, d: DesignDecisions, block: number, fit: ReturnType<typeof fitHeadlineText>, say: ReportDeparture,
+): void {
     const title = spec.title;
     const text = typeof title === 'string' ? title : title?.text;
-    if (typeof text !== 'string' || !text.trim()) return;
-
-    const budget = block * STRETCH_TOLERANCE;
-    const size = d.title.headline.fontSize ?? 14;
-    if (textPx(text, size) <= budget) return;
-
-    const setTitle = (patch: Record<string, unknown>) => {
-        spec.title = { ...(typeof title === 'string' ? { text } : title), ...patch };
+    if (!fit || typeof text !== 'string') return;
+    spec.title = {
+        ...(typeof title === 'string' ? { text } : title),
+        ...(fit.lines ? { text: fit.lines } : {}),
+        ...(fit.fontSize !== undefined ? { fontSize: fit.fontSize } : {}),
     };
-
-    const smaller = Math.max(Math.round(size * MIN_HEADLINE_SCALE), (d.title.deck.fontSize ?? 11) + 1);
-    if (smaller < size && textPx(text, smaller) <= budget) {
-        setTitle({ fontSize: smaller });
-        say('title', `the headline overhangs the ${Math.round(block)}px block, so it is set at ${smaller}px rather than broken`);
+    if (!fit.lines) {
+        say('title', 'title-set-smaller', `the headline overhangs the ${Math.round(block)}px block, so it is set at ${fit.fontSize}px rather than broken`);
         return;
     }
-
-    const count = Math.max(2, Math.ceil(textPx(text, smaller) / budget));
-    const lines = balancedLines(text, count, smaller);
-    if (lines.length < 2) return;
-    setTitle({ text: lines, ...(smaller < size ? { fontSize: smaller } : {}) });
-    takeFromPlotHeight(spec, Math.round((lines.length - 1) * smaller * 1.3));
+    takeFromPlotHeight(spec, fit.taken);
     say(
         'title',
-        `the headline does not fit the ${Math.round(block)}px block even at ${smaller}px,`
-        + ` so it breaks over ${lines.length} even lines — the height comes out of the plot,`
+        'title-broken',
+        `the headline does not fit the ${Math.round(block)}px block even at ${fit.smaller}px,`
+        + ` so it breaks over ${fit.lines.length} even lines — the height comes out of the plot,`
         + ' not out of the canvas the caller asked for',
     );
 }
-
-/** The shortest a plot may be squeezed to make room for a taller headline. */
-const MIN_PLOT_HEIGHT = 80;
 
 /** Take pixels out of the plotting rectangle, wherever its height is stated. */
 function takeFromPlotHeight(spec: any, px: number): void {
     const view = spec.config?.view;
     if (view && typeof view.continuousHeight === 'number') {
-        view.continuousHeight = Math.max(MIN_PLOT_HEIGHT, view.continuousHeight - px);
+        view.continuousHeight = plotHeightAfter(view.continuousHeight, px);
     }
     walk(spec, (node) => {
-        if (typeof node.height === 'number') node.height = Math.max(MIN_PLOT_HEIGHT, node.height - px);
+        if (typeof node.height === 'number') node.height = plotHeightAfter(node.height, px);
     });
 }
 
@@ -571,14 +593,11 @@ function takeFromPlotHeight(spec: any, px: number): void {
 
 const NONLINEAR_SCALES = new Set(['log', 'symlog', 'pow', 'sqrt']);
 
-/**
- * Flint's preferred tick-label size for this backend (`baseLabelFontSize` in
- * the assembler). Anything under it is the layout pass reporting that the
- * labels did not fit at the size it wanted.
- */
-const BASE_LABEL_FONT_SIZE = 10;
-
-function applyAxes(spec: any, config: any, d: DesignDecisions, table: any[], say: (p: string, m: string) => void): void {
+function applyAxes(
+    spec: any, config: any, d: DesignDecisions, table: any[], say: ReportDeparture,
+    axisLabels: Record<'x' | 'y', AxisLabelPlan> | undefined,
+    flatYTitle?: FurniturePlan['yTitle'],
+): void {
     for (const channel of ['x', 'y'] as const) {
         const axis = d.axes[channel];
         if (!axis) continue;
@@ -605,7 +624,7 @@ function applyAxes(spec: any, config: any, d: DesignDecisions, table: any[], say
         if (domainShow && axis.indexing && bandedAxis(spec, channel)
             && floatingValueScale(spec, channel) && lengthsFromIndexAxis(spec, channel)) {
             domainShow = false;
-            say(`axes.${channel}.domain`,
+            say(`axes.${channel}.domain`, 'domain-not-drawn',
                 'the value scale floats — a rule under the categories would claim a base the chart does not have');
         }
         const themed: any = {
@@ -620,9 +639,10 @@ function applyAxes(spec: any, config: any, d: DesignDecisions, table: any[], say
             tickWidth: axis.ticks.width,
             tickSize: axis.ticks.size,
             labelFont: axis.label.font,
-            labelFontSize: axis.label.fontSize,
             labelColor: axis.label.color,
             labelPadding: axis.label.padding,
+            // Flush end labels sit inside the axis; a diagonal end label anchored there runs over its neighbour.
+            ...(axis.label.flush && (axisLabels?.[channel].angle ?? 0) % 90 === 0 ? { labelFlush: true } : {}),
             titleFont: axis.title.font,
             titleFontSize: axis.title.fontSize,
             titleColor: axis.title.color,
@@ -632,7 +652,7 @@ function applyAxes(spec: any, config: any, d: DesignDecisions, table: any[], say
         if (axis.grid.show && twoPositionLineAxis(spec, channel, table)) {
             themed.grid = false;
             themed.gridWidth = 0;
-            say(`axes.${channel}.grid`,
+            say(`axes.${channel}.grid`, 'grid-not-drawn',
                 'the line has exactly two banded positions — endpoint guides would either merge with a plot boundary or leave one column looking singled out, so both stand down');
         }
         if (axis.grid.dash) themed.gridDash = axis.grid.dash;
@@ -644,84 +664,29 @@ function applyAxes(spec: any, config: any, d: DesignDecisions, table: any[], say
         // ink. A house that draws its own ticks already has a mark there.
         if (themed.grid && axis.role === 'measure' && !axis.ticks.show
             && axis.label.show !== false) {
-            const overshoot = Math.max(4, Math.round((axis.label.padding ?? 4) * 0.75));
+            const overshoot = gridOvershoot(axis);
             themed.ticks = true;
             themed.tickColor = axis.grid.color;
             themed.tickWidth = axis.grid.width;
             themed.tickSize = overshoot;
-            say(`axes.${channel}.grid`,
-                `the grid runs ${overshoot}px past the plot to end under its own number — flush with the last mark it leads nowhere`);
         }
         if (axis.ticks.offset) themed.tickOffset = axis.ticks.offset;
         if (axis.label.show === false) themed.labels = false;
-        if (axis.label.limit != null) themed.labelLimit = axis.label.limit;
-        // Whether a house wants its names straight is a style matter; whether
-        // they still read as separate names is not. A straight angle that would
-        // print `2025-012025-02` is refused and the turn kept.
-        if (axis.label.angle != null) {
-            if (labelsFitStraight(spec, channel, axis, d, table)) {
-                themed.labelAngle = axis.label.angle;
-            } else {
-                say(`axes.${channel}.label.angle`,
-                    `the names are wider than their bands — laid straight they would run into each other, so they stay turned`);
-            }
-        }
+
         if (axis.tickCount != null) themed.tickCount = axis.tickCount;
 
-        // Vega drops a tick label only once its box *overlaps* its neighbour's,
-        // so two numbers whose boxes merely abut both survive and are read as
-        // one: `20,000` beside `30,000` prints `20,00030,000`. Numbers need a
-        // character's worth of air between them before they read as two, and
-        // that is what a separation states. Bands are exempt — their labels are
-        // spaced by the scale, and thinning them drops categories.
-        if (!bandedAxis(spec, channel)) {
-            const size = typeof themed.labelFontSize === 'number' ? themed.labelFontSize : BASE_LABEL_FONT_SIZE;
-            themed.labelSeparation = Math.round(size * 0.6);
-        }
-
-        // Flint's layout pass owns label rotation/anchoring when the theme has
-        // no opinion — those are fit decisions, not style ones.
         const existing = config[key] ?? {};
 
-        // How big the tick labels are is a house matter; whether they still
-        // read is not. Flint's layout shrinks them below its own base only
-        // when the categories crowd — a hundred and twenty bands in a plot
-        // six pixels wide apiece — and setting a larger house face on top of
-        // that decision does not restyle the axis, it smears it. So the house
-        // size holds up to the size fit allows.
-        const fitted = existing.labelFontSize;
-        if (typeof fitted === 'number' && (fitted < BASE_LABEL_FONT_SIZE
-            || (channel === 'y' && existing.labelExpr && existing.labelLineHeight))
-            && typeof themed.labelFontSize === 'number' && themed.labelFontSize > fitted) {
-            say(`axes.${channel}.label.fontSize`,
-                `the axis is crowded — the layout fitted its labels at ${fitted}px and the house's ${themed.labelFontSize}px would not stand in the band`);
-            themed.labelFontSize = fitted;
-        }
-
-        if (existing.labelExpr && existing.labelLineHeight && existing.labelLimit > 0) {
-            themed.labelLimit = themed.labelLimit > 0
-                ? Math.min(themed.labelLimit, existing.labelLimit) : existing.labelLimit;
-            themed.labelLineHeight = Math.ceil((themed.labelFontSize ?? fitted) * 1.2);
+        const crowdedFrom = axisLabels?.[channel].crowdedFrom;
+        if (crowdedFrom !== undefined) {
+            say(`axes.${channel}.label.fontSize`, 'labels-shrunk',
+                `the axis is crowded — the layout fitted its labels at ${axisLabels![channel].fontSize}px and the house's ${crowdedFrom}px would not stand in the band`);
         }
 
         config[key] = { ...existing, ...themed };
-        if (axis.label.angle == null && existing.labelAngle != null) {
-            config[key].labelAngle = existing.labelAngle;
-        }
-        // A refused straight angle leaves the axis with no angle at all, and
-        // Vega-Lite's own default is not a fit decision. Turn it the way the
-        // layout turns labels that will not fit.
-        if (axis.label.angle != null && themed.labelAngle === undefined
-            && config[key].labelAngle == null) {
-            config[key].labelAngle = -45;
-            config[key].labelAlign = 'right';
-            config[key].labelBaseline = 'top';
-        }
 
         // Encoding-level axis objects outrank config, so anything a template
         // left behind in the keys this file owns has to go.
-        let saidGrid = false;
-        let saidTicks = false;
         let saidGutter = false;
         let saidUnit = false;
         const defaultOrient = channel === 'x' ? 'bottom' : 'left';
@@ -746,7 +711,7 @@ function applyAxes(spec: any, config: any, d: DesignDecisions, table: any[], say
                 if (gutter != null) {
                     ax.labelPadding = gutter;
                     if (!saidGutter) {
-                        say(`axes.${channel}.label.padding`,
+                        say(`axes.${channel}.label.padding`, 'label-padding-not-applied',
                             `the template holds a ${gutter}px gutter for its labels — that is layout, not padding, so it stands`);
                         saidGutter = true;
                     }
@@ -762,11 +727,6 @@ function applyAxes(spec: any, config: any, d: DesignDecisions, table: any[], say
                     const current = enc.axis?.title ?? titleOf(enc);
                     if (typeof current === 'string' && !current.includes(`(${axis.title.unit})`)) {
                         enc.axis = { ...(enc.axis ?? {}), title: `${current} (${axis.title.unit})` };
-                        if (!saidUnit) {
-                            say(`axes.${channel}.title`,
-                                `the unit \`${axis.title.unit}\` is stated once in the axis title, which this house keeps`);
-                            saidUnit = true;
-                        }
                     }
                 }
                 // The unit is written once. Where the title already carries it
@@ -790,20 +750,10 @@ function applyAxes(spec: any, config: any, d: DesignDecisions, table: any[], say
                 const side = axis.orient !== defaultOrient
                     ? axis.orient
                     : (enc.axis?.orient ?? defaultOrient);
-                if (channel === 'y' && !flatTitleSides.has(side)
+                if (channel === 'y' && !flatTitleSides.has(side) && flatYTitle
                     && (placement === 'flatAboveAxis' || placement === 'inline')) {
                     const rightSeated = side === 'right';
-                    // The title clears the topmost value instead of sitting on
-                    // it, so the lift carries a line of the label's own size.
-                    // A column facet owns the next line above the plot; clear
-                    // that header too instead of laying the shared y title on
-                    // the final panel's name.
-                    const labelSize = axis.label.fontSize ?? 11;
-                    const gap = axis.title.gap ?? (axis.title.fontSize ?? 11) + 6;
-                    const headerClearance = d.facets.header.show && hasTopFacetHeader(spec)
-                        ? Math.round((d.facets.header.fontSize ?? 11) * 1.7)
-                        : 0;
-                    const lift = gap + Math.round(labelSize * 0.75) + headerClearance;
+                    const { lift } = flatYTitle;
                     enc.axis = {
                         ...(enc.axis ?? {}),
                         titleAngle: 0,
@@ -823,12 +773,8 @@ function applyAxes(spec: any, config: any, d: DesignDecisions, table: any[], say
                     };
                     // Both sides' titles sit on one line, so the room above
                     // the plot is bought once.
-                    if (flatTitleSides.size === 0 && !hasTopFacetHeader(spec)) {
-                        growPadding(spec, 'top', (axis.title.fontSize ?? 11) + lift);
-                    }
+                    if (flatTitleSides.size === 0 && flatYTitle.top > 0) growPadding(spec, 'top', flatYTitle.top);
                     flatTitleSides.add(side);
-                    say(`axes.${channel}.title.placement`,
-                        'the axis title lies flat at the head of its own ruler, beside the values it names');
                 }
             }
             if (axis.orient !== defaultOrient) {
@@ -848,13 +794,6 @@ function applyAxes(spec: any, config: any, d: DesignDecisions, table: any[], say
                     : decadeTicks(table, enc.field);
                 if (ticks) {
                     enc.axis = { ...(enc.axis ?? {}), values: ticks };
-                    if (!saidGrid) {
-                        say(`axes.${channel}.grid`,
-                            enc.scale.type === 'log'
-                                ? `the log scale is ticked at ${ticks.length} readable 1/2/5 steps across its decades, chosen from the transformed pixel spacing`
-                                : `the ${enc.scale.type} scale offers a line at every step of every decade — the grid is cut back to the ${ticks.length} it can label`);
-                        saidGrid = true;
-                    }
                 }
             }
 
@@ -880,31 +819,16 @@ function applyAxes(spec: any, config: any, d: DesignDecisions, table: any[], say
                         // or a tick lands hours off its own observation and
                         // the last one falls outside the domain entirely.
                         enc.scale = { ...(enc.scale ?? {}), type: 'utc' };
-                        if (!saidTicks) {
-                            say(`axes.${channel}.tickLabels`,
-                                `${axis.tickLabels} labels — the axis is ticked at ${dates.values.length} of the dates the data holds, not at round numbers between them`);
-                            saidTicks = true;
-                        }
                     } else {
                         const every = temporalStep(table, enc.field, span, fontSize);
                         if (every) {
                             enc.axis = { ...(enc.axis ?? {}), tickCount: every };
-                            if (!saidTicks) {
-                                say(`axes.${channel}.tickLabels`,
-                                    `${axis.tickLabels} labels — the axis is stepped every ${every.step} ${every.interval}${every.step === 1 ? '' : 's'}, which is how the data is spaced`);
-                                saidTicks = true;
-                            }
                         }
                     }
                 } else if (enc.type === 'quantitative') {
                     const values = observedTicks(table, enc.field, axis.tickLabels, span, fontSize);
                     if (values) {
                         enc.axis = { ...(enc.axis ?? {}), values };
-                        if (!saidTicks) {
-                            say(`axes.${channel}.tickLabels`,
-                                `${axis.tickLabels} labels — the axis is ticked at the ${values.length} values the data holds, not at round numbers between them`);
-                            saidTicks = true;
-                        }
                     }
                 }
             }
@@ -935,22 +859,15 @@ function applyAxes(spec: any, config: any, d: DesignDecisions, table: any[], say
                 && (enc.type === 'quantitative' || enc.axis?.values != null)) {
                 const tagged = tagWithUnit(enc.axis?.labelExpr, unit.text, unit.where);
                 enc.axis = { ...(enc.axis ?? {}), labelExpr: tagged };
-                if (!saidUnit) {
-                    say(`axes.${channel}.unit`,
-                        unit.where === 'everyTick'
-                            ? `every label carries its unit — \`${unit.text}\` — because the house prints no axis title to hold it`
-                            : `the unit \`${unit.text}\` rides on the ${unit.where === 'firstTick' ? 'first' : unit.where === 'firstAndLast' ? 'first and last' : 'last'} label, where the ruler ends`);
-                    saidUnit = true;
-                }
             } else if (unit && unit.where !== 'never' && unitNamedInTitle && !saidUnit) {
-                say(`axes.${channel}.unit`,
+                say(`axes.${channel}.unit`, 'unit-not-drawn',
                     `the title already names \`${unit.text}\` — the ruler stays bare rather than repeating the unit down every tick`);
                 saidUnit = true;
             }
         });
     }
 
-    dropGridUnderSpine(spec, config, say);
+    dropGridUnderSpine(spec, config);
 }
 
 /**
@@ -966,43 +883,6 @@ function bandedAxis(spec: any, channel: 'x' | 'y'): boolean {
         if (enc.type === 'nominal' || enc.type === 'ordinal') banded = true;
     });
     return banded;
-}
-
-/**
- * Would this axis's names read straight in the band each one actually gets?
- *
- * Only answerable for a banded axis, where the band is the step the layout
- * settled. Anything else is left to the house.
- */
-function labelsFitStraight(spec: any, channel: 'x' | 'y', axis: any, d: DesignDecisions, table: any[]): boolean {
-    if (channel !== 'x') return true;
-    if ((axis.label.angle ?? 0) !== 0) return true;
-    if (!bandedAxis(spec, channel)) return true;
-
-    let field: string | undefined;
-    walk(spec, (node) => {
-        const enc = node.encoding?.[channel];
-        if (!enc?.field || (enc.type !== 'nominal' && enc.type !== 'ordinal')) return;
-        field ??= enc.field;
-    });
-    if (!field) return true;
-
-    const names = [...new Set(table.map((row) => row?.[field!]).filter((v) => v != null))].map(String);
-    if (!names.length) return true;
-
-    // A step-sized spec states the band outright; otherwise the categories
-    // share whatever plot width the layout settled.
-    const step = typeof spec.width?.step === 'number' ? spec.width.step
-        : typeof spec.width === 'number' ? spec.width / names.length
-        : typeof d.layout.xStep === 'number' && d.layout.xStep > 0 ? d.layout.xStep
-        : typeof d.layout.plotWidth === 'number' ? d.layout.plotWidth / names.length
-        : undefined;
-    if (!step) return true;
-
-    const fontSize = typeof axis.label.fontSize === 'number' ? axis.label.fontSize : BASE_LABEL_FONT_SIZE;
-    const longest = Math.max(...names.map((n) => n.length));
-    // Names need air between them, or `2025-012025-02` reads as one number.
-    return longest * fontSize * 0.62 + 6 <= step;
 }
 
 /** A line joining exactly two discrete columns; partial grid thinning would make the pair asymmetric. */
@@ -1084,8 +964,7 @@ function floatingValueScale(spec: any, indexChannel: 'x' | 'y'): boolean {
  * scale that never changes sign it is not a crossing but a corner. So the rule
  * is drawn only where the field runs both ways.
  */
-function applyZeroRule(spec: any, d: DesignDecisions, table: any[], say: (p: string, m: string) => void): void {
-    let said = false;
+function applyZeroRule(spec: any, d: DesignDecisions, table: any[]): void {
     for (const channel of ['x', 'y'] as const) {
         const axis = d.axes[channel];
         const zero = axis?.zeroRule;
@@ -1118,10 +997,6 @@ function applyZeroRule(spec: any, d: DesignDecisions, table: any[], say: (p: str
             // layer — Vega-Lite drops that split if it is left inside a layer's
             // encoding, which silently un-facets the chart.
             appendLayer(body, rule);
-            if (!said) {
-                say('structure.grid.zero', 'the measure changes sign inside the plot — zero is drawn as its own rule, not as one gridline among the rest');
-                said = true;
-            }
         }
     }
 }
@@ -1322,10 +1197,9 @@ function printWithUnit(body: any, node: any, field: string, format: string | und
  * the label alone — but the house's unit still has nowhere else to go, and a
  * bare `65` beside a slice is not the same statement as `65%`.
  */
-function applyPrintedUnits(spec: any, d: DesignDecisions, say: (p: string, m: string) => void): void {
+function applyPrintedUnits(spec: any, d: DesignDecisions): void {
     const unit = d.dataLabels.unit;
     if (!unit) return;
-    let said = false;
     for (const body of plotBodies(spec)) {
         for (const node of (body.layer ?? [body])) {
             if (markTypeOf(node.mark) !== 'text') continue;
@@ -1335,11 +1209,6 @@ function applyPrintedUnits(spec: any, d: DesignDecisions, say: (p: string, m: st
             // says what it means.
             if (!text?.field || text.type !== 'quantitative') continue;
             printWithUnit(body, node, text.field, text.format ?? d.dataLabels.format, unit);
-            if (!said) {
-                say('annotation.unit',
-                    `each printed value carries its unit \`${unit}\` — there is no axis left to state it on`);
-                said = true;
-            }
         }
     }
 }
@@ -1471,66 +1340,6 @@ function protectDashEncoding(spec: any, config: any, strokeWidth: number): void 
     });
 }
 
-/**
- * The area below which a dot stops reading as a dot — about 5px across. The
- * crowding budget may shrink a house's dots this far and no further; past
- * here the answer is no longer a smaller dot but a different chart.
- */
-const MIN_DENSE_POINT_SIZE = 20;
-
-/**
- * How many panels the table is spread across. A facet draws each panel from
- * its own slice of the rows, so anything budgeting panel space against the
- * row count has to divide by this first.
- */
-function panelCount(spec: any, table: any[]): number {
-    const fields = new Set<string>();
-    const note = (def: any) => { if (def?.field) fields.add(def.field); };
-    walk(spec, (node) => {
-        note(node.encoding?.facet);
-        note(node.encoding?.row);
-        note(node.encoding?.column);
-        note(node.facet);
-        note(node.facet?.row);
-        note(node.facet?.column);
-    });
-    note(spec.facet);
-    note(spec.facet?.row);
-    note(spec.facet?.column);
-    if (fields.size === 0) return 1;
-    let panels = 1;
-    for (const field of fields) {
-        const values = new Set(table.map((r) => r?.[field]).filter((v) => v != null));
-        panels *= Math.max(1, values.size);
-    }
-    return panels;
-}
-
-function hasTopFacetHeader(spec: any): boolean {
-    let found = false;
-    walk(spec, (node) => {
-        if (node.encoding?.facet?.field || node.encoding?.column?.field
-            || node.facet?.field || node.facet?.column?.field) found = true;
-    });
-    return found;
-}
-
-/**
- * Whether the spec draws a dot per row — a scatter, a strip, a dot plot. Only
- * then does the crowding budget below have a claim on the plot's area: a
- * boxplot's dots are its outliers and a line's are its vertices, and neither
- * is one-per-row.
- */
-function drawsPointCloud(spec: any): boolean {
-    let found = false;
-    walk(spec, (node) => {
-        if (found) return;
-        const type = markTypeOf(node.mark);
-        if (type === 'point' || type === 'circle' || type === 'square') found = true;
-    });
-    return found;
-}
-
 /** Restate the radar's required coordinate furniture and secondary vertices. */
 function applyRadarMarks(spec: any, d: DesignDecisions): void {
     const plot = d.surface.plot ?? d.surface.canvas;
@@ -1551,7 +1360,9 @@ function applyRadarMarks(spec: any, d: DesignDecisions): void {
     });
 }
 
-function applyMarks(spec: any, d: DesignDecisions, table: any[], say: (p: string, m: string) => void): void {
+function applyMarks(
+    spec: any, d: DesignDecisions, table: any[], say: ReportDeparture, points?: LayoutPlan['points'], pointSize?: number,
+): void {
     const config = spec.config;
     const m = d.marks;
     const plotWidth = spec.config?.view?.continuousWidth ?? spec._width ?? 300;
@@ -1616,7 +1427,7 @@ function applyMarks(spec: any, d: DesignDecisions, table: any[], say: (p: string
             if (!(node.transform ?? []).some((t: any) => t?.regression || t?.loess)) return;
             node.mark = { ...normalizeMark(node.mark), point: false };
             if (!saidFit) {
-                say('marks.point', 'the fitted line keeps no vertex points — its vertices are where the fit was sampled, not where anything was measured');
+                say('marks.point', 'dots-stand-down', 'the fitted line keeps no vertex points — its vertices are where the fit was sampled, not where anything was measured');
                 saidFit = true;
             }
         });
@@ -1639,7 +1450,7 @@ function applyMarks(spec: any, d: DesignDecisions, table: any[], say: (p: string
             if (readings > MAX_DOTTED_READINGS) {
                 node.mark = { ...mark, point: false };
                 if (!saidCrowd) {
-                    say('marks.point',
+                    say('marks.point', 'dots-stand-down',
                         `${readings} readings on one line is past the ${MAX_DOTTED_READINGS} a reader can take one at a time, so the house's dots stand down and the line keeps its shape`);
                     saidCrowd = true;
                 }
@@ -1662,7 +1473,7 @@ function applyMarks(spec: any, d: DesignDecisions, table: any[], say: (p: string
                 // its neighbour, so the line is better read without them.
                 node.mark = { ...mark, point: false };
                 if (!saidCrowd) {
-                    say('marks.point',
+                    say('marks.point', 'dots-stand-down',
                         `${readings} readings across ${Math.round(spacing)}px apart leave no room for the house's ${Math.round(outer)}px dots, so they stand down and the line keeps its shape`);
                     saidCrowd = true;
                 }
@@ -1676,7 +1487,7 @@ function applyMarks(spec: any, d: DesignDecisions, table: any[], say: (p: string
             node.mark = { ...mark, point };
             fittedDots.add(node);
             if (!saidShrink) {
-                say('marks.point.size',
+                say('marks.point.size', 'dots-shrunk',
                     `this panel gives each of its ${readings} readings ${Math.round(spacing)}px, so the house's dots shrink to ${size}px² to sit apart on their line`);
                 saidShrink = true;
             }
@@ -1725,36 +1536,9 @@ function applyMarks(spec: any, d: DesignDecisions, table: any[], say: (p: string
     // their own config blocks, and most scatters are drawn as one of those, so
     // a house that sized only `point` silently missed every scatter it had.
     if (m.point?.size != null || m.point?.filled != null) {
-        // This config reaches only standalone point-family marks; line
-        // vertices use `config.line.point` above.
-        //
-        // The house's size is the size of a dot that has room. Crowd the plot
-        // and the dots have to give ground, or the reading stops being a
-        // cloud of observations and becomes one solid field. The budget is
-        // the share of the plot the dots may collectively ink — 12%, the
-        // middle of the 10-15% band the practitioner literature converges on
-        // — divided among the dots that have to share it.
-        //
-        // `plotWidth`/`plotHeight` are one panel, so the count has to be one
-        // panel's worth too: a six-panel facet draws a sixth of the table in
-        // each panel, and budgeting all of it against one panel would shrink
-        // every dot to the floor for rows that are not even drawn there.
-        //
-        // And the budget only means anything where the dots *are* the
-        // reading. A boxplot draws a dot per outlier, a line chart draws none
-        // at all: charging those few dots for every row in the table would
-        // shrink an outlier to a speck to make room for marks that were never
-        // drawn.
-        const perPanel = table.length / Math.max(1, panelCount(spec, table));
-        const densitySize = table.length > 0 && drawsPointCloud(spec)
-            ? Math.max(MIN_DENSE_POINT_SIZE, Math.floor((plotWidth * plotHeight * 0.12) / perPanel))
-            : undefined;
-        const pointSize = m.point.size != null && densitySize != null
-            ? Math.min(m.point.size, densitySize)
-            : m.point.size;
-        const pointOutlineWidth = m.outline && pointSize != null
-            ? Math.min(m.outline.width, Math.max(1.2, Math.sqrt(pointSize) * 0.22))
-            : m.outline?.width;
+        // This config reaches only standalone point-family marks; line vertices use
+        // `config.line.point` above. The plan sizes the dots (`plan.pointSize`).
+        const outlineWidth = pointOutlineWidth(d, pointSize);
         for (const family of ['point', 'circle', 'square'] as const) {
             config[family] = {
                 ...(config[family] ?? {}),
@@ -1772,7 +1556,7 @@ function applyMarks(spec: any, d: DesignDecisions, table: any[], say: (p: string
                 // a shape-encoded scatter tells its glyphs apart, and a house
                 // that merely named a size has not asked for that to change.
                 ...(m.point.filled != null ? { filled: m.point.filled } : {}),
-                ...(m.outline ? { stroke: m.outline.color, strokeWidth: pointOutlineWidth } : {}),
+                ...(m.outline ? { stroke: m.outline.color, strokeWidth: outlineWidth } : {}),
             };
         }
         if (pointSize != null) {
@@ -1789,27 +1573,9 @@ function applyMarks(spec: any, d: DesignDecisions, table: any[], say: (p: string
                 node.mark = { ...mark, size: pointSize };
             });
         }
-        if (m.point.size != null) {
-            if (pointSize !== m.point.size) {
-                say('marks.point.size',
-                    `${Math.round(perPanel)} points would cover too much of the ${Math.round(plotWidth)}×${Math.round(plotHeight)}px plot at ${m.point.size}px² each, so the dots shrink to ${pointSize}px²`);
-            } else {
-                say('marks.point.size',
-                    `a dot is drawn at ${m.point.size}px² wherever one is drawn — the house's size, not the renderer's`);
-            }
-        }
     }
 
-    // Every house's dots need the room, not only the houses that size them:
-    // where none is stated the renderer still draws a 30px² dot with whatever
-    // outline the house asked for, and that dot has the same radius problem.
-    padScaleForDots(
-        spec,
-        config.point?.size ?? config.circle?.size ?? 30,
-        config.point?.strokeWidth ?? m.outline?.width ?? 0,
-        table,
-        say,
-    );
+    padScaleForDots(spec, points, table);
 
     // Band occupancy is a scale decision, not a mark size: expressing it as
     // padding keeps grouped and simple bars consistent and leaves the layout
@@ -1822,7 +1588,6 @@ function applyMarks(spec: any, d: DesignDecisions, table: any[], say: (p: string
     // misses every layered chart.
     const paddingInner = clamp(1 - m.bandFraction, 0, 0.9);
     let saidCells = false;
-    let saidBand = false;
     const paddedBandFields = new Set<string>();
     const bandWalk = (node: any, inherited: any): void => {
         if (!node || typeof node !== 'object') return;
@@ -1840,7 +1605,7 @@ function applyMarks(spec: any, d: DesignDecisions, table: any[], say: (p: string
             // by the layout, which is the only pass that knows the room.
             if (mark === 'rect' && discrete.length === 2) {
                 if (!saidCells) {
-                    say('marks.bandFraction',
+                    say('marks.bandFraction', 'band-fraction-not-applied',
                         'the marks are cells in a grid, not bars in a row — band occupancy is a bar rule and does not apply');
                     saidCells = true;
                 }
@@ -1858,11 +1623,6 @@ function applyMarks(spec: any, d: DesignDecisions, table: any[], say: (p: string
                 const resized = Math.max(1, Math.round(current * m.bandFraction / CONTINUOUS_BAR_STEP_FILL));
                 if (resized !== current) {
                     node.mark = { ...normalizeMark(node.mark), size: resized };
-                    if (!saidBand) {
-                        say('marks.bandFraction',
-                            `bars on a continuous axis are re-cut to ${Math.round(m.bandFraction * 100)}% of the step`);
-                        saidBand = true;
-                    }
                 }
             } else {
                 for (const channel of discrete) {
@@ -1885,11 +1645,6 @@ function applyMarks(spec: any, d: DesignDecisions, table: any[], say: (p: string
                     const offTarget = node.encoding?.[offsetCh!] ?? inherited?.[offsetCh!];
                     if (offTarget) {
                         offTarget.scale = { ...(offTarget.scale ?? {}), paddingInner };
-                        if (!saidBand) {
-                            say('marks.bandFraction',
-                                `dodged lanes fill ${Math.round(m.bandFraction * 100)}% of their slot`);
-                            saidBand = true;
-                        }
                     }
                 } else if (sizedMark && offsetLocal) {
                     // Local dodge: the template pinned each lane to
@@ -1900,11 +1655,6 @@ function applyMarks(spec: any, d: DesignDecisions, table: any[], say: (p: string
                     const resized = Math.max(1, Math.round(current * m.bandFraction / LOCAL_DODGE_LANE_FILL));
                     if (resized !== current) {
                         node.mark = { ...normalizeMark(node.mark), size: resized };
-                        if (!saidBand) {
-                            say('marks.bandFraction',
-                                `dodged lanes are re-cut to ${Math.round(m.bandFraction * 100)}% of their pitch`);
-                            saidBand = true;
-                        }
                     }
                 } else if (sizedMark && discrete[0]) {
                     // A simple bar pinned to a pixel width fixed the gap along
@@ -1912,11 +1662,6 @@ function applyMarks(spec: any, d: DesignDecisions, table: any[], say: (p: string
                     const step = bandStep(spec, node, enc, discrete[0], table);
                     if (step) {
                         node.mark = { ...normalizeMark(node.mark), size: Math.max(1, Math.round(step * m.bandFraction)) };
-                        if (!saidBand) {
-                            say('marks.bandFraction',
-                                `the template pinned its bars to a pixel width — they are re-cut to ${Math.round(m.bandFraction * 100)}% of the band`);
-                            saidBand = true;
-                        }
                     }
                 }
             }
@@ -1932,8 +1677,6 @@ function applyMarks(spec: any, d: DesignDecisions, table: any[], say: (p: string
             if (step) {
                 const size = Math.max(3, Math.round((step * m.summary.widthFraction) / lanes));
                 node.mark = { ...normalizeMark(node.mark), size };
-                say('marks.summary.widthFraction',
-                    `the house fills ${Math.round(m.summary.widthFraction * 100)}% of the band with the box — ${size}px of a ${Math.round(step)}px band`);
             }
         }
         for (const key of ['layer', 'vconcat', 'hconcat', 'concat']) {
@@ -1943,28 +1686,7 @@ function applyMarks(spec: any, d: DesignDecisions, table: any[], say: (p: string
         if (node.facet?.spec) bandWalk(node.facet.spec, enc);
     };
     bandWalk(spec, undefined);
-    centerBandDividers(spec, paddedBandFields, paddingInner, say);
-
-    // A sized mark reads by area, and how much area the largest circle may take
-    // is a house matter — a page of small multiples cannot spend what a full
-    // page can.
-    if (m.sizeRange || m.minSize != null) {
-        let saidSize = false;
-        walk(spec, (node) => {
-            const enc = node.encoding?.size;
-            if (!enc?.field || enc.type !== 'quantitative') return;
-            enc.scale = {
-                ...(enc.scale ?? {}),
-                ...(m.sizeRange ? { range: m.sizeRange } : {}),
-                ...(m.minSize != null && !m.sizeRange ? { rangeMin: m.minSize } : {}),
-            };
-            if (!saidSize && m.sizeRange) {
-                say('marks.sizeRange',
-                    `sized marks run from ${m.sizeRange[0]} to ${m.sizeRange[1]}px² — the house's range, not the renderer's`);
-                saidSize = true;
-            }
-        });
-    }
+    centerBandDividers(spec, paddedBandFields, paddingInner);
 
     if (m.separator?.show) {
         const plotW = spec.config?.view?.continuousWidth ?? spec._width ?? 300;
@@ -2003,7 +1725,7 @@ function applyMarks(spec: any, d: DesignDecisions, table: any[], say: (p: string
             const barW = estimateBarExtent(node, node.encoding ?? {}, table, plotW, plotH);
             if (barW < 2 * m.separator!.width) {
                 if (!saidThin) {
-                    say('marks.separator',
+                    say('marks.separator', 'separator-not-applied',
                         `bars are ${barW.toFixed(1)}px — too thin to hold a ${m.separator!.width}px separator, which would paint over them; left flush`);
                     saidThin = true;
                 }
@@ -2022,10 +1744,10 @@ function applyMarks(spec: any, d: DesignDecisions, table: any[], say: (p: string
             else if (enc.x?.field && enc.x.type !== 'quantitative') bandCh = 'x';
             else if (enc.y?.field && enc.y.type !== 'quantitative') bandCh = 'y';
         });
-        if (sawStroke && bandCh) liftBandAxis(spec, bandCh, say);
+        if (sawStroke && bandCh) liftBandAxis(spec, bandCh);
     }
 
-    if (m.tile) applyTileGap(spec, m.tile, say);
+    if (m.tile) applyTileGap(spec, m.tile);
 
     if (m.slice) applySliceGap(spec, m.slice, table, say);
 
@@ -2045,7 +1767,7 @@ function applyMarks(spec: any, d: DesignDecisions, table: any[], say: (p: string
             const barW = estimateBarExtent(node, enc, table, plotWidth, plotHeight);
             if (barW < 2 * m.outline!.width) {
                 if (!saidThinOutline) {
-                    say('marks.outline',
+                    say('marks.outline', 'outline-not-applied',
                         `bars are ${barW.toFixed(1)}px — too thin to hold a ${m.outline!.width}px outline, which would paint over them; left unbordered`);
                     saidThinOutline = true;
                 }
@@ -2082,7 +1804,7 @@ function applyMarks(spec: any, d: DesignDecisions, table: any[], say: (p: string
             if (capped >= m.cornerRadius!) return;
             node.mark = { ...normalizeMark(node.mark), cornerRadiusEnd: capped };
             if (!saidRound) {
-                say('marks.cornerRadius',
+                say('marks.cornerRadius', 'corner-radius-reduced',
                     `bars are ${barW.toFixed(1)}px — a ${m.cornerRadius}px corner would round the bar away, so it is held to ${capped}px, the same share of the bar the house rounds off a wide one`);
                 saidRound = true;
             }
@@ -2103,7 +1825,7 @@ function applyMarks(spec: any, d: DesignDecisions, table: any[], say: (p: string
  * already draws is just drawn last. Only the band axis is lifted, and only
  * while it carries no grid, so no gridline is ever raised over the data.
  */
-function liftBandAxis(spec: any, bandCh: 'x' | 'y', say: (p: string, m: string) => void): void {
+function liftBandAxis(spec: any, bandCh: 'x' | 'y'): void {
     const axisCfg = spec.config?.[bandCh === 'x' ? 'axisX' : 'axisY'] ?? {};
     const color = axisCfg.domainColor;
     const width = axisCfg.domainWidth ?? 1;
@@ -2114,18 +1836,12 @@ function liftBandAxis(spec: any, bandCh: 'x' | 'y', say: (p: string, m: string) 
     if (axisCfg.grid && (axisCfg.gridWidth ?? 1) > 0 &&
         axisCfg.gridColor && axisCfg.gridColor !== 'transparent') return;
 
-    let lifted = false;
     walk(spec, (node) => {
         const enc = node.encoding?.[bandCh];
         // `axis: null` is the chart saying this band carries no ruler at all.
         if (!enc?.field || enc.axis === null) return;
         enc.axis = { ...(enc.axis ?? {}), zindex: 1 };
-        lifted = true;
     });
-    if (lifted) {
-        say('marks.separator',
-            'the band axis is drawn over the bars — their surface-coloured edge strokes would otherwise chop its domain line into a dash');
-    }
 }
 
 /**
@@ -2144,14 +1860,13 @@ function liftBandAxis(spec: any, bandCh: 'x' | 'y', say: (p: string, m: string) 
  * exactly — `datum.index` is the tick's position along the axis as a fraction,
  * so the line the domain lies on is the one at 0 or at 1.
  */
-function dropGridUnderSpine(spec: any, config: any, say: (p: string, m: string) => void): void {
+function dropGridUnderSpine(spec: any, config: any): void {
     const drawsGrid = (cfg: any): boolean =>
         !!cfg?.grid && (cfg.gridWidth ?? 1) > 0 && !!cfg.gridColor && cfg.gridColor !== 'transparent';
     const drawsDomain = (cfg: any): boolean =>
         cfg?.domain !== false && !!cfg?.domainColor && cfg.domainColor !== 'transparent'
         && (cfg.domainWidth ?? 1) > 0;
 
-    let said = false;
     for (const gridCh of ['x', 'y'] as const) {
         const spineCh = gridCh === 'x' ? 'y' : 'x';
         const gridCfg = config[gridCh === 'x' ? 'axisX' : 'axisY'];
@@ -2175,11 +1890,6 @@ function dropGridUnderSpine(spec: any, config: any, say: (p: string, m: string) 
                     value: gridCfg.gridColor,
                 },
             };
-            if (!said) {
-                say(`axes.${gridCh}.grid`,
-                    `the ${gridCh} grid drops its outermost line — the ${spineCh} axis already rules that edge, and a grid line over a spine repaints it in grid ink`);
-                said = true;
-            }
         });
     }
 }
@@ -2196,9 +1906,8 @@ function harmonizeLinePoints(
     spec: any,
     d: DesignDecisions,
     table: any[],
-    say: (p: string, m: string) => void,
+    say: ReportDeparture,
 ): void {
-    let saidColor = false;
     let saidDensity = false;
     walk(spec, (node) => {
         if (!LINE_MARKS.has(markTypeOf(node.mark) ?? '')) return;
@@ -2208,11 +1917,6 @@ function harmonizeLinePoints(
         const point = typeof mark.point === 'object' ? { ...mark.point } : {};
         if (mark.color && point.color == null && point.fill == null) {
             point.color = mark.color;
-            if (!saidColor) {
-                say('marks.point.color',
-                    'the vertex dots inherit the line ink — both pieces belong to the same trajectory');
-                saidColor = true;
-            }
         }
 
         if (d.marks.point?.size != null && d.marks.outline && point.size == null) {
@@ -2236,7 +1940,7 @@ function harmonizeLinePoints(
             if (shrink < 1) {
                 mark.strokeWidth = Math.max(1, Number((d.marks.strokeWidth * shrink).toFixed(1)));
                 if (!saidDensity) {
-                    say('marks.point.size',
+                    say('marks.point.size', 'dots-shrunk',
                         `${readings} connected readings shrink the house's dots to ${size}px² and its line to ${mark.strokeWidth}px together, so the dot stays the same bead on the same string`);
                     saidDensity = true;
                 }
@@ -2273,19 +1977,12 @@ function isGridCell(node: any, enc: any): boolean {
 function applyTileGap(
     spec: any,
     tile: NonNullable<DesignDecisions['marks']['tile']>,
-    say: (p: string, m: string) => void,
 ): void {
-    let said = false;
     const gridWalk = (node: any, inherited: any): void => {
         if (!node || typeof node !== 'object') return;
         const enc = mergedEncoding(node, inherited);
         if (!isLiteralMark(node) && isGridCell(node, enc)) {
             node.mark = { ...normalizeMark(node.mark), stroke: tile.color, strokeWidth: tile.gap };
-            if (!said) {
-                say('marks.tile',
-                    `the cells are cut apart by ${tile.gap}px — the grid reads as a table of separate readings rather than one continuous field`);
-                said = true;
-            }
         }
         for (const key of ['layer', 'vconcat', 'hconcat', 'concat']) {
             if (Array.isArray(node[key])) node[key].forEach((child: any) => gridWalk(child, enc));
@@ -2319,7 +2016,7 @@ function applyTileGap(
  *     it would be the heaviest line on a chart that is asking about the bars,
  *     so it is drawn at a hairline like the stem.
  */
-function applyConnectors(spec: any, d: DesignDecisions, say: (p: string, m: string) => void): void {
+function applyConnectors(spec: any, d: DesignDecisions): void {
     const c = d.marks.connector;
     if (!c) return;
     // A house that never styles connectors still gets its bridges corrected.
@@ -2332,7 +2029,6 @@ function applyConnectors(spec: any, d: DesignDecisions, say: (p: string, m: stri
     // they keep whatever the series pass gave them.
     const bridgeOnly = !c.show;
 
-    const said = new Set<string>();
     let sawStem = false;
     const paint = (node: any, role: 'stem' | 'bridge' | 'lead', enc: any): void => {
         if (bridgeOnly && role !== 'bridge') return;
@@ -2359,16 +2055,6 @@ function applyConnectors(spec: any, d: DesignDecisions, say: (p: string, m: stri
         if (!bridgeOnly) mark.strokeWidth = role === 'bridge' ? c.spanWidth : c.width;
         if (c.dash && !bridgeOnly) mark.strokeDash = c.dash;
         node.mark = mark;
-        if (said.has(role)) return;
-        said.add(role);
-        const why = bridgeOnly
-            ? `the bridge is drawn in structural ink — it joins two series' marks, so any series colour it took would credit the span to one of its two ends`
-            : {
-                bridge: `the bridge is drawn at ${c.spanWidth}px in structural ink — the distance it spans is the reading, so it carries a mark's weight and none of a series' colour`,
-                stem: `the stem is drawn at ${c.width}px in structural ink — it leads the eye to the axis and states nothing the dot's position has not`,
-                lead: `the lead line is drawn at ${c.width}px in structural ink — it runs across the categories at one level, and the two mark ends it touches already state that level`,
-            }[role];
-        say('marks.connector', why);
     };
 
     const bandWalk = (node: any, inherited: any): void => {
@@ -2422,8 +2108,6 @@ function applyConnectors(spec: any, d: DesignDecisions, say: (p: string, m: stri
         const scale = (config.scale ??= {});
         if (scale.pointPadding == null) {
             scale.pointPadding = LOLLIPOP_CATEGORY_PADDING;
-            say('config.scale.pointPadding',
-                `the lollipop's end dots are stood off the category axis by a full step (pointPadding ${LOLLIPOP_CATEGORY_PADDING}) so they are not cramped against the spine`);
         }
     }
 }
@@ -2462,7 +2146,7 @@ function applySliceGap(
     spec: any,
     slice: NonNullable<DesignDecisions['marks']['slice']>,
     table: any[],
-    say: (p: string, m: string) => void,
+    say: ReportDeparture,
 ): void {
     let said = false;
     walk(spec, (node) => {
@@ -2482,10 +2166,9 @@ function applySliceGap(
             const wanted = slice.gap / radius;
             const room = slices ? (2 * Math.PI * 0.15) / slices : wanted;
             mark.padAngle = Math.min(wanted, room);
-            if (!said) {
-                say('marks.slice.gap', wanted > room
-                    ? `${slices} wedges cannot each give up ${slice.gap}px and still be wedges — the gap is held at ${(room * radius).toFixed(1)}px`
-                    : `the wedges stand ${slice.gap}px apart at the rim`);
+            if (!said && wanted > room) {
+                say('marks.slice.gap', 'slice-gap-reduced',
+                    `${slices} wedges cannot each give up ${slice.gap}px and still be wedges — the gap is held at ${(room * radius).toFixed(1)}px`);
                 said = true;
             }
         } else {
@@ -2495,11 +2178,6 @@ function applySliceGap(
             // tips shoots a spike past the centre (worse the thinner the slice).
             // Round the join so the rule stays a rule all the way to the middle.
             mark.strokeJoin = 'round';
-            if (!said) {
-                say('marks.slice.gap',
-                    `a ${slice.gap}px rule cuts the wedges apart — two arcs of the same size read as two shapes, not one`);
-                said = true;
-            }
         }
         node.mark = mark;
     });
@@ -2572,12 +2250,11 @@ function distinctCount(table: any[], field: string | undefined): number {
  * the distinction the bar exists to make. Where the house's verdict ink is the
  * ink already on the bar, the template's conventional hue stays.
  */
-function paintRoleMarks(spec: any, d: DesignDecisions, say: (p: string, m: string) => void): void {
+function paintRoleMarks(spec: any, d: DesignDecisions): void {
     const status = d.series.status;
     const accent = d.series.single;
     const same = (a?: string, b?: string) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
     const verdict = (ink?: string) => (ink && !same(ink, accent) ? ink : undefined);
-    let said = false;
     walk(spec, (node) => {
         const role = node.__themeRole;
         if (!role || !markTypeOf(node.mark)) return;
@@ -2594,11 +2271,6 @@ function paintRoleMarks(spec: any, d: DesignDecisions, say: (p: string, m: strin
             if (typeof mark[key] === 'string') mark[key] = ink;
         }
         node.mark = mark;
-        if (!said) {
-            say('ink.series',
-                'the card\'s progress bar states a measurement, not scenery, so it takes the house ink rather than the template\'s own blue');
-            said = true;
-        }
     });
 }
 
@@ -2713,31 +2385,17 @@ function roundedFieldDomain(enc: any, table: any[], count: number): [number, num
 }
 
 /**
- * A dot has a radius; a scale fitted to the data does not know that.
- *
- * Vega-Lite sizes a continuous scale to the extremes of the field, which puts
- * the *centre* of the outermost dot exactly on the edge of the plot and throws
- * away the half of it that falls outside — the lowest value in a dumbbell ends
- * up as a half-moon glued to the y axis, sitting on its own row label. A bar
- * never has this trouble because its end *is* the edge; only a mark with ink
- * either side of its position does.
- *
- * So the range is opened by the dot's own radius. `scale.padding` is measured
- * in pixels, which is the unit the problem is in: it costs the same sliver of
- * plot whatever the data happens to span, and it moves no value.
- *
- * Held back wherever something on the chart is measured *from* the edge — a
- * bar, an area, a lollipop's stem — because there the edge is a base, and a
- * base that has been nudged off zero is worse than a clipped dot.
+ * A dot has a radius; a scale fitted to the data does not know that. Vega-Lite sizes a continuous
+ * scale to the extremes of the field, which puts the centre of the outermost dot on the edge of
+ * the plot and clips half of it. The plan opens the range by the dot's radius, in pixels, on the
+ * axes of dots nothing anchors (`plan.points`); this writes it on the encodings that carry those
+ * dots. A dumbbell keeps its position channels on the parent and gives the dot layer only its
+ * colour, so the encoding to pad is found by walking down to each dot remembering where each
+ * channel was last declared.
  */
-function padScaleForDots(spec: any, size: number, strokeWidth: number, table: any[], say: (p: string, m: string) => void): void {
-    const radius = Math.ceil(dotOuterDiameter(size, strokeWidth) / 2);
-    if (radius <= 0) return;
-    // A dumbbell keeps its position channels on the parent and gives the dot
-    // layer only its colour, so the scale to open is not always written on the
-    // node that carries the mark. Walk down remembering where each channel was
-    // last declared, and pad that.
-    let anchored = false;
+function padScaleForDots(spec: any, points: LayoutPlan['points'], table: any[]): void {
+    if (!points) return;
+    const { radius } = points;
     const dots: Record<string, any>[] = [];
     const visit = (node: any, declared: Record<string, any>): void => {
         if (!node || typeof node !== 'object') return;
@@ -2747,8 +2405,7 @@ function padScaleForDots(spec: any, size: number, strokeWidth: number, table: an
         }
         if (node.mark && !isLiteralMark(node)) {
             const type = markTypeOf(node.mark);
-            if (type === 'bar' || type === 'area' || type === 'rect' || type === 'rule' || type === 'arc') anchored = true;
-            else if (type && POINT_MARKS.has(type)) dots.push(next);
+            if (type && POINT_MARKS.has(type)) dots.push(next);
         }
         for (const k of ['layer', 'vconcat', 'hconcat', 'concat']) {
             if (Array.isArray(node[k])) node[k].forEach((child: any) => visit(child, next));
@@ -2757,12 +2414,11 @@ function padScaleForDots(spec: any, size: number, strokeWidth: number, table: an
         if (node.facet?.spec) visit(node.facet.spec, next);
     };
     visit(spec, {});
-    if (anchored || !dots.length) return;
 
     let padded = false;
     const pinned: Partial<Record<'x' | 'y', [number, number]>> = {};
     for (const declared of dots) {
-        for (const ch of ['x', 'y'] as const) {
+        for (const ch of points.channels) {
             const enc = declared[ch];
             if (!enc?.field) continue;
             if (enc.type !== 'quantitative' && enc.type !== 'temporal') continue;
@@ -2813,8 +2469,6 @@ function padScaleForDots(spec: any, size: number, strokeWidth: number, table: an
                 };
             }
         });
-        say('marks.point.size',
-            `the plot is opened by ${radius}px at each end — a dot's own radius — so the outermost reading sits inside the axes instead of half outside them`);
     }
 }
 
@@ -2906,10 +2560,9 @@ function bandStep(spec: any, node: any, enc: any, channel: 'x' | 'y', table: any
  * Half of it puts the rule in the middle, where it belongs — equidistant from
  * the two groups it separates, which is the whole claim a divider makes.
  */
-function centerBandDividers(spec: any, paddedFields: Set<string>, paddingInner: number, say: (p: string, m: string) => void): void {
+function centerBandDividers(spec: any, paddedFields: Set<string>, paddingInner: number): void {
     if (paddingInner <= 0 || paddedFields.size === 0) return;
     const centered = 1 + paddingInner / (2 * (1 - paddingInner));
-    let said = false;
     walk(spec, (node: any) => {
         if (markTypeOf(node.mark) !== 'rule') return;
         for (const channel of ['x', 'y'] as const) {
@@ -2920,11 +2573,6 @@ function centerBandDividers(spec: any, paddedFields: Set<string>, paddingInner: 
             if (!e || node.encoding?.[`${channel}2`]) continue;
             if (e.bandPosition !== 1 || !paddedFields.has(e.field)) continue;
             e.bandPosition = centered;
-            if (!said) {
-                say('marks.bandFraction',
-                    'group dividers move to the middle of the gap the house opened between bands');
-                said = true;
-            }
         }
     });
 }
@@ -3073,45 +2721,6 @@ function addColorKeyTransform(
     node.transform = transform;
 }
 
-/**
- * Order a colour domain by each category's share of the measure, largest
- * first. Used when there are more series than the house's indexed set: the top
- * inks go to the biggest categories and the small ones fold into the overflow
- * tail, so the grey is the long tail rather than an arbitrary slice. Returns
- * `undefined` for a continuous colour field or when no measure can be found.
- */
-function orderDomainByShare(enc: any, node: any, table: any[]): any[] | undefined {
-    if (isContinuousColor(enc)) return undefined;
-    const field = enc.field;
-    if (!field) return undefined;
-    const domain: any[] = Array.isArray(enc.scale?.domain) && enc.scale.domain.length
-        ? enc.scale.domain.slice()
-        : [...new Set((table ?? []).map((r) => r?.[field]).filter((v) => v != null))];
-    if (domain.length < 2) return undefined;
-
-    // The measure whose share ranks the categories: theta for a pie, else the
-    // quantitative position (size before the axes for a bubble legend).
-    let measure: string | undefined;
-    for (const ch of ['theta', 'size', 'y', 'x'] as const) {
-        const e = node?.encoding?.[ch];
-        if (e?.field && (e.type === 'quantitative' || e.type == null)) { measure = e.field; break; }
-    }
-    if (!measure) return undefined;
-
-    const total = new Map<any, number>();
-    for (const row of table ?? []) {
-        const key = row?.[field];
-        if (key == null) continue;
-        const v = Number(row?.[measure]);
-        total.set(key, (total.get(key) ?? 0) + (Number.isFinite(v) ? Math.abs(v) : 0));
-    }
-    if (total.size === 0) return undefined;
-    // Stable descending sort, preserving the original domain order among ties.
-    return domain
-        .map((value, i) => ({ value, i, w: total.get(value) ?? 0 }))
-        .sort((a, b) => (b.w - a.w) || (a.i - b.i))
-        .map((d) => d.value);
-}
 
 function statusRange(
     enc: any,
@@ -3157,11 +2766,10 @@ function statusRange(
     return { domain, range: range as string[], roles };
 }
 
-function applySeriesInk(spec: any, d: DesignDecisions, table: any[], say: (p: string, m: string) => void): void {
+function applySeriesInk(spec: any, d: DesignDecisions, table: any[], say: ReportDeparture, legend?: LegendPlan): void {
     const s = d.series;
     let sawColorField = false;
     let saidCollapse = false;
-    let saidStatus = false;
     let saidExhausted = false;
     // Merging the overflow tail into one summed slice rewrites the data feeding
     // this node. Safe for a lone arc view; inside a layer/facet/concat the
@@ -3192,7 +2800,7 @@ function applySeriesInk(spec: any, d: DesignDecisions, table: any[], say: (p: st
             if (s.mode === 'single') {
                 if (declared > 1 && !isContinuousColor(enc)) {
                     if (!saidCollapse) {
-                        say('ink.series',
+                        say('ink.series', 'series-mode-not-applied',
                             `grounding saw one series but \`${enc.field}\` declares ${declared} colour values — the house's categorical set is used rather than flattening them`);
                         saidCollapse = true;
                     }
@@ -3206,11 +2814,6 @@ function applySeriesInk(spec: any, d: DesignDecisions, table: any[], say: (p: st
                 const signed = statusRange(enc, node, s.status, table);
                 if (signed) {
                     setColorRange(enc, signed.range, { domain: signed.domain });
-                    if (!saidStatus) {
-                        say('ink.series.status',
-                            `the categories carry a sign — ${signed.domain.map((v, i) => `${v} is ${signed.roles[i]}`).join(', ')}`);
-                        saidStatus = true;
-                    }
                     continue;
                 }
                 // Categories with no sign between them (cities on a scatter whose x runs below zero)
@@ -3247,35 +2850,20 @@ function applySeriesInk(spec: any, d: DesignDecisions, table: any[], say: (p: st
                 // was picked for this many categories; a shorter set repainted
                 // over it would only make two things look like one.
                 if (!saidExhausted) {
-                    say('ink.series.categorical',
+                    say('ink.series.categorical', 'palette-exhausted',
                         `${need} series against ${s.categorical.length} house inks — the scale is left as it is so no two series share a colour`);
                     saidExhausted = true;
                 }
                 continue;
             }
-            if (s.overflowTail && s.overflow && need > s.categorical.length && !subtreeHasConnectedMark(node)) {
-                // Order the colour domain by share so the largest series keep
-                // a named ink and the small ones fold into the single overflow
-                // tail — a chart with a handful of headline categories and a
-                // grey remainder, not a wheel of near-identical hues.
-                //
-                // Only for marks that stand on their own — a pie's wedges, a
-                // scatter's points, a bar's bars. A line or an area is a
-                // *connected* series: fold two of them onto one colour key and
-                // Vega-Lite threads a single path through both, a grey scribble
-                // where two readings should be. Those keep the palette (top
-                // inks, the rest sharing the overflow ink but each still its
-                // own line) via the fall-through below.
-                const ordered = orderDomainByShare(enc, node, table);
-                if (ordered && ordered.length > s.categorical.length) {
-                    const k = s.categorical.length;
-                    const topK = ordered.slice(0, k);
-                    const restCount = ordered.length - k;
-                    // One legend row stands in for the grey tail — an explicit
-                    // "Others (N)" swatch in the overflow ink, so the reader is
-                    // told how many categories share it rather than being left
-                    // to infer that the grey wedges are "everything else".
-                    const othersLabel = `Others (${restCount})`;
+            const fold = legend ? plannedKeyFor(legend.keys, channel, enc)?.fold : undefined;
+            if (fold) {
+                // The plan folded the tail: the largest series keep a named ink and the small
+                // ones share the overflow ink under one "Others (N)" row of the key.
+                {
+                    const topK = fold.kept;
+                    const k = topK.length;
+                    const othersLabel = fold.others;
                     const field = enc.field;
                     const keyField = OVERFLOW_KEY_FIELD;
                     // A derived key folds the tail categories onto one value.
@@ -3291,20 +2879,9 @@ function applySeriesInk(spec: any, d: DesignDecisions, table: any[], say: (p: st
                     if (enc.legend !== null) {
                         // The K+1 domain is short enough to list in full; drop
                         // any values pin the template left so Others shows too.
-                        const legend = { ...(enc.legend ?? {}) };
-                        delete legend.values;
-                        // assemble shrank these labels (and their swatches) to
-                        // fit the field's *full* cardinality; the fold now shows
-                        // only the K largest plus one Others row, so that shrink
-                        // is measured against the wrong count. Recompute it here
-                        // against what actually renders — a short list stands at
-                        // the house's own size, not squeezed to 8px for names it
-                        // no longer draws.
-                        if (topK.length + 1 < HIGH_CARDINALITY_LEGEND_MIN) {
-                            delete legend.labelFontSize;
-                            delete legend.symbolSize;
-                        }
-                        enc.legend = legend;
+                        const key = { ...(enc.legend ?? {}) };
+                        delete key.values;
+                        enc.legend = key;
                     }
                     // On a part-to-whole chart the tail is a *share*, so summing
                     // it is meaningful: merge the "Others" categories into one
@@ -3326,7 +2903,7 @@ function applySeriesInk(spec: any, d: DesignDecisions, table: any[], say: (p: st
                         merged = true;
                     }
                     if (!saidExhausted) {
-                        say('ink.series.categorical',
+                        say('ink.series.categorical', 'colours-folded',
                             merged
                                 ? `${need} series past ${k} inks — the ${k} largest keep a colour, the rest sum into one "${othersLabel}" slice`
                                 : `${need} series past ${k} inks — the ${k} largest keep a colour, the rest fold into one "${othersLabel}" ink named in the legend`);
@@ -3346,9 +2923,6 @@ function applySeriesInk(spec: any, d: DesignDecisions, table: any[], say: (p: st
     // painting them the series ink erases the distinction they exist to make.
     // They do still have to be re-toned: a neutral chosen against white is
     // invisible on black.
-    let saidRole = false;
-    let saidChrome = false;
-    let saidHollow = false;
     const surface = d.surface.plot ?? d.surface.canvas;
 
     // Furniture the template drew in pixels — a card, a track, a caption — is
@@ -3362,7 +2936,6 @@ function applySeriesInk(spec: any, d: DesignDecisions, table: any[], say: (p: st
     // see it, and its literal grey was picked against flint's white: on a dark
     // canvas it sinks into the surface. The text is a constant, so nothing here
     // is a reading; it takes the house's secondary ink like any other label.
-    let saidLabels = false;
     walk(spec, (node) => {
         if (markTypeOf(node.mark) !== 'text' || node.__themeSynthetic || node.__themeRole) return;
         if (node.encoding?.text?.value === undefined) return;
@@ -3376,11 +2949,6 @@ function applySeriesInk(spec: any, d: DesignDecisions, table: any[], say: (p: st
         }
         if (!changed) return;
         node.mark = mark;
-        if (!saidLabels) {
-            say('type.axisLabel',
-                'the template wrote its own labels as text marks — those are chrome and take the house label ink, not the literal grey they were drawn in');
-            saidLabels = true;
-        }
     });
 
     // Vega-Lite paints a box plot's whiskers and caps from the mark's colour,
@@ -3389,7 +2957,6 @@ function applySeriesInk(spec: any, d: DesignDecisions, table: any[], say: (p: st
     // dark canvas the extremes then disappear entirely. The whisker is
     // structure holding a reading, so it takes the house's text ink — which on
     // a light house is the black it already was.
-    let saidWhisker = false;
     walk(spec, (node) => {
         if (markTypeOf(node.mark) !== 'boxplot') return;
         const encoded = node.encoding?.color?.field ?? node.encoding?.fill?.field;
@@ -3409,11 +2976,6 @@ function applySeriesInk(spec: any, d: DesignDecisions, table: any[], say: (p: st
         }
         if (!changed) return;
         node.mark = mark;
-        if (!saidWhisker) {
-            say('ink.series',
-                'the box takes its ink from the colour channel, which leaves the whiskers literal black — they take the text ink so the extremes stay legible on any surface');
-            saidWhisker = true;
-        }
     });
 
     walk(spec, (node) => {
@@ -3429,14 +2991,9 @@ function applySeriesInk(spec: any, d: DesignDecisions, table: any[], say: (p: st
         }
         if (!changed) return;
         node.mark = mark;
-        if (!saidChrome) {
-            say('ink.series',
-                'the template drew its own furniture in literal colours — those keep their role and are re-toned against the surface');
-            saidChrome = true;
-        }
     });
 
-    paintRoleMarks(spec, d, say);
+    paintRoleMarks(spec, d);
 
     walk(spec, (node) => {
         const mark = markTypeOf(node.mark);
@@ -3459,35 +3016,21 @@ function applySeriesInk(spec: any, d: DesignDecisions, table: any[], say: (p: st
                 color: structural,
                 ...(current.median ? { median: { ...current.median, color: structural } } : {}),
             };
-            if (!saidHollow) {
-                say('ink.series',
-                    'the box is hollow because the observations are drawn through it — the outline is scaffolding and takes the text ink, not the series ink');
-                saidHollow = true;
-            }
             return;
         }
         const own = normalizeMark(node.mark).color;
         if (typeof own === 'string' && sawColorField) {
             const toned = reToneNeutral(own, surface);
-            if (toned !== own && !saidRole) {
-                say('ink.series',
-                    'the layer states its own colour beside a colour-encoded layer — it is context, not series, so it keeps its role and is only re-toned against the surface');
-                saidRole = true;
-            }
             node.mark = { ...normalizeMark(node.mark), color: toned };
             return;
         }
         node.mark = { ...normalizeMark(node.mark), color: s.single };
     });
 
-    if (!sawColorField && s.mode === 'categorical' && paintPanelSeries(spec, palette)) {
-        say('ink.series',
-            'the series is carried by the panels of a concatenation rather than a colour channel — the house set is assigned across the panels');
-        return;
-    }
+    if (!sawColorField && s.mode === 'categorical' && paintPanelSeries(spec, palette)) return;
 
     if (!sawColorField && s.mode !== 'single') {
-        say('ink.series', `grounded as \`${s.mode}\` but the chart has no colour channel — single ink used`);
+        say('ink.series', 'series-mode-not-applied', `grounded as \`${s.mode}\` but the chart has no colour channel — single ink used`);
     }
 }
 
@@ -3539,7 +3082,7 @@ function paintPanelSeries(spec: any, palette: (n: number) => string[]): boolean 
  * the legends automatically as long as the field and type match, so the key
  * stays one block rather than two.
  */
-function applyRedundantChannels(spec: any, d: DesignDecisions, say: (p: string, m: string) => void): void {
+function applyRedundantChannels(spec: any, d: DesignDecisions, say: ReportDeparture): void {
     const r = d.marks.redundant;
     if (!r.shape && !r.dash) return;
 
@@ -3570,7 +3113,7 @@ function applyRedundantChannels(spec: any, d: DesignDecisions, say: (p: string, 
     });
 
     if (!placed) {
-        say('marks.redundantEncoding',
+        say('marks.redundantEncoding', 'redundant-encoding-not-applied',
             'no mark in this chart can carry a redundant channel — colour is on its own');
     }
 }
@@ -3579,21 +3122,28 @@ function applyRedundantChannels(spec: any, d: DesignDecisions, say: (p: string, 
 // Legend
 // ---------------------------------------------------------------------------
 
-function applyLegend(spec: any, config: any, d: DesignDecisions, table: any[], say: (p: string, m: string) => void): void {
+/** The planned key an encoding draws: by channel and the column it reads, a template's or the fold's included. */
+export function plannedKeyFor(keys: PlannedKey[], channel: string, enc: any): PlannedKey | undefined {
+    const column = typeof enc?.field === 'string' ? enc.field.replace(/\\(.)/g, '$1') : undefined;
+    const reads = (key: PlannedKey) => column !== undefined
+        && (column === (key.via ?? key.field) || (key.fold !== undefined && column === OVERFLOW_KEY_FIELD));
+    return keys.find((key) => key.channel === channel && reads(key)) ?? keys.find(reads);
+}
+
+function applyLegend(
+    spec: any, config: any, d: DesignDecisions, table: any[], say: ReportDeparture, planned: LegendPlan,
+): void {
     const l = d.legend;
+    const keyOf = (channel: string, enc: any) => plannedKeyFor(planned.keys, channel, enc);
 
     if (!l.show || l.placement === 'seriesEnd' || l.placement === 'inline') {
-        // The legend "show" decision (and seriesEnd/inline placement) is about
-        // *naming series* — the colour/shape key. A quantitative size or
-        // opacity encoding is a different kind of legend: a value key, like a
-        // bubble map's size scale. It has to survive even when there is no
-        // series legend, or the reader cannot decode how big is how much.
+        // Keys that name series give way to the theme's naming; a key to values stays.
         let keptValueKey = false;
         walk(spec, (node) => {
             for (const channel of ['color', 'fill', 'stroke', 'shape', 'size', 'opacity'] as const) {
                 const enc = node.encoding?.[channel];
                 if (!enc?.field) continue;
-                if ((channel === 'size' || channel === 'opacity') && enc.type === 'quantitative') {
+                if (keyOf(channel, enc)?.show) {
                     keptValueKey = true;
                     continue;
                 }
@@ -3614,7 +3164,7 @@ function applyLegend(spec: any, config: any, d: DesignDecisions, table: any[], s
             titleFontSize: l.label.fontSize,
             titleColor: d.text.muted,
         };
-        say('legend.valueKey',
+        say('legend.valueKey', 'value-key-kept',
             'no series legend, but the size key is a value scale — it stays so the bubble sizes can be read');
         return;
     }
@@ -3631,71 +3181,35 @@ function applyLegend(spec: any, config: any, d: DesignDecisions, table: any[], s
         titleColor: d.text.muted,
         ...(l.gradientLength ? { gradientLength: l.gradientLength } : {}),
     };
-    // A colour ramp is a caption, not an exhibit. Left alone the renderer draws
-    // it at a fixed 200px, which on a small chart is most of the plot's width
-    // and reads as a second graphic above the first. Where the house has not
-    // said how long, it is cut to a share of the block it labels.
-    if (!l.gradientLength && (l.direction ?? 'horizontal') === 'horizontal') {
-        const block = blockWidth(spec, table);
-        if (block) {
-            const length = Math.round(clamp(block * 0.45, 80, 200));
-            config.legend.gradientLength = length;
-            say('legend.gradientLength',
-                `the ramp runs ${length}px — under half the ${block}px block, so the key stays a caption to the chart`);
-        }
+    // A colour ramp is a caption, not an exhibit: the plan cuts it to a share of
+    // the block it labels. A composite chart has no planned block yet, so its
+    // ramp is still measured off the spec here.
+    const gradient = planned.gradient
+        ?? (!l.gradientLength && (l.direction ?? 'horizontal') === 'horizontal' ? (() => {
+            const block = blockWidth(spec, table);
+            return block ? { length: Math.round(clamp(block * 0.45, 80, 200)), block } : undefined;
+        })() : undefined);
+    if (gradient) {
+        config.legend.gradientLength = gradient.length;
     }
-    // Two kinds of key can share one chart, and "does this key need a title?"
-    // has different answers for them.
-    //
-    // `whenAmbiguous` asks whether the labels say what they are. `Europe`,
-    // `Asia`, `Africa` plainly do, so writing `Continent` over them repeats
-    // what the reader can already see. `200`, `600`, `1,000` do not — a number
-    // is an instance of nothing until the key names what it counts, and a
-    // bubble key with no title leaves the reader asking "200 what?".
-    //
-    // The question was being asked once, of the series channel, and its answer
-    // applied to every key on the chart. On the Gapminder shape — a continent
-    // colour and a population size on the same plot — the colour key answered
-    // "my labels name themselves" and the size key lost its title on the
-    // strength of it. Both came out bare, in all nine houses.
-    //
-    // So the suppression is now aimed at the key it was reasoned about. A
-    // value key keeps its title whatever the series key concluded. That is
-    // also what seaborn does when one legend carries both: each block keeps
-    // the variable name as a heading, because the heading is the only thing
-    // telling a row of sizes apart from a row of colours.
+    // A series key whose labels name themselves drops its title; a key to
+    // values keeps its own, because a number names nothing until the key says
+    // what it counts.
     if (!l.title) {
-        let valueKeys = 0;
         walk(spec, (node) => {
             for (const channel of ['color', 'fill', 'stroke', 'shape', 'size', 'opacity'] as const) {
                 const enc = node.encoding?.[channel];
                 if (!enc?.field || enc.legend === null) continue;
-                // A value key is the ruler kind: size and opacity carrying a
-                // number. Everything else on this list is naming series.
-                const isValueKey = (channel === 'size' || channel === 'opacity')
-                    && enc.type === 'quantitative';
-                if (isValueKey) { valueKeys++; continue; }
+                const key = keyOf(channel, enc);
+                if (key && !key.untitled) continue;
                 enc.legend = { ...(enc.legend ?? {}), title: null };
             }
         });
-        if (valueKeys === 0) config.legend.title = null;
-        else {
-            say('legend.title',
-                `the series key names its own labels and drops its title; ${valueKeys === 1 ? 'the value key keeps' : `${valueKeys} value keys keep`} `
-                + 'theirs, because a number names nothing until the key says what it counts');
-        }
+        if (planned.untitled) config.legend.title = null;
     }
-    // A vertical-axis title laid flat sits at the plot's top-left corner; a key
-    // riding along the top of that same plot lands its last row in the very
-    // strip the title occupies, and on a multi-row key the two collide. Push
-    // the key up off the plot far enough to clear the flat title.
-    const yTitleForOffset = d.axes?.y?.title;
-    if (l.orient === 'top' && yTitleForOffset?.show && !hasTopFacetHeader(spec)
-        && (yTitleForOffset.placement === 'flatAboveAxis' || yTitleForOffset.placement === 'inline')) {
-        const clearance = (yTitleForOffset.fontSize ?? 11) + 12;
-        config.legend.offset = (config.legend.offset ?? 18) + clearance;
-        say('legend.offset',
-            `the top key clears the flat axis title by ${clearance}px so its last row does not land on the title`);
+    // A top key would land its last row on a flat y title; the plan stands it clear.
+    if (planned.titleClearance !== undefined) {
+        config.legend.offset = (config.legend.offset ?? 18) + planned.titleClearance;
     }
     // A top or bottom key reads as a caption to the whole graphic, so the house
     // would rather it began where the title does than indented to the plot.
@@ -3724,100 +3238,23 @@ function applyLegend(spec: any, config: any, d: DesignDecisions, table: any[], s
         return found;
     })();
     if (namesColour) {
-        let neutralised = false;
         walk(spec, (node) => {
             const enc = node.encoding?.size;
             if (!enc?.field || enc.legend === null) return;
             enc.legend = { ...(enc.legend ?? {}), symbolFillColor: d.text.muted };
-            neutralised = true;
         });
-        if (neutralised) {
-            say('legend.placement',
-                'the size key is drawn in neutral ink — beside a colour key, swatches in series ink read as another category');
+    }
+
+    // A key to values is sampled at the round values the plan chose, not enumerated.
+    walk(spec, (node) => {
+        for (const channel of ['size', 'color', 'opacity'] as const) {
+            const enc = node.encoding?.[channel];
+            if (!enc?.field || enc.legend === null || enc.legend?.values) continue;
+            const samples = keyOf(channel, enc)?.samples;
+            if (!samples) continue;
+            enc.legend = { ...(enc.legend ?? {}), values: samples };
         }
-    }
-
-    // A key to *values* is sampled, not enumerated: the renderer will happily
-    // print every tick it can fit, and a row of nine bubbles reads as data. The
-    // values are chosen round so the reader can interpolate between them.
-    //
-    // A size key is capped whether or not the house asked for it. How many
-    // anchors an area scale needs is a fact about reading areas, not a house
-    // style: a size key is a ruler calibration, not a lookup table. A nominal
-    // colour key has to enumerate, because nothing lets you interpolate a hue
-    // into a category; a size key is read by comparing a bubble to its nearest
-    // anchors, so it only needs enough of them to fix the mapping and show its
-    // curvature. Two anchors fix the ends but sqrt-area is not linear, so
-    // mid-range reads skew; three show the curve. Past three, every extra
-    // symbol is horizontal space taken from the plot — on a small canvas the
-    // size key is the widest thing in the chart.
-    //
-    // Colour and opacity ramps stay opt-in. `roundSample` spaces its samples
-    // quadratically and drops anything non-positive, which is right for an area
-    // scale and wrong for a ramp that crosses zero.
-    {
-        let capped = false;
-        let cappedAt = 0;
-        walk(spec, (node) => {
-            for (const channel of ['size', 'color', 'opacity'] as const) {
-                const enc = node.encoding?.[channel];
-                if (!enc?.field || enc.type !== 'quantitative' || enc.legend === null) continue;
-                const cap = channel === 'size' ? (l.maxSwatches ?? SIZE_KEY_SWATCHES) : l.maxSwatches;
-                if (!cap) continue;
-                if (channel === 'color' && !enc.scale?.type) continue;
-                // Discretizing colour scales (quantize/quantile/threshold) already
-                // render one swatch per bin — sampling round tick values collapses
-                // that stepped key into a couple of end-labels over a gradient bar.
-                if (channel === 'color'
-                    && ['quantize', 'quantile', 'threshold', 'bin-ordinal'].includes(enc.scale?.type)) continue;
-                if (enc.legend?.values) continue;
-                const values = roundSample(table, enc.field, cap);
-                if (!values) continue;
-                enc.legend = { ...(enc.legend ?? {}), values };
-                capped = true;
-                cappedAt = cap;
-            }
-        });
-        if (capped) {
-            say('legend.maxSwatches',
-                `the key to values is sampled at ${cappedAt} round sizes — a swatch for every tick reads as data, not as a key`);
-        }
-    }
-
-    void say;
-}
-
-/** A few round numbers spanning what a field holds, largest last. */
-/**
- * How many anchors a size key spends when the house has not said.
- *
- * Three: enough to fix the mapping and show that area, not radius, carries the
- * value; few enough that the key stays a key. See the call site for why this is
- * the engine's default rather than a house preference.
- */
-const SIZE_KEY_SWATCHES = 3;
-
-function roundSample(table: any[], field: string, count: number): number[] | undefined {
-    let max = -Infinity;
-    let min = Infinity;
-    for (const row of table ?? []) {
-        const v = Number(row?.[field]);
-        if (!Number.isFinite(v)) continue;
-        if (v > max) max = v;
-        if (v < min) min = v;
-    }
-    if (!Number.isFinite(max) || max <= 0) return undefined;
-    const round1 = (v: number) => {
-        const mag = 10 ** Math.floor(Math.log10(Math.abs(v)));
-        return Math.round(v / mag) * mag;
-    };
-    const out: number[] = [];
-    for (let i = 0; i < count; i++) {
-        const t = count === 1 ? 1 : (i + 1) / count;
-        const v = round1(min + (max - min) * t * t);
-        if (v > 0 && !out.includes(v)) out.push(v);
-    }
-    return out.length > 1 ? out : undefined;
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -3835,64 +3272,79 @@ function applyFacetChrome(spec: any, config: any, d: DesignDecisions): void {
         ...(f.header.show ? {} : { labels: false }),
         ...(f.header.fieldTitle ? {} : { title: null }),
     };
-    const firstRowTitles = new Set<any>();
+    // A faceted chart draws its x axis line under the bottom row only, so every panel stands on a
+    // floor drawn as that line at its own bottom edge, and the axis draws none.
+    const spine = config.axisX ?? {};
+    const drawsSpine = spine.domain !== false && spine.domainColor && spine.domainColor !== 'transparent'
+        && (spine.domainWidth ?? 1) > 0;
+    const floored: any[] = [];
     walk(spec, node => {
-        if (!node.facet || !node.spec) return;
-        const wrapped = !!node.facet.field && typeof node.columns === 'number';
-        if (!wrapped && !node.facet.row) return;
-        const spine = config.axisX ?? {};
-        const grid = config.axisY ?? {};
+        const operator = Boolean(node.facet && node.spec);
+        const wrapped = operator ? !!node.facet.field && typeof node.columns === 'number' : Boolean(node.encoding?.facet);
+        const rowed = operator ? Boolean(node.facet.row) : Boolean(node.encoding?.row);
+        if (!wrapped && !rowed) return;
         let hasSpine = false;
-        walk(node.spec, child => {
+        walk(operator ? node.spec : node, child => {
             const axis = child.encoding?.x;
             if (axis?.field && axis.axis !== null && axis.axis?.domain !== false) hasSpine = true;
         });
-        const sharedSpine = hasSpine && node.resolve?.axis?.x !== 'independent'
-            && node.resolve?.scale?.x !== 'independent' && spine.domain !== false
-            && spine.domainColor && spine.domainColor !== 'transparent' && (spine.domainWidth ?? 1) > 0;
+        const shared = node.resolve?.axis?.x !== 'independent' && node.resolve?.scale?.x !== 'independent';
+        if (drawsSpine && hasSpine && shared) floored.push(node);
+    });
+    for (const node of floored) {
+        // The floor is every panel's x axis line, the bottom row's too.
+        walk(node.facet && node.spec ? node.spec : node, child => {
+            const x = child.encoding?.x;
+            if (x?.field && x.axis !== null) x.axis = { ...(x.axis ?? {}), domain: false };
+        });
+        const top = spine.orient === 'top';
+        const offset = spine.offset ?? 0;
+        appendLayer(node, withInteractionDecorative({
+            __themeSynthetic: true,
+            transform: [{ window: [{ op: 'row_number', as: '__flintFloor' }], groupby: [] }, { filter: 'datum.__flintFloor === 1' }],
+            mark: {
+                type: 'rule',
+                color: spine.domainColor,
+                strokeWidth: spine.domainWidth ?? 1,
+                ...(spine.domainDash ? { strokeDash: spine.domainDash } : {}),
+                ...(offset ? { yOffset: top ? -offset : offset } : {}),
+            },
+            encoding: {
+                y: { value: top ? 0 : 'height' },
+                x: { value: 0 },
+                x2: { value: 'width' },
+            },
+        }));
+    }
+    const yAxis = d.axes.y;
+    if (yAxis && facetDropsTicks(yAxis)) {
+        walk(spec, node => {
+            const operator = Boolean(node.facet && node.spec);
+            if (!operator && !node.encoding?.facet && !node.encoding?.row && !node.encoding?.column) return;
+            walk(operator ? node.spec : node, child => {
+                const encoding = child.encoding?.y;
+                if (!encoding?.field || encoding.axis === null || !['quantitative', 'temporal'].includes(encoding.type)) return;
+                encoding.axis = { ...(encoding.axis ?? {}), ticks: false };
+            });
+        });
+    }
+    walk(spec, node => {
+        if (!node.facet || !node.spec) return;
+        const wrapped = !!node.facet.field && typeof node.columns === 'number';
+        if (!wrapped) return;
         walk(node.spec, child => {
             const encoding = child.encoding?.y;
             if (!encoding?.field || encoding.axis === null) return;
             const axis = encoding.axis ??= {};
-            if (wrapped && node.resolve?.axis?.y !== 'independent' && node.resolve?.scale?.y !== 'independent'
+            if (node.resolve?.axis?.y !== 'independent' && node.resolve?.scale?.y !== 'independent'
                 && axis.titleAngle === 0 && axis.title !== null && typeof axis.titleY === 'number' && axis.titleY < 0) {
                 const title = axis.title ?? titleOf(encoding);
                 if (typeof title === 'string') {
                     axis.title = { expr: `parent.data === 0 ? ${JSON.stringify(title)} : ''` };
-                    firstRowTitles.add(axis);
                 }
-            }
-            if (sharedSpine && ['quantitative', 'temporal'].includes(encoding.type)) {
-                const boundary = `datum.index === ${spine.orient === 'top' ? 1 : 0}`;
-                axis.grid = true;
-                axis.gridColor = { condition: { test: boundary, value: spine.domainColor },
-                    value: grid.grid ? grid.gridColor : 'transparent' };
-                axis.gridWidth = { condition: { test: boundary, value: spine.domainWidth ?? 1 },
-                    value: grid.grid ? grid.gridWidth ?? 1 : 0 };
-                axis.gridDash = { condition: { test: boundary, value: [] }, value: grid.gridDash ?? [] };
             }
         });
     });
-    // A header is drawn *in* the gap above its panel. A house may set its
-    // panels tight — or inherit a tight layout — but the gap still has to hold
-    // the name, or the name lands on the panel above it.
-    const current = config.facet?.spacing;
-    const base = f.spacing ?? (typeof current === 'number' ? current : current?.column) ?? 20;
-    const row = f.spacing ?? (typeof current === 'number' ? current : current?.row) ?? base;
-    let needed = f.header.show === false ? 0 : Math.round((f.header.fontSize ?? 11) * 1.7);
-    walk(spec, node => {
-        const axis = node.encoding?.y?.axis;
-        if (!firstRowTitles.has(axis) && axis?.titleAngle === 0 && axis.title !== null
-            && typeof axis.titleY === 'number' && axis.titleY < 0) {
-            const fontSize = axis.titleFontSize ?? config.axisY?.titleFontSize ?? 11;
-            needed = Math.max(needed, Math.ceil(-axis.titleY + fontSize + 6));
-        }
-    });
-    if (needed > row) {
-        config.facet = { ...(config.facet ?? {}), spacing: { row: needed, column: base } };
-    } else if (f.spacing != null) {
-        config.facet = { ...(config.facet ?? {}), spacing: f.spacing };
-    }
 }
 
 /**
@@ -3909,9 +3361,8 @@ function applyFacetChrome(spec: any, config: any, d: DesignDecisions): void {
  * is written in that value's ink. The name and the swatch become one object,
  * which is the reason there is no key beside it.
  */
-function applyPanelTitles(spec: any, d: DesignDecisions, say: (p: string, m: string) => void): void {
+function applyPanelTitles(spec: any, d: DesignDecisions): void {
     const f = d.facets;
-    let said = false;
     const visit = (node: any): void => {
         if (!node || typeof node !== 'object') return;
         for (const key of ['hconcat', 'vconcat', 'concat']) {
@@ -3932,12 +3383,6 @@ function applyPanelTitles(spec: any, d: DesignDecisions, say: (p: string, m: str
                     fontWeight: f.header.fontWeight ?? 'normal',
                     color: ink ?? f.header.color,
                 };
-                if (!said) {
-                    say('facets.header', ink
-                        ? 'the panel names are set in their own panel\'s ink — the name is the swatch, so no key is drawn beside it'
-                        : 'the panel names are set in the header voice, not the headline\'s — they name a panel, not the chart');
-                    said = true;
-                }
             }
             for (const child of node[key] ?? []) visit(child);
         }
@@ -3991,22 +3436,27 @@ function isStacked(node: any, measureChannel: 'x' | 'y'): boolean {
     return hasSeries && !dodged;
 }
 
-function applyDataLabels(spec: any, d: DesignDecisions, table: any[], say: (p: string, m: string) => void): any {
-    const live = d.dataLabels.liveSignal;
-    if (!d.dataLabels.show && !live) return undefined;
+function applyDataLabels(
+    spec: any, d: DesignDecisions, table: any[], say: ReportDeparture, planned?: ValueLabelPlan | { refused: string },
+): any {
+    if (!planned) return undefined;
+    if ('refused' in planned) {
+        say('dataLabels', 'value-labels-not-drawn', planned.refused);
+        return undefined;
+    }
 
     // A concatenation is several charts side by side. Labelling only the first
     // panel is worse than labelling none.
     const said = new Set<string>();
-    const once = (path: string, message: string) => {
-        const k = `${path}\u0000${message}`;
+    const once: ReportDeparture = (path, code, message) => {
+        const k = `${path}\u0000${code}\u0000${message}`;
         if (said.has(k)) return;
         said.add(k);
-        say(path, message);
+        say(path, code, message);
     };
     let first: any;
     for (const body of plotBodies(spec)) {
-        const layer = labelOneBody(spec, body, d, table, once);
+        const layer = labelOneBody(spec, body, d, table, once, planned);
         if (layer && !first) first = layer;
     }
     return first;
@@ -4070,84 +3520,29 @@ function inkScaleOnRamp(enc: any, stops: string[], light: string, dark: string):
     };
 }
 
-function labelOneBody(spec: any, body: any, d: DesignDecisions, table: any[], say: (p: string, m: string) => void): any {
+function labelOneBody(
+    spec: any, body: any, d: DesignDecisions, table: any[], say: ReportDeparture, planned: ValueLabelPlan,
+): any {
     const live = d.dataLabels.liveSignal;
     const units = body.layer
         ? body.layer.filter((n: any) => DATA_MARKS.has(markTypeOf(n.mark) ?? ''))
         : (markTypeOf(body.mark) ? [body] : []);
-    if (units.length === 0) {
-        say('dataLabels', 'no data mark found to label');
-        return;
-    }
-    // A pie has no axis, but it does have a measure: the angle. That is where
-    // a value label matters most, since an angle is the hardest quantity to
-    // read off a chart.
-    const radial = units.some((n: any) => markTypeOf(n.mark) === 'arc');
-    // A heat map keeps its quantity in colour and its position in the grid.
-    // The cell is the position, and the number belongs in the middle of it.
-    const cells = !radial
-        && d.bound.measureChannels.length === 0
-        && units.every((n: any) => markTypeOf(n.mark) === 'rect');
-    const measureChannel: 'x' | 'y' | 'theta' | 'color' = radial ? 'theta'
-        : cells ? 'color'
-            : d.bound.measureChannels[0];
-    if (!measureChannel) {
-        say('dataLabels', 'no measure axis to label');
-        return undefined;
-    }
-    if (body.layer && body.layer.some((n: any) => markTypeOf(n.mark) === 'text')) {
-        say('dataLabels', 'template already prints its own labels — left alone');
-        return;
-    }
-    // A composite mark spends several layers saying one thing about each datum
-    // — open, high, low, close. There is no single number to print beside it,
-    // and printing one of the four would be a lie by selection.
-    const measureFields = new Set(
-        units.map((n: any) => mergedEncoding(n, body.encoding)[measureChannel]?.field).filter(Boolean),
-    );
-    if (measureFields.size > 1) {
-        say('dataLabels',
-            `the mark carries ${measureFields.size} measures (${[...measureFields].join(', ')}) — no single value to print`);
-        return;
-    }
-
+    const radial = planned.form === 'radial';
+    const cells = planned.form === 'cells';
+    const measureChannel = planned.channel;
     const primary = units[0];
-    const enc = mergedEncoding(primary, body.encoding);
+    const enc = primary ? mergedEncoding(primary, body.encoding) : {};
     const measure = enc[measureChannel];
-    if (radial && (measure?.type !== 'quantitative' || enc.radius?.field)) {
-        say('dataLabels', 'category angles or a data-driven radius need their own label geometry — pie-style labels are not applied');
+    if (measure?.field !== planned.field) {
+        say('dataLabels', 'value-labels-not-drawn', `the plan prints \`${planned.field}\` on \`${measureChannel}\`, which this view does not draw — left unlabelled`);
         return;
     }
-    if (!measure?.field) {
-        say('dataLabels', `measure channel \`${measureChannel}\` has no field`);
-        return;
-    }
-    // A column the template computed to draw itself is not a quantity anyone
-    // asked to read: a waterfall binds its bars to where each step *starts*,
-    // so printing it labels the running total under the bar, not the step.
-    if (String(measure.field).startsWith('__')) {
-        say('dataLabels',
-            `the measure is the template's own \`${measure.field}\` — a working column, not a value to print`);
-        return;
-    }
-    // A stacked segment *can* carry its value, but only in the middle of it.
-    // At the segment edge the number reads as the running total, which is why
-    // it used to be refused outright; centred, it reads as the segment — the
-    // one quantity a stacked bar otherwise makes hard to get at.
-    const stackedSegments = measureChannel !== 'theta' && measureChannel !== 'color'
-        && (isStacked(primary, measureChannel)
-            || (Boolean(enc.color?.field) && !enc.xOffset && !enc.yOffset
-                && measure.stack !== null && measure.stack !== false
-                && (markTypeOf(primary.mark) === 'bar' || markTypeOf(primary.mark) === 'area')));
+    const stackedSegments = planned.form === 'segments';
 
     const horizontal = measureChannel === 'x';
     const outside = d.dataLabels.placement !== 'atMark';
     const t = d.dataLabels.text;
-    // `atMark` means "inside the mark" only when the mark has an inside. A bar
-    // or a slice has a body a label can sit on; a point or a line vertex does
-    // not, and a label there is over bare surface.
-    const BODY_MARKS = new Set(['bar', 'arc', 'rect', 'area']);
-    const onMarkBody = BODY_MARKS.has(markTypeOf(primary.mark) ?? '');
+    const onMarkBody = planned.body;
 
     const markDef: any = {
         type: 'text',
@@ -4156,7 +3551,7 @@ function labelOneBody(spec: any, body: any, d: DesignDecisions, table: any[], sa
         ...(t.fontWeight ? { fontWeight: t.fontWeight } : {}),
         ...(t.fontStyle ? { fontStyle: t.fontStyle } : {}),
     };
-    const inside = !outside && onMarkBody;
+    const inside = planned.inside;
     // A reversed scale turns the mark round: the end of the bar is on the side
     // the axis started from, so "outside" is the other way.
     const reversed = measure.scale?.reverse === true;
@@ -4178,11 +3573,7 @@ function labelOneBody(spec: any, body: any, d: DesignDecisions, table: any[], sa
     // bar it labels. The direction is a property of the datum, not of the
     // layer, so where the series has negatives it is stated as an expression
     // and Vega-Lite resolves it per mark.
-    let hasNegative = false;
-    for (const row of table ?? []) {
-        const v = row?.[measure.field];
-        if (typeof v === 'number' && Number.isFinite(v) && v < 0) { hasNegative = true; break; }
-    }
+    const hasNegative = planned.negative;
     const geometry = (within: boolean): any => {
         const w = reversed ? !within : within;
         const gap = horizontal ? (within ? 5 + radius : 4 + radius) : 4 + radius;
@@ -4214,7 +3605,7 @@ function labelOneBody(spec: any, body: any, d: DesignDecisions, table: any[], sa
         // cell belongs to no cell in particular.
         Object.assign(markDef, { align: 'center', baseline: 'middle' });
         if (d.dataLabels.placement !== 'atMark') {
-            say('dataLabels.placement',
+            say('dataLabels.placement', 'value-labels-placement-changed',
                 `\`${d.dataLabels.placement}\` printed in the cell instead — a grid is continuous and has no outside`);
         }
     } else if (radial) {
@@ -4281,12 +3672,12 @@ function labelOneBody(spec: any, body: any, d: DesignDecisions, table: any[], sa
                         return typeof v === 'number' && Math.abs(v) < minValue;
                     }).length;
                     if (dropped > 0) {
-                        say('dataLabels.show',
+                        say('dataLabels.show', 'value-labels-hidden',
                             `${dropped} slice${dropped === 1 ? '' : 's'} narrower than a line of text go unlabelled — their arc would not hold the number`);
                     }
                 }
             }
-        } else say('dataLabels', 'the arc has no radius to hang a label from');
+        } else say('dataLabels', 'value-labels-placement-changed', 'the arc has no radius to hang a label from');
     } else if (stackedSegments) {
         // The middle of the segment, whichever way the bars run.
         Object.assign(markDef, { align: 'center', baseline: 'middle' });
@@ -4294,7 +3685,7 @@ function labelOneBody(spec: any, body: any, d: DesignDecisions, table: any[], sa
         Object.assign(markDef, geometry(inside));
     }
     if (d.dataLabels.placement === 'column' && !cells) {
-        say('dataLabels.placement', '`column` approximated as `outsideMark` — Vega-Lite has no label gutter');
+        say('dataLabels.placement', 'value-labels-placement-changed', '`column` approximated as `outsideMark` — Vega-Lite has no label gutter');
     }
 
     const labelEncoding: any = {
@@ -4307,8 +3698,6 @@ function labelOneBody(spec: any, body: any, d: DesignDecisions, table: any[], sa
     };
     if (d.dataLabels.unit) {
         printWithUnit(body, { encoding: labelEncoding }, measure.field, d.dataLabels.format, d.dataLabels.unit);
-        say('annotation.unit',
-            `each printed value carries its unit \`${d.dataLabels.unit}\` — there is no axis left to state it on`);
     }
     // `facet`, `row` and `column` split the data; Vega-Lite refuses them inside
     // a layer and `appendLayer` promotes them to a real facet operator that
@@ -4378,12 +3767,11 @@ function labelOneBody(spec: any, body: any, d: DesignDecisions, table: any[], sa
         // every bar is drawn full height. Hiding by opacity rather than
         // dropping the row keeps the stack intact, so the surviving labels
         // stay on the segments they belong to.
-        const minShare = d.dataLabels.segmentMinShare;
+        const minShare = planned.segmentMinShare;
         const catField = horizontal ? enc.y?.field : enc.x?.field;
-        if (minShare !== undefined && minShare > 0) {
-            const normalized = measure.stack === 'normalize';
+        if (minShare !== undefined || planned.segmentMinValue !== undefined) {
             const v = `abs(datum[${JSON.stringify(measure.field)}])`;
-            if (normalized && catField) {
+            if (minShare !== undefined && catField) {
                 // Each bar is measured against its own total, which only
                 // exists once the rows are grouped — so Vega-Lite computes it.
                 stackedTransform = [{
@@ -4398,26 +3786,18 @@ function labelOneBody(spec: any, body: any, d: DesignDecisions, table: any[], sa
                 // would name a different quantity from the one drawn, so the
                 // number that goes in the segment is the share itself.
                 labelEncoding.text = { field: '__flintStackShare', type: 'quantitative', format: '.0%' };
-                say('dataLabels', 'each segment prints its share — on a normalized bar the segment\'s length is its share, not its value');
+                say('dataLabels', 'value-labels-print-share', 'each segment prints its share — on a normalized bar the segment\'s length is its share, not its value');
                 stackedKeepTest = `datum.__flintStackTotal > 0 && ${v} / datum.__flintStackTotal >= ${minShare}`;
             } else {
-                const totals = new Map<any, number>();
-                for (const row of table) {
-                    const val = row?.[measure.field];
-                    if (typeof val !== 'number' || !Number.isFinite(val)) continue;
-                    const k = catField ? row?.[catField] : '';
-                    totals.set(k, (totals.get(k) ?? 0) + Math.abs(val));
-                }
-                const tallest = Math.max(0, ...totals.values());
-                if (tallest > 0) {
-                    const minValue = minShare * tallest;
+                const minValue = planned.segmentMinValue;
+                if (minValue !== undefined) {
                     stackedKeepTest = live ? `${v} >= ${live}.labels.minValue` : `${v} >= ${minValue}`;
                     const dropped = table.filter((row) => {
                         const val = row?.[measure.field];
                         return typeof val === 'number' && Math.abs(val) < minValue;
                     }).length;
                     if (dropped > 0) {
-                        say('dataLabels.show',
+                        say('dataLabels.show', 'value-labels-hidden',
                             `${dropped} segment${dropped === 1 ? '' : 's'} thinner than a line of text go unlabelled — the number would not fit between the segment's edges`);
                     }
                 }
@@ -4570,7 +3950,7 @@ function labelOneBody(spec: any, body: any, d: DesignDecisions, table: any[], sa
         }, { presentation: flipped ? 'on-mark' : 'independent' });
         if (other.mark.color === undefined) delete other.mark.color;
         appendLayer(body, other);
-        say('dataLabels.placement', message);
+        say('dataLabels.placement', 'value-labels-placement-changed', message);
     };
 
     // A stacked segment is exempt: "outside" a segment is the top of the
@@ -4590,16 +3970,11 @@ function labelOneBody(spec: any, body: any, d: DesignDecisions, table: any[], sa
     // does not clear it; instead the measure scale is given headroom so the
     // tallest bar stops short of the plot ceiling and its label lands in
     // whitespace inside the plot.
-    if (!inside && !radial && !cells) {
+    if (!inside && planned.form === 'ends') {
         if (horizontal) {
             let reserved = false;
-            if (onMarkBody && !stackedSegments) {
-                const formatValue = formatNumber(d.dataLabels.format ?? '');
-                const labelChars = Math.max(1, ...table.map(row => {
-                    const value = row?.[measure.field];
-                    return typeof value === 'number' && Number.isFinite(value) ? formatValue(value).length : 0;
-                })) + (d.dataLabels.unit ? d.dataLabels.unit.length + 1 : 0);
-                const inset = Math.ceil(labelChars * (t.fontSize ?? 10) * 0.8 + 8 + radius);
+            if (onMarkBody) {
+                const inset = (planned.inset ?? 0) + radius;
                 const host = body.spec?.layer ? body.spec : body;
                 const plotWidth = host.width ?? spec.width;
                 const encodings = [host, ...(host.layer ?? [])]
@@ -4619,7 +3994,7 @@ function labelOneBody(spec: any, body: any, d: DesignDecisions, table: any[], sa
             }
             if (!reserved) growPadding(spec, reversed ? 'left' : 'right', (t.fontSize ?? 10) * 3);
         } else if (onMarkBody) {
-            addMeasureHeadroom(body, measureChannel, measure.field, table);
+            if (planned.headroom) addMeasureHeadroom(body, measureChannel, measure.field, planned.headroom);
         }
     }
     return layer;
@@ -4634,6 +4009,8 @@ function stripAxis(enc: any): any {
 }
 
 function appendLayer(body: any, layer: any): void {
+    // A facet operator draws its spec in every panel; the layer joins that spec.
+    if (body.facet && body.spec) { appendLayer(body.spec, layer); return; }
     if (body.layer) { body.layer.push(layer); return; }
     const base: any = { mark: body.mark };
     if (body.encoding) base.encoding = body.encoding;
@@ -4695,25 +4072,12 @@ function growPadding(spec: any, side: 'left' | 'right' | 'top' | 'bottom', amoun
 }
 
 /**
- * A value label printed above a bar needs a strip of plot above the bar to sit
- * in. The bar that defines the scale's maximum reaches the top of the plot and
- * leaves none, so the scale is given a margin: the domain is pushed past the
- * data by a fraction of its span, on whichever end carries labelled bar ends.
- * A stack of bars rising from zero keeps its zero; only the outward end moves.
+ * Write the headroom the plan gives labels above (or below) bar ends to each
+ * encoding of the measure whose scale leaves that end free.
  */
 function addMeasureHeadroom(
-    body: any, channel: 'x' | 'y' | 'theta' | 'color', field: string, table: any[],
+    body: any, channel: 'x' | 'y' | 'theta' | 'color', field: string, headroom: { min?: number; max?: number },
 ): void {
-    const HEADROOM = 0.15;
-    const nums = table.map((r) => r?.[field]).filter((v: any) => typeof v === 'number' && Number.isFinite(v)) as number[];
-    if (nums.length === 0) return;
-    const dataMax = Math.max(...nums);
-    const dataMin = Math.min(...nums);
-    // Bars stand on zero, so the span the labels have to clear is measured from
-    // zero, not from the smallest bar.
-    const span = Math.max(dataMax, 0) - Math.min(dataMin, 0);
-    if (!(span > 0)) return;
-    const pad = span * HEADROOM;
     // `appendLayer` has already run: the mark that carried the measure is no
     // longer `body` but a layer inside it (and may have been pushed under a
     // hoisted facet operator). Follow the same path to the node that now owns
@@ -4726,228 +4090,19 @@ function addMeasureHeadroom(
     for (const u of (host.layer ?? [])) {
         if (u?.encoding?.[channel]?.field === field) encodings.push(u.encoding[channel]);
     }
+    // The layers share one scale: an end any of them states, or an explicit domain, is not free.
+    const stated = (end: 'domainMin' | 'domainMax') => encodings.some((e) => e.scale?.domain != null || e.scale?.[end] != null);
+    const max = headroom.max !== undefined && !stated('domainMax') ? headroom.max : undefined;
+    const min = headroom.min !== undefined && !stated('domainMin') ? headroom.min : undefined;
     for (const encChannel of encodings) {
-        const scale = { ...(encChannel.scale ?? {}) };
-        // An explicit domain is a deliberate choice; headroom does not override it.
-        if (scale.domain != null) continue;
-        // The label sits past the end of the bar — above a positive bar, below
-        // a negative one — so each populated end is given room.
-        if (dataMax > 0 && scale.domainMax == null) scale.domainMax = dataMax + pad;
-        if (dataMin < 0 && scale.domainMin == null) scale.domainMin = dataMin - pad;
-        encChannel.scale = scale;
+        if (max === undefined && min === undefined) break;
+        encChannel.scale = { ...(encChannel.scale ?? {}), ...(max !== undefined ? { domainMax: max } : {}), ...(min !== undefined ? { domainMin: min } : {}) };
     }
 }
 
 // ---------------------------------------------------------------------------
 // seriesEnd — the second thing Vega-Lite has no primitive for
 // ---------------------------------------------------------------------------
-
-/**
- * `seriesEnd` is a placement, and a placement can be unavailable. Decide that
- * *before* the legend is drawn — once the colour legends have been suppressed
- * in favour of end labels there is nothing to fall back to.
- */
-interface SeriesEndLayout {
-    adjustedValues: Map<unknown, number>;
-    maxDisplacement: number;
-}
-
-function demoteSeriesEnd(
-    spec: any,
-    d: DesignDecisions,
-    table: any[],
-    say: (p: string, m: string) => void,
-): SeriesEndLayout | undefined {
-    if (d.legend.placement !== 'seriesEnd' && d.legend.placement !== 'inline') return undefined;
-    if (!d.legend.show) return undefined;
-    const body = plotBody(spec);
-    // A band carries its own end label inside itself, so it counts as a run
-    // with an end just as much as a line does.
-    const endable = (mark: string) => LINE_MARKS.has(mark) || mark === 'area';
-    const units = body.layer
-        ? body.layer.filter((n: any) => endable(markTypeOf(n.mark) ?? ''))
-        : (endable(markTypeOf(body.mark) ?? '') ? [body] : []);
-    const enc = units.length ? mergedEncoding(units[0], body.encoding) : {};
-    const field = enc.color?.field ?? d.bound.seriesField ?? enc.detail?.field;
-    // A name that will not fit inside its band goes in the margin past the last
-    // reading — and where the house has stood the value axis in that margin, as
-    // it does on a part-to-whole chart, the name would be printed over the
-    // ruler. A band is thin more often than not, so this is not a risk worth
-    // running: the naming goes back to the house's next choice.
-    const bands = units.some((n: any) => markTypeOf(n.mark) === 'area');
-    const runsAlongX = runChannel(d) === 'x';
-    const marginTaken = bands
-        && (runsAlongX ? d.axes.y?.orient === 'right' : d.axes.x?.orient === 'top');
-    // A closed run (a radar/spider polygon, `interpolate: *-closed`) has no last
-    // point: every vertex is an axis, not an end, so an end label would land on
-    // an arbitrary spoke. The series can only be named by a key.
-    const closedRun = units.some((n: any) => {
-        const interp = normalizeMark(n.mark)?.interpolate;
-        return typeof interp === 'string' && interp.endsWith('-closed');
-    });
-    const reason = units.length === 0
-        ? '`seriesEnd` needs a line mark'
-        : (!field ? '`seriesEnd` needs a series field to name'
-            : (field === d.bound.categoryField
-                ? '`seriesEnd` would restate the categorical axis'
-                : closedRun
-                    ? '`seriesEnd` needs an open run — a closed polygon has no last point'
-                    : marginTaken
-                        ? `the ${runsAlongX ? 'right' : 'top'} margin holds the value axis, so a name too big for its band has nowhere to stand`
-                        : null));
-    const collision = !reason && !bands
-        ? planSeriesEndLayout(spec, d, table, enc, field)
-        : undefined;
-    const finalReason = reason ?? collision?.reason;
-    if (!finalReason) return collision?.layout;
-    // The house ranked its placements; a demotion should land on the next one
-    // it named, not on whatever this function happens to prefer.
-    const next = d.legend.fallbacks?.find((p) => p !== 'seriesEnd' && p !== 'inline') ?? 'right';
-    say('legend.placement', `${finalReason} — the key is drawn \`${next}\` instead`);
-    d.legend.placement = next;
-    d.legend.orient = next === 'inside' ? 'top-right' : next as any;
-    d.legend.direction = next === 'top' || next === 'bottom' ? 'horizontal' : 'vertical';
-    return undefined;
-}
-
-function planSeriesEndLayout(
-    spec: any,
-    d: DesignDecisions,
-    table: any[],
-    enc: any,
-    seriesField: string | undefined,
-): { layout?: SeriesEndLayout; reason?: string } {
-    if (!seriesField || runChannel(d) !== 'x') return {};
-    if (d.bound.isFaceted) return { reason: '`seriesEnd` collision checks do not guess across facet scales' };
-    if (d.bound.seriesCount > 8) return { reason: '`seriesEnd` is limited to eight series so the margin stays readable' };
-
-    const domain = enc.x;
-    const value = enc.y;
-    if (!domain?.field || !value?.field || value.type !== 'quantitative') return {};
-    if (value.scale?.type && value.scale.type !== 'linear') {
-        return { reason: '`seriesEnd` collision checks need a linear value scale' };
-    }
-
-    const orderedDomain = domain.type === 'quantitative' || domain.type === 'temporal' || domain.type === 'ordinal';
-    const explicitOrder: Map<unknown, number> | undefined = Array.isArray(domain.sort)
-        ? new Map(domain.sort.map((entry: unknown, index: number): [unknown, number] => [entry, index]))
-        : undefined;
-    const comparable = (raw: unknown): number | undefined => {
-        if (explicitOrder) return explicitOrder.get(raw);
-        if (domain.type === 'temporal') {
-            const time = raw instanceof Date ? raw.getTime() : Date.parse(String(raw));
-            return Number.isFinite(time) ? time : undefined;
-        }
-        const number = Number(raw);
-        return Number.isFinite(number) ? number : undefined;
-    };
-
-    const endpoints = new Map<unknown, { domain: number; value: number; order: number }>();
-    const allDomain: number[] = [];
-    const allValues: number[] = [];
-    table.forEach((row, order) => {
-        const series = row?.[seriesField];
-        const domainValue = comparable(row?.[domain.field]);
-        const valueNumber = Number(row?.[value.field]);
-        if (series == null || domainValue == null || !Number.isFinite(valueNumber)) return;
-        allDomain.push(domainValue);
-        allValues.push(valueNumber);
-        const previous = endpoints.get(series);
-        const takesEnd = !previous || (orderedDomain
-            ? (domain.sort === 'descending' ? domainValue < previous.domain : domainValue > previous.domain)
-            : order > previous.order);
-        if (takesEnd) endpoints.set(series, { domain: domainValue, value: valueNumber, order });
-    });
-    if (endpoints.size < 2 || allDomain.length < 2 || allValues.length < 2) return {};
-
-    const plotWidth = Number(d.layout.plotWidth ?? spec.width);
-    const plotHeight = Number(d.layout.plotHeight ?? plotBody(spec).height ?? spec.height);
-    if (!(plotWidth > 0) || !(plotHeight > 0)) return { reason: '`seriesEnd` could not measure the plot for collision checks' };
-
-    const domainMin = Math.min(...allDomain);
-    const domainMax = Math.max(...allDomain);
-    const domainSpan = domainMax - domainMin;
-    if (!(domainSpan > 0)) return {};
-    const endDomain = Array.from(endpoints.values(), (endpoint) => endpoint.domain);
-    const endSpreadPx = (Math.max(...endDomain) - Math.min(...endDomain)) / domainSpan * plotWidth;
-    const uniqueDomain = [...new Set(allDomain)].sort((a, b) => a - b);
-    const steps = uniqueDomain.slice(1).map((entry, index) => entry - uniqueDomain[index]).filter((step) => step > 0);
-    const medianStep = steps.length
-        ? steps.sort((a, b) => a - b)[Math.floor(steps.length / 2)] / domainSpan * plotWidth
-        : 0;
-    const alignmentTolerance = Math.max(8, medianStep * 0.25);
-
-    let valueMin = value.scale?.domainMin ?? Math.min(...allValues);
-    let valueMax = value.scale?.domainMax ?? Math.max(...allValues);
-    if (Array.isArray(value.scale?.domain) && value.scale.domain.length >= 2) {
-        valueMin = Number(value.scale.domain[0]);
-        valueMax = Number(value.scale.domain[1]);
-    }
-    if (value.scale?.zero !== false) {
-        valueMin = Math.min(0, valueMin);
-        valueMax = Math.max(0, valueMax);
-    }
-    const valueSpan = valueMax - valueMin;
-    if (!(valueSpan > 0)) return {};
-
-    const reversed = value.scale?.reverse === true;
-    const toPixel = (number: number) => reversed
-        ? (number - valueMin) / valueSpan * plotHeight
-        : (valueMax - number) / valueSpan * plotHeight;
-    const fromPixel = (pixel: number) => reversed
-        ? valueMin + pixel / plotHeight * valueSpan
-        : valueMax - pixel / plotHeight * valueSpan;
-    const fontSize = Math.max(9, (d.legend.label.fontSize ?? 11) - 1);
-    const separation = fontSize + 2;
-    const naturalRows = Array.from(endpoints.values(), (endpoint) => toPixel(endpoint.value))
-        .sort((a, b) => a - b);
-    const naturallyCollides = naturalRows.some((pixel, index) =>
-        index > 0 && pixel - naturalRows[index - 1] < separation);
-    if (!naturallyCollides) return {};
-    if (endSpreadPx > alignmentTolerance) {
-        return { reason: `series-end labels overlap and their endpoints span ${Math.round(endSpreadPx)}px horizontally, so they cannot be dodged as one column` };
-    }
-    if (endpoints.size * separation > plotHeight) {
-        return { reason: '`seriesEnd` labels cannot fit vertically without overlap' };
-    }
-
-    const packed = Array.from(endpoints, ([series, endpoint]) => ({
-        series,
-        value: endpoint.value,
-        desired: toPixel(endpoint.value),
-        placed: toPixel(endpoint.value),
-    })).sort((a, b) => a.desired - b.desired);
-    // A label centred on the top or bottom endpoint may straddle the plot
-    // boundary; Vega includes that text in the figure bounds. Pulling it half
-    // a line inward creates a needless dodge and disconnects it from the
-    // endpoint. Keep boundary labels pinned and pack only their neighbours.
-    const minCenter = 0;
-    const maxCenter = plotHeight;
-    packed[0].placed = Math.max(minCenter, packed[0].desired);
-    for (let index = 1; index < packed.length; index += 1) {
-        packed[index].placed = Math.max(packed[index].desired, packed[index - 1].placed + separation);
-    }
-    const overflow = packed[packed.length - 1].placed - maxCenter;
-    if (overflow > 0) packed.forEach((entry) => { entry.placed -= overflow; });
-    for (let index = packed.length - 2; index >= 0; index -= 1) {
-        packed[index].placed = Math.min(packed[index].placed, packed[index + 1].placed - separation);
-    }
-    if (packed[0].placed < minCenter) {
-        const shift = minCenter - packed[0].placed;
-        packed.forEach((entry) => { entry.placed += shift; });
-    }
-
-    const maxDisplacement = Math.max(...packed.map((entry) => Math.abs(entry.placed - entry.desired)));
-    if (maxDisplacement > fontSize) {
-        return { reason: `series-end labels need ${Math.round(maxDisplacement)}px of dodge, more than one line of text` };
-    }
-    return {
-        layout: {
-            adjustedValues: new Map(packed.map((entry) => [entry.series, fromPixel(entry.placed)])),
-            maxDisplacement,
-        },
-    };
-}
 
 /**
  * The channel a series runs *along*. A measure on `y` means the run is `x`,
@@ -4968,17 +4123,17 @@ function applySeriesEndLabels(
     d: DesignDecisions,
     valueLayer: any,
     table: any[],
-    say: (p: string, m: string) => void,
+    say: ReportDeparture,
     layout?: SeriesEndLayout,
+    secondaryEdge?: 'bottom',
+    ownNames?: boolean,
 ): void {
     if (d.legend.placement !== 'seriesEnd' && d.legend.placement !== 'inline') return;
     if (!d.legend.show) return;
 
     const body = plotBody(spec);
-    // A template that already prints a name at the end of each run has said it.
-    // A second label in the same place is not a legend, it is a stutter.
-    if ((body.layer ?? []).some((n: any) => markTypeOf(n.mark) === 'text' && n.encoding?.text?.field)) {
-        say('legend.placement', 'the chart already prints its own end labels — no second set drawn');
+    if (ownNames) {
+        say('legend.placement', 'series-end-not-drawn', 'the chart already prints its own end labels — no second set drawn');
         return;
     }
     const units = body.layer
@@ -4989,7 +4144,7 @@ function applySeriesEndLabels(
         // room to say it in, because the name can go *inside* the band where
         // the reader is already looking.
         if (bandEndLabels(spec, body, d, table, say)) return;
-        say('legend.placement', '`seriesEnd` needs a line mark — no legend drawn');
+        say('legend.placement', 'series-end-not-drawn', '`seriesEnd` needs a line mark — no legend drawn');
         return;
     }
 
@@ -5004,7 +4159,7 @@ function applySeriesEndLabels(
     const domain = enc[domainChannel];
     const value = enc[valueChannel];
     if (!seriesField || !domain?.field || !value?.field) {
-        say('legend.placement', '`seriesEnd` needs a series field on a positional line — no legend drawn');
+        say('legend.placement', 'series-end-not-drawn', '`seriesEnd` needs a series field on a positional line — no legend drawn');
         return;
     }
 
@@ -5084,8 +4239,6 @@ function applySeriesEndLabels(
         textField = '__seriesEndLabel';
         // …and the value layer must stop printing the point that is now named.
         valueLayer.transform = [...rank, { filter: 'datum.__seriesEndRank !== 1' }];
-        say('legend.placement',
-            'series name and final value merged into one label — they compete for the same space');
     }
 
     let labelValue = value;
@@ -5097,7 +4250,6 @@ function applySeriesEndLabels(
         }
         transform.push({ calculate: adjusted, as: '__seriesEndLabelValue' });
         labelValue = { ...value, field: '__seriesEndLabelValue' };
-        say('legend.placement', `series-end labels dodged by at most ${Math.round(layout.maxDisplacement)}px to avoid overlap`);
     }
 
     const labelLayer: any = withInteractionLegendLabel({
@@ -5136,8 +4288,7 @@ function applySeriesEndLabels(
     // labels now are. The two collide into an unreadable pile. The end labels
     // own that edge now, so the surviving key steps down to the foot of the
     // plot, where it has the width to itself.
-    relocateSecondaryLegends(spec, 'bottom', say);
-    say('legend.placement', '`seriesEnd` realized as a synthesized text layer at each series\' last point');
+    if (secondaryEdge) relocateSecondaryLegends(spec, secondaryEdge);
 }
 
 /**
@@ -5147,23 +4298,17 @@ function applySeriesEndLabels(
  * Move each such surviving key to the foot of the plot, clear of the labels.
  * Colour/fill/stroke are the series itself and are already spoken for.
  */
-function relocateSecondaryLegends(spec: any, orient: 'bottom' | 'top', say: (p: string, m: string) => void): void {
+function relocateSecondaryLegends(spec: any, orient: 'bottom' | 'top'): void {
     const channels = ['strokeDash', 'shape', 'size', 'opacity'] as const;
-    let moved = 0;
     walk(spec, (node) => {
         if (!node.encoding) return;
         for (const ch of channels) {
             const enc = node.encoding[ch];
             if (enc?.field && enc.legend !== null) {
                 enc.legend = { ...(typeof enc.legend === 'object' && enc.legend ? enc.legend : {}), orient };
-                moved++;
             }
         }
     });
-    if (moved) {
-        say('legend.orient',
-            `a second key sat where the end labels now are — moved to the ${orient}, clear of them`);
-    }
 }
 
 /**
@@ -5179,7 +4324,7 @@ function bandEndLabels(
     body: any,
     d: DesignDecisions,
     table: any[],
-    say: (p: string, m: string) => void,
+    say: ReportDeparture,
 ): boolean {
     const units = body.layer
         ? body.layer.filter((n: any) => markTypeOf(n.mark) === 'area')
@@ -5343,7 +4488,7 @@ function bandEndLabels(
         appendLayer(body, endLayer(false));
         // No margin is reserved for these names: `pad` autosize already sizes
         // the canvas to the scene, so reserving it here counted it twice.
-        say('legend.placement',
+        say('legend.placement', 'series-end-moved-outside',
             homeless.length === order.length
                 ? 'the bands climb away from their own labels — the names sit outside the plot in series ink, as a list'
                 : `${homeless.length === 1 ? 'one band is' : `${homeless.length} bands are`} too thin at the end to hold a name — the inset position is all or nothing, so every name sits outside the plot rather than splitting the set between two positions`);
@@ -5356,8 +4501,6 @@ function bandEndLabels(
         ...(body.resolve ?? {}),
         scale: { ...(body.resolve?.scale ?? {}), color: 'independent' },
     };
-    say('legend.placement',
-        '`seriesEnd` realized inside each band at its last reading — a name in the band beats a swatch beside the chart');
     return true;
 }
 
@@ -5477,7 +4620,7 @@ function orderedValues(table: any[], field: string): string[] {
  * latest reading, the high and the low — but they agree that it goes on a
  * line, and only where the line does not already show every observation.
  */
-function applyPointEmphasis(spec: any, d: DesignDecisions, say: (p: string, m: string) => void): void {
+function applyPointEmphasis(spec: any, d: DesignDecisions, say: ReportDeparture): void {
     const policy = d.pointEmphasis;
     if (!policy) return;
 
@@ -5490,7 +4633,7 @@ function applyPointEmphasis(spec: any, d: DesignDecisions, say: (p: string, m: s
     const drawsEveryPoint = d.marks.point?.show === true
         || units.some((n: any) => n.mark && typeof n.mark === 'object' && n.mark.point);
     if (drawsEveryPoint) {
-        say('annotation.pointEmphasis',
+        say('annotation.pointEmphasis', 'point-emphasis-not-drawn',
             'the line already shows every observation — a second dot at the end would say nothing new');
         return;
     }
@@ -5507,7 +4650,6 @@ function applyPointEmphasis(spec: any, d: DesignDecisions, say: (p: string, m: s
     const v = `datum[${JSON.stringify(value.field)}]`;
 
     let transform: any[];
-    let what: string;
     if (policy.where === 'extremes') {
         transform = [
             {
@@ -5519,7 +4661,6 @@ function applyPointEmphasis(spec: any, d: DesignDecisions, say: (p: string, m: s
             },
             { filter: `${v} === datum.__peLow || ${v} === datum.__peHigh` },
         ];
-        what = 'the high and the low of each run';
     } else {
         // Row numbers, not values: the domain may be a date, and two dates are
         // never `===` each other in a Vega expression even when they name the
@@ -5536,7 +4677,6 @@ function applyPointEmphasis(spec: any, d: DesignDecisions, say: (p: string, m: s
                 rank('descending', '__peLast'),
                 { filter: 'datum.__peFirst === 1 || datum.__peLast === 1' },
             ];
-        what = policy.where === 'latest' ? 'the latest reading' : 'the first and last reading of each run';
     }
 
     // The colour encoding is repeated, not re-declared: in a layered spec the
@@ -5561,7 +4701,6 @@ function applyPointEmphasis(spec: any, d: DesignDecisions, say: (p: string, m: s
             ...(colourEnc ? { color: colourEnc } : {}),
         },
     });
-    say('annotation.pointEmphasis', `${what} carries a dot — the house marks where the line lands`);
 
     // Vega-Lite sizes a legend swatch from the largest mark on the scale, so
     // the dot just added would swell every swatch in the key. The key samples
@@ -5599,8 +4738,6 @@ function applyPointEmphasis(spec: any, d: DesignDecisions, say: (p: string, m: s
             },
         },
     });
-    say('annotation.pointLabels',
-        `${policy.labels === 'all' ? 'every point' : 'the dotted points'} print their value`);
 }
 
 // ---------------------------------------------------------------------------
@@ -5638,7 +4775,7 @@ function formatStat(v: number): string {
  * reader to take the line on trust. Where the house asks for the numbers, they
  * are computed from the same rows the line was fitted to.
  */
-function applyStatistics(spec: any, d: DesignDecisions, table: any[], say: (p: string, m: string) => void): void {
+function applyStatistics(spec: any, d: DesignDecisions, table: any[]): void {
     const policy = d.statistics;
     if (!policy || !Array.isArray(spec.layer) || !Array.isArray(table) || table.length === 0) return;
     const fit = findFit(spec);
@@ -5686,60 +4823,13 @@ function applyStatistics(spec: any, d: DesignDecisions, table: any[], say: (p: s
             fill: policy.color,
         },
     });
-    say('annotation.statistics',
-        `the fit is stated as well as drawn — ${parts.join(', ')} — computed from the ${n} rows the line was fitted to`);
 }
 
 // ---------------------------------------------------------------------------
 // Furniture
 // ---------------------------------------------------------------------------
 
-/**
- * A chart whose radial mark cannot survive being wrapped in a concatenation to
- * hang furniture beneath it. A pie is a disc of angles and rides inside a
- * `vconcat` unharmed; but a *rose* sizes its petals by radius, and a *faceted*
- * disc splits into panels, and in either case Vega-Lite reads the panel's width
- * signal to lay the mark out — a signal the concat wrapper either rescopes out
- * of the mark's reach (the facet: an unresolved `child_width`) or leaves the
- * radius scale to collapse against (the rose: petals shrunk to a compass). The
- * chart is already its own block; a rule across it has no single width to take.
- */
-function radialResistsFurniture(spec: any): boolean {
-    let faceted = false;
-    let arc = false;
-    let radiusArc = false;
-    walk(spec, (node) => {
-        if (node.facet) faceted = true;
-        for (const ch of ['facet', 'row', 'column'] as const) {
-            if (node.encoding?.[ch]) faceted = true;
-        }
-        if (markTypeOf(node.mark) === 'arc') {
-            arc = true;
-            if (node.encoding?.radius) radiusArc = true;
-        }
-    });
-    return radiusArc || (arc && faceted);
-}
-
-/**
- * A faceted *table* — a `facet` operator whose panel is itself a concatenation
- * (a bar-table's label / bar / value columns laid side by side) — meets the
- * same wall as the faceted disc in `radialResistsFurniture`, one level deeper.
- * Wrapping `facet > concat` in an outer furniture `vconcat` yields
- * `concat > facet > concat`, and Vega-Lite rescopes the inner panels' width
- * signals out of the concat's reach: every column collapses and the whole
- * block renders empty. A plain faceted unit (line-facet, area-facet) has no
- * such nested signal and rides the wrapper unharmed, so this stays narrow —
- * only the facet-of-concat is refused. Like the disc, the table is already its
- * own stack of blocks, with no single width for a rule to run across.
- */
-function facetedTableResistsFurniture(spec: any): boolean {
-    if (!spec.facet) return false;
-    const panel = spec.spec;
-    return !!(panel && (panel.hconcat || panel.vconcat || panel.concat));
-}
-
-function applyFurniture(spec: any, d: DesignDecisions, table: any[], say: (p: string, m: string) => void): boolean {
+function applyFurniture(spec: any, d: DesignDecisions, planned: LayoutPlan['rules']): boolean {
     if (!d.furniture.length) return false;
 
     // Two kinds of furniture with different homes. A masthead tab is *branding*
@@ -5755,52 +4845,24 @@ function applyFurniture(spec: any, d: DesignDecisions, table: any[], say: (p: st
     // applies to every chart, including the concats, radials and faceted tables
     // a rule cannot wrap.
     let handled = false;
-    if (canvas.length) handled = applyCanvasFurniture(spec, canvas, d, say) || handled;
+    if (canvas.length) handled = applyCanvasFurniture(spec, canvas, d) || handled;
 
-    if (!rules.length) return handled;
+    if (!rules.length || !planned || 'refused' in planned) return handled;
 
-    if (spec.vconcat || spec.hconcat || spec.concat) {
-        say('furniture', 'the closing rule is not drawn — the chart is already a concatenation');
-        return handled;
-    }
-    // A rose or a faceted disc cannot be wrapped in a block to hang a rule
-    // beneath it — see `radialResistsFurniture`. It is already its own block.
-    if (radialResistsFurniture(spec)) {
-        say('furniture', 'the closing rule is not drawn — a radial chart is already its own block, with no edge to close');
-        return handled;
-    }
-    // A faceted table (facet of concat) collapses when wrapped — see
-    // `facetedTableResistsFurniture`. It is already its own stack of blocks.
-    if (facetedTableResistsFurniture(spec)) {
-        say('furniture', 'the closing rule is not drawn — a faceted table is already its own stack of blocks, with no single edge to close');
-        return handled;
-    }
-
-    // A rule closes a block, so its length is the block's, and a house that
-    // draws one does not state a number for it. Falling back to a stub leaves a
-    // dash in the corner that looks like a mistake rather than an edge.
+    // The plan sized each rule to the block it closes and took their room from the plot.
     const before: any[] = [];
     const after: any[] = [];
-    const block = blockWidth(spec, table);
-    for (const item of rules) {
-        const width = item.width ?? block;
-        if (width == null) {
-            say('furniture', `the house draws a ${item.kind} across the block, but the chart states no width to draw it across — left out`);
-            continue;
-        }
-        if (item.width == null) {
-            say('furniture', `the ${item.kind} runs the width of the block — ${width}px — not a fixed stub`);
-        }
-        const isTop = (item.anchor ?? 'topLeft').startsWith('top');
+    for (const item of planned.rules) {
         const rect = {
             __themeSynthetic: true,
             mark: { type: 'rect', color: item.color ?? d.text.primary },
-            width,
-            height: item.height ?? 2,
+            width: item.width,
+            height: item.height,
             data: { values: [{}] },
         };
-        (isTop ? before : after).push(rect);
+        (item.edge === 'top' ? before : after).push(rect);
     }
+    takeFromPlotHeight(spec, planned.room);
     if (!before.length && !after.length) return handled;
 
     const inner: any = { ...spec };
@@ -5853,7 +4915,6 @@ function applyCanvasFurniture(
     spec: any,
     items: DesignDecisions['furniture'],
     d: DesignDecisions,
-    say: (p: string, m: string) => void,
 ): boolean {
     const base = normalizePadding(spec.padding);
     const marginLeft = base.left; // the same left margin the title anchors to
@@ -5871,10 +4932,6 @@ function applyCanvasFurniture(
     growPadding(spec, 'top', band + gapBelow);
     const prev = readCanvasFurniture(spec);
     spec.usermeta = { ...(spec.usermeta ?? {}), [CANVAS_FURNITURE_KEY]: [...prev, ...built] };
-    say(
-        'furniture',
-        `the masthead tab rides the canvas at graphic-left (${marginLeft}px), in a ${band}px band above the title — clear of the plot's axis gutter`,
-    );
     return true;
 }
 

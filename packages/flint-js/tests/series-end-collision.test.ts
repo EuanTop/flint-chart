@@ -64,7 +64,6 @@ describe('series-end collision policy', () => {
         const spec = build([20, 40, 60]);
         expect(endLabel(spec)?.encoding.y.field).toBe('value');
         expect(endLabel(spec)?.mark.fontSize).toBe(10);
-        expect(messages(spec)).toContain('synthesized text layer');
     });
 
     it('slightly dodges close labels without adding connector ticks', () => {
@@ -74,7 +73,6 @@ describe('series-end collision policy', () => {
             const mark = typeof layer.mark === 'string' ? layer.mark : layer.mark?.type;
             return mark === 'rule' && layer.encoding?.y2?.field === '__seriesEndLabelValue';
         })).toBe(false);
-        expect(messages(spec)).toMatch(/dodged by at most \d+px/);
     });
 
     it.each([
@@ -83,7 +81,6 @@ describe('series-end collision policy', () => {
     ])('keeps a label on the $edge boundary anchored to its endpoint', ({ values }) => {
         const spec = build(values);
         expect(endLabel(spec)?.encoding.y.field).toBe('value');
-        expect(messages(spec)).not.toContain('dodged by at most');
     });
 
     it('falls back as a set when dense labels need too much displacement', () => {

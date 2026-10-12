@@ -18,6 +18,7 @@
  */
 
 import { ChartTemplateDef, ChartPropertyDef, EncodingActionDef } from '../../core/types';
+import { skeletonStructure } from '../../core/structure';
 import {
     legendMatchedHits,
     MUTED_HOVER_STROKE,
@@ -31,6 +32,8 @@ import {
 
 /** Weekday row order, Monday-first — mirrors the ECharts template's dayLabel.firstDay = 1. */
 const WEEKDAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+/** The side of one day's cell, Vega-Lite's default band step: the grid is one column per week, one row per weekday. */
+const CALENDAR_CELL = 20;
 
 /**
  * Sequential schemes. Named Vega-Lite schemes pass through as `scale.scheme`;
@@ -105,6 +108,20 @@ export const vlCalendarHeatmapDef: ChartTemplateDef = {
     chart: 'Calendar Heatmap',
     template: { mark: { type: 'rect', cornerRadius: 2 }, encoding: {} },
     channels: ['x', 'color'],
+    structure: (ctx) => {
+        // Weeks run across and weekdays down; colour carries the value, or a count of days.
+        const structure = skeletonStructure(vlCalendarHeatmapDef.template, ctx);
+        const date = ctx.channelSemantics.x?.field;
+        if (!date) return structure;
+        const value = ctx.channelSemantics.color?.field;
+        return {
+            ...structure,
+            x: { type: 'ordinal', fields: [date], derived: 'week' },
+            y: { type: 'ordinal', fields: [date], derived: 'weekday', categories: WEEKDAY_ORDER },
+            series: value ? { field: value, type: 'quantitative' } : { derived: 'days', type: 'quantitative' },
+            axisTitles: { x: null, y: null },
+        };
+    },
     interactionSupport: {
         elements: true,
         region: ['cartesian'],
@@ -138,10 +155,17 @@ export const vlCalendarHeatmapDef: ChartTemplateDef = {
         ),
     };
     },
+    planPlot: (ctx) => {
+        const dateField = ctx.channelSemantics.x?.field;
+        const weeks = dateField ? calendarWeekDomain(ctx.table, dateField) : undefined;
+        return weeks ? { width: CALENDAR_CELL * weeks.length, height: CALENDAR_CELL * WEEKDAY_ORDER.length } : undefined;
+    },
     declareLayoutMode: () => ({
         // Both axes are ordinal bands (week columns × weekday rows); square-ish
         // cells read as a calendar rather than a stretched grid.
         axisFlags: { x: { banded: true }, y: { banded: true } },
+        // Month initials under their first week, set straight.
+        axisLabels: { x: { angle: 0 } },
     }),
     instantiate: (spec, ctx) => {
         const dateField = ctx.channelSemantics.x?.field;

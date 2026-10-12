@@ -177,7 +177,9 @@ export const nyt: ThemePreset = {
                 "top"
             ],
             "title": "omit",
-            "suppressWhenValuesPrinted": false
+            "suppressWhenValuesPrinted": false,
+            "arrangement": "row",
+            "titlePosition": "inline"
         },
         "dataLabels": {
             "show": "always",

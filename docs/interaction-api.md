@@ -237,6 +237,14 @@ const stop = surface.onChange(({ phase, state }) => {
 });
 ```
 
+`surface.layout` reports where the chart is drawn, once `surface.ready` resolves. A host reads it to size or align things around the chart without compiling the spec again.
+
+- `layout.plot` is the plot box in pixels, the data area inside axes, legend, and titles, on a chart that draws one plot.
+- `layout.views` lists each view the chart draws, `{ role, box: { x, y, width, height } }`: a plot, a column of text (a bar table's values), a tile (a KPI card), or a theme's rule, with facet panels row by row.
+- `layout.block` is the box the views take with their axes and headers, without the title and keys.
+
+Boxes are in pixels from the top left of the drawn chart, before any CSS scaling, and are read from what the chart drew, so they follow filters, resizes, and zoom; read them again after `onChange`. `layout` is `undefined` on charts with a category rail and on other backends. A static compile reports sizes only.
+
 ## Lifecycle and cleanup
 
 Await `surface.ready` before dispatching application events. Use `surface.clearUpdate(id)` to remove an interaction's retained updates and `surface.destroy()` when unmounting the chart. Host-dispatched updates are not cleared by canvas reset gestures; the application owns their reset behavior.

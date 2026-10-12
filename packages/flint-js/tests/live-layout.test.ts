@@ -3,7 +3,7 @@ import { parse, View } from 'vega';
 import { expressionInterpreter } from 'vega-interpreter';
 import { compile } from 'vega-lite';
 import '../src/vegalite/interactive';
-import { assembleVegaLite } from '../src/vegalite/assemble';
+import { assembleVegaLite, openVegaLiteSession } from '../src/vegalite/assemble';
 import { navigate } from '../src/interactive/interactions';
 import { addVegaLiteInteractions, findVegaAxisScale, injectVegaNavigationSignals } from '../src/vegalite/interactions/compile';
 import {
@@ -60,12 +60,13 @@ const bars = (view: View): Item[] => items(view, (item) => item.mark?.marktype =
 
 function liveChart(cornerRadius = 0) {
     const full = input(ROWS, cornerRadius);
-    const spec = assembleVegaLite({ ...full, options: { ...full.options, liveLayoutSignal: LIVE_LAYOUT_SIGNAL } }) as any;
+    const session = openVegaLiteSession({ ...full, options: { ...full.options, liveLayoutSignal: LIVE_LAYOUT_SIGNAL } });
+    const spec = session.spec;
     const plan = addVegaLiteInteractions(spec, [navigate({ axes: 'x' })])!;
     const vega = compile(spec).spec as any;
     const xScale = findVegaAxisScale(vega, 'x')!.name;
     const yScale = findVegaAxisScale(vega, 'y')!.name;
-    const planner = liveLayoutPlanner(full, 'Month', liveLayoutOf(spec, 'Month'));
+    const planner = liveLayoutPlanner(full, 'Month', liveLayoutOf(spec, 'Month', session.axisLabels, session.dataLabels), session.replan);
     expect(bindLiveLayout(vega, xScale, yScale, planner)).toBe(true);
     const axes = injectVegaNavigationSignals(vega, plan.navigationChannels, vegaLiteTemporalAxisPlans(spec));
     return { vega, planner, xScale, yScale, navigation: axes.x!.signal };
@@ -73,15 +74,24 @@ function liveChart(cornerRadius = 0) {
 
 describe('live layout of a navigated bar chart', () => {
     // Rounded stacked bars compile to one group per stack instead of plain rects.
-    it.each([[0, 121, 0], [40, 24, 0], [60, 6, 0], [40, 24, 2], [60, 6, 2]])('matches a fresh compile of months %i..+%i (corner radius %i)', async (first, count, cornerRadius) => {
-        const shown = ROWS.filter((row) => MONTHS.indexOf(row.Month) >= first && MONTHS.indexOf(row.Month) < first + count);
-        const freshSpec = compile(assembleVegaLite(input(shown, cornerRadius)) as any).spec;
+    // The window is planned from the analysis of every month, with the plot held at its mounted size.
+    it.each([[0, 121, 0], [40, 24, 0], [60, 6, 0], [40, 24, 2], [60, 6, 2]])('matches the plan for months %i..+%i (corner radius %i)', async (first, count, cornerRadius) => {
+        const halfMonth = 15 * 864e5;
+        const from = Date.parse(`${MONTHS[first]}-01`) - halfMonth;
+        const to = Date.parse(`${MONTHS[first + count - 1]}-01`) + halfMonth;
+        const { vega, planner, xScale, yScale, navigation } = liveChart(cornerRadius);
+        const freshSpec = compile(openVegaLiteSession(input(ROWS, cornerRadius)).replan({
+            keep: (row) => {
+                const time = new Date(row.Month).getTime();
+                return time >= from && time <= to;
+            },
+            pinPlot: true,
+        }).spec).spec;
         const fresh = new View(parse(freshSpec), { renderer: 'none' });
         await fresh.runAsync();
         const freshX = findVegaAxisScale(freshSpec as any, 'x')!.name;
         const freshY = findVegaAxisScale(freshSpec as any, 'y')!.name;
 
-        const { vega, planner, xScale, yScale, navigation } = liveChart(cornerRadius);
         for (const expr of [undefined, expressionInterpreter]) {
             const view = new View(parse(vega, null, { ast: true } as any), { renderer: 'none', expr } as any);
             await view.runAsync();

@@ -2,7 +2,10 @@
 // Licensed under the MIT License.
 
 import { describe, expect, it } from 'vitest';
-import { assembleVegaLite } from '../src';
+import { assembleVegaLite as assembleWithoutDecisions } from '../src';
+
+/** Compiles with the theme's full decisions attached, which these tests read. */
+const assembleVegaLite = (input: any): any => assembleWithoutDecisions({ ...input, options: { ...input.options, themeDecisions: true } });
 import { resolveDisplayUnit } from '../src/core/field-semantics';
 
 const values = [

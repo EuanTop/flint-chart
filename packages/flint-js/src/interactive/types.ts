@@ -63,7 +63,31 @@ export interface ChartChange {
 /** What a renderer reports before the state comparison fills in `changed` and `previous`. */
 export type ChartChangeReport = Omit<ChartChange, 'changed' | 'previous'>;
 
+/** What the chart's layout plan decided, as far as a host reads it. */
+/** A box in pixels from the top left of the drawn chart. */
+export interface LayoutBox {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+
+export interface ChartLayout {
+    /** The plot box in pixels: the data area, inside axes, legend and titles; only on a chart that draws one plot. */
+    plot?: { width: number; height: number };
+    /**
+     * Each view the chart draws, as drawn: a plot, a column of text, a tile or a theme's rule, in
+     * draw order (facet panels row by row). Read from the rendered chart, so it follows filters,
+     * resizes and zoom.
+     */
+    views?: Array<{ role: 'plot' | 'text' | 'tile' | 'rule'; box: LayoutBox }>;
+    /** The box the views take with their axes and headers, without the title and keys. */
+    block?: LayoutBox;
+}
+
 export interface InteractiveRenderer {
+    /** The layout the chart was drawn with, where the backend plans one. */
+    readonly layout?: ChartLayout;
     viewports: CategoryViewport[];
     /** Admission warnings from the mount: spec interactions the chart could not honour. */
     readonly warnings?: readonly ChartWarning[];
@@ -75,6 +99,8 @@ export interface InteractiveRenderer {
     getState?(): ChartState;
     onChange?(listener: (change: ChartChange) => void): () => void;
     resize?(size: { width: number; height: number }): void | Promise<void>;
+    /** Lays the chart out again for the room in place; false when the new layout needs a new mount. */
+    relayout?(size: { width?: number; height?: number }): Promise<boolean>;
     /** Re-project overlays after the host rescales the chart in a way CSS cannot report. */
     refresh?(): void;
     applyUpdate?(update: ChartUpdate, options?: ChartUpdateApplyOptions): Promise<ChartUpdateResult>;
@@ -126,6 +152,13 @@ export interface InteractiveChartSurface {
     readonly ready: Promise<void>;
     /** Every warning about this chart's interactions, once the mount has settled. Never rejects. */
     readonly warnings: Promise<readonly ChartWarning[]>;
+    /**
+     * The layout the chart is drawn with now, following filters and resizes. `plot` is the planned
+     * plot on a chart that draws one plot at that size; `views` and `block` are read from what the
+     * chart drew. Undefined before the mount, on a chart with a category rail, and on backends that
+     * do not report one; a static compile reports sizes only, in its plan.
+     */
+    readonly layout: ChartLayout | undefined;
     getViewportState(): ViewportState;
     setViewport(channel: ViewportChannel, start: number): void;
     dispatch(interactionId: string, payload: unknown): Promise<ChartUpdateResult | null>;
@@ -139,5 +172,12 @@ export interface InteractiveChartSurface {
     /** Hears every gesture event, whether or not it changes the chart; returns the unsubscribe. */
     onInteraction(callback: (detail: FlintInteractionEventDetail) => void): () => void;
     refresh(): void;
+    /**
+     * Lays the chart out again for the room it is given, keeping what it shows: selections,
+     * filters, zoom and updates. Resolves false when the layout for that room is built
+     * differently (more or fewer marks, axes or keys) or the backend cannot lay out in place;
+     * the host then mounts the chart again with `availableSize`.
+     */
+    relayout(size: { width?: number; height?: number }): Promise<boolean>;
     destroy(): void;
 }

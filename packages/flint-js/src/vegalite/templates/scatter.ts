@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 
 import { ChartTemplateDef, ChartPropertyDef } from '../../core/types';
+import { discreteChannel, skeletonStructure } from '../../core/structure';
 import { detectBandedAxisForceDiscrete } from '../../core/axis-detection';
 import { planBandDodge, resolveDodge } from '../../core/band-dodge';
 import {
@@ -50,6 +51,10 @@ export const scatterPlotDef: ChartTemplateDef = {
     chart: "Scatter Plot",
     template: { mark: "circle", encoding: {} },
     channels: ["x", "y", "color", "size", "shape", "detail", "opacity", "column", "row"],
+    structure: (ctx) => {
+        const structure = skeletonStructure(scatterPlotDef.template, ctx);
+        return ctx.channelSemantics.shape?.field ? { ...structure, marks: ['point'] } : structure;
+    },
     interactionSupport: {
         elements: true,
         region: ['cartesian'],
@@ -138,6 +143,11 @@ export const regressionDef: ChartTemplateDef = {
         ],
     },
     channels: ["x", "y", "size", "color", "column", "row"],
+    // The trend line is fitted to the points and may run past them.
+    structure: (ctx) => {
+        const structure = skeletonStructure(regressionDef.template, ctx);
+        return structure.y && ctx.channelSemantics.y?.field ? { ...structure, y: { ...structure.y, fitted: true } } : structure;
+    },
     interactionSupport: {
         elements: true,
         region: ['cartesian'],
@@ -328,10 +338,39 @@ export const rangedDotPlotDef: ChartTemplateDef = {
     },
 };
 
+/**
+ * How a boxplot's colour dodges its banded axis: planned over the rows, under the author's `dodge`.
+ * Undefined when colour is not a discrete field or there is no axis field to dodge along.
+ */
+function boxplotDodge(
+    channelSemantics: Record<string, { field?: string; type?: string } | undefined>,
+    axisField: string | undefined,
+    rows: any[],
+    chartProperties: Record<string, any> | undefined,
+) {
+    const colorField = channelSemantics.color?.field;
+    if (!colorField || !axisField || !isDiscreteType(channelSemantics.color?.type)) return undefined;
+    const plan = planBandDodge(rows, axisField, colorField, { nestedSnapThreshold: chartProperties?.nestedSnapThreshold });
+    return { plan, resolved: resolveDodge(plan, chartProperties?.dodge) };
+}
+
 export const boxplotDef: ChartTemplateDef = {
     chart: "Boxplot",
     template: { mark: "boxplot", encoding: {} },
     channels: ["x", "y", "color", "opacity", "column", "row"],
+    structure: (ctx) => {
+        const structure = skeletonStructure(boxplotDef.template, ctx);
+        const discreteX = discreteChannel(ctx, 'x');
+        if (!discreteX && !discreteChannel(ctx, 'y')) return structure;
+        const marks = new Set(structure.marks);
+        if (ctx.chartProperties?.showPoints === true) marks.add('point');
+        const axisField = ctx.channelSemantics[discreteX ? 'x' : 'y']?.field;
+        const dodge = ctx.channelSemantics.color?.field
+            ? boxplotDodge(ctx.channelSemantics, axisField, ctx.fullTable, ctx.chartProperties) : undefined;
+        const categories = axisField ? new Set(ctx.fullTable.map((row) => row[axisField])).size : 0;
+        if (dodge?.resolved.mode === 'local' && categories > 1) marks.add('rule');
+        return { ...structure, marks: [...marks] };
+    },
     interactionSupport: {
         elements: true,
         region: ['cartesian'],
@@ -407,6 +446,9 @@ export const boxplotDef: ChartTemplateDef = {
         }
         return {
             axisFlags: { [result.axis]: { banded: true } },
+            // Boxes sit on a nested offset when a global dodge places them by lane, and so do
+            // the jittered points `showPoints` overlays; a local dodge spans plain bands.
+            bandAxes: { [result.axis]: { scale: 'band', nested: !groupLaneCount && (chartProperties?.showPoints === true || colorActsAsGroup) } },
             resolvedTypes: result.resolvedTypes,
             paramOverrides: { defaultBandSize: 28, groupBandFillsLanes: true },  // box+whisker needs wider bands; grouped lanes each get full width
             colorActsAsGroup,  // dodge-by-color → budget band per category, shrink lanes
@@ -486,15 +528,11 @@ export const boxplotDef: ChartTemplateDef = {
         const axisField = hasDiscreteX
             ? ctx.channelSemantics?.x?.field
             : ctx.channelSemantics?.y?.field;
-        if (
-            colorEnc?.field && colorField && axisField
-            && isDiscreteType(ctx.channelSemantics?.color?.type)
-            && hasDiscreteAxis && !spec.encoding.xOffset && !spec.encoding.yOffset
-        ) {
-            const plan = planBandDodge(ctx.fullTable ?? ctx.table, axisField, colorField, {
-                nestedSnapThreshold: ctx.chartProperties?.nestedSnapThreshold,
-            });
-            const resolved = resolveDodge(plan, ctx.chartProperties?.dodge);
+        const dodge = colorEnc?.field && hasDiscreteAxis && !spec.encoding.xOffset && !spec.encoding.yOffset
+            ? boxplotDodge(ctx.channelSemantics, axisField, ctx.fullTable ?? ctx.table, ctx.chartProperties)
+            : undefined;
+        if (dodge && colorField && axisField) {
+            const { plan, resolved } = dodge;
             if (resolved.mode !== 'none') {
                 const offsetChannel = hasDiscreteX ? 'xOffset' : 'yOffset';
                 subgroups = Math.max(1, resolved.laneCount);
