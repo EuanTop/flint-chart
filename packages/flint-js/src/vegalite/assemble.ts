@@ -61,7 +61,8 @@ import { applyPivot, type PivotSurface, type TransformSurface } from '../core/pi
 import { vlGetTemplateDef } from './templates';
 import { getRegistryEntry } from '../core/type-registry';
 import type { SemanticAnnotation } from '../core/field-semantics';
-import { resolveBaseSize } from '../core/compute-layout';
+import { resolveBaseSize, withCanvasSize } from '../core/compute-layout';
+import { inWindow, positionOf } from '../core/window';
 import { vegaLiteSort } from './sort';
 import { vegaLiteDepartures } from './honour';
 import type { PlanDeparture } from '../core/honour';
@@ -212,6 +213,13 @@ interface VegaLitePreparation {
     warnings: ChartWarning[];
 }
 
+/** The size a chart is planned into: its base size, clamped to the ceiling its spec, its theme or a host sets. */
+function plannedSize(input: ChartAssemblyInput, themeSpec: VegaLitePreparation['themeSpec']): Pick<VegaLitePreparation, 'baseSize' | 'sizeCeiling'> {
+    const housePresets = themeSpec?.compileDefaults;
+    const sizeCeiling = input.chart_spec.canvasSize ?? housePresets?.canvasSize;
+    return { baseSize: resolveBaseSize(input.chart_spec.baseSize ?? housePresets?.baseSize, sizeCeiling), sizeCeiling };
+}
+
 function prepareVegaLite(input: ChartAssemblyInput): VegaLitePreparation {
     const chartType = input.chart_spec.chartType;
     const semanticTypes = input.semantic_types ?? {};
@@ -225,9 +233,7 @@ function prepareVegaLite(input: ChartAssemblyInput): VegaLitePreparation {
     // ceiling is applied as per-dimension stretch caps once options resolve.
     // The base is clamped to the ceiling so a smaller canvasSize shrinks the
     // chart to fit rather than overflowing it.
-    const housePresets = themeSpec?.compileDefaults;
-    const sizeCeiling = input.chart_spec.canvasSize ?? housePresets?.canvasSize;
-    const baseSize = resolveBaseSize(input.chart_spec.baseSize ?? housePresets?.baseSize, sizeCeiling);
+    const { baseSize, sizeCeiling } = plannedSize(input, themeSpec);
     const canvasSize = baseSize;
     const options = themePresets.options ?? {};
     const chartTemplate = vlGetTemplateDef(chartType) as ChartTemplateDef;
@@ -802,12 +808,25 @@ export function assembleVegaLite(input: ChartAssemblyInput): any {
     return emitVegaLite(input, prepared, analysis, plan).spec;
 }
 
-/** The rows a re-plan lays out: a subset of the analysis rows, or rows the host supplies. */
+/** The rows a re-plan lays out: a subset of the analysis rows, the rows a window on x shows, or rows the host supplies. */
 export type ReplanRows =
     | { keep: (row: Record<string, any>) => boolean }
+    | { window: { x: readonly [unknown, unknown] } }
     | { rows: readonly Record<string, unknown>[] };
 
-/** A compiled chart that keeps its analysis, so it can be planned again for the rows it shows. */
+/** What a re-plan changes: the rows in view, or the room the host gives the chart. */
+export type ReplanChange = (ReplanRows & { pinPlot?: boolean }) | { size: { width?: number; height?: number } };
+
+/** A chart planned again: its spec, the plot it draws, and the plan it was emitted from. */
+export interface Replanned {
+    spec: any;
+    plot: { width: number; height: number } | undefined;
+    axisLabels: LayoutPlan['axisLabels'];
+    dataLabels: LayoutPlan['design']['dataLabels'];
+    plan: LayoutPlan;
+}
+
+/** A compiled chart that keeps its analysis, so it can be planned again for other rows or another size. */
 export interface VegaLiteSession {
     /** The chart as compiled. */
     readonly spec: any;
@@ -817,17 +836,15 @@ export interface VegaLiteSession {
     readonly axisLabels: LayoutPlan['axisLabels'];
     /** The theme's value-label decisions the chart drew with. */
     readonly dataLabels: LayoutPlan['design']['dataLabels'];
+    /** The plan the chart was compiled from. */
+    readonly plan: LayoutPlan;
     /**
-     * The chart planned for other rows from the same analysis, and the plot it draws (undefined as
-     * for `plot`). `pinPlot` holds the plot at its compiled size, as a window into the data does;
-     * without it the plot follows the rows.
+     * The chart planned again from the same analysis. A change of rows plans them into the frame
+     * the chart has, keeping its title fit and the room it keeps for furniture; `pinPlot` also holds
+     * the plot, as a window into the data does. A change of size plans the whole chart again for
+     * the new room, title and furniture room included, and later changes of rows plan into that.
      */
-    replan(change: ReplanRows & { pinPlot?: boolean }): {
-        spec: any;
-        plot: { width: number; height: number } | undefined;
-        axisLabels: LayoutPlan['axisLabels'];
-        dataLabels: LayoutPlan['design']['dataLabels'];
-    };
+    replan(change: ReplanChange): Replanned;
 }
 
 /**
@@ -877,35 +894,54 @@ export function openVegaLiteSession(
     input: ChartAssemblyInput,
     options: { pins?: Pick<NonNullable<PlanContext['pins']>, 'axisLabels' | 'reserve'> } = {},
 ): VegaLiteSession {
-    const prepared = prepareVegaLite(input);
-    const analysis = analyzeChart(input, prepared.template, prepared.chartProperties, vlGetTemplateDef);
-    const planned = vegaLitePlanContext(input, prepared, analysis);
-    const context: PlanContext = options.pins
-        ? { ...planned, pins: { ...planned.pins, ...options.pins } }
-        : planned;
+    const mounted = prepareVegaLite(input);
+    const analysis = analyzeChart(input, mounted.template, mounted.chartProperties, vlGetTemplateDef);
+    const contextFor = (prepared: VegaLitePreparation): PlanContext => {
+        const planned = vegaLitePlanContext(input, prepared, analysis);
+        return options.pins ? { ...planned, pins: { ...planned.pins, ...options.pins } } : planned;
+    };
     const drawnPlot = (planned: LayoutPlan, plotAsPlanned: boolean) =>
         planned.composite || !plotAsPlanned ? undefined
             : { width: planned.plot.width, height: heightAfterTitle(planned.plot.height, planned.title) };
-    const plan = planLayout(analysis, context);
-    const emitted = emitVegaLite(input, prepared, analysis, plan);
+    const emitted = (prepared: VegaLitePreparation, plan: LayoutPlan): Replanned => {
+        const out = emitVegaLite(input, prepared, analysis, plan);
+        return { spec: out.spec, plot: drawnPlot(plan, out.plotAsPlanned), axisLabels: plan.axisLabels, dataLabels: plan.design.dataLabels, plan };
+    };
+    const xField = analysis.channelSemantics.x?.field;
+    const rowsOf = (change: ReplanRows): any[] => {
+        if ('keep' in change) return analysis.convertedData.filter(change.keep);
+        if ('window' in change) return xField ? analysis.convertedData.filter((row) => inWindow(positionOf(row?.[xField]), change.window.x)) : analysis.convertedData;
+        return analysis.shapeRows(change.rows);
+    };
+    // The frame: the plan at the session's size for all rows, whose plot, title and room a change of rows keeps.
+    let prepared = mounted;
+    let context = contextFor(prepared);
+    let frame = planLayout(analysis, context);
+    const planRows = (change: ReplanRows & { pinPlot?: boolean }): Replanned => emitted(prepared, planLayout(analysis, {
+        ...context,
+        rows: rowsOf(change),
+        pins: {
+            ...context.pins,
+            ...(change.pinPlot ? { plot: frame.plot } : {}),
+            ...(frame.title ? { title: frame.title } : {}),
+            ...(frame.reserve ? { reserve: frame.reserve } : {}),
+        },
+    }));
+    const first = emitted(prepared, frame);
     return {
-        spec: emitted.spec,
-        plot: drawnPlot(plan, emitted.plotAsPlanned),
-        axisLabels: plan.axisLabels,
-        dataLabels: plan.design.dataLabels,
+        spec: first.spec,
+        plot: first.plot,
+        axisLabels: first.axisLabels,
+        dataLabels: first.dataLabels,
+        plan: frame,
         replan: (change) => {
-            const next = planLayout(analysis, {
-                ...context,
-                rows: 'keep' in change ? analysis.convertedData.filter(change.keep) : analysis.shapeRows(change.rows),
-                pins: {
-                    ...context.pins,
-                    ...(change.pinPlot ? { plot: plan.plot } : {}),
-                    ...(plan.title ? { title: plan.title } : {}),
-                    ...(plan.reserve ? { reserve: plan.reserve } : {}),
-                },
-            });
-            const replanned = emitVegaLite(input, prepared, analysis, next);
-            return { spec: replanned.spec, plot: drawnPlot(next, replanned.plotAsPlanned), axisLabels: next.axisLabels, dataLabels: next.design.dataLabels };
+            if ('size' in change) {
+                prepared = { ...mounted, ...plannedSize(withCanvasSize(input, change.size), mounted.themeSpec) };
+                context = contextFor(prepared);
+                frame = planLayout(analysis, context);
+                return emitted(prepared, frame);
+            }
+            return planRows(change);
         },
     };
 }

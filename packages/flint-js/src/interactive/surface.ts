@@ -500,6 +500,11 @@ export function mountInteractiveChartSurface(
         refresh: () => {
             if (!destroyed) renderer?.refresh?.();
         },
+        relayout: async (size) => {
+            await ready;
+            if (destroyed || !renderer?.relayout) return false;
+            return renderer.relayout(size);
+        },
         destroy: () => {
             if (destroyed) return;
             destroyed = true;

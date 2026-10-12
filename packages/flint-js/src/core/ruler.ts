@@ -132,26 +132,34 @@ export function spacingRuler(inputs: SpacingRulerInputs): AxisRuler | undefined 
     if (!(hi > lo) || !(length > 0)) return undefined;
     const [defaultLo, defaultHi] = niceDomain(lo, hi, 10);
     const onStep = (value: number, step: number) => Math.abs(value / step - Math.round(value / step)) < 1e-9;
-    const candidates: Array<{ ruler: AxisRuler; size: number; lands: boolean }> = [];
-    for (const raw of roundSteps((hi - lo) / 100, hi - lo)) {
-        if (raw < minStep - 1e-12) continue;
-        const step = raw >= 1 ? raw : -1 / raw;
-        const size = raw;
+    const desired = ((hi - lo) * spacing) / length;
+    const off = (size: number) => Math.abs(Math.log(size / desired));
+    // Nearest the desired step first; the first step that passes is the one the axis takes.
+    const sizes = roundSteps((hi - lo) / 100, hi - lo)
+        .filter((raw) => raw >= minStep - 1e-12)
+        .sort((a, b) => off(a) - off(b));
+    const lands = (size: number) => (!fixed.min || onStep(lo, size)) && (!fixed.max || onStep(hi, size));
+    const ruler = (size: number): AxisRuler | undefined => {
+        const step = size >= 1 ? size : -1 / size;
         const domain: [number, number] = [
             fixed.min ? lo : toStep ? +(Math.floor(lo / size + 1e-9) * size).toPrecision(12) : defaultLo,
             fixed.max ? hi : toStep ? +(Math.ceil(hi / size - 1e-9) * size).toPrecision(12) : defaultHi,
         ];
         const values = multiples(domain[0] - overhang, domain[1] + overhang, step).map((value) => +value.toPrecision(12));
-        if (values.length < 3) continue;
+        if (values.length < 3) return undefined;
         const px = (length * size) / (domain[1] - domain[0]);
-        if (px < minSpacing(values)) continue;
-        const lands = (!fixed.min || onStep(lo, size)) && (!fixed.max || onStep(hi, size));
-        candidates.push({ ruler: { domain, values }, size, lands });
+        return px < minSpacing(values) ? undefined : { domain, values };
+    };
+    // Where a grid is drawn, a step that lands a tick on each fixed end wins over a nearer one that does not.
+    if (toStep) {
+        for (const size of sizes) {
+            const found = lands(size) ? ruler(size) : undefined;
+            if (found) return found;
+        }
     }
-    if (!candidates.length) return undefined;
-    const pool = toStep && candidates.some((c) => c.lands) ? candidates.filter((c) => c.lands) : candidates;
-    const desired = ((hi - lo) * spacing) / length;
-    const off = (c: { size: number }) => Math.abs(Math.log(c.size / desired));
-    pool.sort((a, b) => off(a) - off(b));
-    return pool[0].ruler;
+    for (const size of sizes) {
+        const found = ruler(size);
+        if (found) return found;
+    }
+    return undefined;
 }

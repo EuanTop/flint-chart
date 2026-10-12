@@ -236,6 +236,35 @@ function fitKey(
         const naturalWidth = Math.max(...labels.map(labelWidth));
         const lineHeight = Math.ceil(fontSize * 1.2);
         const headingWidth = inlineTitle || !key.title ? 0 : Math.min(s.titleLimit || Infinity, Math.max(...titleTexts.map(measureTitle)));
+        const ellipsis = labelWidth('…');
+        type Wrapping = { lines: string[][]; rowLines: number; heights: number[]; widths?: number[]; loss?: number; wrappingCost?: number };
+        // The labels at one width and line count, and what follows from them alone, whatever the column count.
+        const wrapped = new Map<string, Wrapping>();
+        const wrapAll = (width: number, maxLines: number): Wrapping => {
+            const at = `${width}|${maxLines}`;
+            let wrapping = wrapped.get(at);
+            if (!wrapping) {
+                const lines = labels.map((label) => wrapLines(label, width, maxLines, labelWidth));
+                wrapping = {
+                    lines,
+                    rowLines: Math.max(...lines.map((entry) => entry.length)),
+                    heights: lines.map((entry) => Math.max(Math.sqrt(s.symbolSize ?? 100) + 2, lineHeight * entry.length)),
+                };
+                wrapped.set(at, wrapping);
+            }
+            return wrapping;
+        };
+        const settle = (wrapping: Wrapping, width: number): Required<Wrapping> => {
+            if (wrapping.widths === undefined) {
+                const { lines } = wrapping;
+                wrapping.widths = lines.map((entry) => Math.max(...entry.map((line) => Math.min(width, labelWidth(line)))));
+                wrapping.loss = lines.reduce((total, entry, index) => total + entry.reduce((lost, line) =>
+                    lost + (labelWidth(line) > width ? labelWidth(line) - Math.max(0, width - ellipsis) : 0), 0)
+                    / Math.max(1, labelWidth(labels[index])), 0) / labels.length;
+                wrapping.wrappingCost = lines.reduce((sum, entry) => sum + (entry.length > 1 ? 0.6 : 0) + Math.max(0, entry.length - 2) * 1.4, 0) / labels.length;
+            }
+            return wrapping as Required<Wrapping>;
+        };
         for (const columnCount of columnCounts) {
             const limit = columnCount === labels.length ? available - symbol : (available - gap * (columnCount - 1)) / columnCount - symbol;
             if (limit < fontSize * 4 && columnCount > 1) continue;
@@ -244,12 +273,11 @@ function fitKey(
             const steps = startWidth > minWidth ? 24 : 0;
             for (let step = 0; step <= steps; step++) {
                 const textWidth = startWidth - (startWidth - minWidth) * step / Math.max(1, steps);
-                let lines: string[][] = [];
+                let wrapping: Wrapping | undefined;
                 let height = 0;
                 for (let maxLines = 3; maxLines >= 1; maxLines--) {
-                    lines = labels.map((label) => wrapLines(label, textWidth, maxLines, labelWidth));
-                    const rowLines = Math.max(...lines.map((entry) => entry.length));
-                    const heights = lines.map((entry) => Math.max(Math.sqrt(s.symbolSize ?? 100) + 2, lineHeight * entry.length));
+                    wrapping = wrapAll(textWidth, maxLines);
+                    const { rowLines, heights } = wrapping;
                     const rowCount = Math.ceil(labels.length / columnCount);
                     height = titleHeight + Math.max(0, rowCount - 1) * rowGap + 2 * s.padding;
                     for (let row = 0; row < rowCount; row++) {
@@ -259,14 +287,10 @@ function fitKey(
                     }
                     if (height <= heightBudget) break;
                 }
-                const widths = lines.map((entry) => Math.max(...entry.map((line) => Math.min(textWidth, labelWidth(line)))));
+                const { lines, widths, loss, wrappingCost } = settle(wrapping!, textWidth);
                 const columnWidths = Array.from({ length: columnCount }, (_, column) => Math.max(...widths.filter((_, index) => index % columnCount === column)));
                 const extent = columnWidths.reduce((sum, column) => sum + column + symbol, 0) + gap * (columnCount - 1);
                 const width = Math.max(extent + titleExtent, headingWidth) + 2 * s.padding;
-                const loss = lines.reduce((total, entry, index) => total + entry.reduce((lost, line) =>
-                    lost + (labelWidth(line) > textWidth ? labelWidth(line) - Math.max(0, textWidth - labelWidth('…')) : 0), 0)
-                    / Math.max(1, labelWidth(labels[index])), 0) / labels.length;
-                const wrappingCost = lines.reduce((sum, entry) => sum + (entry.length > 1 ? 0.6 : 0) + Math.max(0, entry.length - 2) * 1.4, 0) / labels.length;
                 const widest = Math.max(...widths, 1);
                 const imbalance = (widest - widths.reduce((sum, value) => sum + value, 0) / widths.length) / widest;
                 const overflow = Math.max(0, height / heightBudget - 1) * 10 + Math.max(0, extent / available - 1) * (horizontal ? 10 : 2);
@@ -326,6 +350,8 @@ export function planKeyLayout(
     type Candidate = Box & { orient: string; preference: number; titleAbove: boolean };
     const candidatesOf = laid.map(({ key }) => {
         const candidates: Candidate[] = [];
+        // A box depends on its edge only through whether it runs across the plot, so opposite edges share one fit.
+        const fitted = new Map<string, Box>();
         const preferred = key.orient;
         const orients = key.fixed ? [preferred] : [...new Set([preferred, ...(key.edges ?? []), 'right', 'bottom', 'top', 'left'])];
         for (const orient of orients) {
@@ -337,10 +363,14 @@ export function planKeyLayout(
                         ? { orient, direction: key.ownDirection ?? key.direction, titleOrient: key.ownTitleOrient ?? key.titleOrient }
                         : { orient, direction: key.ownDirection ?? (horizontal ? 'horizontal' : 'vertical'), titleOrient: key.ownTitleOrient ?? 'top' };
                     if (inline) at.titleOrient = 'left';
-                    const box = fitKey(key, at, plot.width, plot.height, measure, {
+                    const budget = {
                         width: horizontal ? plot.width * fraction : sideBudget,
                         height: horizontal ? horizontalBudget : plot.height * fraction,
-                    });
+                    };
+                    const fit = `${horizontal}|${at.direction}|${at.titleOrient}|${budget.width}|${budget.height}`;
+                    let shared = fitted.get(fit);
+                    if (!shared) fitted.set(fit, shared = fitKey(key, at, plot.width, plot.height, measure, budget));
+                    const box: Box = { ...shared, layout: { ...shared.layout, orient } };
                     box.layout.moved = orient !== preferred;
                     box.layout.inlineTitle = inline;
                     if (inline && (box.entryRows !== 1 || box.entryLines !== 1 || box.width > plot.width * fraction

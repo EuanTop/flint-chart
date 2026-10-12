@@ -83,6 +83,8 @@ export interface InteractiveRenderer {
     getState?(): ChartState;
     onChange?(listener: (change: ChartChange) => void): () => void;
     resize?(size: { width: number; height: number }): void | Promise<void>;
+    /** Lays the chart out again for the room in place; false when the new layout needs a new mount. */
+    relayout?(size: { width?: number; height?: number }): Promise<boolean>;
     /** Re-project overlays after the host rescales the chart in a way CSS cannot report. */
     refresh?(): void;
     applyUpdate?(update: ChartUpdate, options?: ChartUpdateApplyOptions): Promise<ChartUpdateResult>;
@@ -153,5 +155,12 @@ export interface InteractiveChartSurface {
     /** Hears every gesture event, whether or not it changes the chart; returns the unsubscribe. */
     onInteraction(callback: (detail: FlintInteractionEventDetail) => void): () => void;
     refresh(): void;
+    /**
+     * Lays the chart out again for the room it is given, keeping what it shows: selections,
+     * filters, zoom and updates. Resolves false when the layout for that room is built
+     * differently (more or fewer marks, axes or keys) or the backend cannot lay out in place;
+     * the host then mounts the chart again with `availableSize`.
+     */
+    relayout(size: { width?: number; height?: number }): Promise<boolean>;
     destroy(): void;
 }

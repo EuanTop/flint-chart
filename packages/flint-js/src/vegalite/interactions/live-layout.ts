@@ -1,4 +1,5 @@
 import { convertTemporalData } from '../../core/resolve-semantics';
+import { positionOf } from '../../core/window';
 import type { ChartAssemblyInput } from '../../core/types';
 import { AXIS_LABEL_LIMIT } from '../../core/compute-layout';
 import type { AxisLabelPlan } from '../../core/axis-labels';
@@ -7,6 +8,8 @@ import { temporalAxisPlanInputs, type TemporalAxisPlanInputs } from '../instanti
 
 export const TEMPORAL_TICKS_FUNCTION = 'flintTemporalTicks';
 export const LIVE_LAYOUT_SIGNAL = '__flint_live_layout';
+/** How far past the viewport, in scale units, a bar's centre may sit while part of it still shows. */
+const LIVE_MARGIN_SIGNAL = '__flint_live_margin';
 
 export const navigationDomainSignal = (axis: 'x' | 'y'): string => `__flint_navigation_${axis}_domain`;
 
@@ -105,13 +108,6 @@ export function liveLayoutOf(
     };
 }
 
-function positionOf(value: unknown): number {
-    if (typeof value === 'number') return value;
-    if (value instanceof Date) return value.getTime();
-    return Date.parse(String(value));
-}
-
-/** Plans the layout for the rows inside a viewport by assembling the chart again for those rows. */
 /**
  * Plans the live layout for each x window: `replan` lays the chart out again for the rows a
  * window keeps, with the plot held at its mounted size, from the analysis of the whole data.
@@ -120,7 +116,7 @@ export function liveLayoutPlanner(
     input: ChartAssemblyInput,
     xField: string,
     initial: LiveLayout,
-    replan: (change: { keep: (row: Node) => boolean; pinPlot: boolean }) => {
+    replan: (change: { window: { x: readonly [number, number] }; pinPlot: boolean }) => {
         spec: Node; axisLabels: Record<'x' | 'y', AxisLabelPlan>; dataLabels: DesignDecisions['dataLabels'];
     },
 ): LiveLayoutPlanner {
@@ -146,13 +142,7 @@ export function liveLayoutPlanner(
             const key = `${Math.min(...shown)}:${Math.max(...shown)}`;
             let layout = cache.get(key);
             if (!layout) {
-                const replanned = replan({
-                    keep: (row) => {
-                        const position = positionOf(row[xField]);
-                        return position >= lo && position <= hi;
-                    },
-                    pinPlot: true,
-                });
+                const replanned = replan({ window: { x: [lo, hi] }, pinPlot: true });
                 layout = liveLayoutOf(replanned.spec, xField, replanned.axisLabels, replanned.dataLabels);
                 cache.set(key, layout);
             }
@@ -185,6 +175,7 @@ export function bindLiveLayout(vegaSpec: Node, xScale: string, yScale: string | 
     const declared = (vegaSpec.signals ?? []).find((signal: Node) => signal.name === live);
     if (declared) declared.value = initial;
     else vegaSpec.signals = [{ name: live, value: initial }, ...(vegaSpec.signals ?? [])];
+    vegaSpec.signals.push({ name: LIVE_MARGIN_SIGNAL, value: margin });
     // Live label sizes change the axes' extent, so the view sizes itself again on each update.
     const autosize = vegaSpec.autosize;
     vegaSpec.autosize = { ...(autosize && typeof autosize === 'object' ? autosize : { type: autosize ?? 'pad' }), resize: true };
@@ -213,7 +204,7 @@ export function bindLiveLayout(vegaSpec: Node, xScale: string, yScale: string | 
         const edge = (pick: 'min' | 'max') => `${pick}(time(toDate(${navigation}[0])), time(toDate(${navigation}[1])))`;
         shared.transform = [...(shared.transform ?? []), {
             type: 'filter',
-            expr: `!${navigation} || (${position} >= ${edge('min')} - ${margin} && ${position} <= ${edge('max')} + ${margin})`,
+            expr: `!${navigation} || (${position} >= ${edge('min')} - ${LIVE_MARGIN_SIGNAL} && ${position} <= ${edge('max')} + ${LIVE_MARGIN_SIGNAL})`,
         }];
     }
     return true;
@@ -247,6 +238,7 @@ export function bindTemporalAxisTicks(
     inputs: TemporalAxisPlanInputs,
 ): void {
     const signal = `__flint_temporal_ticks_${channel}`;
+    const inputSignal = `__flint_temporal_inputs_${channel}`;
     const name = JSON.stringify(scale.name);
     const span = `abs(range(${name})[1] - range(${name})[0])`;
     const live = channel === 'x' && (vegaSpec.signals ?? []).some((entry: Node) => entry.name === LIVE_LAYOUT_SIGNAL);
@@ -255,10 +247,10 @@ export function bindTemporalAxisTicks(
         .map(([field, [property]]) => `${property}: ${LIVE_LAYOUT_SIGNAL}.x.${field}`)
         .join(', ');
     const planned = live
-        ? `merge(${JSON.stringify(inputs)}, {fontSize: ${LIVE_LAYOUT_SIGNAL}.x.fontSize, `
-            + `settings: merge(${JSON.stringify(inputs.settings)}, {${liveSettings}})})`
-        : JSON.stringify(inputs);
-    vegaSpec.signals = [...(vegaSpec.signals ?? []), {
+        ? `merge(${inputSignal}, {fontSize: ${LIVE_LAYOUT_SIGNAL}.x.fontSize, `
+            + `settings: merge(${inputSignal}.settings, {${liveSettings}})})`
+        : inputSignal;
+    vegaSpec.signals = [...(vegaSpec.signals ?? []), { name: inputSignal, value: inputs }, {
         name: signal,
         update: `${TEMPORAL_TICKS_FUNCTION}(domain(${name}), ${span}, ${planned})`,
     }];

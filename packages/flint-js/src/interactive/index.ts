@@ -245,6 +245,7 @@ export function mountChart(
                                 keyboard: keyboardTargeting ? {} : false,
                             },
                             keyboardTargeting,
+                            liveValues: availableSize !== undefined,
                         }).mount(chartContainer, await sized(chartInput));
                     },
                 },

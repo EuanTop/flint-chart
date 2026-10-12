@@ -74,13 +74,15 @@ export interface FlintChartProps {
     width?: number | string;
     height?: number | string;
     /**
-     * Default `'scale-down'`. Under `relayout` each box resize remounts the chart once it settles,
-     * so reader state such as a selection does not survive it.
+     * Default `'scale-down'`. Under `relayout` each box resize lays the chart out again once it
+     * settles, in place where only its layout values change, so a selection or zoom survives; a
+     * room that changes what the chart draws (marks, axes, keys) remounts it, and reader state
+     * does not survive that.
      */
     fit?: FlintChartFit;
     onChange?: (change: ChartChange) => void;
     onInteraction?: (detail: FlintInteractionEventDetail) => void;
-    /** After each mount and each applied host update. */
+    /** After each mount, each applied host update, and each relayout in place. */
     onRender?: (chart: InteractiveChartSurface) => void;
     /** After each mount: that mount's warnings, possibly none. */
     onWarnings?: (warnings: readonly ChartWarning[]) => void;
@@ -249,6 +251,11 @@ export const FlintChart = forwardRef<FlintChartHandle, FlintChartProps>(function
     // Under `relayout` the chart mounts once the box is measured, not before and again after.
     const waiting = relayout && room === null && typeof ResizeObserver !== 'undefined';
     const roomKey = relayout && room ? `${room.width ?? ''}x${room.height ?? ''}` : '';
+    const roomRef = useRef(room);
+    roomRef.current = room;
+    // The room the chart on screen was laid out for, and a count that remounts it when a room cannot be laid out in place.
+    const laidOutRef = useRef('');
+    const [remounts, setRemounts] = useState(0);
 
     const specKey = useMemo(() => flintSpecKey(spec), [spec]);
     // Once per spec content, so an inline `interactions` function receives the same definitions each render.
@@ -332,8 +339,9 @@ export const FlintChart = forwardRef<FlintChartHandle, FlintChartProps>(function
                 interactions: definitions,
                 updates: initialUpdates,
                 semanticUpdates: updatable,
-                availableSize: relayout && room ? room : undefined,
+                availableSize: relayout && roomRef.current ? roomRef.current : undefined,
             });
+            laidOutRef.current = roomKey;
         } catch (error) {
             stage.remove();
             fail(error);
@@ -366,7 +374,23 @@ export const FlintChart = forwardRef<FlintChartHandle, FlintChartProps>(function
             stage.style.pointerEvents = 'none';
             retiringRef.current.push({ surface, stage });
         };
-    }, [specKey, definitionsKey, updatable, backend, renderer, background, chartId, waiting, roomKey]);
+    }, [specKey, definitionsKey, updatable, backend, renderer, background, chartId, waiting, relayout, remounts]);
+
+    // A new room lays the chart out again in place, or remounts it when its layout changes in kind.
+    useEffect(() => {
+        const surface = surfaceRef.current;
+        if (!surface || !relayout || !roomKey || roomKey === laidOutRef.current) return;
+        laidOutRef.current = roomKey;
+        let live = true;
+        void surface.relayout(roomRef.current ?? {}).then((inPlace) => {
+            if (!live || surfaceRef.current !== surface) return;
+            if (!inPlace) setRemounts((count) => count + 1);
+            else propsRef.current.onRender?.(surface);
+        });
+        return () => {
+            live = false;
+        };
+    }, [roomKey, relayout]);
 
     // Declared after the mount effect, so on unmount it runs after that effect retires the last chart.
     useEffect(() => () => {

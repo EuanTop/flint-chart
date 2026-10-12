@@ -1,16 +1,31 @@
 import { TEXT_WIDTHS } from './text-widths.generated';
 import type { TextMeasurer } from './legend-layout';
 
-const CJK = /[　-〿㐀-鿿豈-﫿＀-￯]/;
+/** Whether a UTF-16 code unit is a CJK glyph: CJK punctuation, ideographs, compatibility ideographs or full-width forms. */
+const isCJK = (code: number): boolean => (code >= 0x3000 && code <= 0x303f) || (code >= 0x3400 && code <= 0x9fff)
+    || (code >= 0xf900 && code <= 0xfaff) || (code >= 0xff00 && code <= 0xffef);
+
+const families = new Map<string, string | undefined>();
 
 /** The first family of a CSS font stack the width table knows, if any. */
 function knownFamily(font: string | undefined): string | undefined {
-    for (const entry of (font ?? 'sans-serif').split(',')) {
+    const stack = font ?? 'sans-serif';
+    if (families.has(stack)) return families.get(stack);
+    let known: string | undefined;
+    for (const entry of stack.split(',')) {
         const family = entry.trim().replace(/^['"]|['"]$/g, '');
-        if (TEXT_WIDTHS[family]) return family;
+        if (TEXT_WIDTHS[family]) {
+            known = family;
+            break;
+        }
     }
-    return undefined;
+    families.set(stack, known);
+    return known;
 }
+
+/** Measured widths in em, by family and weight, then by text; a table past its size starts again. */
+const measured = new Map<string, Map<string, number>>();
+const MEASURED_LIMIT = 20000;
 
 /**
  * The width of a line of text in px, from per-character widths measured for the font's first
@@ -18,19 +33,38 @@ function knownFamily(font: string | undefined): string | undefined {
  * does not know, takes 0.62 em. Bold weights (600 and up) read the bold widths.
  */
 export function textWidth(text: string, fontSize: number, font?: string, weight: string | number = 'normal'): number {
+    return emMeasurer(font, weight)(text) * fontSize;
+}
+
+/** The width in em of a line of text in one font and weight, as `textWidth` measures it. */
+function emMeasurer(font: string | undefined, weight: string | number): (text: string) => number {
     const family = knownFamily(font);
     const bold = weight === 'bold' || Number(weight) >= 600;
+    const key = `${family ?? ''}|${bold}`;
+    let byText = measured.get(key);
+    if (!byText) measured.set(key, byText = new Map());
+    const cache = byText;
     const widths = family ? TEXT_WIDTHS[family][bold ? 'bold' : 'normal'] : undefined;
-    let em = 0;
-    for (const char of text) {
-        const code = char.charCodeAt(0);
-        em += CJK.test(char) ? 1 : widths && code >= 32 && code < 127 ? widths[code - 32] : 0.62;
-    }
-    return em * fontSize;
+    return (text) => {
+        let em = cache.get(text);
+        if (em === undefined) {
+            em = 0;
+            for (const char of text) {
+                const code = char.charCodeAt(0);
+                em += isCJK(code) ? 1 : widths && code >= 32 && code < 127 ? widths[code - 32] : 0.62;
+            }
+            if (cache.size >= MEASURED_LIMIT) cache.clear();
+            cache.set(text, em);
+        }
+        return em;
+    };
 }
 
 /** Measures text from the width table, the same in every environment. */
-export const tableTextMeasurer: TextMeasurer = (fontSize, font, weight) => (text) => textWidth(text, fontSize, font, weight);
+export const tableTextMeasurer: TextMeasurer = (fontSize, font, weight) => {
+    const em = emMeasurer(font, weight);
+    return (text) => em(text) * fontSize;
+};
 
 /** Vega's own estimate where it has no canvas, as in Node: 0.8 em a character, truncated to whole px. */
 export const vegaEstimateMeasurer: TextMeasurer = (fontSize) => (text) => Math.trunc(0.8 * text.length * fontSize);
