@@ -319,7 +319,7 @@ export function createVegaInteractiveRenderer(
                 const xScale = findVegaAxisScale(vegaSpec, 'x')?.name;
                 if (!interactionPlan.geoNavigation && interactionPlan.navigationChannels?.includes('x')
                     && viewports.length === 0 && liveField && xScale) {
-                    const planner = liveLayoutPlanner(interactiveInput, liveField, liveLayoutOf(vlSpec, liveField), session.replan);
+                    const planner = liveLayoutPlanner(interactiveInput, liveField, liveLayoutOf(vlSpec, liveField, session.axisLabels, session.dataLabels), session.replan);
                     if (bindLiveLayout(vegaSpec, xScale, findVegaAxisScale(vegaSpec, 'y')?.name, planner)) {
                         livePlanner = planner;
                     }

@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 
 import { ChartTemplateDef, ChartPropertyDef, ChartEncoding } from '../../core/types';
+import { skeletonStructure } from '../../core/structure';
 import type { FormatSpec } from '../../core/field-semantics';
 import {
     fieldsFromEncodingChannels,
@@ -117,6 +118,13 @@ export const sparklineDef: ChartTemplateDef = {
     composite: true,
     template: { mark: 'line', encoding: {} },
     channels: ['x', 'y', 'color', 'detail', 'row', 'column'],
+    structure: (ctx) => {
+        // Each panel names its own series, so no key is drawn.
+        const structure = { ...skeletonStructure(sparklineDef.template, ctx), keys: [] };
+        if (!ctx.channelSemantics.x?.field || !ctx.channelSemantics.y?.field) return structure;
+        const baseline = (ctx.chartProperties?.baseline as string) ?? 'mean';
+        return { ...structure, marks: ['text', 'line', ...(baseline !== 'none' ? ['rule'] : [])], axisTitles: { x: null, y: null } };
+    },
     interactionSupport: {
         elements: true,
         region: ['cartesian'],

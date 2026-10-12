@@ -327,6 +327,20 @@ export const radarChartDef: ChartTemplateDef = {
             )),
         };
     },
+    structure: (ctx) => {
+        // Spokes, rings and polygons drawn in the radar's own coordinates; no axis is drawn.
+        const { x, y, color } = ctx.channelSemantics;
+        const axes = x?.field ? new Set(ctx.table.map((row) => String(row[x.field!]))).size : 0;
+        if (!y?.field || axes < 2) return { marks: ['point'], stacking: 'none' };
+        const groups = color?.field ? new Set(ctx.table.map((row) => String(row[color.field!]))).size : 0;
+        return {
+            marks: ['rule', 'text', 'line', 'point'],
+            ...(groups > 1 ? { series: { field: color!.field, type: color!.type } } : {}),
+            // The key is drawn through the `__group` column the polygons are split by.
+            keys: groups > 1 ? [{ channel: 'color', field: color!.field, type: color!.type, via: '__group' }] : [],
+            stacking: 'none',
+        };
+    },
     instantiate: (spec, ctx) => {
         const axisField: string | undefined = ctx.resolvedEncodings.x?.field;
         const valueField: string | undefined = ctx.resolvedEncodings.y?.field;

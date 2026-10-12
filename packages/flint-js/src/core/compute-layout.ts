@@ -945,6 +945,8 @@ export function computeLayout(
     let yStepSize: number;
     let xStepUnit: 'item' | 'group' | undefined;
     let yStepUnit: 'item' | 'group' | undefined;
+    let xStepFitted = false;
+    let yStepFitted = false;
 
     if (xIsDiscrete && xHasGrouping) {
         const itemsPerGroup = nominalCount.group;
@@ -958,10 +960,10 @@ export function computeLayout(
         const groupStep = Math.max(minGroupStep, Math.min(defaultGroupStep, groupAxis.step));
         xStepSize = groupStep;
         xStepUnit = 'group';
-    } else if (xIsDiscrete) {
+        xStepFitted = groupAxis.fitted;
+    } else if (xIsDiscrete || xContinuousAsDiscrete > 0) {
         xStepSize = Math.max(minStepVal, Math.min(maxStepSize, xAxis.step));
-    } else if (xContinuousAsDiscrete > 0) {
-        xStepSize = Math.max(minStepVal, Math.min(maxStepSize, xAxis.step));
+        xStepFitted = xAxis.fitted;
     } else {
         xStepSize = defaultStepSize;
     }
@@ -978,10 +980,10 @@ export function computeLayout(
         const groupStep = Math.max(minGroupStep, Math.min(defaultGroupStep, groupAxis.step));
         yStepSize = groupStep;
         yStepUnit = 'group';
-    } else if (yIsDiscrete) {
+        yStepFitted = groupAxis.fitted;
+    } else if (yIsDiscrete || yContinuousAsDiscrete > 0) {
         yStepSize = Math.max(minStepVal, Math.min(maxStepSize, yAxis.step));
-    } else if (yContinuousAsDiscrete > 0) {
-        yStepSize = Math.max(minStepVal, Math.min(maxStepSize, yAxis.step));
+        yStepFitted = yAxis.fitted;
     } else {
         yStepSize = defaultStepSize;
     }
@@ -1291,6 +1293,8 @@ export function computeLayout(
         yStep: yStepSize,
         xStepUnit,
         yStepUnit,
+        xStepFitted,
+        yStepFitted,
         xContinuousAsDiscrete,
         yContinuousAsDiscrete,
         xNominalCount: xTotalNominalCount,

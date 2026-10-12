@@ -6,6 +6,7 @@ import { makeSortAction } from '../../core/encoding-actions';
 import { makeCartesianPivot } from '../../core/pivot';
 import { detectBandedAxisFromSemantics } from '../../core/axis-detection';
 import { setMarkProp } from './utils';
+import { skeletonStructure, withBaseline } from '../../core/structure';
 import {
     fieldsFromEncodingChannels,
     firstDiscreteEncodingField,
@@ -68,6 +69,15 @@ export const lollipopChartDef: ChartTemplateDef = {
             // since thin rules + small dots need less room than full-width bars.
             paramOverrides: { defaultBandSize: 20, minStep: 4, maxStretch: 3, targetBandAR: 240 },
         };
+    },
+    // The stick is a length from zero along whichever axis carries the measure.
+    structure: (ctx) => {
+        const structure = skeletonStructure(lollipopChartDef.template, ctx);
+        const isMeasure = (channel: 'x' | 'y') => {
+            const type = ctx.resolvedTypes?.[channel] ?? ctx.channelSemantics[channel]?.type;
+            return type != null && type !== 'nominal' && type !== 'ordinal' && type !== 'temporal';
+        };
+        return isMeasure('y') ? withBaseline(structure, 'y', 'zero') : isMeasure('x') ? withBaseline(structure, 'x', 'zero') : structure;
     },
     instantiate: (spec, ctx) => {
         const { color, column, row, ...positional } = ctx.resolvedEncodings;

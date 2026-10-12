@@ -1,6 +1,8 @@
 import { convertTemporalData } from '../../core/resolve-semantics';
 import type { ChartAssemblyInput } from '../../core/types';
 import { AXIS_LABEL_LIMIT } from '../../core/compute-layout';
+import type { AxisLabelPlan } from '../../core/axis-labels';
+import type { DesignDecisions } from '../../core/theme/types';
 import { temporalAxisPlanInputs, type TemporalAxisPlanInputs } from '../instantiate-spec';
 
 export const TEMPORAL_TICKS_FUNCTION = 'flintTemporalTicks';
@@ -11,7 +13,7 @@ export const navigationDomainSignal = (axis: 'x' | 'y'): string => `__flint_navi
 /** Flint's layout decisions for the rows a navigated x viewport shows. */
 export interface LiveLayout {
     x: { fontSize: number; angle: number; align: string; baseline: string; limit: number; separation: number };
-    y: { fontSize: number };
+    y: { fontSize: number; limit: number; separation: number };
     /** Bar width as a share of the data step. */
     barFill: number | null;
     /** Whether value labels print, the smallest stacked segment that keeps its number, and the number format. */
@@ -40,7 +42,7 @@ function walkSpec(node: unknown, visit: (node: Node) => void): void {
     }
 }
 
-function walkVegaGroups(group: Node, visit: (group: Node) => void): void {
+export function walkVegaGroups(group: Node, visit: (group: Node) => void): void {
     visit(group);
     for (const mark of group.marks ?? []) if (mark.type === 'group') walkVegaGroups(mark, visit);
 }
@@ -59,22 +61,41 @@ function barFillOf(vlSpec: Node, xField: string): number | null {
     return size !== undefined && typeof width === 'number' && width > 0 && count > 0 ? size * count / width : null;
 }
 
+/**
+ * The axis label settings live layout carries, by plan field: the Vega axis property each one
+ * sets, and its value where the plan states none.
+ */
+const LIVE_AXIS_LABELS = {
+    x: {
+        fontSize: ['labelFontSize', DEFAULT_LABEL_FONT_SIZE],
+        angle: ['labelAngle', 0],
+        align: ['labelAlign', 'center'],
+        baseline: ['labelBaseline', 'top'],
+        limit: ['labelLimit', AXIS_LABEL_LIMIT],
+        separation: ['labelSeparation', 0],
+    },
+    y: {
+        fontSize: ['labelFontSize', DEFAULT_LABEL_FONT_SIZE],
+        limit: ['labelLimit', AXIS_LABEL_LIMIT],
+        separation: ['labelSeparation', 0],
+    },
+} as const;
+
+function liveAxisLabels<C extends 'x' | 'y'>(channel: C, planned: AxisLabelPlan): LiveLayout[C] {
+    const out: Record<string, unknown> = {};
+    for (const [field, [, fallback]] of Object.entries(LIVE_AXIS_LABELS[channel])) {
+        out[field] = planned[field as keyof AxisLabelPlan] ?? fallback;
+    }
+    return out as LiveLayout[C];
+}
+
 /** The live layout an assembled chart was planned with. */
-export function liveLayoutOf(vlSpec: Node, xField: string): LiveLayout {
-    const config = vlSpec.config ?? {};
-    const axisX = { ...config.axis, ...config.axisX };
-    const axisY = { ...config.axis, ...config.axisY };
-    const dataLabels = vlSpec._theme?.decisions?.dataLabels;
+export function liveLayoutOf(
+    vlSpec: Node, xField: string, axisLabels: Record<'x' | 'y', AxisLabelPlan>, dataLabels: DesignDecisions['dataLabels'] | undefined,
+): LiveLayout {
     return {
-        x: {
-            fontSize: axisX.labelFontSize ?? DEFAULT_LABEL_FONT_SIZE,
-            angle: axisX.labelAngle ?? 0,
-            align: axisX.labelAlign ?? 'center',
-            baseline: axisX.labelBaseline ?? 'top',
-            limit: axisX.labelLimit ?? AXIS_LABEL_LIMIT,
-            separation: axisX.labelSeparation ?? 0,
-        },
-        y: { fontSize: axisY.labelFontSize ?? DEFAULT_LABEL_FONT_SIZE },
+        x: liveAxisLabels('x', axisLabels.x),
+        y: liveAxisLabels('y', axisLabels.y),
         barFill: barFillOf(vlSpec, xField),
         labels: {
             show: Boolean(dataLabels?.show),
@@ -99,7 +120,9 @@ export function liveLayoutPlanner(
     input: ChartAssemblyInput,
     xField: string,
     initial: LiveLayout,
-    replan: (change: { keep: (row: Node) => boolean; pinPlot: boolean }) => { spec: Node },
+    replan: (change: { keep: (row: Node) => boolean; pinPlot: boolean }) => {
+        spec: Node; axisLabels: Record<'x' | 'y', AxisLabelPlan>; dataLabels: DesignDecisions['dataLabels'];
+    },
 ): LiveLayoutPlanner {
     const rows = input.data.values ?? [];
     const positions = convertTemporalData([...rows], input.semantic_types ?? {})
@@ -123,13 +146,14 @@ export function liveLayoutPlanner(
             const key = `${Math.min(...shown)}:${Math.max(...shown)}`;
             let layout = cache.get(key);
             if (!layout) {
-                layout = liveLayoutOf(replan({
+                const replanned = replan({
                     keep: (row) => {
                         const position = positionOf(row[xField]);
                         return position >= lo && position <= hi;
                     },
                     pinPlot: true,
-                }).spec, xField);
+                });
+                layout = liveLayoutOf(replanned.spec, xField, replanned.axisLabels, replanned.dataLabels);
                 cache.set(key, layout);
             }
             return layout;
@@ -171,15 +195,10 @@ export function bindLiveLayout(vegaSpec: Node, xScale: string, yScale: string | 
     walkVegaGroups(vegaSpec, (group) => {
         for (const axis of group.axes ?? []) {
             if (axis.labels === false) continue;
-            if (axis.scale === xScale) {
-                axis.labelFontSize = { signal: `${live}.x.fontSize` };
-                axis.labelAngle = { signal: `${live}.x.angle` };
-                axis.labelAlign = { signal: `${live}.x.align` };
-                axis.labelBaseline = { signal: `${live}.x.baseline` };
-                axis.labelLimit = { signal: `${live}.x.limit` };
-                axis.labelSeparation = { signal: `${live}.x.separation` };
-            } else if (axis.scale === yScale) {
-                axis.labelFontSize = { signal: `${live}.y.fontSize` };
+            const channel = axis.scale === xScale ? 'x' : axis.scale === yScale ? 'y' : undefined;
+            if (!channel) continue;
+            for (const [field, [property]] of Object.entries(LIVE_AXIS_LABELS[channel])) {
+                axis[property] = { signal: `${live}.${channel}.${field}` };
             }
         }
     });
@@ -231,10 +250,13 @@ export function bindTemporalAxisTicks(
     const name = JSON.stringify(scale.name);
     const span = `abs(range(${name})[1] - range(${name})[0])`;
     const live = channel === 'x' && (vegaSpec.signals ?? []).some((entry: Node) => entry.name === LIVE_LAYOUT_SIGNAL);
+    const liveSettings = Object.entries(LIVE_AXIS_LABELS.x)
+        .filter(([field]) => field !== 'fontSize')
+        .map(([field, [property]]) => `${property}: ${LIVE_LAYOUT_SIGNAL}.x.${field}`)
+        .join(', ');
     const planned = live
         ? `merge(${JSON.stringify(inputs)}, {fontSize: ${LIVE_LAYOUT_SIGNAL}.x.fontSize, `
-            + `settings: merge(${JSON.stringify(inputs.settings)}, {labelAngle: ${LIVE_LAYOUT_SIGNAL}.x.angle, `
-            + `labelLimit: ${LIVE_LAYOUT_SIGNAL}.x.limit, labelSeparation: ${LIVE_LAYOUT_SIGNAL}.x.separation})})`
+            + `settings: merge(${JSON.stringify(inputs.settings)}, {${liveSettings}})})`
         : JSON.stringify(inputs);
     vegaSpec.signals = [...(vegaSpec.signals ?? []), {
         name: signal,

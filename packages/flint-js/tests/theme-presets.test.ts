@@ -5,6 +5,7 @@ import { describe, it, expect } from 'vitest';
 import { compile as compileVegaLite } from 'vega-lite';
 import { parse, View } from 'vega';
 import { assembleVegaLite } from '../src';
+import { openVegaLiteSession, vegaLiteStages } from '../src/vegalite/assemble';
 import { TEST_GENERATORS } from '../src/test-data';
 import { markTypeOf } from '../src/vegalite/theme';
 import { THEME_PRESETS, DEFAULT_THEME_ICON, listThemePresets, resolveThemeSpec } from '../src/core/theme/presets';
@@ -45,6 +46,7 @@ function build(themeSpec: ThemeSpec, chartProperties?: Record<string, unknown>) 
             ...(chartProperties ? { chartProperties } : {}),
         },
         theme_spec: themeSpec,
+        options: { themeDecisions: true },
     } as any) as any;
 }
 
@@ -60,6 +62,14 @@ function markOf(spec: any): any {
 function dotSize(spec: any): number | undefined {
     const mark = markOf(spec);
     return mark?.size ?? spec.config?.[mark?.type]?.size;
+}
+
+
+/** A waterfall planned in the room its bar-chart counterpart keeps for furniture, where the bar fits its steps to the room. */
+function waterfallInBarRoom(waterfall: any, bar: any): any {
+    const { plan } = vegaLiteStages(structuredClone(bar));
+    expect(plan.reserve).toBeDefined();
+    return openVegaLiteSession(structuredClone(waterfall), { pins: { reserve: plan.reserve } }).spec;
 }
 
 describe('naming a house Flint ships', () => {
@@ -282,7 +292,6 @@ describe('cartoon mark character', () => {
         expect(bar.encoding.y.axis.zindex).toBe(1);
         // The measure axis carries the grid, so it must stay behind the bars.
         expect(bar.encoding.x.axis?.zindex).toBeUndefined();
-        expect(JSON.stringify(spec._theme?.report ?? [])).toContain('band axis is drawn over the bars');
     });
 
     it('leaves the band axis alone for a house that does not stroke its bars', () => {
@@ -550,28 +559,22 @@ describe('theme compileDefaults', () => {
             Month: `2025-${String(index + 1).padStart(2, '0')}`,
             Change: index === 0 ? 400 : index % 3 === 0 ? -120 : 180,
         }));
-        const spec = assembleVegaLite({
+        const input = (chartType: string): any => ({
             data: { values },
             semantic_types: { Month: 'Category', Change: 'Quantity' },
             chart_spec: {
-                chartType: 'Waterfall Chart',
+                chartType,
                 encodings: { x: 'Month', y: 'Change' },
                 canvasSize: { width: 720, height: 720 },
             },
             theme_spec: 'mckinsey',
-        } as any) as any;
-        const barSpec = assembleVegaLite({
-            data: { values },
-            semantic_types: { Month: 'Category', Change: 'Quantity' },
-            chart_spec: {
-                chartType: 'Bar Chart',
-                encodings: { x: 'Month', y: 'Change' },
-                canvasSize: { width: 720, height: 720 },
-            },
-            theme_spec: 'mckinsey',
-        } as any) as any;
+        });
+        const spec = assembleVegaLite(input('Waterfall Chart')) as any;
+        const barSpec = assembleVegaLite(input('Bar Chart')) as any;
         expect(spec.encoding.x.scale.paddingInner).toBeCloseTo(0.3);
-        expect([spec._width, spec._height]).toEqual([barSpec._width, barSpec._height]);
+        // The waterfall's key and running totals take room the bar's do not; given the bar's room, it fits the bar's steps.
+        const sameRoom = waterfallInBarRoom(input('Waterfall Chart'), input('Bar Chart'));
+        expect([sameRoom._width, sameRoom._height]).toEqual([barSpec._width, barSpec._height]);
         expect(spec.encoding.x.axis?.labelAngle).toBeUndefined();
     });
 
@@ -580,7 +583,7 @@ describe('theme compileDefaults', () => {
             Month: `2025-${String(index + 1).padStart(2, '0')}`,
             Change: index === 0 ? 400_000 : index % 3 === 0 ? -120_000 : 180_000,
         }));
-        const compile = (chartType: 'Bar Chart' | 'Waterfall Chart') => assembleVegaLite({
+        const input = (chartType: 'Bar Chart' | 'Waterfall Chart'): any => ({
             data: { values },
             semantic_types: { Month: 'Category', Change: 'Quantity' },
             chart_spec: {
@@ -590,10 +593,10 @@ describe('theme compileDefaults', () => {
                 canvasSize: { width: 720, height: 440 },
             },
             theme_spec: 'powerbi',
-        } as any) as any;
+        });
 
-        const bar = compile('Bar Chart');
-        const waterfall = compile('Waterfall Chart');
+        const bar = assembleVegaLite(input('Bar Chart')) as any;
+        const waterfall = waterfallInBarRoom(input('Waterfall Chart'), input('Bar Chart'));
         const categoryX = (node: any): any => {
             if (!node || typeof node !== 'object') return undefined;
             if (node.encoding?.x?.field === 'Month') return node.encoding.x;

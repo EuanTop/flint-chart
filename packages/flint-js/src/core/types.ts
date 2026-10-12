@@ -8,6 +8,7 @@ import type { ColorDecisionResult } from './color-decisions';
 import type { GeometryKind, ThemeGeometry, ThemeSpec } from './theme/types';
 import type { ChartInteractionSupport, InteractionSpec } from './interaction-spec';
 import type { ChartUpdateOp, UpdateTarget } from './interaction-contracts';
+import type { ChartStructure, StructureContext } from './structure';
 
 /**
  * Core types for the chart engine library.
@@ -234,6 +235,9 @@ export interface LayoutDeclaration {
      */
     paramOverrides?: Partial<AssembleOptions>;
 
+    /** Tick label decisions a template makes for an axis it labels itself; the plan holds them as given. */
+    axisLabels?: Partial<Record<'x' | 'y', { fontSize?: number; angle?: number }>>;
+
     /**
      * How a banded axis spaces its bands, where it is not the default (a band scale,
      * nested when the axis steps per group): a point scale inset from the plot edges,
@@ -437,6 +441,10 @@ export interface LayoutResult {
     /** Whether the step size is per-item or per-group. */
     xStepUnit?: 'item' | 'group';
     yStepUnit?: 'item' | 'group';
+
+    /** Whether each step was blended toward the room the plot has (`bandStepFit`), so it moves with what that room reserves. */
+    xStepFitted?: boolean;
+    yStepFitted?: boolean;
 
     /** Number of banded continuous items on each axis (0 if not banded-continuous) */
     xContinuousAsDiscrete: number;
@@ -1039,6 +1047,13 @@ export interface ChartTemplateDef {
      */
     planPlot?: (context: PlotPlanContext) => { width: number; height: number } | undefined;
 
+    /**
+     * What the chart draws, where `instantiate` builds marks, fields or stacking its skeleton does
+     * not show. Runs before the plan sizes the chart; a test keeps it equal to what `instantiate`
+     * builds. Undefined derives the structure from the skeleton.
+     */
+    structure?: (context: StructureContext) => ChartStructure;
+
     /** Optional configurable properties for the chart type */
     properties?: ChartPropertyDef[];
 
@@ -1405,6 +1420,8 @@ export interface AssembleOptions {
     bandStepFitCapacityX?: number;
     /** Explicit Y-axis capacity for sparse band fitting. Internal assembler bridge. */
     bandStepFitCapacityY?: number;
+    /** Attach the theme's resolved decisions to the spec as `_theme.decisions`, for tools that inspect them. Default: false. */
+    themeDecisions?: boolean;
     /**
      * Chart-specific **floor** on the per-category band step (at a 300px
      * baseline canvas), which a house's `layout.bandStep` may grow but not

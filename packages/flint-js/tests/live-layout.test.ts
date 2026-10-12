@@ -66,7 +66,7 @@ function liveChart(cornerRadius = 0) {
     const vega = compile(spec).spec as any;
     const xScale = findVegaAxisScale(vega, 'x')!.name;
     const yScale = findVegaAxisScale(vega, 'y')!.name;
-    const planner = liveLayoutPlanner(full, 'Month', liveLayoutOf(spec, 'Month'), session.replan);
+    const planner = liveLayoutPlanner(full, 'Month', liveLayoutOf(spec, 'Month', session.axisLabels, session.dataLabels), session.replan);
     expect(bindLiveLayout(vega, xScale, yScale, planner)).toBe(true);
     const axes = injectVegaNavigationSignals(vega, plan.navigationChannels, vegaLiteTemporalAxisPlans(spec));
     return { vega, planner, xScale, yScale, navigation: axes.x!.signal };

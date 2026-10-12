@@ -609,6 +609,8 @@ export interface AxisStepDecision {
     budget: number;
     /** Number of items this step was computed for */
     itemCount: number;
+    /** Whether the step was blended toward a capacity past the base span, so it moves with that capacity. */
+    fitted: boolean;
 }
 
 /**
@@ -634,6 +636,7 @@ export function computeAxisStep(
         // Fit only addresses unused room on a sparse categorical axis. When
         // the base pitch is already under pressure, preserve it as the target
         // and let the existing elastic budget stretch/compress the canvas.
+        const fitted = fit > 0 && baseSpanStep > params.defaultStepSize && (params.bandStepFitCapacity ?? 1) > 1;
         const preferredStep = baseSpanStep > params.defaultStepSize
             ? params.defaultStepSize * (1 - fit) + capacityStep * fit
             : params.defaultStepSize;
@@ -642,7 +645,7 @@ export function computeAxisStep(
         // unused room. Under pressure, the existing elastic budget decides how
         // much the canvas may grow before the pitch is compressed.
         if (preferredStep <= baseSpanStep) {
-            return { step: Math.floor(preferredStep), budget: baseDimension, itemCount };
+            return { step: Math.floor(preferredStep), budget: baseDimension, itemCount, fitted };
         }
         const { budget } = computeElasticBudget(itemCount, baseDimension, {
             ...params,
@@ -652,9 +655,10 @@ export function computeAxisStep(
             step: Math.floor(Math.min(preferredStep, budget / itemCount)),
             budget,
             itemCount,
+            fitted,
         };
     }
-    return { step: params.defaultStepSize, budget: baseDimension, itemCount: 0 };
+    return { step: params.defaultStepSize, budget: baseDimension, itemCount: 0, fitted: false };
 }
 
 // ---------------------------------------------------------------------------

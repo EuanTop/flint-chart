@@ -2,9 +2,13 @@
 // Licensed under the MIT License.
 
 import { ChartTemplateDef } from '../../core/types';
+import { skeletonStructure } from '../../core/structure';
 import { adjustBarMarks } from './utils';
 import { elementsFromHits, fieldsFromEncodingChannels } from '../../core/interaction-semantics';
 import { annotationCandidates, presentAnnotationUpdate, rangeAnnotationText } from '../../interactive/presentation/annotation';
+
+/** The caption a candlestick chart writes over its price axis. */
+const PRICE_CAPTION = "Price";
 
 export const candlestickChartDef: ChartTemplateDef = {
     chart: "Candlestick Chart",
@@ -50,6 +54,20 @@ export const candlestickChartDef: ChartTemplateDef = {
     declareLayoutMode: () => ({
         axisFlags: { x: { banded: true } },
     }),
+    structure: (ctx) => {
+        // One price axis reads all four prices; the caption over it names the axis instead of a title.
+        const { series: _series, ...structure } = skeletonStructure(candlestickChartDef.template, ctx);
+        const { open, high, low, close } = ctx.channelSemantics;
+        const prices = [low, high, open, close].map((price) => price?.field).filter((field): field is string => Boolean(field));
+        return {
+            ...structure,
+            marks: open?.field && close?.field ? [...structure.marks, 'tick'] : structure.marks,
+            y: { type: 'quantitative', fields: prices, range: true, baseline: 'data' },
+            stacking: 'none',
+            title: PRICE_CAPTION,
+            axisTitles: { y: null },
+        };
+    },
     instantiate: (spec, ctx) => {
         const { x, open, high, low, close, column, row } = ctx.resolvedEncodings;
 
@@ -69,7 +87,7 @@ export const candlestickChartDef: ChartTemplateDef = {
             axis: { title: null },
         };
 
-        spec.title = { text: "Price", anchor: "start", fontSize: 11, fontWeight: "normal", color: "#666" };
+        spec.title = { text: PRICE_CAPTION, anchor: "start", fontSize: 11, fontWeight: "normal", color: "#666" };
 
         if (low) spec.layer[0].encoding.y = { field: low.field };
         if (high) spec.layer[0].encoding.y2 = { field: high.field };

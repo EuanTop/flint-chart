@@ -32,6 +32,7 @@
  */
 
 import { ChartTemplateDef, ChartPropertyDef, PlotPlanContext } from '../../core/types';
+import { skeletonStructure } from '../../core/structure';
 import { resolveSeriesTarget } from '../../core/interaction-semantics';
 import {
     categoryValueAnnotationText,
@@ -136,19 +137,24 @@ function maxGroupBandwidth(table: any[], measure: string, groupby: string[]): nu
  * count: 2 sub-groups split each violin; 3 or more get a category × sub-group grid. Otherwise
  * the categories sit in one row, wrapping only when the row would get too cramped.
  */
+/**
+ * Whether a colour field splits each category into three or more sub-groups that share a band,
+ * which the violin lays out as a grid of panels, one row per sub-group.
+ */
+function subgroupGrid(table: any[], catField: string, colorField: string | undefined, rowField: string | undefined): { useGrid: boolean; subgroupCount: number } {
+    const genuineSubgroup = !!colorField && colorField !== catField && !rowField
+        && planBandDodge(table, catField, colorField).maxPerBand > 1;
+    const subgroupCount = genuineSubgroup ? new Set(table.map((r: any) => String(r[colorField!]))).size : 0;
+    return { useGrid: genuineSubgroup && subgroupCount >= 3, subgroupCount };
+}
+
 function violinGrid(
     ctx: PlotPlanContext,
     catField: string,
     colorField: string | undefined,
     rowField: string | undefined,
 ): { useGrid: boolean; columns: number; panel: { width: number; height: number } } {
-    const genuineSubgroup =
-        !!colorField && colorField !== catField && !rowField &&
-        planBandDodge(ctx.table, catField, colorField).maxPerBand > 1;
-    const subgroupCount = genuineSubgroup
-        ? new Set(ctx.table.map((r: any) => String(r[colorField!]))).size
-        : 0;
-    const useGrid = genuineSubgroup && subgroupCount >= 3;
+    const { useGrid, subgroupCount } = subgroupGrid(ctx.table, catField, colorField, rowField);
 
     const catCount = Math.max(1, distinctValues(ctx.table, catField).length);
     const canvasW = ctx.canvasSize?.width ?? 560;
@@ -231,6 +237,32 @@ export const violinPlotDef: ChartTemplateDef = {
         const result = detectBandedAxisForceDiscrete(cs, table, { preferAxis: 'x' });
         if (!result) return {};
         return { resolvedTypes: result.resolvedTypes };
+    },
+    structure: (ctx) => {
+        // Each category's shape is the density of the measure, centred on itself; colour tells the
+        // categories (or the colour field) apart. Drawing the evidence over it mirrors the shape by hand.
+        const skeleton = skeletonStructure(violinPlotDef.template, ctx);
+        const { x, y, color } = ctx.channelSemantics;
+        if (!x?.field || !y?.field) return skeleton;
+        const xType = ctx.resolvedTypes?.x ?? x.type;
+        const config = ctx.chartProperties;
+        const extras = [
+            ...(config?.showContour === true ? ['line'] : []),
+            ...(config?.showPoints === true ? ['point'] : []),
+            ...(config?.showMedian === true ? ['rule'] : []),
+        ];
+        return {
+            marks: ['area', ...extras],
+            x: { type: 'quantitative', fields: [y.field], derived: 'density', rounded: true },
+            y: { type: 'quantitative', fields: [y.field], ...(config?.showPoints === true || config?.showMedian === true ? { baseline: 'data' } : {}) },
+            series: color?.field ? { field: color.field, type: color.type }
+                : { field: x.field, type: xType === 'nominal' || xType === 'ordinal' ? xType : 'nominal' },
+            // Panel headers name the categories, and a grid's row headers its sub-groups; only a
+            // colour that splits panels by something else gets a key.
+            keys: color?.field && color.field !== x.field && !subgroupGrid(ctx.table, x.field, color.field, ctx.channelSemantics.row?.field).useGrid
+                ? [{ channel: 'color', field: color.field, ...(color.type ? { type: color.type } : {}) }] : [],
+            stacking: extras.length ? 'none' : 'centered',
+        };
     },
     instantiate: (spec, ctx) => {
         const { x, y, color, row } = ctx.resolvedEncodings;

@@ -15,6 +15,7 @@ import {
     presentAnnotationUpdate,
 } from '../../interactive/presentation/annotation';
 import { setMarkProp } from './utils';
+import type { ChartStructure } from '../../core/structure';
 
 /** A pie's outer radius and the square it is drawn in, from how many slices it has to hold. */
 function pieLayout(
@@ -88,6 +89,17 @@ export const pieChartDef: ChartTemplateDef = {
         };
     },
     geometryKinds: ['arc'],
+    structure: (ctx): ChartStructure => {
+        // Each slice's angle is its value's share of the whole, or its row count where no value is bound.
+        const { size, color } = ctx.channelSemantics;
+        return {
+            marks: ['arc'],
+            angle: size?.field ? { type: size.type, fields: [size.field] } : { type: 'quantitative', fields: [], derived: 'count' },
+            ...(color?.field ? { series: { field: color.field, type: color.type } } : {}),
+            keys: color?.field ? [{ channel: 'color', field: color.field, ...(color.type ? { type: color.type } : {}) }] : [],
+            stacking: 'none',
+        };
+    },
     instantiate: (spec, ctx) => {
         // Remap abstract channels to VL channels:
         //   "size" → VL "theta" (angular extent of each slice)

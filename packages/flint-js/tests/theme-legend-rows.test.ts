@@ -6,7 +6,12 @@ import { compile } from 'vega-lite';
 import { parse, View } from 'vega';
 import { assembleVegaLite } from '../src';
 import type { ThemeSpec } from '../src/core/theme/types';
-import { enableGuideLabelTooltips, vlWrapLegendText } from '../src/vegalite/instantiate-spec';
+import { enableGuideLabelTooltips } from '../src/vegalite/instantiate-spec';
+import { vlWrapLegendText as wrapLegendText } from '../src/vegalite/key-layout';
+
+/** These cases are tuned to an estimate of 0.62 em a character; the planner measures with whatever it is given. */
+const estimate = (fontSize: number) => (text: string) => text.length * fontSize * 0.62;
+const vlWrapLegendText = (spec: any, context: any) => wrapLegendText(spec, context, estimate);
 
 /**
  * A chart can need more than one key: one that names the colours and one that

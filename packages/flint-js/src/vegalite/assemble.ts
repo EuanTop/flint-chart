@@ -56,38 +56,31 @@ import type { ThemeReport } from '../core/theme/types';
 import { declaredInteractionCapabilities, type InteractionCapability } from '../core/interaction-spec';
 import { analysisReadsProperty, analyzeChart, type ChartAnalysis } from '../core/analyze';
 import { planLayout, type BackendLayoutProfile, type LayoutPlan, type PlanContext } from '../core/plan';
-import { planBandDodge, resolveDodge } from '../core/band-dodge';
+import { groupDodge } from '../core/band-dodge';
 import { applyPivot, type PivotSurface, type TransformSurface } from '../core/pivot';
 import { vlGetTemplateDef } from './templates';
-import { inferVisCategory } from '../core/semantic-types';
 import { getRegistryEntry } from '../core/type-registry';
-import { inspectEncodingSort } from '../core/resolve-semantics';
-import { resolveDisplayUnit, titleWithDisplayUnit, toTypeString, type SemanticAnnotation } from '../core/field-semantics';
-import { computeMinSubplotDimensions, resolveBaseSize } from '../core/compute-layout';
-import { templateStatesAxisLabels, vlApplyLayoutToSpec, vlApplyTooltips, vlWrapLegendText, vlFinalizeTemporalAxes } from './instantiate-spec';
+import type { SemanticAnnotation } from '../core/field-semantics';
+import { resolveBaseSize } from '../core/compute-layout';
+import { vegaLiteSort } from './sort';
+import { vegaLiteDepartures } from './honour';
+import type { PlanDeparture } from '../core/honour';
+import { escapeVlFieldName } from './field-name';
+import type { CategoryOrder } from '../core/channel-decisions';
+import { templateStatesAxisLabels, vlApplyLayoutToSpec, vlApplyTooltips, vlFinalizeTemporalAxes } from './instantiate-spec';
 import { normalizeChartProperties } from '../core/normalize-properties';
-import { groundTheme, resolveChartDefaults, resolveCompileDefaults, resolveGeometry } from '../core/theme/ground';
+import { resolveChartDefaults, resolveCompileDefaults, resolveGeometry, resolveValueLabelChoice } from '../core/theme/ground';
 import { resolveThemeSpec } from '../core/theme/presets';
-import { realizeThemeVegaLite, realizeValueLabelsVegaLite, collectMarkTypes, collectPositional } from './theme';
+import { realizeThemeVegaLite, realizeValueLabelsVegaLite, vegaLiteBuiltFacts } from './theme';
+import { vlWriteKeyLayout } from './key-layout';
+import { tableTextMeasurer, vegaEstimateMeasurer } from '../core/text-width';
+import { chartDisplayNames, encodingTitle, TIGHT_X_MARKS, titleText, type BuiltFacts, type ChartStructure } from '../core/structure';
+import { heightAfterTitle, type TitlePlan } from '../core/title-plan';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Escape characters that Vega-Lite interprets as field-access path syntax.
- *
- * In Vega-Lite a `field` string like `"a.b"` is parsed as a nested accessor
- * (`datum.a.b`), and `"a[0]"` as array indexing. Column names that literally
- * contain `.`, `[`, or `]` (e.g. `"Oranges, Navel, per lb."`) must therefore be
- * escaped with a backslash so the renderer resolves the flat key instead of an
- * undefined nested path (which silently produces empty marks).
- *
- * Only the `field` accessor string needs escaping — direct JS data access via
- * `row[fieldName]` continues to use the raw, unescaped name.
- */
-const escapeVlFieldName = (name: string): string =>
-    name.replace(/[.[\]]/g, (ch) => `\\${ch}`);
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -111,6 +104,9 @@ const escapeVlFieldName = (name: string): string =>
  */
 /** How Vega-Lite lays a chart out where nothing else says. */
 const VEGA_LITE_LAYOUT: BackendLayoutProfile = {
+    spellField: (name) => escapeVlFieldName(name),
+    // The plan measures text as the renderer will: a canvas, which the width table is calibrated to, or Vega's estimate without one.
+    measureText: (fontSize, font, weight, style) => (typeof document === 'undefined' ? vegaEstimateMeasurer : tableTextMeasurer)(fontSize, font, weight, style),
     defaults: {
         // Vega-Lite's native width:{step} preserves the authored category pitch.
         bandStepFit: 0,
@@ -130,20 +126,44 @@ const VEGA_LITE_LAYOUT: BackendLayoutProfile = {
     },
     // Vega-Lite's band padding where an offset channel nests marks inside each band.
     nestedBandPadding: { inner: 0.2, outer: 0.2 },
+    // Vega's config defaults for axes, legends and titles.
+    spacing: { tickSize: 5, labelPadding: 2, axisTitlePadding: 4, keyOffset: 18, titleOffset: 4, deckPadding: 3 },
 };
 
 /** The headline and deck as one string, whichever shape the title took. */
-function headlineText(title: any): string | undefined {
-    if (!title) return undefined;
-    const parts: string[] = [];
-    const push = (v: any) => {
-        if (typeof v === 'string') parts.push(v);
-        else if (Array.isArray(v)) v.forEach(push);
+/** Write the plan's axis titles on every encoding of each axis a template draws. */
+function writeAxisTitles(spec: any, titles: LayoutPlan['axisTitles']): void {
+    const visit = (node: any): void => {
+        if (!node || typeof node !== 'object') return;
+        for (const channel of ['x', 'y'] as const) {
+            const title = titles[channel];
+            const encoding = node.encoding?.[channel];
+            if (title === undefined || !encoding || typeof encoding !== 'object' || encoding.axis === null) continue;
+            const printed = encoding.axis?.title !== undefined ? encoding.axis.title
+                : encoding.title === null ? null
+                : titleText(typeof encoding.title === 'string' ? encoding.title : undefined, encoding.field);
+            if (printed === title) continue;
+            encoding.axis = { ...(encoding.axis ?? {}), title };
+        }
+        for (const key of ['layer', 'vconcat', 'hconcat', 'concat']) (node[key] ?? []).forEach(visit);
+        if (node.spec) visit(node.spec);
     };
-    if (typeof title === 'string') push(title);
-    else { push(title.text); push(title.subtitle); }
-    return parts.length ? parts.join(' ') : undefined;
+    visit(spec);
 }
+
+/** The headline and deck the author wrote, as a Vega-Lite title. */
+function authoredTitle(input: ChartAssemblyInput): { text: string; subtitle?: string[] } | undefined {
+    const headline = input.chart_spec.title?.trim();
+    const deck = input.chart_spec.subtitle?.trim();
+    if (!headline && !deck) return undefined;
+    return { text: headline ?? '', ...(deck ? { subtitle: [deck] } : {}) };
+}
+
+/** The chart's title: the author's, else one the chart writes for itself. */
+function chartTitle(input: ChartAssemblyInput, structure: ChartStructure): { text: string; subtitle?: string[] } | undefined {
+    return authoredTitle(input) ?? (structure.title !== undefined ? { text: structure.title } : undefined);
+}
+
 
 /**
  * The axis the series run along, which an index reading moves over: the temporal axis, else
@@ -162,15 +182,16 @@ export function indexAxisOf(
 }
 
 /** The plot's stated size — the view's continuous size, and the plot view's width and height — as one string. */
-function plotSizeFields(spec: any): string {
+function plotSizeFields(spec: any, title?: TitlePlan): string {
+    const height = (value: unknown) => (typeof value === 'number' ? heightAfterTitle(value, title) : value);
     // A theme may wrap the plot in a concatenation with its furniture; the plot is the first view.
     let plot = spec;
     while (plot && !plot.mark && !plot.layer && !plot.facet && !plot.spec && (plot.vconcat ?? plot.hconcat ?? plot.concat)) {
         plot = (plot.vconcat ?? plot.hconcat ?? plot.concat)[0];
     }
     return JSON.stringify([
-        spec.config?.view?.continuousWidth, spec.config?.view?.continuousHeight,
-        plot?.width, plot?.height, plot?.spec?.width, plot?.spec?.height,
+        spec.config?.view?.continuousWidth, height(spec.config?.view?.continuousHeight),
+        plot?.width, height(plot?.height), plot?.spec?.width, height(plot?.spec?.height),
     ]);
 }
 
@@ -273,30 +294,33 @@ function vegaLitePlanContext(input: ChartAssemblyInput, prepared: VegaLitePrepar
         options,
         chartType,
         size: { baseSize, canvasSize: sizeCeiling },
-        titled: Boolean(input.chart_spec.title?.trim() || input.chart_spec.subtitle?.trim()),
+        title: authoredTitle(input),
+        fieldDisplayNames: input.field_display_names,
         theme: themeSpec,
         profile: VEGA_LITE_LAYOUT,
         bandLabels: chartType === 'Bar Table' ? undefined : { skip: (channel) => templateStatesAxisLabels(analysis.template.template, channel) },
     };
 }
 
-/**
- * Writes the Vega-Lite spec for a planned chart. Reads the analysis and the plan; changes neither.
- * `plotAsPlanned` is false when a stage after the plan (the theme fitting a long title) changed the plot size.
- */
-function emitVegaLite(input: ChartAssemblyInput, prepared: VegaLitePreparation, analysis: ChartAnalysis, plan: LayoutPlan): { spec: any; plotAsPlanned: boolean } {
-    const { chartType, semanticTypes, themeSpec, themePresets, baseSize: canvasSize, chartProperties, chartGeometry, geometryReport } = prepared;
+/** A planned chart as its template built it, before the theme. */
+export interface VegaLiteBuild {
+    spec: any;
+    warnings: ChartWarning[];
+    context: InstantiateContext;
+    resolvedEncodings: Record<string, any>;
+}
+
+/** The Vega-Lite spec a planned chart's template builds, before the plan's layout is applied. */
+function instantiateVegaLite(
+    input: ChartAssemblyInput, prepared: VegaLitePreparation, analysis: ChartAnalysis, plan: LayoutPlan,
+): VegaLiteBuild {
+    const { chartType, semanticTypes, baseSize: canvasSize, chartProperties, chartGeometry } = prepared;
     const warnings: ChartWarning[] = [...prepared.warnings, ...analysis.warnings, ...plan.warnings];
-    const chartDefaultsReport: ThemeReport[] = [...prepared.chartDefaultsReport, ...plan.report];
-    const { data, convertedData, encodings, channelSemantics, authoredTemplate, transformed, staticSeries, templateMarkType } = analysis;
+    const { data, convertedData, encodings, channelSemantics, transformed, staticSeries, templateMarkType } = analysis;
     const chartTemplate = analysis.template;
-    const typedRawEncodings = analysis.typedEncodings;
     const { declaration, facetGrid: facetGridResult, rows: values, layout: layoutResult } = plan;
     const nominalCounts = { ...plan.nominalCounts };
     const effectiveOptions = plan.options;
-    const addTooltipsOpt = effectiveOptions.addTooltips ?? false;
-    const facetFixW = effectiveOptions.facetFixedPadding!.width;
-    const facetFixH = effectiveOptions.facetFixedPadding!.height;
 
     // ═══════════════════════════════════════════════════════════════════════
     // PHASE 2: Instantiate VL Spec
@@ -307,27 +331,12 @@ function emitVegaLite(input: ChartAssemblyInput, prepared: VegaLitePreparation, 
     // For static series, suppress the synthetic key/value column axis titles
     // (show "Series"/"Value" instead of "__flint_series_key"/"__flint_series_value")
     // and map field names to display names
-    let fieldDisplayNames = input.field_display_names;
-    if (staticSeries) {
-        fieldDisplayNames = { ...fieldDisplayNames };
-        // Hide the synthetic key column name from the legend title
-        if (!fieldDisplayNames[staticSeries.keyColumn]) {
-            fieldDisplayNames[staticSeries.keyColumn] = 'Series';
-        }
-        // Hide the synthetic value column name from the measure axis title.
-        // The folded fields have no single intrinsic name, so default to "Value"
-        // (the host can override via field_display_names).
-        if (!fieldDisplayNames[staticSeries.valueColumn]) {
-            fieldDisplayNames[staticSeries.valueColumn] = 'Value';
-        }
-        // Map each series field name to its display name (if available) for legend labels
-        // This uses VL's labelExpr or scale domain in the encoding
-    }
+    const fieldDisplayNames = chartDisplayNames(input.field_display_names, staticSeries ?? undefined);
 
     const resolvedEncodings = buildVLEncodings(
         encodings, channelSemantics, declaration, data,
         canvasSize, semanticTypes, templateMarkType, chartTemplate,
-        fieldDisplayNames, chartProperties,
+        fieldDisplayNames, chartProperties, plan.orders, plan.sizes,
     );
 
     // --- Align sort/domain arrays to converted data types ---
@@ -395,7 +404,6 @@ function emitVegaLite(input: ChartAssemblyInput, prepared: VegaLitePreparation, 
         geometry: chartGeometry,
     };
 
-    const axisLabelFontSize = plan.axisLabelFontSize;
     chartTemplate.instantiate(vgObj, instantiateContext);
 
     // Facet-identity augmentation is presentation-only: the structural series
@@ -441,94 +449,40 @@ function emitVegaLite(input: ChartAssemblyInput, prepared: VegaLitePreparation, 
 
     restructureFacets(vgObj, nominalCounts, facetGridResult);
 
+    return { spec: vgObj, warnings, context: instantiateContext, resolvedEncodings };
+}
+
+/** Builds the Vega-Lite spec for a planned chart from its template, with the plan's layout applied. */
+export function buildVegaLite(input: ChartAssemblyInput, prepared: VegaLitePreparation, analysis: ChartAnalysis, plan: LayoutPlan): VegaLiteBuild {
+    const { themeSpec, baseSize: canvasSize, chartProperties } = prepared;
+    const { data, channelSemantics } = analysis;
+    const { declaration, rows: values, layout: layoutResult } = plan;
+    const effectiveOptions = plan.options;
+    const addTooltipsOpt = effectiveOptions.addTooltips ?? false;
+    const { spec: vgObj, warnings, context: instantiateContext, resolvedEncodings } = instantiateVegaLite(input, prepared, analysis, plan);
+    writeAxisTitles(vgObj, plan.axisTitles);
+
     // --- vlApplyLayoutToSpec (VL-specific: config, sizing, formatting) ---
 
-    vlApplyLayoutToSpec(vgObj, instantiateContext, warnings, axisLabelFontSize);
+    vlApplyLayoutToSpec(vgObj, instantiateContext, warnings, plan.axisLabels, Boolean(themeSpec), plan.domains, plan.rulers, plan.bandSpans);
 
     // --- Post-layout adjustments (VL-specific) ---
 
-    const defaultChartWidth = canvasSize.width;
-    const defaultChartHeight = canvasSize.height;
 
-    // Compute banded-aware minimum subplot dimensions from core helper.
-    const { minSubplotWidth, minSubplotHeight } = computeMinSubplotDimensions(
-        channelSemantics, declaration, values, effectiveOptions,
-    );
-
-    // Shrink gap for small subplots: scale linearly from the reference
-    // (10px gap at 100px subplot), with a floor of 4px.
-    const refGap = effectiveOptions.facetGap ?? 0;
-    const subplotDim = Math.min(layoutResult.subplotWidth, layoutResult.subplotHeight);
-    const REF_SUBPLOT = 100;
-    const facetGapVal = Math.max(6, Math.round(refGap * subplotDim / REF_SUBPLOT));
-
-    // Apply the computed gap to the VL spec so Vega-Lite uses it for spacing.
+    // Apply the planned panel gap so Vega-Lite uses it for spacing.
+    const facets = plan.furniture.facets;
     vgObj.config = vgObj.config || {};
-    vgObj.config.facet = { spacing: facetGapVal };
+    vgObj.config.facet = { spacing: facets.spacing };
 
-    const maxFacetColumns = Math.max(2, Math.floor((defaultChartWidth * effectiveOptions.maxStretchX! - facetFixW) / (minSubplotWidth + facetGapVal)));
-    const maxFacetRows = Math.max(2, Math.floor((defaultChartHeight * effectiveOptions.maxStretchY! - facetFixH) / (minSubplotHeight + facetGapVal)));
-    const maxFacetNominalValues = maxFacetColumns * maxFacetRows;
-
-    // Bin quantitative facets
-    for (const channel of ['facet', 'column', 'row']) {
-        const enc = vgObj.encoding?.[channel];
-        if (enc?.type === 'quantitative') {
-            const fieldName = enc.field;
-            const uniqueValues = [...new Set(values.map((r: any) => r[fieldName]))];
-            if (uniqueValues.length > maxFacetNominalValues) {
-                enc.bin = true;
-            }
-        }
+    for (const channel of facets.binned) {
+        const enc = vgObj.encoding?.[channel] ?? (channel === 'column' ? vgObj.encoding?.facet : undefined);
+        if (enc?.type === 'quantitative') enc.bin = true;
     }
 
-    // Independent y-axis scaling for faceted charts.
-    // For layered specs (e.g. Regression), y encoding lives inside layer items, not at the top.
-    const effectiveEncoding = vgObj.spec?.encoding || vgObj.encoding;
-    const layerEncodings = (vgObj.spec?.layer || vgObj.layer || []).map((l: any) => l.encoding).filter(Boolean);
-    const yEnc = effectiveEncoding?.y || layerEncodings.find((e: any) => e.y)?.y;
-    const effectiveFacet = vgObj.facet || vgObj.encoding?.facet;
-    const hasFacetedQuant = effectiveFacet != undefined && yEnc?.type === 'quantitative';
-    let computedIndependentYAxis = false;
-    if (hasFacetedQuant) {
-        const userChoice = chartProperties?.independentYAxis; // true | false | undefined
-
-        if (userChoice === undefined) {
-            // Auto-heuristic: independent when value ranges differ by ≥100×
-            const yField = yEnc.field;
-            const columnField = effectiveFacet.field;
-
-            if (yField && columnField) {
-                const columnGroups = new Map<any, number>();
-                for (const row of data) {
-                    const columnValue = row[columnField];
-                    const yValue = row[yField];
-                    if (yValue != null && !isNaN(yValue)) {
-                        const currentMax = columnGroups.get(columnValue) || 0;
-                        columnGroups.set(columnValue, Math.max(currentMax, Math.abs(yValue)));
-                    }
-                }
-
-                const maxValues = Array.from(columnGroups.values()).filter(v => v > 0);
-                if (maxValues.length >= 2) {
-                    const maxValue = Math.max(...maxValues);
-                    const minValue = Math.min(...maxValues);
-                    const ratio = maxValue / minValue;
-                    const totalFacets = (layoutResult.facet?.columns ?? 1) * (layoutResult.facet?.rows ?? 1);
-                    if (ratio >= 100 && totalFacets < 6) {
-                        computedIndependentYAxis = true;
-                    }
-                }
-            }
-        } else {
-            computedIndependentYAxis = !!userChoice;
-        }
-
-        if (computedIndependentYAxis) {
-            if (!vgObj.resolve) vgObj.resolve = {};
-            if (!vgObj.resolve.scale) vgObj.resolve.scale = {};
-            vgObj.resolve.scale.y = "independent";
-        }
+    if (facets.independentY) {
+        if (!vgObj.resolve) vgObj.resolve = {};
+        if (!vgObj.resolve.scale) vgObj.resolve.scale = {};
+        vgObj.resolve.scale.y = "independent";
     }
 
     if (addTooltipsOpt) {
@@ -542,73 +496,54 @@ function emitVegaLite(input: ChartAssemblyInput, prepared: VegaLitePreparation, 
     // Written before theming, because whether the chart has a headline is a
     // fact the theme reasons about: a house that omits axis titles is leaning
     // on this line to name the measure.
-    const headline = input.chart_spec.title?.trim();
-    const deck = input.chart_spec.subtitle?.trim();
-    if (headline || deck) {
-        vgObj.title = {
-            text: headline ?? '',
-            ...(deck ? { subtitle: [deck] } : {}),
-        };
-    }
+    const authored = authoredTitle(input);
+    if (authored) vgObj.title = authored;
+
+    return { spec: vgObj, warnings, context: instantiateContext, resolvedEncodings };
+}
+
+/**
+ * Writes the Vega-Lite spec for a planned chart. Reads the analysis and the plan; changes neither.
+ * `plotAsPlanned` is false when a stage after the plan (the theme fitting a long title) changed the plot size.
+ */
+function emitVegaLite(input: ChartAssemblyInput, prepared: VegaLitePreparation, analysis: ChartAnalysis, plan: LayoutPlan): { spec: any; plotAsPlanned: boolean } {
+    const { chartType, themeSpec, themePresets, baseSize: canvasSize, chartProperties, geometryReport } = prepared;
+    const { data, encodings, channelSemantics, authoredTemplate, transformed } = analysis;
+    const chartTemplate = analysis.template;
+    const typedRawEncodings = analysis.typedEncodings;
+    const { declaration, facetGrid: facetGridResult, rows: values, layout: layoutResult } = plan;
+    const chartDefaultsReport: ThemeReport[] = [...prepared.chartDefaultsReport, ...plan.report];
+    const {
+        spec: vgObj, warnings, context: instantiateContext, resolvedEncodings,
+    } = buildVegaLite(input, prepared, analysis, plan);
 
     // ═══════════════════════════════════════════════════════════════════════
-    // THEME (level 2 grounding → level 3 realization)
+    // THEME (level 3 realization of the plan's grounded decisions)
     // ═══════════════════════════════════════════════════════════════════════
     //
     // Runs last, deliberately. `vlApplyLayoutToSpec` builds `config` wholesale
     // from fit decisions; the theme is a style layer over a chart that already
-    // fits, so it must see the finished spec.
-    //
-    // Grounding runs whether or not a house was named — with the neutral house
-    // when it was not. Some design questions are Flint's own and want answering
-    // either way: whether this chart can carry its values, and at this density
-    // whether it should. A house enhances that answer (it may prefer values on,
-    // or tolerate a tighter chart); it does not own it. Only *realization* is
-    // gated, so an untheme'd chart gets its numbers without also getting a
-    // house's ink, type and furniture.
-    const plannedPlotSize = plotSizeFields(vgObj);
-    const markTypes = collectMarkTypes(vgObj);
+    // fits, so it must see the finished spec. Only realization is gated on a
+    // named house, so an untheme'd chart gets its numbers without also getting
+    // a house's ink, type and furniture.
+    const plannedPlotSize = plotSizeFields(vgObj, plan.title);
     // Some templates write their own text on the marks. Where they do, the
     // label layer stands down (it will not print a second number beside the
     // template's), so the toggle would be a control that changes nothing.
     // Asked before realization, because realization is what adds the label
     // layer — asked after, every labelled chart would look like this.
-    const templateDrawsOwnText = markTypes.includes('text');
-    const stackedChannel = (vgObj.spec?.encoding ?? vgObj.encoding ?? {});
-    const stacked = stackedChannel.y?.stack ?? stackedChannel.x?.stack;
-    const design = groundTheme(themeSpec ?? {}, {
-        chartType,
-        markChannel: chartTemplate.markCognitiveChannel,
-        markTypes,
-        namesOnMarks: (chartProperties as any)?.showSeriesInLabel === true,
-        channelSemantics,
-        resolvedTypes: declaration.resolvedTypes as Record<string, string> | undefined,
-        axisFlags: declaration.axisFlags,
-        positional: collectPositional(vgObj),
-        layout: layoutResult,
-        table: values,
-        canvasSize,
-        stacked: stacked === 'normalize' ? 'normalize' : Boolean(stacked),
-        partToWhole: markTypes.includes('arc'),
-        titled: Boolean(vgObj.title),
-        headline: headlineText(vgObj.title),
-        hostSurface: (input.options as any)?.background,
-        valueLabels: chartTemplate.suppressValueLabels
-            ? 'off'
-            : resolveValueLabelChoice(chartProperties),
-        geometryKinds: chartTemplate.geometryKinds,
-        liveLayoutSignal: input.options?.liveLayoutSignal,
-    });
+    const templateDrawsOwnText = plan.structure.marks.includes('text');
+    const design = { ...plan.design, legend: { ...plan.design.legend, placement: plan.legend.placement, orient: plan.legend.orient, direction: plan.legend.direction } };
 
     let themeDecisions: any;
     if (themeSpec) {
-        const realizeReport = realizeThemeVegaLite(vgObj, design, values);
+        const realizeReport = realizeThemeVegaLite(vgObj, design, values, plan);
         themeDecisions = {
             ...design,
             report: [...themePresets.report, ...chartDefaultsReport, ...geometryReport, ...design.report, ...realizeReport],
         };
     } else {
-        realizeValueLabelsVegaLite(vgObj, design, values);
+        realizeValueLabelsVegaLite(vgObj, design, values, plan.title, plan.valueLabels);
     }
     const liveLabels = design.dataLabels.liveSignal;
     if (liveLabels) {
@@ -626,7 +561,7 @@ function emitVegaLite(input: ChartAssemblyInput, prepared: VegaLitePreparation, 
 
     chartTemplate.postProcess?.(vgObj, instantiateContext);
     vlFinalizeTemporalAxes(vgObj, instantiateContext);
-    vlWrapLegendText(vgObj, instantiateContext);
+    vlWriteKeyLayout(vgObj, plan.legend, plan.plot, plan.layout, VEGA_LITE_LAYOUT.measureText!);
     const plotAsPlanned = plotSizeFields(vgObj) === plannedPlotSize;
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -639,10 +574,11 @@ function emitVegaLite(input: ChartAssemblyInput, prepared: VegaLitePreparation, 
     delete result._geoLevels;
     delete result._geoPreProjection;
     if (themeDecisions) {
+        const { report, ...decisions } = themeDecisions;
         result._theme = {
             id: themeDecisions.themeId,
-            report: themeDecisions.report,
-            decisions: themeDecisions,
+            report,
+            ...(plan.options.themeDecisions ? { decisions } : {}),
         };
     }
     if (warnings.length > 0) {
@@ -784,7 +720,7 @@ function emitVegaLite(input: ChartAssemblyInput, prepared: VegaLitePreparation, 
         ? undefined
         : valueLabelChoice === 'on';
     const layoutCoupledRecommendation: Record<string, any> = {
-        independentYAxis: computedIndependentYAxis,
+        independentYAxis: plan.furniture.facets.independentY,
         // Seed the labels toggle from what the house and the density actually
         // decided, so an untouched control shows the theme's own habit and
         // re-seeds when the reader switches theme. Where the template owns its
@@ -877,63 +813,110 @@ export interface VegaLiteSession {
     readonly spec: any;
     /** The plot the chart draws; undefined when it draws several views. */
     readonly plot: { width: number; height: number } | undefined;
+    /** The tick labels each axis draws, as planned. */
+    readonly axisLabels: LayoutPlan['axisLabels'];
+    /** The theme's value-label decisions the chart drew with. */
+    readonly dataLabels: LayoutPlan['design']['dataLabels'];
     /**
      * The chart planned for other rows from the same analysis, and the plot it draws (undefined as
      * for `plot`). `pinPlot` holds the plot at its compiled size, as a window into the data does;
      * without it the plot follows the rows.
      */
-    replan(change: ReplanRows & { pinPlot?: boolean }): { spec: any; plot: { width: number; height: number } | undefined };
+    replan(change: ReplanRows & { pinPlot?: boolean }): {
+        spec: any;
+        plot: { width: number; height: number } | undefined;
+        axisLabels: LayoutPlan['axisLabels'];
+        dataLabels: LayoutPlan['design']['dataLabels'];
+    };
 }
 
-export function openVegaLiteSession(input: ChartAssemblyInput): VegaLiteSession {
+/**
+ * A chart's title and plot size as the plan fits the title, and as realization fits it on its own
+ * from the built spec. Kept equal by a test.
+ */
+export function vegaLiteTitleFits(input: ChartAssemblyInput): { planned: unknown; own: unknown } {
     const prepared = prepareVegaLite(input);
     const analysis = analyzeChart(input, prepared.template, prepared.chartProperties, vlGetTemplateDef);
-    const context = vegaLitePlanContext(input, prepared, analysis);
+    const plan = planLayout(analysis, vegaLitePlanContext(input, prepared, analysis));
+    const fitted = (spec: any) => ({ title: spec.title, plot: plotSizeFields(spec) });
+    return {
+        planned: fitted(emitVegaLite(input, prepared, analysis, plan).spec),
+        own: fitted(emitVegaLite(input, prepared, analysis, { ...plan, title: undefined }).spec),
+    };
+}
+
+/** A chart's analysis, plan and compiled spec, for checks that compare the plan with what the backend draws. */
+export function vegaLiteStages(input: ChartAssemblyInput): { analysis: ChartAnalysis; plan: LayoutPlan; spec: any } {
+    const prepared = prepareVegaLite(input);
+    const analysis = analyzeChart(input, prepared.template, prepared.chartProperties, vlGetTemplateDef);
+    const plan = planLayout(analysis, vegaLitePlanContext(input, prepared, analysis));
+    return { analysis, plan, spec: emitVegaLite(input, prepared, analysis, plan).spec };
+}
+
+/** The structure the plan reads for a chart and the structure its template builds. Kept equal by a test. */
+export function vegaLiteStructures(input: ChartAssemblyInput): { planned: ChartStructure; built: BuiltFacts } {
+    const prepared = prepareVegaLite(input);
+    const analysis = analyzeChart(input, prepared.template, prepared.chartProperties, vlGetTemplateDef);
+    const plan = planLayout(analysis, vegaLitePlanContext(input, prepared, analysis));
+    const built = vegaLiteBuiltFacts(instantiateVegaLite(input, prepared, analysis, plan).spec, plan.rows);
+    return { planned: plan.structure, built };
+}
+
+/** The decisions the plan made for a chart that its emitted spec does not draw as made. */
+export function vegaLiteHonour(input: ChartAssemblyInput): PlanDeparture[] {
+    const prepared = prepareVegaLite(input);
+    const analysis = analyzeChart(input, prepared.template, prepared.chartProperties, vlGetTemplateDef);
+    const plan = planLayout(analysis, vegaLitePlanContext(input, prepared, analysis));
+    const { spec, plotAsPlanned } = emitVegaLite(input, prepared, analysis, plan);
+    const fields = Object.fromEntries(Object.entries(analysis.channelSemantics)
+        .filter(([, cs]) => cs?.field).map(([channel, cs]) => [channel, escapeVlFieldName(cs.field)]));
+    return vegaLiteDepartures(plan, spec, plotAsPlanned, fields);
+}
+
+export function openVegaLiteSession(
+    input: ChartAssemblyInput,
+    options: { pins?: Pick<NonNullable<PlanContext['pins']>, 'axisLabels' | 'reserve'> } = {},
+): VegaLiteSession {
+    const prepared = prepareVegaLite(input);
+    const analysis = analyzeChart(input, prepared.template, prepared.chartProperties, vlGetTemplateDef);
+    const planned = vegaLitePlanContext(input, prepared, analysis);
+    const context: PlanContext = options.pins
+        ? { ...planned, pins: { ...planned.pins, ...options.pins } }
+        : planned;
     const drawnPlot = (planned: LayoutPlan, plotAsPlanned: boolean) =>
-        planned.composite || !plotAsPlanned ? undefined : planned.plot;
+        planned.composite || !plotAsPlanned ? undefined
+            : { width: planned.plot.width, height: heightAfterTitle(planned.plot.height, planned.title) };
     const plan = planLayout(analysis, context);
     const emitted = emitVegaLite(input, prepared, analysis, plan);
     return {
         spec: emitted.spec,
         plot: drawnPlot(plan, emitted.plotAsPlanned),
+        axisLabels: plan.axisLabels,
+        dataLabels: plan.design.dataLabels,
         replan: (change) => {
             const next = planLayout(analysis, {
                 ...context,
                 rows: 'keep' in change ? analysis.convertedData.filter(change.keep) : analysis.shapeRows(change.rows),
-                ...(change.pinPlot ? { pins: { plot: plan.plot } } : {}),
+                pins: {
+                    ...context.pins,
+                    ...(change.pinPlot ? { plot: plan.plot } : {}),
+                    ...(plan.title ? { title: plan.title } : {}),
+                    ...(plan.reserve ? { reserve: plan.reserve } : {}),
+                },
             });
             const replanned = emitVegaLite(input, prepared, analysis, next);
-            return { spec: replanned.spec, plot: drawnPlot(next, replanned.plotAsPlanned) };
+            return { spec: replanned.spec, plot: drawnPlot(next, replanned.plotAsPlanned), axisLabels: next.axisLabels, dataLabels: next.design.dataLabels };
         },
     };
 }
 
-/**
- * What the caller asked for on value labels, in one word.
- *
- * `showValueLabels` is the control; `showTextLabels` is the older boolean some
- * templates and hosts still pass, and it keeps working — `true` means print,
- * `false` means the caller never touched it (it was the key's default), so it
- * reads as `auto` rather than as a demand for silence. Only the tri-state can
- * say "off".
- */
+
 /**
  * Does this template print its own value labels, rather than leaving them to
  * the theme's data-label layer?
  */
 function templateOwnsValueLabels(template: ChartTemplateDef): boolean {
     return template.ownsValueLabels === true;
-}
-
-function resolveValueLabelChoice(
-    chartProperties: Record<string, any> | undefined,
-): 'on' | 'off' | undefined {
-    const choice = chartProperties?.showValueLabels;
-    if (typeof choice === 'boolean') return choice ? 'on' : 'off';
-    // `showTextLabels` is the older, template-owned spelling of the same wish.
-    // Only `true` is meaningful: it was the opt-in for charts that print their
-    // own numbers, so `false` means "never asked", not "asked for silence".
-    return chartProperties?.showTextLabels === true ? 'on' : undefined;
 }
 
 /**
@@ -995,6 +978,7 @@ export function getChartTransform(input: ChartAssemblyInput): TransformSurface |
  * concrete Vega-Lite encoding objects. This is the only place outside
  * template.instantiate() that constructs VL-specific syntax.
  */
+
 function buildVLEncodings(
     encodings: Record<string, ChartEncoding>,
     channelSemantics: Record<string, import('../core/types').ChannelSemantics>,
@@ -1006,9 +990,10 @@ function buildVLEncodings(
     chartTemplate: ChartTemplateDef,
     fieldDisplayNames?: Record<string, string>,
     chartProperties?: Record<string, any>,
+    orders: Partial<Record<string, CategoryOrder>> = {},
+    sizes?: LayoutPlan['sizes'],
 ): Record<string, any> {
     const resolvedEncodings: Record<string, any> = {};
-    const dataFields = new Set(data.flatMap(row => Object.keys(row)));
 
     // Only process channels the template declares (plus facets which are always valid)
     const templateChannels = new Set([
@@ -1031,18 +1016,12 @@ function buildVLEncodings(
         // Handle count aggregate without a field
         if (!fieldName && encoding.aggregate === "count") {
             encodingObj.field = "_count";
-            encodingObj.title = "Count";
             encodingObj.type = "quantitative";
         }
 
         if (fieldName) {
             const escapedFieldName = escapeVlFieldName(fieldName);
             encodingObj.field = escapedFieldName;
-            // Preserve a readable axis/legend title when the raw name had to be
-            // escaped (VL would otherwise display the backslash-escaped string).
-            if (escapedFieldName !== fieldName) {
-                encodingObj.title = fieldName;
-            }
 
             // Use Phase 0's resolved type
             encodingObj.type = cs?.type || 'nominal';
@@ -1063,7 +1042,6 @@ function buildVLEncodings(
             if (encoding.aggregate) {
                 if (encoding.aggregate === "count") {
                     encodingObj.field = "_count";
-                    encodingObj.title = "Count";
                     encodingObj.type = "quantitative";
                 } else {
                     encodingObj.field = escapeVlFieldName(`${fieldName}_${encoding.aggregate}`);
@@ -1073,8 +1051,7 @@ function buildVLEncodings(
 
             // Scale: quantitative X axes need tight domains for line-like marks
             if (encodingObj.type === "quantitative" && channel === "x") {
-                if (templateMarkType === 'line' || templateMarkType === 'area' ||
-                    templateMarkType === 'trail' || templateMarkType === 'point') {
+                if (TIGHT_X_MARKS.has(templateMarkType ?? '')) {
                     encodingObj.scale = { nice: false };
                 }
             }
@@ -1082,103 +1059,13 @@ function buildVLEncodings(
         }
 
         // Size channel: set scale based on resolved encoding type
-        if (channel === "size") {
-            const vlDefaultMax = 361;
-            const plotArea = canvasSize.width * canvasSize.height;
-            const n = Math.max(data.length, 1);
-            const fairShare = plotArea / n;
-            const targetPct = 0.6;
-            const absoluteMin = 16;
-
-            const isQuantitative = encodingObj.type === 'quantitative' || encodingObj.type === 'temporal';
-            if (isQuantitative) {
-                const maxSize = Math.round(Math.max(absoluteMin, Math.min(vlDefaultMax, fairShare * targetPct)));
-                const minSize = 9;
-                encodingObj.scale = { type: "sqrt", zero: true, range: [minSize, maxSize] };
-            } else {
-                const maxSize = Math.round(Math.max(absoluteMin, Math.min(vlDefaultMax, fairShare * targetPct)));
-                const minSize = Math.round(maxSize / 4);
-                encodingObj.scale = { range: [minSize, maxSize] };
-            }
+        if (channel === "size" && sizes) {
+            encodingObj.scale = sizes.quantitative ? { type: "sqrt", zero: true, range: sizes.range } : { range: sizes.range };
         }
 
         // --- Sorting ---
-        // Helper: when the field's actual data values are numeric but the
-        // encoding is nominal, domain/sort arrays must keep numeric types
-        // so Vega-Lite can match them against the data.
-        const fieldIsNumeric = fieldName
-            ? data.some(r => typeof r[fieldName] === 'number')
-            : false;
-        const preserveDomainTypes = (arr: any[]): any[] => {
-            if (!fieldIsNumeric) return arr;
-            return arr.map(v => {
-                if (typeof v === 'string') {
-                    const n = Number(v);
-                    if (!isNaN(n) && String(n) === v.trim()) return n;
-                }
-                return v;
-            });
-        };
-
-        const explicitSort = inspectEncodingSort(encoding, channel, encodings, dataFields).sort;
-        if (encoding.sortBy !== undefined || encoding.sortOrder !== undefined) {
-            if (encoding.sortBy === undefined) {
-                if (encoding.sortOrder) {
-                    const canonical = cs?.ordinalSortOrder;
-                    encodingObj.sort = canonical?.length
-                        ? preserveDomainTypes(encoding.sortOrder === 'descending' ? [...canonical].reverse() : canonical)
-                        : encoding.sortOrder;
-                }
-            } else if (encoding.sortBy === 'x' || encoding.sortBy === 'y') {
-                if (encoding.sortBy === channel) {
-                    encodingObj.sort = `${encoding.sortOrder === "descending" ? "-" : ""}${encoding.sortBy}`;
-                } else {
-                    encodingObj.sort = `${encoding.sortOrder === "ascending" ? "" : "-"}${encoding.sortBy}`;
-                }
-            } else if (encoding.sortBy === 'color') {
-                if (encodings.color?.field) {
-                    encodingObj.sort = `${encoding.sortOrder === "ascending" ? "" : "-"}${encoding.sortBy}`;
-                }
-            } else if (explicitSort?.kind === 'field') {
-                encodingObj.sort = explicitSort.field === fieldName ? encoding.sortOrder ?? 'ascending'
-                    : { field: escapeVlFieldName(explicitSort.field), op: 'min', order: encoding.sortOrder ?? 'ascending' };
-            } else if (explicitSort?.kind === 'values') {
-                let sortedValues: any[] = explicitSort.values;
-                // Temporal fields sort chronologically by default in VL; an explicit
-                // value array is redundant, pollutes the spec with potentially hundreds
-                // of date strings, and can break continuous temporal scales.
-                if (encodingObj.type !== 'temporal' && fieldName) {
-                    const fieldSemType = toTypeString(semanticTypes[fieldName]);
-                    const fieldVisCat = inferVisCategory(data.map(r => r[fieldName]));
-                    if (fieldVisCat === 'temporal' || fieldSemType === "Year" || fieldSemType === "Decade") {
-                        sortedValues = sortedValues.map(value => value.toString());
-                    }
-                    sortedValues = preserveDomainTypes(sortedValues);
-                    encodingObj.sort = encoding.sortOrder === 'descending' ? [...sortedValues].reverse() : sortedValues;
-                }
-            }
-        } else {
-            // Auto-sort: apply canonical ordinal sort (months, days, quarters, etc.)
-            // when available. Otherwise, set `sort: null` so VL preserves the data
-            // encounter order rather than its default alphabetical sort.
-            // Alphabetical sort breaks labels like "Stage 1", "Stage 10", "Stage 2"
-            // which should follow their natural data order.
-            const isDiscreteType = encodingObj.type === 'nominal' || encodingObj.type === 'ordinal';
-            if (isDiscreteType) {
-                if (cs?.ordinalSortOrder && cs.ordinalSortOrder.length > 0) {
-                    encodingObj.sort = preserveDomainTypes(cs.ordinalSortOrder);
-                } else if (fieldIsNumeric && fieldName) {
-                        // Numeric data treated as nominal/ordinal: sort by numeric
-                        // value so labels appear as 0,1,2,3… instead of data-encounter
-                        // order.  Use "ascending" instead of an explicit value array
-                        // to keep the spec compact (avoids enumerating every unique
-                        // value, which can be hundreds for fields like Rank).
-                        encodingObj.sort = "ascending";
-                } else {
-                    encodingObj.sort = null;
-                }
-            }
-        }
+        const order = orders[channel];
+        if (order) encodingObj.sort = vegaLiteSort(order);
 
         // Color scheme from Phase 0 decisions
         if (channel === "color" || channel === "group") {
@@ -1199,21 +1086,8 @@ function buildVLEncodings(
             }
         }
 
-        // Apply localized display name as axis/legend title
-        if (fieldDisplayNames && fieldName && fieldDisplayNames[fieldName] && !encodingObj.title) {
-            encodingObj.title = fieldDisplayNames[fieldName];
-        }
-
-        // A lexical unit explicitly declared by the author belongs once with
-        // the field name, independent of whether a visual theme is applied.
-        const displayUnit = resolveDisplayUnit(cs?.semanticAnnotation);
-        if ((channel === 'x' || channel === 'y') && cs?.type === 'quantitative'
-            && displayUnit?.placement === 'field' && encodingObj.title !== null) {
-            const currentTitle = typeof encodingObj.title === 'string'
-                ? encodingObj.title
-                : fieldName;
-            if (currentTitle) encodingObj.title = titleWithDisplayUnit(currentTitle, displayUnit);
-        }
+        const { title } = encodingTitle(channel, encoding, cs, fieldDisplayNames, escapeVlFieldName);
+        if (title !== undefined) encodingObj.title = title;
 
         // --- Collect resolved encoding ---
         if (Object.keys(encodingObj).length !== 0) {
@@ -1235,11 +1109,11 @@ function buildVLEncodings(
     // Translate group channel → VL color + xOffset/yOffset encodings
     const groupCS = channelSemantics.group;
     if (groupCS?.field && resolvedEncodings.group) {
-        // Determine which axis the group subdivides (the discrete one)
-        const xType = resolvedEncodings.x?.type;
-        const yType = resolvedEncodings.y?.type;
-        const isDiscreteT = (t: string | undefined) => t === 'nominal' || t === 'ordinal';
-        const groupAxis = isDiscreteT(xType) ? 'x' : isDiscreteT(yType) ? 'y' : 'x';
+        const { axis: groupAxis, dodges } = groupDodge(
+            { x: resolvedEncodings.x?.type, y: resolvedEncodings.y?.type },
+            { x: channelSemantics.x?.field, y: channelSemantics.y?.field },
+            groupCS.field, data, chartProperties?.dodge,
+        );
         const offsetChannel = groupAxis === 'x' ? 'xOffset' : 'yOffset';
 
         // Map group → color encoding
@@ -1248,22 +1122,9 @@ function buildVLEncodings(
         }
         delete resolvedEncodings.group;
 
-        // Suppress the dodge offset when the group is redundant/nested with the
-        // axis (group == x, or a 1:1 pair), OR when the user forces `dodge: none`.
-        // Otherwise VL subdivides each band by the global group domain. `local`
-        // and `global` both keep the (global) offset for now — the compact
-        // `local` renderer is a follow-up; the layout budget stays consistent.
-        const groupAxisField = channelSemantics[groupAxis]?.field;
-        const groupPlan = groupAxisField
-            ? planBandDodge(data, groupAxisField, groupCS.field)
-            : undefined;
-        const groupMode = groupPlan ? resolveDodge(groupPlan, chartProperties?.dodge).mode : 'global';
-        const groupIsNested = !!groupAxisField
-            && (groupAxisField === groupCS.field || groupMode === 'none');
-
         // Create offset encoding for position subdivision.
         // Coordinate sort with color so bar order matches legend order.
-        if (!groupIsNested && !resolvedEncodings[offsetChannel]) {
+        if (dodges && !resolvedEncodings[offsetChannel]) {
             const offsetEnc: any = { field: groupCS.field, type: 'nominal' };
             if (resolvedEncodings.color?.sort !== undefined) {
                 offsetEnc.sort = resolvedEncodings.color.sort;

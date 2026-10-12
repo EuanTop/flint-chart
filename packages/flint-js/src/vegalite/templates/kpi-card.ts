@@ -79,6 +79,17 @@ export const kpiCardDef: ChartTemplateDef = {
             'right', 'left', 'top', 'bottom', 'center',
         )),
     }),
+    structure: (ctx) => {
+        // Tiles of text, each on a card frame unless the style turns it off, with a progress bar
+        // where a value and a nonzero goal are both numbers.
+        const valueField = ctx.channelSemantics.value?.field;
+        const goalField = ctx.channelSemantics.goal?.field;
+        const numeric = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+        const progress = Boolean(valueField && goalField) && ctx.fullTable.some((row) =>
+            numeric(row?.[valueField!]) && numeric(row?.[goalField!]) && row[goalField!] !== 0);
+        const framed = ctx.chartProperties?.style !== false;
+        return { marks: [...(framed || progress ? ['rect'] : []), 'text'], stacking: 'none' };
+    },
     instantiate: (spec, ctx) => {
         const { metric, value, goal } = ctx.resolvedEncodings;
         const config = ctx.chartProperties || {};

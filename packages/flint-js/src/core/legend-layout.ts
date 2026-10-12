@@ -1,0 +1,424 @@
+/** Measures text in px for a font: size, family, weight and style. */
+export type TextMeasurer = (fontSize: number, font: string, weight: string | number, style: string) => (text: string) => number;
+
+/** How a key is set, as the theme and the backend's defaults resolve it. */
+export interface KeyStyle {
+    labelFont: string;
+    labelFontSize: number;
+    labelFontWeight: string | number;
+    labelFontStyle: string;
+    titleFont: string;
+    titleFontSize: number;
+    titleFontWeight: string | number;
+    titleFontStyle: string;
+    symbolSize?: number;
+    padding: number;
+    rowPadding?: number;
+    columnPadding?: number;
+    labelOffset?: number;
+    titlePadding?: number;
+    gradientLength?: number;
+    gradientThickness?: number;
+    /** Stated by the template or author; a stated limit or format is left as written. */
+    columns?: number;
+    labelLimit?: number;
+    titleLimit?: number;
+    labelsStated?: boolean;
+}
+
+/** A key to lay out. */
+export interface KeyToLayout {
+    /** A colour ramp rather than a list of swatches. */
+    gradient: boolean;
+    /** The labels a key naming categories lists; wrapping only applies to these. */
+    labels?: string[];
+    /** What a key to values prints, for its width. */
+    valueLabels?: string[];
+    /** How many entries the key draws. */
+    count: number;
+    /** The title; null leaves the key untitled. */
+    title: string | null;
+    style: KeyStyle;
+    /** The largest symbol a size key draws, in px². */
+    largestSymbol?: number;
+    /** The edge the key prefers. */
+    orient: string;
+    /** The other edges the key may take, best first, as the theme ranks them; unset leaves every edge open. */
+    edges?: string[];
+    /** Whether the edge is the author's, or not a side of the plot, so it stays. */
+    fixed: boolean;
+    /** Whether the author set where the title sits. */
+    fixedTitle: boolean;
+    /** The direction and title seat the theme sets at the preferred edge. */
+    direction?: string;
+    titleOrient?: string;
+    /** A direction and title seat stated on the key itself, which hold wherever it moves. */
+    ownDirection?: string;
+    ownTitleOrient?: string;
+}
+
+/** Where a key sits and how its text is set. */
+export interface KeyLayout {
+    orient: string;
+    /** Whether the key moved off its preferred edge. */
+    moved: boolean;
+    /** Whether the title sits inline, left of the entries. */
+    inlineTitle: boolean;
+    direction?: string;
+    titleOrient?: string;
+    columns?: number;
+    labelFontSize: number;
+    /** The width labels are cut to; 0 leaves them whole. */
+    labelLimit: number;
+    rowPadding: number;
+    /** Labels broken over lines, where any breaks. */
+    labelLines?: string[][];
+    /** The title broken over lines, where it breaks. */
+    titleLines?: string[];
+    titleLineHeight?: number;
+    /** The swatch area wrapped rows are aligned to, in px². */
+    symbolSize?: number;
+    /** Whether the key's labels were fitted; labels the author limits or formats are left as written. */
+    labelsFitted: boolean;
+    /** Whether the title was fitted; a title the author limits is left as written. */
+    titleFitted: boolean;
+    width: number;
+    height: number;
+}
+
+/** How a theme asks its keys to stand; each holds unless the keys would overflow their edge. */
+export interface KeyPreferences {
+    /** Several keys above or below the plot: side by side, or one above another. */
+    arrangement?: 'row' | 'stack';
+    /** A key's title above its entries, or before them on their line, above or below the plot. */
+    titlePosition?: 'above' | 'inline';
+    /** Where keys stand along their edge: from its start, centred, at its end, or spread across it. */
+    align?: 'start' | 'center' | 'end' | 'spread';
+}
+
+export interface LegendLayoutPlan {
+    keys: Array<KeyLayout | undefined>;
+    /**
+     * How keys stand at each edge that holds several, or that a theme aligns: stacked or side by
+     * side, anchored at the edge's start, middle or end, this many px apart.
+     */
+    edges: Array<{ orient: string; direction: string; anchor: 'start' | 'middle' | 'end'; gap: number }>;
+    /** The room the keys take at each edge they hold, in px. */
+    footprint: Array<{ orient: string; width: number; height: number }>;
+    overflow: Array<{ orient: string; width: number; height: number; widthBudget: number; heightBudget: number }>;
+    plot: { width: number; height: number };
+    /** Where a theme's preference gave way, and why. */
+    notes: Array<{ path: string; code: string; message: string }>;
+}
+
+/**
+ * What moving a key to an edge its theme did not rank costs: more than an extra row of keys at a
+ * ranked edge, so the theme's edges hold until their budget overflows.
+ */
+const UNRANKED_EDGE = 0.75;
+/** What setting a title against the theme's stated position costs, or against an unstated preference for one stacked title above the plot. */
+const OFF_SEAT = 0.3;
+const QUIET_INLINE_TOP = 0.1;
+/** What a row of keys costs where some titles stand above it and others do not, so the entries do not share a line. */
+const MIXED_SEATS = 0.2;
+/** What standing keys against the theme's stated arrangement costs. */
+const OFF_ARRANGEMENT = 0.6;
+
+interface Box { width: number; height: number; fontSize: number; cost: number; entryRows: number; entryLines: number; layout: KeyLayout }
+
+const wrapLines = (text: string, width: number, maxLines: number, widthOf: (text: string) => number): string[] => {
+    if (text.includes('\n')) return text.split('\n');
+    const words = text.split(/\s+/);
+    const lines: string[] = [];
+    let line = '';
+    for (const word of words) {
+        const next = line ? `${line} ${word}` : word;
+        if (line && widthOf(next) > width && lines.length < maxLines - 1) {
+            lines.push(line);
+            line = word;
+        } else {
+            line = next;
+        }
+    }
+    return [...lines, line];
+};
+
+/**
+ * The width of a key's symbol entries as Vega sets them in a grid: each column as wide as its
+ * widest entry (symbol, offset and label), columns 10 px apart unless stated. A key whose labels
+ * are not known, or are rewritten by the author, takes the given label width for each entry.
+ */
+function symbolGridWidth(
+    key: KeyToLayout, columns: number, symbol: number, labelWidthFallback: number, labelWidth: (text: string) => number,
+): number {
+    const s = key.style;
+    const texts = s.labelsStated ? undefined : key.labels ?? key.valueLabels;
+    if (!texts?.length) return columns * (labelWidthFallback + symbol + 4);
+    const widths = new Array(Math.min(columns, texts.length)).fill(0);
+    texts.forEach((text, index) => {
+        const column = index % widths.length;
+        widths[column] = Math.max(widths[column], Math.min(s.labelLimit || Infinity, labelWidth(text)));
+    });
+    const gap = s.columnPadding ?? 10;
+    return widths.reduce((sum, width) => sum + symbol + (s.labelOffset ?? 4) + width, 0) + gap * (widths.length - 1);
+}
+
+/**
+ * One key at one edge, its title wrapped to three lines over the block (or a third of it when set
+ * inline, or 18 em at a side), and its category labels set in the column count, width and line
+ * breaks (at most three lines) that best balance overflow, width, wrapping, imbalance and cut text.
+ */
+function fitKey(
+    key: KeyToLayout, at: { orient: string; direction?: string; titleOrient?: string },
+    block: number, plotHeight: number, measure: TextMeasurer, budget?: { width?: number; height?: number },
+): Box {
+    const s = key.style;
+    const fontSize = s.labelFontSize;
+    const titleFontSize = s.titleFontSize;
+    const labelWidth = measure(fontSize, s.labelFont, s.labelFontWeight, s.labelFontStyle);
+    const measureTitle = measure(titleFontSize, s.titleFont, s.titleFontWeight, s.titleFontStyle);
+    const sideWidth = fontSize * 18;
+    const horizontal = ['top', 'bottom'].includes(at.orient) && at.direction !== 'vertical';
+    const inlineTitle = horizontal && ['left', 'right'].includes(at.titleOrient ?? '');
+    const titleWidth = horizontal ? (inlineTitle ? block / 3 : block) : sideWidth;
+    const layout: KeyLayout = {
+        orient: at.orient, moved: false, inlineTitle: false, labelsFitted: false, titleFitted: false,
+        ...(at.direction !== undefined ? { direction: at.direction } : {}),
+        ...(at.titleOrient !== undefined ? { titleOrient: at.titleOrient } : {}),
+        labelFontSize: fontSize, labelLimit: s.labelLimit ?? 0, rowPadding: s.rowPadding ?? 2, width: 0, height: 0,
+        ...(s.symbolSize !== undefined ? { symbolSize: s.symbolSize } : {}),
+    };
+    let titleLines: string[] | undefined;
+    if (typeof key.title === 'string' && s.titleLimit === undefined) {
+        layout.titleFitted = true;
+        const lines = wrapLines(key.title, titleWidth, 3, measureTitle);
+        if (lines.length > 1) {
+            titleLines = lines;
+            layout.titleLines = lines;
+            layout.titleLineHeight = Math.ceil(titleFontSize * 1.2);
+        }
+    }
+    const titleTexts = titleLines ?? (key.title ? [key.title] : []);
+    let titleExtent = 0;
+    if (inlineTitle && key.title) {
+        titleExtent = Math.min(s.titleLimit || Infinity, Math.max(...titleTexts.map(measureTitle))) + (s.titlePadding ?? 10);
+    }
+    const titleCount = titleTexts.length;
+    const titleHeight = inlineTitle ? 0 : titleCount * Math.ceil(titleFontSize * 1.2) + (titleCount ? s.titlePadding ?? 10 : 0);
+    const count = key.count;
+    const nativeRows = Math.ceil(count / (s.columns || (horizontal ? count : 1)));
+    const nativeSymbol = Math.sqrt(s.symbolSize ?? key.largestSymbol ?? 100) + 2;
+    const nativeLabelWidth = s.labelLimit ?? Math.min(sideWidth, Math.max(fontSize * 4, ...(key.labels ?? key.valueLabels ?? []).map(labelWidth)));
+    const gradientLength = s.gradientLength ?? 200;
+    const nativeColumns = s.columns || (horizontal ? count : 1);
+    let box: Box = {
+        width: titleExtent + (key.gradient ? horizontal ? gradientLength : (s.gradientThickness ?? 16) + nativeLabelWidth + 6
+            : symbolGridWidth(key, nativeColumns, nativeSymbol, nativeLabelWidth, labelWidth)) + 2 * s.padding,
+        height: titleHeight + (key.gradient ? horizontal ? (s.gradientThickness ?? 16) + fontSize * 1.5 : gradientLength
+            : nativeRows * (Math.max(fontSize * 1.2, nativeSymbol) + (s.rowPadding ?? 2))) + 2 * s.padding,
+        fontSize, cost: 0, entryRows: key.gradient ? 1 : nativeRows, entryLines: 1, layout,
+    };
+    const labels = key.labels ?? [];
+    if (!key.gradient && labels.length && !s.labelsStated && s.labelLimit === undefined) {
+        layout.labelsFitted = true;
+        const gap = s.columnPadding ?? 10;
+        const symbol = Math.sqrt(s.symbolSize ?? 100) + (s.labelOffset ?? 4);
+        const available = Math.max(1, (budget?.width ?? (horizontal ? block : sideWidth + symbol)) - titleExtent - 2 * s.padding);
+        const heightBudget = budget?.height ?? (horizontal ? Math.max(48, plotHeight * 0.4) : plotHeight);
+        const rowGap = s.rowPadding ?? 6;
+        let bestCost = Infinity;
+        let columns = 1;
+        let selectedLines: string[][] | undefined;
+        let selectedLimit = 0;
+        const columnCounts = typeof s.columns === 'number'
+            ? [s.columns > 0 ? Math.min(s.columns, labels.length) : labels.length]
+            : Array.from({ length: labels.length }, (_, index) => index + 1);
+        const naturalWidth = Math.max(...labels.map(labelWidth));
+        const lineHeight = Math.ceil(fontSize * 1.2);
+        const headingWidth = inlineTitle || !key.title ? 0 : Math.min(s.titleLimit || Infinity, Math.max(...titleTexts.map(measureTitle)));
+        for (const columnCount of columnCounts) {
+            const limit = columnCount === labels.length ? available - symbol : (available - gap * (columnCount - 1)) / columnCount - symbol;
+            if (limit < fontSize * 4 && columnCount > 1) continue;
+            const startWidth = Math.max(Math.min(naturalWidth, fontSize * 4), Math.min(naturalWidth, limit));
+            const minWidth = Math.min(startWidth, fontSize * 4);
+            const steps = startWidth > minWidth ? 24 : 0;
+            for (let step = 0; step <= steps; step++) {
+                const textWidth = startWidth - (startWidth - minWidth) * step / Math.max(1, steps);
+                let lines: string[][] = [];
+                let height = 0;
+                for (let maxLines = 3; maxLines >= 1; maxLines--) {
+                    lines = labels.map((label) => wrapLines(label, textWidth, maxLines, labelWidth));
+                    const rowLines = Math.max(...lines.map((entry) => entry.length));
+                    const heights = lines.map((entry) => Math.max(Math.sqrt(s.symbolSize ?? 100) + 2, lineHeight * entry.length));
+                    const rowCount = Math.ceil(labels.length / columnCount);
+                    height = titleHeight + Math.max(0, rowCount - 1) * rowGap + 2 * s.padding;
+                    for (let row = 0; row < rowCount; row++) {
+                        height += horizontal && rowLines > 1
+                            ? Math.max(fontSize + (rowLines - 1) * lineHeight, Math.sqrt(s.symbolSize ?? 100)) + 4
+                            : Math.max(...heights.slice(row * columnCount, (row + 1) * columnCount));
+                    }
+                    if (height <= heightBudget) break;
+                }
+                const widths = lines.map((entry) => Math.max(...entry.map((line) => Math.min(textWidth, labelWidth(line)))));
+                const columnWidths = Array.from({ length: columnCount }, (_, column) => Math.max(...widths.filter((_, index) => index % columnCount === column)));
+                const extent = columnWidths.reduce((sum, column) => sum + column + symbol, 0) + gap * (columnCount - 1);
+                const width = Math.max(extent + titleExtent, headingWidth) + 2 * s.padding;
+                const loss = lines.reduce((total, entry, index) => total + entry.reduce((lost, line) =>
+                    lost + (labelWidth(line) > textWidth ? labelWidth(line) - Math.max(0, textWidth - labelWidth('…')) : 0), 0)
+                    / Math.max(1, labelWidth(labels[index])), 0) / labels.length;
+                const wrappingCost = lines.reduce((sum, entry) => sum + (entry.length > 1 ? 0.6 : 0) + Math.max(0, entry.length - 2) * 1.4, 0) / labels.length;
+                const widest = Math.max(...widths, 1);
+                const imbalance = (widest - widths.reduce((sum, value) => sum + value, 0) / widths.length) / widest;
+                const overflow = Math.max(0, height / heightBudget - 1) * 10 + Math.max(0, extent / available - 1) * (horizontal ? 10 : 2);
+                const widthCost = (horizontal ? 0.12 : 1) * width / (available + titleExtent + 2 * s.padding);
+                const cost = overflow + widthCost + wrappingCost + 0.25 * imbalance + 4 * loss + (loss ? 0.25 : 0)
+                    + (horizontal ? 0.6 * height / heightBudget : 0) + 0.005 * columnCount;
+                if (cost < bestCost) {
+                    bestCost = cost;
+                    columns = columnCount;
+                    selectedLines = lines;
+                    selectedLimit = loss ? textWidth : 0;
+                    box = { width, height, fontSize, cost: cost - overflow - widthCost,
+                        entryRows: Math.ceil(labels.length / columnCount), entryLines: Math.max(...lines.map((entry) => entry.length)), layout };
+                }
+            }
+        }
+        if (s.columns === undefined && (!horizontal || columns < labels.length)) layout.columns = columns;
+        layout.labelLimit = selectedLimit;
+        layout.rowPadding = rowGap;
+        if (selectedLines?.some((lines) => lines.length > 1)) layout.labelLines = selectedLines;
+    }
+    if (key.title) {
+        const measuredTitleWidth = Math.min(s.titleLimit || Infinity, Math.max(...titleTexts.map(measureTitle)));
+        if (!inlineTitle) box.width = Math.max(box.width, measuredTitleWidth + 2 * s.padding);
+        else box.height = Math.max(box.height, titleTexts.length * Math.ceil(titleFontSize * 1.2) + 2 * s.padding);
+    }
+    layout.width = box.width;
+    layout.height = box.height;
+    return box;
+}
+
+/**
+ * Where each key sits and how its text is set. Each key tries its preferred edge, the other edges
+ * its theme ranks, then right, bottom, top and left (an author's edge stays), at the full side or
+ * half of it when keys share, with its title above or inline above or below the plot; a side that
+ * fits rules out top and bottom rows over two entries or lines. Keys then share edges: those on one
+ * edge stack one row each or stand side by side, 1.5 label sizes apart, whichever costs less
+ * against the edge's budget (the plot along it, 40% of the plot's height or 48 px across a top or
+ * bottom, 24 em and 14 px at a side). Moving off the preferred edge costs 0.25 (0.45 to the left),
+ * or 0.75 to an edge a theme that ranks its edges did not rank; each extra edge costs 0.1, and each
+ * extra row above or below the plot 0.5. A theme's arrangement and title position are preferences:
+ * the other costs 0.6 and 0.3, and a stacked key's title set inline above the plot costs 0.1 where
+ * the theme states none; a row where some titles stand above and others do not costs 0.2. A
+ * theme's alignment anchors each edge's keys, and a spread shares out the room the keys leave
+ * where it is at least the narrowest key's length; where a preference gives way, the plan notes why.
+ */
+export function planKeyLayout(
+    keys: Array<KeyToLayout | undefined>, plot: { width: number; height: number }, measure: TextMeasurer,
+    preferences: KeyPreferences = {},
+): LegendLayoutPlan {
+    const laid = keys.map((key, index) => ({ key, index })).filter((entry): entry is { key: KeyToLayout; index: number } => Boolean(entry.key));
+    const out: LegendLayoutPlan = { keys: keys.map(() => undefined), edges: [], footprint: [], overflow: [], plot, notes: [] };
+    if (!laid.length) return out;
+    const sideBudget = laid[0].key.style.labelFontSize * 24 + 14;
+    const horizontalBudget = Math.max(48, plot.height * 0.4);
+    const edgeGap = Math.round(laid[0].key.style.labelFontSize * 1.5);
+    type Candidate = Box & { orient: string; preference: number; titleAbove: boolean };
+    const candidatesOf = laid.map(({ key }) => {
+        const candidates: Candidate[] = [];
+        const preferred = key.orient;
+        const orients = key.fixed ? [preferred] : [...new Set([preferred, ...(key.edges ?? []), 'right', 'bottom', 'top', 'left'])];
+        for (const orient of orients) {
+            const horizontal = orient === 'top' || orient === 'bottom';
+            for (const fraction of laid.length > 1 ? [1, 0.5] : [1]) {
+                for (const inline of horizontal && !key.fixedTitle ? [false, true] : [false]) {
+                    // The theme's direction and title seat hold at its own edge; a key moved off it takes its new edge's.
+                    const at = orient === preferred
+                        ? { orient, direction: key.ownDirection ?? key.direction, titleOrient: key.ownTitleOrient ?? key.titleOrient }
+                        : { orient, direction: key.ownDirection ?? (horizontal ? 'horizontal' : 'vertical'), titleOrient: key.ownTitleOrient ?? 'top' };
+                    if (inline) at.titleOrient = 'left';
+                    const box = fitKey(key, at, plot.width, plot.height, measure, {
+                        width: horizontal ? plot.width * fraction : sideBudget,
+                        height: horizontal ? horizontalBudget : plot.height * fraction,
+                    });
+                    box.layout.moved = orient !== preferred;
+                    box.layout.inlineTitle = inline;
+                    if (inline && (box.entryRows !== 1 || box.entryLines !== 1 || box.width > plot.width * fraction
+                        || (box.layout.titleLines?.length ?? 1) > 1)) continue;
+                    const edge = orient === preferred ? 0
+                        : key.edges && !key.edges.includes(orient) ? UNRANKED_EDGE
+                            : orient === 'left' ? 0.45 : 0.25;
+                    const seat = !horizontal || !key.title || key.fixedTitle ? 0
+                        : preferences.titlePosition ? (inline === (preferences.titlePosition === 'inline') ? 0 : OFF_SEAT)
+                            : orient === 'top' && inline ? QUIET_INLINE_TOP : 0;
+                    candidates.push({ ...box, orient, preference: edge + seat, titleAbove: Boolean(key.title) && !inline && at.titleOrient !== 'left' });
+                }
+            }
+        }
+        const fittingSide = candidates.some((candidate) => ['left', 'right'].includes(candidate.orient)
+            && candidate.width <= sideBudget && candidate.height <= plot.height);
+        return !key.fixed && fittingSide
+            ? candidates.filter((candidate) => !['top', 'bottom'].includes(candidate.orient) || (candidate.entryRows <= 2 && candidate.entryLines <= 2))
+            : candidates;
+    });
+    const footprint = (choices: Candidate[]) => {
+        const edges = [...new Set(choices.map((choice) => choice.orient))].map((orient) => {
+            const entries = choices.filter((choice) => choice.orient === orient);
+            const horizontal = orient === 'top' || orient === 'bottom';
+            const widthBudget = horizontal ? plot.width : sideBudget;
+            const heightBudget = horizontal ? horizontalBudget : plot.height;
+            const shared = entries.length > 1;
+            const asked = horizontal && shared ? preferences.arrangement : undefined;
+            const alternatives = ['vertical', 'horizontal'].map((direction) => {
+                const width = direction === 'vertical' ? Math.max(...entries.map((entry) => entry.width))
+                    : entries.reduce((sum, entry) => sum + entry.width, 0) + edgeGap * (entries.length - 1);
+                const height = direction === 'horizontal' ? Math.max(...entries.map((entry) => entry.height))
+                    : entries.reduce((sum, entry) => sum + entry.height, 0) + edgeGap * (entries.length - 1);
+                const overflow = Math.max(0, width / widthBudget - 1) + Math.max(0, height / heightBudget - 1);
+                const row = direction === 'horizontal';
+                const stacked = horizontal && !row && asked !== 'stack' ? (entries.length - 1) * 0.5 : 0;
+                const arrangement = asked && row !== (asked === 'row') ? OFF_ARRANGEMENT : 0;
+                const seats = horizontal && row && shared && entries.some((entry) => entry.titleAbove) && entries.some((entry) => !entry.titleAbove) ? MIXED_SEATS : 0;
+                return { orient, direction, width, height, widthBudget, heightBudget, overflow, asked, count: entries.length,
+                    cost: stacked + arrangement + seats + Math.max(0, height / heightBudget - 1) * 20 + Math.max(0, width / widthBudget - 1) * (horizontal ? 20 : 4)
+                        + 0.15 * (horizontal ? height / heightBudget : width / widthBudget) };
+            });
+            return alternatives.sort((first, second) => first.cost - second.cost)[0];
+        });
+        const cost = edges.reduce((sum, edge) => sum + edge.cost, 0)
+            + choices.reduce((sum, choice) => sum + choice.cost + choice.preference, 0) + Math.max(0, edges.length - 1) * 0.1;
+        return { cost, edges };
+    };
+    let plans: Array<{ choices: Candidate[]; cost: number }> = [{ choices: [], cost: 0 }];
+    for (const candidates of candidatesOf) {
+        plans = plans.flatMap((plan) => candidates.map((candidate) => {
+            const choices = [...plan.choices, candidate];
+            return { choices, cost: footprint(choices).cost };
+        })).sort((first, second) => first.cost - second.cost).slice(0, 32);
+    }
+    const chosen = plans[0].choices;
+    const result = footprint(chosen);
+    laid.forEach(({ index }, position) => { out.keys[index] = chosen[position].layout; });
+    const anchor = preferences.align === 'center' ? 'middle' : preferences.align === 'end' ? 'end' : 'start';
+    out.edges = result.edges.filter((edge) => edge.count >= 2 || anchor !== 'start').map((edge) => {
+        const horizontal = edge.orient === 'top' || edge.orient === 'bottom';
+        const entries = chosen.filter((choice) => choice.orient === edge.orient);
+        const along = horizontal === (edge.direction === 'horizontal');
+        let gap = edgeGap;
+        if (preferences.align === 'spread' && along && entries.length > 1) {
+            const extent = (entry: Candidate) => (horizontal ? entry.width : entry.height);
+            const spare = (horizontal ? plot.width : plot.height) - entries.reduce((sum, entry) => sum + extent(entry), 0);
+            // Spread only where the room left reads as chosen: at least the narrowest key's own length between keys.
+            if (spare / (entries.length - 1) >= Math.min(...entries.map(extent))) gap = Math.floor(spare / (entries.length - 1));
+            else out.notes.push({ path: 'legend.align', code: 'keys-spread-gave-way', message: `the ${edge.orient} keys stand together rather than spread — ${Math.round(spare)}px left over would read as a gap, not a spread` });
+        }
+        if (edge.asked && (edge.direction === 'horizontal') !== (edge.asked === 'row')) {
+            out.notes.push({ path: 'legend.arrangement', code: 'keys-arrangement-gave-way', message: `the ${edge.orient} keys ${edge.direction === 'horizontal' ? 'share a row' : 'stand one above another'} — ${edge.asked === 'row' ? 'a row' : 'a stack'} would overflow the edge` });
+        }
+        return { orient: edge.orient, direction: edge.direction, anchor, gap };
+    });
+    out.footprint = result.edges.map(({ orient, width, height }) => ({ orient, width, height }));
+    out.overflow = result.edges.filter((edge) => edge.overflow > 0)
+        .map(({ orient, width, height, widthBudget, heightBudget }) => ({ orient, width, height, widthBudget, heightBudget }));
+    return out;
+}

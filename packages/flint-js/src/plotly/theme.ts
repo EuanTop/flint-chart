@@ -33,13 +33,12 @@
 import type {
     DesignDecisions,
     ThemeReport,
+    ReportDeparture,
     ResolvedAxis,
     ResolvedText,
 } from '../core/theme/types';
 import { parseColor, toHex, mixHex, isDarkSurface, contrastingInk, sampleRamp } from '../core/theme/presence';
 import { pieCategoryPercentTemplates } from './pie-labels';
-
-type Say = (path: string, message: string) => void;
 
 // ---------------------------------------------------------------------------
 // Facts read off the figure (never styles — see the stage boundary above)
@@ -306,14 +305,14 @@ function applyFurnitureTraces(figure: any, d: DesignDecisions): void {
 
 export function realizeThemePlotly(figure: any, d: DesignDecisions, table: any[] = []): ThemeReport[] {
     const report: ThemeReport[] = [];
-    const say: Say = (path, message) => report.push({ stage: 'realize', path, message });
+    const say: ReportDeparture = (path, code, message) => report.push({ stage: 'realize', path, code, message });
     if (!figure) return report;
     figure.layout ??= {};
 
     applySurface(figure, d);
     applyGeoSurface(figure, d);
     applyFurnitureTraces(figure, d);
-    moveAxisTitlesToSubtitle(figure, d, say);
+    moveAxisTitlesToSubtitle(figure, d);
     const titleH = applyTypography(figure, d);
     applyAxes(figure, d, table, say);
     applyMarks(figure, d, table, say);
@@ -335,7 +334,7 @@ export function realizeThemePlotly(figure: any, d: DesignDecisions, table: any[]
  */
 export function realizeValueLabelsPlotly(figure: any, d: DesignDecisions, table: any[] = []): ThemeReport[] {
     const report: ThemeReport[] = [];
-    const say: Say = (path, message) => report.push({ stage: 'realize', path, message });
+    const say: ReportDeparture = (path, code, message) => report.push({ stage: 'realize', path, code, message });
     if (!figure) return report;
     applyDataLabels(figure, d, table, say);
     return report;
@@ -391,7 +390,7 @@ function applyDeltaInk(trace: any, d: DesignDecisions): void {
     };
 }
 
-function moveAxisTitlesToSubtitle(figure: any, decisions: DesignDecisions, say: Say): void {
+function moveAxisTitlesToSubtitle(figure: any, decisions: DesignDecisions): void {
     const layout = figure.layout;
     if (layout.title === null) return;
     const titles = new Map<string, Set<string>>();
@@ -414,7 +413,6 @@ function moveAxisTitlesToSubtitle(figure: any, decisions: DesignDecisions, say: 
         `${titles.size > 1 ? `${channel.toUpperCase()}: ` : ''}${[...names].join(', ')}`);
     const title = typeof layout.title === 'string' ? { text: layout.title } : layout.title ?? { text: '' };
     layout.title = { ...title, _deck: [title._deck, ...labels].filter(Boolean).join('; ') };
-    say('title.subtitle', 'omitted axis titles are appended after the authored subtitle');
 }
 
 function applyTypography(figure: any, d: DesignDecisions): number {
@@ -625,7 +623,7 @@ function applyGeoSurface(figure: any, d: DesignDecisions): void {
 // Axes
 // ---------------------------------------------------------------------------
 
-function applyAxes(figure: any, d: DesignDecisions, table: any[], say: Say): void {
+function applyAxes(figure: any, d: DesignDecisions, table: any[], say: ReportDeparture): void {
     const layout = figure.layout;
     for (const ch of ['x', 'y'] as const) {
         const decided = d.axes[ch];
@@ -643,16 +641,16 @@ function applyAxes(figure: any, d: DesignDecisions, table: any[], say: Say): voi
             );
         }
     }
-    pinSparseTicks(figure, d, say);
+    pinSparseTicks(figure, d);
     thinDenseCategoryTicks(figure, d, say);
     applyPolarAxes(figure, d, say);
     dedupeBoundaryZeroLines(figure, say);
     applyUnits(figure, d, say);
-    applyTickLabels(figure, d, table, say);
+    applyTickLabels(figure, d, table);
 }
 
 /** Thin dense categorical x labels without removing any bars or categories. */
-function thinDenseCategoryTicks(figure: any, d: DesignDecisions, say: Say): void {
+function thinDenseCategoryTicks(figure: any, d: DesignDecisions, say: ReportDeparture): void {
     const layout = figure.layout ?? {};
     const plotWidth = Math.max(
         80,
@@ -680,7 +678,7 @@ function thinDenseCategoryTicks(figure: any, d: DesignDecisions, say: Say): void
         if (degrees > 0 && degrees < 90) {
             degrees = degrees < 45 && categories.length <= fitsAt(45) ? 45 : 90;
             ax.tickangle = -degrees;
-            say('axes.label.angle', `\`${key}\` turns its names to ${degrees}° — at the house's size they crowd at less`);
+            say('axes.label.angle', 'labels-turned', `\`${key}\` turns its names to ${degrees}° — at the house's size they crowd at less`);
             if (categories.length <= fitsAt(degrees)) continue;
         }
         if (ax.tickvals != null) continue;
@@ -693,7 +691,7 @@ function thinDenseCategoryTicks(figure: any, d: DesignDecisions, say: Say): void
         ax.tickmode = 'array';
         ax.tickvals = picked;
         ax.ticktext = picked.map(String);
-        say('axes.tickCount', `\`${key}\` labels ${picked.length} of ${categories.length} dense categories`);
+        say('axes.tickCount', 'labels-thinned', `\`${key}\` labels ${picked.length} of ${categories.length} dense categories`);
     }
 }
 
@@ -702,7 +700,7 @@ function thinDenseCategoryTicks(figure: any, d: DesignDecisions, say: Say): void
  * perpendicular domain line. Plotly otherwise draws both strokes a few pixels
  * apart because autorange pads zero, producing a doubled scatter baseline.
  */
-function dedupeBoundaryZeroLines(figure: any, say: Say): void {
+function dedupeBoundaryZeroLines(figure: any, say: ReportDeparture): void {
     const layout = figure.layout ?? {};
     for (const ch of ['x', 'y'] as const) {
         for (const key of axisKeys(layout, ch)) {
@@ -722,7 +720,7 @@ function dedupeBoundaryZeroLines(figure: any, say: Say): void {
             }
             if (values.length && Math.min(...values) >= 0) {
                 ax.zeroline = false;
-                say('axes.zeroRule', `${key} zero coincides with the perpendicular domain — duplicate stroke omitted`);
+                say('axes.zeroRule', 'zero-rule-not-drawn', `${key} zero coincides with the perpendicular domain — duplicate stroke omitted`);
             }
         }
     }
@@ -744,7 +742,7 @@ function isContiguousIntegers(seen: Set<any>): boolean {
  * because it is told the domain. Where an axis carries only a handful of
  * distinct values, those values *are* the sequence, so they are pinned.
  */
-function pinSparseTicks(figure: any, d: DesignDecisions, say: Say): void {
+function pinSparseTicks(figure: any, d: DesignDecisions): void {
     const layout = figure.layout;
     const MAX = 8;
     for (const ch of ['x', 'y'] as const) {
@@ -782,7 +780,6 @@ function pinSparseTicks(figure: any, d: DesignDecisions, say: Say): void {
             ax.tickmode = 'array';
             ax.tickvals = picked;
             delete ax.nticks;
-            say('axes.tickCount', `\`${key}\` names the ${picked.length} value(s) it holds, not Plotly's round numbers`);
         }
     }
 }
@@ -793,7 +790,7 @@ function pinSparseTicks(figure: any, d: DesignDecisions, say: Say): void {
  * Plotly turns them on their side as soon as the circle gets small, so they
  * are held straight and their count is kept low.
  */
-function applyPolarAxes(figure: any, d: DesignDecisions, say: Say): void {
+function applyPolarAxes(figure: any, d: DesignDecisions, say: ReportDeparture): void {
     const layout = figure.layout;
     let saidRose = false;
     const polarKeys = new Set(
@@ -845,7 +842,7 @@ function applyPolarAxes(figure: any, d: DesignDecisions, say: Say): void {
                 }
                 if (!saidRose) {
                     say(
-                        'structure.axis.polar',
+                        'structure.axis.polar', 'polar-axis-replaced',
                         'the rose uses quiet concentric guides and fitted values at wedge tips instead of an axis ray through the data',
                     );
                     saidRose = true;
@@ -1029,7 +1026,7 @@ function applyAxis(
     ax: any,
     a: ResolvedAxis,
     d: DesignDecisions,
-    say: Say,
+    say: ReportDeparture,
     key: string,
     width: number,
     cats: any[],
@@ -1087,7 +1084,7 @@ function applyAxis(
                 // Turned as the layout turns names that will not fit, as Vega-Lite does.
                 if (!ax.tickangle) ax.tickangle = -45;
                 say(
-                    'axes.label.angle',
+                    'axes.label.angle', 'labels-straight-refused',
                     `\`${key}\` keeps its turned labels — straight they would not fit the panel`,
                 );
             }
@@ -1111,7 +1108,7 @@ function applyAxis(
         if (a.title.placement === 'flatAboveAxis' && key.startsWith('y')) {
             // A y title set flat above the axis is an annotation in Plotly, not
             // a title property. Approximated as a rotated title for now.
-            say('annotation.axisTitlePlacement', 'flat axis title not realized on a y axis — kept rotated');
+            say('annotation.axisTitlePlacement', 'axis-title-placement-fallback', 'flat axis title not realized on a y axis — kept rotated');
         }
     }
 
@@ -1148,7 +1145,7 @@ function applyAxis(
         const fits = Math.max(1, Math.floor(band / each));
         if (fits < (ax.nticks ?? 6)) {
             ax.nticks = Math.max(2, fits);
-            say('axes.tickCount', `\`${key}\` holds ${fits} label(s) in the room it has, not ${a.tickCount}`);
+            if (a.tickCount != null) say('axes.tickCount', 'ticks-reduced', `\`${key}\` holds ${fits} label(s) in the room it has, not ${a.tickCount}`);
         }
     }
 }
@@ -1240,7 +1237,7 @@ function tickLabelChars(ax: any): number {
  * last — which is the same vocabulary the house uses. Only `firstAndLast` has
  * no counterpart, and it is approximated with every tick.
  */
-function applyUnits(figure: any, d: DesignDecisions, say: Say): void {
+function applyUnits(figure: any, d: DesignDecisions, say: ReportDeparture): void {
     const layout = figure.layout;
     // An axis showing a normalized stack plots a share, not the measure, so the
     // measure's unit would be a lie on it. The template has already written the
@@ -1260,7 +1257,7 @@ function applyUnits(figure: any, d: DesignDecisions, say: Say): void {
             const ax = layout[key];
             if (ax.type === 'category') continue;
             if (normalized.has(key)) {
-                say('axes.unit', `${key} shows a share of the whole — the measure's unit left off`);
+                say('axes.unit', 'unit-not-drawn', `${key} shows a share of the whole — the measure's unit left off`);
                 continue;
             }
             if (prefix) {
@@ -1275,13 +1272,13 @@ function applyUnits(figure: any, d: DesignDecisions, say: Say): void {
             }
         }
         if (unit.where === 'firstAndLast') {
-            say('annotation.unit', 'unit written on every tick — Plotly states first, last or all, not both ends');
+            say('annotation.unit', 'unit-placement-fallback', 'unit written on every tick — Plotly states first, last or all, not both ends');
         }
     }
 }
 
 /** Which ticks carry a label: the values the data holds, thinned or cut to the ends. */
-function applyTickLabels(figure: any, d: DesignDecisions, table: any[], say: Say): void {
+function applyTickLabels(figure: any, d: DesignDecisions, table: any[]): void {
     const layout = figure.layout;
     for (const ch of ['x', 'y'] as const) {
         const a = d.axes[ch];
@@ -1304,7 +1301,6 @@ function applyTickLabels(figure: any, d: DesignDecisions, table: any[], say: Say
             if (ch === 'x') picked = fitTicksToBand(figure, ax, picked, a.label.fontSize ?? 11);
             ax.tickmode = 'array';
             ax.tickvals = picked;
-            say('structure.axis.tickLabels', `${key} ticked at ${picked.length} observed values (${a.tickLabels})`);
         }
     }
 }
@@ -1454,7 +1450,7 @@ function drawnBarWidth(figure: any, bars: any[]): number {
         / Math.max(1, grouped) * (grouped > 1 ? 1 - (layout.bargroupgap ?? 0) : 1);
 }
 
-function applyMarks(figure: any, d: DesignDecisions, table: any[], say: Say): void {
+function applyMarks(figure: any, d: DesignDecisions, table: any[], say: ReportDeparture): void {
     const layout = figure.layout;
     const m = d.marks;
 
@@ -1497,7 +1493,7 @@ function applyMarks(figure: any, d: DesignDecisions, table: any[], say: Say): vo
                 fams = markFamilies(trace);
                 preventThemePoints = true;
                 if (dot === 0) {
-                    say('marks.point.show', 'theme-default dots left off — the line is too dense');
+                    say('marks.point.show', 'dots-stand-down', 'theme-default dots left off — the line is too dense');
                 }
             } else {
                 trace.marker = { ...(trace.marker ?? {}), size: dot };
@@ -1508,7 +1504,7 @@ function applyMarks(figure: any, d: DesignDecisions, table: any[], say: Say): vo
             if (m.outline && !isContextTrace(trace)) {
                 if (trace.type === 'bar' && barWidth < 2 * m.outline.width) {
                     if (!saidThinOutline) {
-                        say('marks.outline',
+                        say('marks.outline', 'outline-not-applied',
                             `bars are ${barWidth.toFixed(1)}px — too thin to hold a ${m.outline.width}px outline, which would paint over them; left unbordered`);
                         saidThinOutline = true;
                     }
@@ -1549,7 +1545,7 @@ function applyMarks(figure: any, d: DesignDecisions, table: any[], say: Say): vo
                 && (!trace.line.shape || trace.line.shape === 'linear')) {
                 const shape = plotlyLineShape(m.interpolate);
                 if (shape) trace.line.shape = shape;
-                else say('marks.line.interpolate', `\`${m.interpolate}\` has no Plotly line shape — left straight`);
+                else say('marks.line.interpolate', 'interpolate-unsupported', `\`${m.interpolate}\` has no Plotly line shape — left straight`);
             }
         }
 
@@ -1591,7 +1587,7 @@ function applyMarks(figure: any, d: DesignDecisions, table: any[], say: Say): vo
                     : `${trace.mode ?? 'lines'}+markers`;
                 trace.marker = { ...(trace.marker ?? {}), size: dot };
             } else {
-                say('marks.point.show', 'dots left off — the points sit closer together than a dot is wide');
+                say('marks.point.show', 'dots-stand-down', 'dots left off — the points sit closer together than a dot is wide');
             }
         }
     }
@@ -1664,7 +1660,7 @@ function plotlyLineShape(interpolate: string): string | undefined {
  * Where the house names no status inks the template's colours stand: an
  * arbitrary indexed ink on "down" would say the wrong thing.
  */
-function paintDirectional(trace: any, d: DesignDecisions, say: Say): void {
+function paintDirectional(trace: any, d: DesignDecisions): void {
     const status = d.series.status;
     let positive = status?.positive;
     let negative = status?.negative;
@@ -1675,7 +1671,6 @@ function paintDirectional(trace: any, d: DesignDecisions, say: Say): void {
         // so without status inks it is left alone. A waterfall's up and down
         // are only contributions, and can take the indexed set.
         if (trace.type !== 'waterfall') {
-            say('ink.series', 'rise/fall colours kept — the house names no status inks');
             return;
         }
         const inks = d.series.categorical ?? [];
@@ -1683,7 +1678,6 @@ function paintDirectional(trace: any, d: DesignDecisions, say: Say): void {
         positive = inks[0];
         negative = inks[1] ?? inks[0];
         neutral = mixHex(d.text.primary, d.surface.plot ?? d.surface.canvas, 0.45);
-        say('ink.series', 'no status inks — the waterfall takes the indexed set, totals a neutral');
     }
 
     const blocks: Array<[string, string | undefined]> = [
@@ -1699,10 +1693,9 @@ function paintDirectional(trace: any, d: DesignDecisions, say: Say): void {
         else trace[key] = { ...block, marker: { color: ink } };
         if (block.fillcolor != null) block.fillcolor = ink;
     }
-    say('ink.series', 'rise, fall and total take the house status inks');
 }
 
-function applySeriesInk(figure: any, d: DesignDecisions, table: any[], say: Say): void {
+function applySeriesInk(figure: any, d: DesignDecisions, table: any[], say: ReportDeparture): void {
     const s = d.series;
     const traces = dataTraces(figure);
     if (!traces.length) return;
@@ -1735,7 +1728,7 @@ function applySeriesInk(figure: any, d: DesignDecisions, table: any[], say: Say)
             };
             foldedPies.add(trace);
             say(
-                'ink.series.categorical',
+                'ink.series.categorical', 'colours-folded',
                 `${count} series past ${keep} inks — the ${keep} largest keep a colour, the rest sum into one "${othersLabel}" slice`,
             );
         }
@@ -1786,14 +1779,14 @@ function applySeriesInk(figure: any, d: DesignDecisions, table: any[], say: Say)
             });
             pointOverflowHandled = true;
             say(
-                'ink.series.categorical',
+                'ink.series.categorical', 'series-overflow-ink',
                 `${points.length} point categories past ${keep} inks — observations stay separate while the legend tail shares one "Others (${tail.length})" ink`,
             );
         }
     }
 
     if (s.exhausted && !pointOverflowHandled) {
-        say('ink.series', 'more series than the house names inks for — template palette kept');
+        say('ink.series', 'palette-exhausted', 'more series than the house names inks for — template palette kept');
         return;
     }
 
@@ -1843,7 +1836,7 @@ function applySeriesInk(figure: any, d: DesignDecisions, table: any[], say: Say)
         // so the categorical set says nothing about it — the house's status
         // inks do.
         if (trace.increasing || trace.decreasing || trace.totals) {
-            paintDirectional(trace, d, say);
+            paintDirectional(trace, d);
             continue;
         }
 
@@ -1916,7 +1909,7 @@ function applySeriesInk(figure: any, d: DesignDecisions, table: any[], say: Say)
         );
     }
 
-    restateSeriesAnnotations(figure, recoloured, say);
+    restateSeriesAnnotations(figure, recoloured);
 
     void table;
     void distinctCount;
@@ -1927,18 +1920,15 @@ function applySeriesInk(figure: any, d: DesignDecisions, table: any[], say: Say)
  * sparkline row — is naming that series. When the series changes ink, so does
  * the annotation, or the row says one thing in two colours.
  */
-function restateSeriesAnnotations(figure: any, recoloured: Map<string, string>, say: Say): void {
+function restateSeriesAnnotations(figure: any, recoloured: Map<string, string>): void {
     if (!recoloured.size) return;
-    let moved = 0;
     for (const note of figure.layout?.annotations ?? []) {
         const colour = note?.font?.color;
         if (typeof colour !== 'string') continue;
         const ink = recoloured.get(colour.toLowerCase());
         if (!ink || ink.toLowerCase() === colour.toLowerCase()) continue;
         note.font = { ...note.font, color: ink };
-        moved++;
     }
-    if (moved) say('ink.series', `${moved} annotation(s) named a series and followed its ink`);
 }
 
 function withAlpha(hex: string, alpha: number): string {
@@ -2034,7 +2024,7 @@ function addFactoredLineLegendProxies(figure: any, d: DesignDecisions): void {
     }
 }
 
-function applyLegend(figure: any, d: DesignDecisions, say: Say): number {
+function applyLegend(figure: any, d: DesignDecisions, say: ReportDeparture): number {
     const layout = figure.layout;
     const l = d.legend;
 
@@ -2068,7 +2058,7 @@ function applyLegend(figure: any, d: DesignDecisions, say: Say): number {
     if (everyPieSliceNamed) {
         layout.showlegend = false;
         say(
-            'legend.show',
+            'legend.show', 'legend-not-drawn',
             'legend omitted — every pie slice is already named on the chart, so a second copy would compete with its callout',
         );
         return 0;
@@ -2079,16 +2069,16 @@ function applyLegend(figure: any, d: DesignDecisions, say: Say): number {
     // fallback is taken rather than a placement invented here.
     let placement: string = l.placement;
     if (placement === 'seriesEnd') {
-        if (labelSeriesEnds(figure, d, say)) {
+        if (labelSeriesEnds(figure, d)) {
             layout.showlegend = false;
             return 0;
         }
         placement = (l.fallbacks ?? []).find((p) => p !== 'seriesEnd') ?? 'right';
-        say('legend.placement', `no series with an end to name — fell back to \`${placement}\``);
+        say('legend.placement', 'legend-placement-fallback', `no series with an end to name — fell back to \`${placement}\``);
     }
     if (!LEGEND_ANCHORS[placement]) {
         const next = (l.fallbacks ?? []).find((p) => LEGEND_ANCHORS[p]) ?? 'right';
-        say('legend.placement', `\`${placement}\` is not a Plotly placement — fell back to \`${next}\``);
+        say('legend.placement', 'legend-placement-fallback', `\`${placement}\` is not a Plotly placement — fell back to \`${next}\``);
         placement = next;
     }
 
@@ -2152,7 +2142,7 @@ function applyLegend(figure: any, d: DesignDecisions, say: Say): number {
         const have = (Number(layout.height) || 0) - (layout.margin?.t ?? 0) - (layout.margin?.b ?? 0);
         if (entries.length && have > 0 && need > have) {
             layout.height = Math.round(Number(layout.height) + (need - have));
-            say('legend.placement', `the figure grew ${Math.round(need - have)}px to hold a column of ${entries.length} keys`);
+            say('legend.placement', 'legend-figure-grown', `the figure grew ${Math.round(need - have)}px to hold a column of ${entries.length} keys`);
         }
     }
     return 0;
@@ -2295,7 +2285,7 @@ function plottedPositions(traces: any[]): Map<any, number[]> {
  * Returns false where nothing on the chart has an end to name — a bar chart
  * has no last point — so the caller can take the house's next placement.
  */
-function labelSeriesEnds(figure: any, d: DesignDecisions, say: Say): boolean {
+function labelSeriesEnds(figure: any, d: DesignDecisions): boolean {
     let lines = dataTraces(figure).filter((t) => {
         const fams = markFamilies(t);
         return (fams.includes('line') || fams.includes('area')) && Array.isArray(t.x) && Array.isArray(t.y) && t.name;
@@ -2366,7 +2356,6 @@ function labelSeriesEnds(figure: any, d: DesignDecisions, say: Say): boolean {
     const longest = Math.max(...lines.map((t) => String(t._colorLegendValue ?? t.name).length));
     const pad = Math.ceil(longest * (d.legend.label.fontSize ?? 11) * 0.55) + 12;
     layout.margin = { ...(layout.margin ?? {}), r: Math.max(layout.margin?.r ?? 0, pad) };
-    say('legend.placement', `series named at the end of each line (${lines.length})`);
     return true;
 }
 
@@ -2466,13 +2455,13 @@ function blankSmallSegments(trace: any, figure: any, measure: 'x' | 'y', fontSiz
 /** Trace families that can print a number on the mark. */
 const LABELABLE = new Set(['bar', 'arc', 'point', 'line']);
 
-function applyDataLabels(figure: any, d: DesignDecisions, table: any[], say: Say): void {
+function applyDataLabels(figure: any, d: DesignDecisions, table: any[], say: ReportDeparture): void {
     const dl = d.dataLabels;
     if (!dl.show) return;
 
     const traces = dataTraces(figure).filter((t) => markFamilies(t).some((m) => LABELABLE.has(m)));
     if (!traces.length) {
-        say('dataLabels.show', 'nothing on this chart can carry a printed value');
+        say('dataLabels.show', 'value-labels-not-drawn', 'nothing on this chart can carry a printed value');
         return;
     }
 
@@ -2506,7 +2495,7 @@ function applyDataLabels(figure: any, d: DesignDecisions, table: any[], say: Say
                 const rest = trace.textinfo.split('+').filter((part: string) => part !== 'label');
                 if (rest.length) {
                     trace.textinfo = rest.join('+');
-                    say('label.text', 'slice names left to the key — printed on the wedge as well, they crowd it out');
+                    say('label.text', 'slice-names-not-drawn', 'slice names left to the key — printed on the wedge as well, they crowd it out');
                 }
             }
             printed++;
@@ -2571,9 +2560,6 @@ function applyDataLabels(figure: any, d: DesignDecisions, table: any[], say: Say
                 if (cd == null || reusable) {
                     if (cd == null) trace.customdata = abs;
                     trace.texttemplate = `${unitPrefix}%{customdata${fmt}}${unit}`;
-                    say('dataLabels.text', 'a mirrored measure prints its labels unsigned, as its axis does');
-                } else {
-                    say('dataLabels.text', 'a mirrored measure kept its signed label — the trace needs its own customdata');
                 }
             }
             trace.textposition = stacked || mirrored
@@ -2589,11 +2575,11 @@ function applyDataLabels(figure: any, d: DesignDecisions, table: any[], say: Say
                 const dropped = blankSmallSegments(trace, figure, measure, dl.text.fontSize ?? 11);
                 if (dropped) {
                     say(
-                        'dataLabels.show',
+                        'dataLabels.show', 'value-labels-hidden',
                         `${dropped} stacked segment(s) too thin to hold a label at the house's size`,
                     );
                 }
-                say('dataLabels.placement', 'stacked segments keep their labels inside, or drop them');
+                if (dl.placement === 'outsideMark') say('dataLabels.placement', 'value-labels-placement-changed', 'stacked segments keep their labels inside, or drop them');
             }
             trace.cliponaxis = false;
             trace.textfont = fontOf(dl.text, d.font);
@@ -2623,7 +2609,7 @@ function applyDataLabels(figure: any, d: DesignDecisions, table: any[], say: Say
         }
     }
 
-    if (!printed) say('dataLabels.show', 'every mark already prints its own text — theme labels stood down');
+    if (!printed) say('dataLabels.show', 'value-labels-not-drawn', 'every mark already prints its own text — theme labels stood down');
     void table;
     void mixHex;
     void toHex;

@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 
 import { ChartTemplateDef, ChartPropertyDef, EncodingActionDef } from '../../core/types';
+import { skeletonStructure, statedStacking } from '../../core/structure';
 import { makeSortAction } from '../../core/encoding-actions';
 import { makeCartesianPivot } from '../../core/pivot';
 import { planBandDodge, resolveDodge } from '../../core/band-dodge';
@@ -300,6 +301,16 @@ export const pyramidChartDef: ChartTemplateDef = {
     declareLayoutMode: () => ({
         axisFlags: { y: { banded: true } },
     }),
+    structure: (ctx) => {
+        // The colour field splits the two panels; neither panel encodes it.
+        // Both panels share one domain from zero to the largest value, so the two halves compare.
+        const { series: _series, ...structure } = skeletonStructure(pyramidChartDef.template, ctx);
+        const xField = ctx.channelSemantics.x?.field;
+        const shared = Boolean(ctx.channelSemantics.color?.field && xField && ctx.table?.some((row: any) => typeof row?.[xField] === 'number'));
+        // The left panel mirrors the right, so its measure runs backwards.
+        const x = structure.x ? { ...structure.x, reversed: true, ...(shared ? { ownScale: true } : {}) } : undefined;
+        return { ...structure, ...(x ? { x } : {}), stacking: 'none' };
+    },
     instantiate: (spec, ctx) => {
         let { y, x } = ctx.resolvedEncodings;
         const { color } = ctx.resolvedEncodings;
@@ -545,6 +556,13 @@ export const stackedBarChartDef: ChartTemplateDef = {
     chart: "Stacked Bar Chart",
     template: { mark: "bar", encoding: {} },
     channels: ["x", "y", "color", "column", "row"],
+    structure: (ctx) => {
+        // The stack mode the author picks stacks the series, side by side when layered.
+        const structure = skeletonStructure(stackedBarChartDef.template, ctx);
+        const mode = ctx.chartProperties?.stackMode;
+        const stated = mode && ctx.channelSemantics.color?.field ? statedStacking(mode === 'layered' ? null : mode) : undefined;
+        return stated ? { ...structure, stacking: stated } : structure;
+    },
     interactionSupport: {
         elements: true,
         region: ['cartesian'],
@@ -628,6 +646,9 @@ export const stackedBarChartDef: ChartTemplateDef = {
 
 // ─── Histogram ──────────────────────────────────────────────────────────────
 
+/** The field a histogram's bars start at, computed by its bin transform. */
+const BIN_START = '__bin_start';
+
 export const histogramDef: ChartTemplateDef = {
     chart: "Histogram",
     template: {
@@ -688,11 +709,11 @@ export const histogramDef: ChartTemplateDef = {
             const sourceField = x.field;
             spec.transform = [
                 ...(spec.transform ?? []),
-                { bin: x.bin ?? true, field: sourceField, as: ['__bin_start', '__bin_end'] },
+                { bin: x.bin ?? true, field: sourceField, as: [BIN_START, '__bin_end'] },
             ];
             spec.encoding.x = {
                 ...x,
-                field: '__bin_start',
+                field: BIN_START,
                 bin: 'binned',
                 title: x.title ?? sourceField,
             };
@@ -720,6 +741,12 @@ export const heatmapDef: ChartTemplateDef = {
     chart: "Heatmap",
     template: { mark: "rect", encoding: {} },
     channels: ["x", "y", "color", "column", "row"],
+    structure: (ctx) => {
+        // Cells print their own values when asked.
+        const structure = skeletonStructure(heatmapDef.template, ctx);
+        return ctx.chartProperties?.showTextLabels && ctx.channelSemantics.color?.field
+            ? { ...structure, marks: [...structure.marks, 'text'] } : structure;
+    },
     interactionSupport: {
         elements: true,
         region: ['cartesian'],

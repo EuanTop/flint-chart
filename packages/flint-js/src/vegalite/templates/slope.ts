@@ -26,6 +26,7 @@
  */
 
 import { ChartTemplateDef, ChartPropertyDef } from '../../core/types';
+import { skeletonStructure } from '../../core/structure';
 import { resolveDiscreteType } from '../../core/axis-detection';
 import { defaultBuildEncodings } from './utils';
 import {
@@ -143,6 +144,21 @@ export const slopeChartDef: ChartTemplateDef = {
             },
         };
     },
+    structure: (ctx) => {
+        // A slope is read from where each line starts, so its values are fitted to the data, not to zero.
+        const base = skeletonStructure(slopeChartDef.template, ctx);
+        const periodField = ctx.channelSemantics.x?.field;
+        // The two periods read left to right in their natural order unless the author orders them.
+        const periods = periodField ? orderedDistinct(ctx.table, periodField) : [];
+        const ordered = base.x && periods.length > 1 ? { ...base, x: { ...base.x, order: { order: { by: 'values' as const, values: periods }, fixed: false } } } : base;
+        const structure = ordered.y ? { ...ordered, y: { ...ordered.y, baseline: 'data' as const, rounded: true } } : ordered;
+        const labelled = ctx.chartProperties?.showText === true && Boolean(periodField && ctx.channelSemantics.y?.field)
+            && orderedDistinct(ctx.table, periodField!).length >= 2;
+        // Names printed at the line ends make the colour key redundant.
+        const named = labelled && ctx.chartProperties?.showSeriesInLabel === true;
+        const keyed = named && ctx.channelSemantics.color?.field ? { ...structure, keys: [] } : structure;
+        return labelled ? { ...keyed, marks: [...keyed.marks, 'text'] } : keyed;
+    },
     instantiate: (spec, ctx) => {
         defaultBuildEncodings(spec, ctx.resolvedEncodings);
 
@@ -154,16 +170,6 @@ export const slopeChartDef: ChartTemplateDef = {
         // converts it, but a caller could pass an explicit type override).
         if (!isDiscrete(xEnc.type)) {
             xEnc.type = resolveDiscreteType(xEnc.type, xEnc.field, ctx.table);
-        }
-
-        // Order the two period bands. The auto-sort in buildVLEncodings only
-        // fires for fields that were *already* discrete in Phase 0, so a
-        // temporal/numeric period converted here arrives without a sort —
-        // give it an explicit natural order so the periods read left→right.
-        if ((xEnc.type === 'ordinal' || xEnc.type === 'nominal') &&
-            xEnc.sort == null && xEnc.field) {
-            const order = orderedDistinct(ctx.table, xEnc.field);
-            if (order.length > 1) xEnc.sort = order;
         }
 
         xEnc.scale = { ...xEnc.scale, padding: periodInset(ctx.chartProperties) };

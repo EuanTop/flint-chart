@@ -97,6 +97,19 @@ export const roseChartDef: ChartTemplateDef = {
     // so the layout pipeline won't produce step-based sizing.
     declareLayoutMode: () => ({}),
 
+    structure: (ctx) => {
+        // Categories go round the circle and values out from it, so no field sits on x or y.
+        const { x, y, color, column, row } = ctx.channelSemantics;
+        const sliceColor = color?.field ? { field: color.field, type: color.type }
+            : x?.field ? { field: x.field, type: ctx.resolvedTypes?.x ?? x.type ?? 'nominal' } : undefined;
+        return {
+            marks: column?.field || row?.field ? ['arc'] : ['arc', 'text'],
+            ...(x?.field ? { angle: { type: 'nominal', fields: [x.field] } } : {}),
+            ...(y?.field ? { radius: { type: 'quantitative', fields: [y.field] } } : {}),
+            ...(sliceColor ? { series: sliceColor } : {}),
+            stacking: 'none',
+        };
+    },
     instantiate: (spec, ctx) => {
         if (!spec.encoding) spec.encoding = {};
 

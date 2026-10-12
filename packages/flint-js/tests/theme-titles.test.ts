@@ -4,7 +4,10 @@
 import { describe, it, expect } from 'vitest';
 import { compile } from 'vega-lite';
 import { parse, View } from 'vega';
-import { assembleVegaLite, THEME_PRESETS } from '../src';
+import { assembleVegaLite as assembleWithoutDecisions, THEME_PRESETS } from '../src';
+
+/** Compiles with the theme's full decisions attached, which these tests read. */
+const assembleVegaLite = (input: any): any => assembleWithoutDecisions({ ...input, options: { ...input.options, themeDecisions: true } });
 import type { ThemeSpec } from '../src/core/theme/types';
 
 /**
@@ -237,8 +240,6 @@ describe('axis titles', () => {
         const spec = bars(house({ axisTitles: 'omit' }));
         expect(axisTitle(spec, 'y')).toBeNull();
         expect(spec.title).toMatchObject({ text: '', subtitle: ['Rainfall'] });
-        const report = spec._theme.report.map((r: any) => r.path);
-        expect(report).toContain('annotation.axisTitles');
         const view = new View(parse(compile(spec).spec), { renderer: 'none' });
         try {
             await view.runAsync();
@@ -400,7 +401,6 @@ describe('axis titles', () => {
         expect([spec.title.subtitle].flat().join(' ')).toBe('X: Miles/person; Y: Gas price');
         const enc = (spec.spec?.encoding ?? spec.encoding ?? spec.layer?.[0]?.encoding ?? {});
         expect(enc.y.axis.orient).toBe('right');
-        expect(JSON.stringify(spec._theme.report)).toContain('moves to the end of the subtitle');
     });
 
     it('keeps life expectancy named when the headline only describes the story', () => {

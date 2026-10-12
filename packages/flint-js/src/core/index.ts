@@ -230,6 +230,7 @@ export {
     type GroundingContext,
     groundTheme,
     resolveGeometry,
+    tokenToPx,
     THEME_PRESETS,
     DEFAULT_THEME_ICON,
     listThemePresets,

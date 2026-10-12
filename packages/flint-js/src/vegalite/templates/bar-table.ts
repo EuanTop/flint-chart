@@ -38,6 +38,26 @@ import { formatSpecToVegaExpr } from '../format';
  *   - color (nominal/ordinal): groups rows by hue (overrides default
  *     gradient-by-value styling)
  */
+/**
+ * Whether a bar table's values read around zero: a measure that always diverges (profit,
+ * correlation), or one that may and here holds both signs.
+ */
+function divergingValues(xCS: ChannelSemantics | undefined, xField: string, rows: readonly Record<string, any>[]): boolean {
+    const entry = getRegistryEntry(xCS?.semanticAnnotation?.semanticType ?? 'Unknown');
+    if (entry.diverging === 'inherent') return true;
+    if (entry.diverging !== 'conditional') return false;
+    let hasNegative = false;
+    let hasPositive = false;
+    for (const r of rows) {
+        const v = r[xField];
+        if (typeof v === 'number' && isFinite(v)) {
+            if (v < 0) hasNegative = true;
+            else if (v > 0) hasPositive = true;
+        }
+    }
+    return hasNegative && hasPositive;
+}
+
 export const barTableDef: ChartTemplateDef = {
     chart: "Bar Table",
     composite: true,
@@ -130,6 +150,26 @@ export const barTableDef: ChartTemplateDef = {
             },
         };
     },
+    structure: (ctx) => {
+        // Each category's bar beside its value printed as text; colour comes from a bound field, or
+        // shades the bars by their value. Neither axis carries a title.
+        const { x: xCS, y: yCS, color } = ctx.channelSemantics;
+        const xField = xCS?.field || 'Value';
+        const yField = yCS?.field || 'Category';
+        const xIsOrdinal = xCS?.type === 'ordinal';
+        const series = color?.field ? { field: color.field, type: color.type }
+            : { field: xField, type: xIsOrdinal && !divergingValues(xCS, xField, ctx.fullTable) ? 'ordinal' : 'quantitative' };
+        return {
+            marks: ['bar', 'text'],
+            x: { type: 'quantitative', fields: [xField], rounded: false },
+            y: { type: 'nominal', fields: [yField] },
+            series,
+            stacking: 'stacked',
+            // Bars shaded by their own value need no key; a bound colour field gets one.
+            keys: color?.field ? [{ channel: 'color', field: color.field, ...(color.type ? { type: color.type } : {}) }] : [],
+            axisTitles: { x: null, y: null },
+        };
+    },
     instantiate: (spec, ctx) => {
         const { x, y, color, column, row } = ctx.resolvedEncodings;
         const config = ctx.chartProperties;
@@ -159,7 +199,6 @@ export const barTableDef: ChartTemplateDef = {
         //    when the chart is rendered without a full pipeline) ───────
         const xCS: ChannelSemantics | undefined = ctx.channelSemantics?.x;
         const yCS: ChannelSemantics | undefined = ctx.channelSemantics?.y;
-        const xEntry = getRegistryEntry(xCS?.semanticAnnotation?.semanticType ?? 'Unknown');
 
         // ── Ordinal measures (Rank) ──────────────────────────────────
         // An ordinal is a standing, not a magnitude: "how much better is 1st
@@ -172,16 +211,6 @@ export const barTableDef: ChartTemplateDef = {
         // magnitude that isn't there.
         const xIsOrdinal = xCS?.type === 'ordinal';
 
-        // Sign profile of x values — used by the diverging-palette check.
-        let hasNegative = false;
-        let hasPositive = false;
-        for (const r of table) {
-            const v = r[xField];
-            if (typeof v === 'number' && isFinite(v)) {
-                if (v < 0) hasNegative = true;
-                else if (v > 0) hasPositive = true;
-            }
-        }
 
         // showPercent: off by default (safer — avoids misleading shares
         // for intensive measures, already-percent values, mixed-sign
@@ -526,10 +555,7 @@ export const barTableDef: ChartTemplateDef = {
         // ── Color: gradient by value (default) or grouped by field ───
         // Diverging types (Profit/Correlation) and mixed-sign data get a
         // diverging palette anchored at 0; otherwise a sequential ramp.
-        const isDiverging = !colorField && (
-            xEntry.diverging === 'inherent'
-            || (xEntry.diverging === 'conditional' && hasNegative && hasPositive)
-        );
+        const isDiverging = !colorField && divergingValues(xCS, xField, table);
         const colorEnc = colorField
             ? (() => {
                 // When we trimmed, the synthetic Others row has no value

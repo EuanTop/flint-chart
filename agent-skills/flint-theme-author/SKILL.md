@@ -121,7 +121,7 @@ the authored blocks and their jobs:
 | `structure` | Semantic categorical/measure axes, grids, baseline, and frame |
 | `marks` | Band width, strokes, interpolation, opacity, corners, outlines, points, connectors, intervals, summaries, and separators |
 | `labels` | Truncation, flush behavior, and angle policy |
-| `legend` | Visibility, ordered placement choices, direction, title, swatches, and redundancy suppression |
+| `legend` | Visibility, ordered placement choices, direction, title, swatches, redundancy suppression, and how several keys stand: `arrangement` (`row`/`stack`), `titlePosition` (`above`/`inline`) and `align` (`start`/`center`/`end`/`spread`), preferences the layout keeps unless the keys would overflow |
 | `dataLabels` | Visibility, placement, and ink behavior for values on marks |
 | `annotation` | Units, axis titles, number formatting, point emphasis, labels, and statistics |
 | `furniture` | Repeating masthead tabs and header/footer rules |

@@ -18,6 +18,7 @@
  */
 
 import { ChartTemplateDef, ChartPropertyDef, EncodingActionDef } from '../../core/types';
+import { skeletonStructure } from '../../core/structure';
 import {
     legendMatchedHits,
     MUTED_HOVER_STROKE,
@@ -107,6 +108,20 @@ export const vlCalendarHeatmapDef: ChartTemplateDef = {
     chart: 'Calendar Heatmap',
     template: { mark: { type: 'rect', cornerRadius: 2 }, encoding: {} },
     channels: ['x', 'color'],
+    structure: (ctx) => {
+        // Weeks run across and weekdays down; colour carries the value, or a count of days.
+        const structure = skeletonStructure(vlCalendarHeatmapDef.template, ctx);
+        const date = ctx.channelSemantics.x?.field;
+        if (!date) return structure;
+        const value = ctx.channelSemantics.color?.field;
+        return {
+            ...structure,
+            x: { type: 'ordinal', fields: [date], derived: 'week' },
+            y: { type: 'ordinal', fields: [date], derived: 'weekday' },
+            series: value ? { field: value, type: 'quantitative' } : { derived: 'days', type: 'quantitative' },
+            axisTitles: { x: null, y: null },
+        };
+    },
     interactionSupport: {
         elements: true,
         region: ['cartesian'],
@@ -149,6 +164,8 @@ export const vlCalendarHeatmapDef: ChartTemplateDef = {
         // Both axes are ordinal bands (week columns × weekday rows); square-ish
         // cells read as a calendar rather than a stretched grid.
         axisFlags: { x: { banded: true }, y: { banded: true } },
+        // Month initials under their first week, set straight.
+        axisLabels: { x: { angle: 0 } },
     }),
     instantiate: (spec, ctx) => {
         const dateField = ctx.channelSemantics.x?.field;

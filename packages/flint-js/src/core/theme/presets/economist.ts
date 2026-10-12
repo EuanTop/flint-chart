@@ -165,7 +165,9 @@ export const economist: ThemePreset = {
             ],
             "direction": "horizontal",
             "title": "omit",
-            "maxSwatches": 3
+            "maxSwatches": 3,
+            "arrangement": "row",
+            "titlePosition": "inline"
         },
         "dataLabels": {
             "show": "whenTheyFit",
