@@ -114,6 +114,7 @@ const approxFormattedNum = (v: number, fmt?: FormatSpec): string =>
 
 export const sparklineDef: ChartTemplateDef = {
     chart: 'Sparkline',
+    composite: true,
     template: { mark: 'line', encoding: {} },
     channels: ['x', 'y', 'color', 'detail', 'row', 'column'],
     interactionSupport: {

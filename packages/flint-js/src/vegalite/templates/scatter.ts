@@ -407,6 +407,9 @@ export const boxplotDef: ChartTemplateDef = {
         }
         return {
             axisFlags: { [result.axis]: { banded: true } },
+            // Boxes sit on a nested offset when a global dodge places them by lane, and so do
+            // the jittered points `showPoints` overlays; a local dodge spans plain bands.
+            bandAxes: { [result.axis]: { scale: 'band', nested: !groupLaneCount && (chartProperties?.showPoints === true || colorActsAsGroup) } },
             resolvedTypes: result.resolvedTypes,
             paramOverrides: { defaultBandSize: 28, groupBandFillsLanes: true },  // box+whisker needs wider bands; grouped lanes each get full width
             colorActsAsGroup,  // dodge-by-color → budget band per category, shrink lanes

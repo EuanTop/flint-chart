@@ -583,7 +583,8 @@ export interface ThemeGeometry {
  * Keyed by chart type id, or `*` for every chart. Values are chart-property
  * keys the template already declares. It is a *default*: anything the caller
  * set explicitly wins, and a key the template does not offer is reported and
- * dropped.
+ * dropped. So is a key that changes how the data is read rather than how the
+ * chart looks: axis type, zero baseline, log scale, transform, encoding actions.
  */
 export interface ThemeChartDefaults {
     [chartType: string]: Record<string, unknown>;

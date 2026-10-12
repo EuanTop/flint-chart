@@ -277,7 +277,22 @@ function buildRadarLayers(
 // ---------------------------------------------------------------------------
 // Template definition
 // ---------------------------------------------------------------------------
+/** A radar is square, on the shorter side of the base size. */
+function radarSize(canvasSize: { width: number; height: number } | undefined): number {
+    return Math.min(canvasSize?.width || 400, canvasSize?.height || 400);
+}
+
+/** The smallest panel a faceted radar draws. */
+const RADAR_MIN_PANEL = 200;
+
 export const radarChartDef: ChartTemplateDef = {
+    planPlot: (ctx) => {
+        if (!ctx.table || ctx.table.length === 0 || !ctx.channelSemantics.x?.field || !ctx.channelSemantics.y?.field) return undefined;
+        const size = radarSize(ctx.canvasSize);
+        const faceted = ctx.channelSemantics.column?.field || ctx.channelSemantics.row?.field;
+        const panel = faceted ? Math.max(RADAR_MIN_PANEL, size) : size;
+        return { width: panel, height: panel };
+    },
     chart: "Radar Chart",
     template: {
         description: "Radar / Spider chart",
@@ -332,7 +347,7 @@ export const radarChartDef: ChartTemplateDef = {
             return;
         }
 
-        const size = Math.min(canvasSize?.width || 400, canvasSize?.height || 400);
+        const size = ctx.plot?.width ?? radarSize(canvasSize);
         const layerOpts = { filled, fillOpacity, strokeWidth, domainPad: 1.18 };
 
         // ---- No faceting ----
@@ -357,8 +372,7 @@ export const radarChartDef: ChartTemplateDef = {
             ? [...new Set(table.map(r => String(r[rowField])))] as string[]
             : ["_all"];
 
-        const minSubplot = 200;
-        const subplotSize = Math.max(minSubplot, size);
+        const subplotSize = ctx.plot?.width ?? Math.max(RADAR_MIN_PANEL, size);
 
         let subplotIndex = 0;
         const buildSubplot = (rows: any[], title?: string) => {

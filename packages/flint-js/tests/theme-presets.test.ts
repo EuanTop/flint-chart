@@ -401,6 +401,15 @@ describe('theme chartDefaults', () => {
         const spec = build(theme({ chartDefaults: { '*': { notAnOption: 3 } } }));
         expect(JSON.stringify(spec._theme?.report ?? [])).toContain('notAnOption');
     });
+
+    it('drops an option that changes how the data is read, and says so', () => {
+        const usesLogScale = (spec: any) => JSON.stringify(spec).includes('"type":"log"');
+        expect(usesLogScale(build(theme({}), { logScale_y: true }))).toBe(true);
+
+        const spec = build(theme({ chartDefaults: { 'Line Chart': { logScale_y: true } } }));
+        expect(usesLogScale(spec)).toBe(false);
+        expect(JSON.stringify(spec._theme?.report ?? [])).toContain('changes how the data is read');
+    });
 });
 
 describe('faceted rose theme labels', () => {

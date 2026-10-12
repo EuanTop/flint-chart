@@ -83,7 +83,7 @@
 
 ## §2.4 交互层
 
-`mountChart(container, input, options)` 返回 `InteractiveChartSurface`：`ready`、`warnings`、`applyUpdate`、`setUpdates`、`clearUpdate`、`dispatch`、`getState`、`onChange`、`refresh`、`destroy`。容器为每个语义事件派发 `flint-interaction` DOM 事件，携带交互 id 和已解析目标，宿主无需了解预设即可监听。
+`mountChart(container, input, options)` 返回 `InteractiveChartSurface`：`ready`、`warnings`、`layout`、`applyUpdate`、`setUpdates`、`clearUpdate`、`dispatch`、`getState`、`onChange`、`refresh`、`destroy`。容器为每个语义事件派发 `flint-interaction` DOM 事件，携带交互 id 和已解析目标，宿主无需了解预设即可监听。
 
 图表同时拥有自己的状态，宿主直接读取它，而不是回放手势。`getState()` 返回 `ChartState`：被强调的标记（`selected`，含预览；`entries` 按更新 id 区分各自的份额）、被隐藏的图例值、当前视口和分类滚动窗口。每个标记的 `value` 以字段表达它的含义：柱的类别与度量、图例项的通道与值、直方图柱的字段与区间。`onChange(callback)` 在每次渲染后触发，携带 `ChartChange`：阶段（手势进行中为 `preview`，已提交的变更或宿主调用为 `commit`，手势无提交而结束为 `cancel`）、手势自身的命中与几何，以及变更后的状态。DOM 事件是原始手势记录，在图表响应之前触发；`onChange` 是图表所显示的内容，在之后触发。数据行留在宿主一侧：宿主根据值和几何查询自己的数据，图表不交出数据副本。
 

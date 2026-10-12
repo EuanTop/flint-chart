@@ -63,7 +63,15 @@ export interface ChartChange {
 /** What a renderer reports before the state comparison fills in `changed` and `previous`. */
 export type ChartChangeReport = Omit<ChartChange, 'changed' | 'previous'>;
 
+/** What the chart's layout plan decided, as far as a host reads it. */
+export interface ChartLayout {
+    /** The plot box in pixels: the data area, inside axes, legend and titles. */
+    plot: { width: number; height: number };
+}
+
 export interface InteractiveRenderer {
+    /** The layout the chart was drawn with, where the backend plans one. */
+    readonly layout?: ChartLayout;
     viewports: CategoryViewport[];
     /** Admission warnings from the mount: spec interactions the chart could not honour. */
     readonly warnings?: readonly ChartWarning[];
@@ -126,6 +134,12 @@ export interface InteractiveChartSurface {
     readonly ready: Promise<void>;
     /** Every warning about this chart's interactions, once the mount has settled. Never rejects. */
     readonly warnings: Promise<readonly ChartWarning[]>;
+    /**
+     * The layout the chart is drawn with now; a filter that re-lays the chart out updates it. Undefined
+     * before the mount, on a chart that draws several views (facets, or a composite such as a bar
+     * table), on a chart with a category rail, and on backends that do not plan one.
+     */
+    readonly layout: ChartLayout | undefined;
     getViewportState(): ViewportState;
     setViewport(channel: ViewportChannel, start: number): void;
     dispatch(interactionId: string, payload: unknown): Promise<ChartUpdateResult | null>;

@@ -185,7 +185,7 @@ export const AXIS_LABEL_LIMIT = 180;
  * them. Updates the layout's step and label sizing in place; `skip` leaves a channel alone.
  */
 export function planBandLabels(
-    context: InstantiateContext,
+    context: Pick<InstantiateContext, 'layout' | 'canvasSize' | 'channelSemantics' | 'assembleOptions' | 'table'>,
     options: { fontSize?: number; skip?: (channel: 'x' | 'y') => boolean } = {},
 ): void {
     const { layout, canvasSize, channelSemantics } = context;
@@ -371,6 +371,7 @@ const SQUARE_CELL_TOLERANCE = 1.5;
  *                           counts instead of counting from data — this
  *                           eliminates the circularity between wrapping and
  *                           banded axis sizing.
+ * @param pinnedPlot         A plot size that stays as given, whatever the rows would stretch it to.
  */
 export function computeLayout(
     channelSemantics: Record<string, ChannelSemantics>,
@@ -379,6 +380,7 @@ export function computeLayout(
     canvasSize: { width: number; height: number },
     options: AssembleOptions = {},
     facetGrid?: { columns: number; rows: number },
+    pinnedPlot?: { width: number; height: number },
 ): LayoutResult {
     const {
         elasticity: elasticityVal = 0.5,
@@ -1126,6 +1128,10 @@ export function computeLayout(
     // Clamp continuous subplot dimensions.
     subplotWidth = Math.min(subplotWidth, Math.round(maxSubplotW));
     subplotHeight = Math.min(subplotHeight, Math.round(maxSubplotH));
+    // A banded continuous axis spreads its values across the clamped plot, so its step is what the
+    // plot leaves each value, even below the minimum step it was asked for.
+    if (xContinuousAsDiscrete > 0) xStepSize = Math.min(xStepSize, subplotWidth / (xContinuousAsDiscrete + 1));
+    if (yContinuousAsDiscrete > 0) yStepSize = Math.min(yStepSize, subplotHeight / (yContinuousAsDiscrete + 1));
 
     // --- Band AR blending ---
     // When one axis is banded (discrete) and the other is continuous,
@@ -1159,6 +1165,14 @@ export function computeLayout(
                     Math.max(minContinuousSizeX, Math.min(blendedW, subplotWidth)));
             }
         }
+    }
+
+    // --- Pinned plot ---
+    // A pinned plot keeps its size; the steps stay as the rows decide them, so planning the
+    // same rows again into the same plot gives the same layout.
+    if (pinnedPlot) {
+        subplotWidth = pinnedPlot.width;
+        subplotHeight = pinnedPlot.height;
     }
 
     // --- Label sizing ---

@@ -40,6 +40,7 @@ import { formatSpecToVegaExpr } from '../format';
  */
 export const barTableDef: ChartTemplateDef = {
     chart: "Bar Table",
+    composite: true,
     template: {
         spacing: 4,
         resolve: { scale: { y: 'shared' } },

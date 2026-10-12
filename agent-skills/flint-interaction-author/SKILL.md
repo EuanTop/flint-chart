@@ -601,6 +601,7 @@ surface.destroy();
 | `dispatch(id, payload)` | Runs an `externalInteraction` handler and applies what it returns. |
 | `getState()` | What the chart shows now; `undefined` before `ready`. |
 | `onChange(callback)` | Every change to that state, after the render; returns the unsubscribe. |
+| `layout` | The plot box in pixels, `{ plot: { width, height } }`, once ready; a filter that re-lays the chart out updates it. `undefined` on faceted and composite charts, charts with a category rail, and non-Vega-Lite backends. |
 | `refresh()` | Re-projects overlays after the host rescales the chart. |
 | `element`, `chartId` | The mount's root and the stable chart id. |
 | `destroy()` | Removes listeners, the renderer, and the DOM. |

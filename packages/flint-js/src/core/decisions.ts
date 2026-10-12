@@ -902,8 +902,9 @@ export function computeLabelSizing(
         return { fontSize: baseFont, labelLimit: defaultLimit };
     }
 
-    // Shrink lever: font tracks the band step but is bounded by [minFont, baseFont].
-    let fontSize = Math.max(minFont, Math.min(baseFont, effectiveStep - 1));
+    // Shrink lever: font tracks the band step, in whole pixels, bounded by [minFont, baseFont].
+    const fontStep = Math.floor(effectiveStep);
+    let fontSize = Math.max(minFont, Math.min(baseFont, fontStep - 1));
     let labelLimit = Math.max(30, Math.min(100, effectiveStep * 8));
     let labelAngle: number | undefined;
     let labelAlign: string | undefined;
@@ -913,14 +914,14 @@ export function computeLabelSizing(
         // Narrow band → rotate vertical, shrink harder (but keep the ceiling
         // one notch below base so a 12-native backend still reads ~10 here).
         labelAngle = -90;
-        fontSize = Math.max(minFont, Math.min(baseFont - 2, effectiveStep));
+        fontSize = Math.max(minFont, Math.min(baseFont - 2, fontStep));
         labelLimit = 40;
         labelAlign = 'right';
         labelBaseline = 'middle';
     } else if (effectiveStep < 16) {
         // Medium band → rotate 45°, shrink slightly.
         labelAngle = -45;
-        fontSize = Math.max(minFont, Math.min(baseFont - 1, effectiveStep));
+        fontSize = Math.max(minFont, Math.min(baseFont - 1, fontStep));
         labelLimit = 60;
         labelAlign = 'right';
         labelBaseline = 'top';

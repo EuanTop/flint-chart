@@ -237,6 +237,8 @@ const stop = surface.onChange(({ phase, state }) => {
 });
 ```
 
+`surface.layout` reports what the chart's layout decided, once `surface.ready` resolves: `layout.plot` is the plot box in pixels, the data area inside axes, legend, and titles. A host reads it to size or align things around the chart without compiling the spec again. Sizes are in the chart's own pixels, before any CSS scaling. When a filter re-lays the chart out, `layout` follows it; read it again after `onChange`. It is set on Vega-Lite charts that draw one plot, and `undefined` on faceted and composite charts (a bar table, a pyramid, KPI cards, sparklines), on charts with a category rail, and on other backends.
+
 ## Lifecycle and cleanup
 
 Await `surface.ready` before dispatching application events. Use `surface.clearUpdate(id)` to remove an interaction's retained updates and `surface.destroy()` when unmounting the chart. Host-dispatched updates are not cleared by canvas reset gestures; the application owns their reset behavior.

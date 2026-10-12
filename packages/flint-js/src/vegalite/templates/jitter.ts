@@ -56,9 +56,16 @@ export const stripPlotDef: ChartTemplateDef = {
             )),
         };
     },
-    declareLayoutMode: () => ({
-        paramOverrides: { defaultBandSize: 50, minStep: 16 },
-    }),
+    declareLayoutMode: (cs, _table, chartProperties) => {
+        // Jittered points sit on an offset within each category's band.
+        const discrete = (type: string | undefined) => type === 'nominal' || type === 'ordinal';
+        const catAxis = discrete(cs.x?.type) ? 'x' : discrete(cs.y?.type) ? 'y' : undefined;
+        const jitters = (chartProperties?.stepWidth ?? 20) > 0;
+        return {
+            paramOverrides: { defaultBandSize: 50, minStep: 16 },
+            ...(catAxis && jitters ? { bandAxes: { [catAxis]: { scale: 'band', nested: true } } } : {}),
+        };
+    },
     instantiate: (spec, ctx) => {
         defaultBuildEncodings(spec, ctx.resolvedEncodings);
 

@@ -60,6 +60,7 @@ const CARD_RADIUS = 8;
 
 export const kpiCardDef: ChartTemplateDef = {
     chart: "KPI Card",
+    composite: true,
     template: { layer: [] },
     channels: ["metric", "value", "goal"],
     interactionSupport: {

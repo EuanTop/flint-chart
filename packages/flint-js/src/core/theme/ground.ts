@@ -201,6 +201,7 @@ export function resolveChartDefaults(
     declared: { key: string }[] | undefined,
     authored: Record<string, any> | undefined,
     target: Record<string, any>,
+    readsData: (key: string) => boolean,
 ): ThemeReport[] {
     const defaults = theme?.chartDefaults;
     // A slopegraph reads in one of two ways, and which one is a house matter.
@@ -235,6 +236,14 @@ export function resolveChartDefaults(
                 stage: 'ground',
                 path: `chartDefaults.${chartType}.${key}`,
                 message: `the house asks for \`${key}\`, which \`${chartType}\` does not offer — dropped`,
+            });
+            continue;
+        }
+        if (readsData(key)) {
+            report.push({
+                stage: 'ground',
+                path: `chartDefaults.${chartType}.${key}`,
+                message: `the house asks for \`${key}\`, which changes how the data is read, not how the chart looks — dropped`,
             });
             continue;
         }
@@ -348,6 +357,17 @@ function stripUndefined(geometry: ThemeGeometry): ThemeGeometry {
  * sixteen-panel facet — arrives here already folded in, because variants are
  * merged into `theme` before this runs.
  */
+/** The share of its band a bar fills: the theme's band geometry, else what the layout's step padding leaves. */
+export function resolveBandFraction(
+    theme: ThemeSpec,
+    chartType: string,
+    geometryKinds: GeometryKind[] | undefined,
+    stepPadding: number | undefined,
+): number {
+    const marks = geometryToMarks(resolveGeometry(theme, chartType, geometryKinds).geometry, theme.marks);
+    return marks?.bandFraction ?? (1 - (stepPadding ?? 0.1));
+}
+
 export function resolveGeometry(
     theme: ThemeSpec | undefined,
     chartType: string,
@@ -1526,7 +1546,7 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
     }
 
     const marks: DesignDecisions['marks'] = {
-        bandFraction: marksSpec.bandFraction ?? (1 - (ctx.layout.stepPadding ?? 0.1)),
+        bandFraction: resolveBandFraction(theme, ctx.chartType, ctx.geometryKinds, ctx.layout.stepPadding),
         strokeWidth: marksSpec.strokeWeight ?? 2,
         strokeCap: marksSpec.strokeCap,
         strokeJoin: marksSpec.strokeJoin,

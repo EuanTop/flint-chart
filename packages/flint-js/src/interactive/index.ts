@@ -10,6 +10,7 @@ export type {
     TargetFeedbackOptions,
     BuildInteractiveChartOptions,
     ChartChange,
+    ChartLayout,
     ChartChangePhase,
     ChartChangeSource,
     ChartStateFacet,

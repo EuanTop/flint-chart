@@ -16,10 +16,12 @@ interface FlintViewProps {
   /** Text shown before the error message. */
   errorPrefix?: string;
   onChange?: FlintChartProps['onChange'];
+  /** After each mount, with the mounted chart. */
+  onRender?: FlintChartProps['onRender'];
 }
 
 /** A `FlintChart` that shows its compile error (and optionally warnings) in place. */
-export function FlintView({ spec, backend, renderer = 'canvas', chartId, ariaLabel, showWarnings = false, compact = false, errorPrefix, onChange }: FlintViewProps) {
+export function FlintView({ spec, backend, renderer = 'canvas', chartId, ariaLabel, showWarnings = false, compact = false, errorPrefix, onChange, onRender }: FlintViewProps) {
   const [warnings, setWarnings] = useState<readonly ChartWarning[]>([]);
   const [error, setError] = useState<string | null>(null);
   const onError = useCallback((err: Error) => setError(err.message), []);
@@ -39,6 +41,7 @@ export function FlintView({ spec, backend, renderer = 'canvas', chartId, ariaLab
           chartId={chartId}
           ariaLabel={ariaLabel}
           onWarnings={showWarnings ? setWarnings : undefined}
+          onRender={onRender}
           onError={onError}
           onChange={onChange}
         />

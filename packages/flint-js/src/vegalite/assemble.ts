@@ -48,27 +48,25 @@ import {
     ChartEncoding,
     ChartTemplateDef,
     ChartAssemblyInput,
-    AssembleOptions,
     LayoutDeclaration,
     InstantiateContext,
 } from '../core/types';
-import type { ChartWarning, ChartOption, OptionEvalContext } from '../core/types';
+import type { AssembleOptions, ChartWarning, ChartOption, OptionEvalContext } from '../core/types';
+import type { ThemeReport } from '../core/theme/types';
 import { declaredInteractionCapabilities, type InteractionCapability } from '../core/interaction-spec';
-import { applyEncodingOverrides } from '../core/encoding-overrides';
-import { applyAggregation } from '../core/aggregate';
+import { analysisReadsProperty, analyzeChart, type ChartAnalysis } from '../core/analyze';
+import { planLayout, type BackendLayoutProfile, type LayoutPlan, type PlanContext } from '../core/plan';
 import { planBandDodge, resolveDodge } from '../core/band-dodge';
-import { applyPivot, applyTransform, type PivotSurface, type TransformSurface } from '../core/pivot';
+import { applyPivot, type PivotSurface, type TransformSurface } from '../core/pivot';
 import { vlGetTemplateDef } from './templates';
-import { inferVisCategory, computeZeroDecision } from '../core/semantic-types';
+import { inferVisCategory } from '../core/semantic-types';
 import { getRegistryEntry } from '../core/type-registry';
-import { resolveChannelSemantics, convertTemporalData, inspectEncodingSort, repairEncodingSorts } from '../core/resolve-semantics';
+import { inspectEncodingSort } from '../core/resolve-semantics';
 import { resolveDisplayUnit, titleWithDisplayUnit, toTypeString, type SemanticAnnotation } from '../core/field-semantics';
-import { filterOverflow } from '../core/filter-overflow';
-import { computeLayout, computeChannelBudgets, computeMinSubplotDimensions, deriveStretchCaps, resolveBaseSize, resolveFacetColumnsOption } from '../core/compute-layout';
-import { vlApplyLayoutToSpec, vlApplyTooltips, vlPlanBandLabels, vlWrapLegendText, vlFinalizeTemporalAxes } from './instantiate-spec';
-import { normalizeStaticSeries } from '../core/static-series';
+import { computeMinSubplotDimensions, resolveBaseSize } from '../core/compute-layout';
+import { templateStatesAxisLabels, vlApplyLayoutToSpec, vlApplyTooltips, vlWrapLegendText, vlFinalizeTemporalAxes } from './instantiate-spec';
 import { normalizeChartProperties } from '../core/normalize-properties';
-import { groundTheme, resolveChartDefaults, resolveCompileDefaults, resolveGeometry, resolveThemeFontSize } from '../core/theme/ground';
+import { groundTheme, resolveChartDefaults, resolveCompileDefaults, resolveGeometry } from '../core/theme/ground';
 import { resolveThemeSpec } from '../core/theme/presets';
 import { realizeThemeVegaLite, realizeValueLabelsVegaLite, collectMarkTypes, collectPositional } from './theme';
 
@@ -111,6 +109,29 @@ const escapeVlFieldName = (name: string): string =>
  * });
  * ```
  */
+/** How Vega-Lite lays a chart out where nothing else says. */
+const VEGA_LITE_LAYOUT: BackendLayoutProfile = {
+    defaults: {
+        // Vega-Lite's native width:{step} preserves the authored category pitch.
+        bandStepFit: 0,
+        // Vega-Lite native font defaults (labels 10, titles 11).
+        baseLabelFontSize: 10,
+        baseTitleFontSize: 11,
+    },
+    fallbacks: {
+        // VL facet overhead:
+        //   Fixed: y-axis labels (~35px width) + x-axis labels (~22px height)
+        //          + titles/legend margin.
+        //   Gap:   config.facet.spacing between panels; shrunk post-layout for
+        //          small subplots (see facetGapVal below).
+        facetFixedPadding: { width: 50, height: 40 },
+        facetGap: 10,
+        targetBandAR: 10,
+    },
+    // Vega-Lite's band padding where an offset channel nests marks inside each band.
+    nestedBandPadding: { inner: 0.2, outer: 0.2 },
+};
+
 /** The headline and deck as one string, whichever shape the title took. */
 function headlineText(title: any): string | undefined {
     if (!title) return undefined;
@@ -140,7 +161,37 @@ export function indexAxisOf(
     return 'x';
 }
 
-export function assembleVegaLite(input: ChartAssemblyInput): any {
+/** The plot's stated size — the view's continuous size, and the plot view's width and height — as one string. */
+function plotSizeFields(spec: any): string {
+    // A theme may wrap the plot in a concatenation with its furniture; the plot is the first view.
+    let plot = spec;
+    while (plot && !plot.mark && !plot.layer && !plot.facet && !plot.spec && (plot.vconcat ?? plot.hconcat ?? plot.concat)) {
+        plot = (plot.vconcat ?? plot.hconcat ?? plot.concat)[0];
+    }
+    return JSON.stringify([
+        spec.config?.view?.continuousWidth, spec.config?.view?.continuousHeight,
+        plot?.width, plot?.height, plot?.spec?.width, plot?.spec?.height,
+    ]);
+}
+
+/** What a Vega-Lite compile settles from the spec and the theme before it reads the data. */
+interface VegaLitePreparation {
+    chartType: string;
+    semanticTypes: Record<string, string | SemanticAnnotation>;
+    themeSpec: ReturnType<typeof resolveThemeSpec>;
+    themePresets: ReturnType<typeof resolveCompileDefaults>;
+    baseSize: { width: number; height: number };
+    sizeCeiling: { width: number; height: number } | undefined;
+    options: AssembleOptions;
+    template: ChartTemplateDef;
+    chartProperties: Record<string, any> | undefined;
+    chartDefaultsReport: ThemeReport[];
+    chartGeometry: ReturnType<typeof resolveGeometry>['geometry'];
+    geometryReport: ThemeReport[];
+    warnings: ChartWarning[];
+}
+
+function prepareVegaLite(input: ChartAssemblyInput): VegaLitePreparation {
     const chartType = input.chart_spec.chartType;
     const semanticTypes = input.semantic_types ?? {};
     // `theme_spec` may name a house Flint ships rather than spell one out.
@@ -158,7 +209,7 @@ export function assembleVegaLite(input: ChartAssemblyInput): any {
     const baseSize = resolveBaseSize(input.chart_spec.baseSize ?? housePresets?.baseSize, sizeCeiling);
     const canvasSize = baseSize;
     const options = themePresets.options ?? {};
-    let chartTemplate = vlGetTemplateDef(chartType) as ChartTemplateDef;
+    const chartTemplate = vlGetTemplateDef(chartType) as ChartTemplateDef;
     if (!chartTemplate) {
         throw new Error(`Unknown chart type: ${chartType}`);
     }
@@ -184,6 +235,7 @@ export function assembleVegaLite(input: ChartAssemblyInput): any {
         ? resolveChartDefaults(
             themeSpec, chartType, chartTemplate.properties,
             input.chart_spec.chartProperties, chartProperties,
+            (key) => analysisReadsProperty(chartTemplate, key),
         )
         : [];
 
@@ -205,370 +257,46 @@ export function assembleVegaLite(input: ChartAssemblyInput): any {
         themeSpec, chartType, chartTemplate.geometryKinds,
     );
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // PRE-PHASE: Static Series Normalization
-    // ═══════════════════════════════════════════════════════════════════════
-    // Detect array-valued encodings (static series), validate, and fold data.
-    const rawData = input.data.values ?? [];
-    const sortRepair = repairEncodingSorts(input.chart_spec.encodings, rawData);
-    warnings.push(...sortRepair.warnings);
-    const normalized = normalizeStaticSeries(
-        sortRepair.encodings, rawData, semanticTypes, chartType,
-    );
-    let data = normalized.data;
-    const staticSeries = normalized.staticSeries;
-
-    // Compose Category-B encoding-action overrides (stored by the host in
-    // chartProperties, keyed by action key) onto the base encodings before any
-    // pipeline phase runs. Flint owns the transform; the host only stores the
-    // override value. See applyEncodingOverrides / EncodingActionDef.
-    //
-    // Some actions (e.g. Sort) must know each channel's resolved encoding TYPE
-    // to decide which position axis is the discrete category and which is the
-    // measure. The host leaves `type` unset ("auto") for most encodings, so we
-    // run a preliminary semantics pass to fill in the inferred types, compose
-    // the overrides onto the type-enriched encodings, then re-resolve semantics
-    // on the result below (so that, e.g., a value-sort correctly suppresses the
-    // field's canonical ordinal ordering).
-    const prelimConvertedData = convertTemporalData(data, semanticTypes);
-    const prelimSemantics = resolveChannelSemantics(
-        normalized.encodings, data, semanticTypes, prelimConvertedData,
-    );
-    const typedRawEncodings: Record<string, ChartEncoding> = {};
-    for (const [ch, enc] of Object.entries(normalized.encodings)) {
-        typedRawEncodings[ch] = enc.type
-            ? enc
-            : { ...enc, type: prelimSemantics[ch]?.type };
-    }
-    // Axis dtype override (`xAxisType` / `yAxisType` properties): the user can
-    // force a position channel's interpretation between a continuous time scale
-    // ('temporal') and discrete bands ('nominal') for date-like fields that
-    // carry a dual interpretation. Applies to either axis — x on a vertical
-    // bar/line, y on a horizontal (transposed) bar/lollipop. Applied at the
-    // encoding level so the whole pipeline (sorting, layout, formatting) honors
-    // it — resolveChannelSemantics treats an explicit encoding.type as
-    // authoritative. Whether each control is *offered* is decided by the
-    // property's own `check` (see AXIS_DTYPE_PROPERTIES).
-    for (const axis of ['x', 'y'] as const) {
-        const choice = chartProperties?.[`${axis}AxisType`];
-        if ((choice === 'temporal' || choice === 'nominal') && typedRawEncodings[axis]?.field) {
-            typedRawEncodings[axis] = { ...typedRawEncodings[axis], type: choice };
-        }
-    }
-    // Transform (derived Category-B operator): re-route fields across position/
-    // legend/facet channels + optionally re-render as a sibling chart type, to
-    // surface alternative views. Split into TWO independent controls (see
-    // design-docs/chart-transform-two-axes.md):
-    //   - Control B (chart type, θ): stored under chartProperties.chartType
-    //   - Control A (arrange, τ/σ/γ): stored under chartProperties.arrange
-    // (A legacy composed `pivot` id is migrated by applyTransform.) Composed
-    // BEFORE other overrides so sort/overflow/layout resolve against the result.
-    // Both surfaces are exposed to hosts via `_transform` / getChartTransform;
-    // the legacy single-control `_pivot` surface is still emitted below.
-    const authoredTemplate = chartTemplate;
-    const transformed = applyTransform(chartTemplate, typedRawEncodings, data, chartProperties, vlGetTemplateDef);
-    // A chart-type *transition* (Control B) re-renders the same data as a sibling
-    // chart type (e.g. Grouped Bar → Stacked Bar, Scatter → Strip/Jitter). The
-    // authored chartType / encodings are untouched; rendering re-dispatches to
-    // the sibling template so its instantiate / layout logic takes over. See §4.6.
-    if (transformed.chartType && transformed.chartType !== chartType) {
-        const swapped = vlGetTemplateDef(transformed.chartType) as ChartTemplateDef | undefined;
-        if (swapped) chartTemplate = swapped;
-    }
-    const composedEncodings = applyEncodingOverrides(chartTemplate, transformed.encodings, chartProperties);
-
-    // Template-level encoding normalization (e.g. Sparkline remaps its series
-    // field onto the `row` facet channel). Runs BEFORE semantics/layout so the
-    // whole pipeline resolves against the normalized channel map.
-    const encodings = chartTemplate.normalizeEncodings
-        ? chartTemplate.normalizeEncodings(composedEncodings, data)
-        : composedEncodings;
-
-    // Optional aggregation transform: when an encoding sets `aggregate`, collapse
-    // the rows here (grouping by the dimension channels) so the derived
-    // `${field}_${op}` / `_count` columns the assemblers reference actually
-    // exist. No-op when no encoding requests it or the data is pre-aggregated.
-    data = applyAggregation(encodings, data);
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // PHASE 0: Resolve Semantics (VL-free)
-    // ═══════════════════════════════════════════════════════════════════════
-
-    const tplMark = chartTemplate.template?.mark;
-    const templateMarkType = typeof tplMark === 'string' ? tplMark : tplMark?.type;
-
-    // Convert temporal data on the (possibly folded) dataset for Phase 0+
-    const convertedData = convertTemporalData(data, semanticTypes);
-
-    const channelSemantics = resolveChannelSemantics(
-        encodings, data, semanticTypes, convertedData,
-    );
-
-    // Finalize zero-baseline (requires template mark knowledge)
-    const effectiveMarkType = templateMarkType || 'point';
-    for (const [channel, cs] of Object.entries(channelSemantics)) {
-        if ((channel === 'x' || channel === 'y') && cs.type === 'quantitative') {
-            const numericValues = data
-                .map(r => r[cs.field])
-                .filter((v: any) => v != null && typeof v === 'number' && !isNaN(v));
-            cs.zero = computeZeroDecision(
-                cs.semanticAnnotation.semanticType, channel, effectiveMarkType, numericValues,
-            );
-        }
-    }
-
-    // ── Zero-baseline override (position-cognitive axes) ──
-    // computeZeroDecision (above) is the single authority on whether an axis
-    // includes zero. For axes where that call is a genuine toss-up worth
-    // surfacing (see makeZeroBaselineCheck / ZeroDecision.uncertain), the host
-    // may override it via the stored config `includeZero_x`/`includeZero_y` (a boolean on/off
-    // toggle). We honor it by overwriting `cs.zero.zero`, leaving the rest of
-    // the decision intact, so every downstream consumer — the spec applier
-    // (instantiate-spec) AND banking layout (compute-layout reads cs.zero) —
-    // renders the user's choice consistently. Placed before the log-scale
-    // override and the layout phase so banking is zero-aware of the override.
-    if (chartTemplate.markCognitiveChannel === 'position') {
-        for (const axis of ['x', 'y'] as const) {
-            const cs = channelSemantics[axis];
-            if (!cs?.field || cs.type !== 'quantitative' || !cs.zero) continue;
-            const choice = chartProperties?.[`includeZero_${axis}`];
-            if (choice === undefined) continue; // keep the engine's decision
-            cs.zero = { ...cs.zero, zero: choice };
-        }
-    }
-
-    // ── Log-scale override (position-cognitive axes) ──
-    // A log/symlog scale only makes sense on a continuous quantitative POSITION
-    // axis (scatter/line/strip) — never on length/area marks, where bars encode
-    // magnitude as length from a zero baseline (log destroys the baseline and
-    // log(0) is undefined). The engine recommends log conservatively in
-    // resolveScaleType (→ cs.scaleType). Here we apply the user's per-axis
-    // override of that recommendation via the stored config `logScale_x`/
-    // `logScale_y` (a boolean on/off toggle). Whether the control is *offered*
-    // and its recommended default are decided by the property's own `check`
-    // (see LOG_SCALE_PROPERTIES) and surfaced through `getChartOptions`.
-    // On non-position marks we additionally strip any recommended log/symlog
-    // scale so length/area encodings always render linearly from their baseline.
-    if (chartTemplate.markCognitiveChannel === 'position') {
-        for (const axis of ['x', 'y'] as const) {
-            const cs = channelSemantics[axis];
-            if (!cs?.field || cs.type !== 'quantitative') continue;
-            // Binned axes use VL's linear bin computation — log conflicts.
-            if (chartTemplate.template?.encoding?.[axis]?.bin) continue;
-
-            const choice = chartProperties?.[`logScale_${axis}`];
-            if (choice === undefined) continue; // keep the engine's recommendation
-
-            // The control is a simple on/off toggle: `true` forces log (symlog
-            // when zeros are present), `false` forces linear.
-            const hasZero = data.some(row => row[cs.field] === 0);
-            cs.scaleType = choice === false
-                ? undefined                       // force linear
-                : (hasZero ? 'symlog' : 'log');   // force log (symlog if zeros)
-        }
-    } else {
-        // Non-position mark (length/area): never apply a log/symlog scale —
-        // these encodings read magnitude from a zero baseline that log destroys.
-        for (const axis of ['x', 'y'] as const) {
-            const cs = channelSemantics[axis];
-            if (cs?.scaleType === 'log' || cs?.scaleType === 'symlog') {
-                cs.scaleType = undefined;
-            }
-        }
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // STEP 0a: declareLayoutMode (VL-free template hook)
-    // ═══════════════════════════════════════════════════════════════════════
-
-    const declaration: LayoutDeclaration = chartTemplate.declareLayoutMode
-        ? chartTemplate.declareLayoutMode(channelSemantics, data, chartProperties)
-        : {};
-
-    // Auto-detect binnedAxes from template encoding if not declared
-    if (!declaration.binnedAxes) {
-        const templateEnc = chartTemplate.template?.encoding;
-        if (templateEnc) {
-            const binnedAxes: Record<string, boolean | { maxbins?: number }> = {};
-            for (const axis of ['x', 'y']) {
-                if (templateEnc[axis]?.bin) {
-                    // Use chartProperties.binCount (the maxbins cap) when the user
-                    // has set one so layout sizing matches the rendered bins; a
-                    // value of 0/undefined means "auto" (Vega's default ~10 cap).
-                    const propBins = chartProperties?.binCount;
-                    if (propBins) {
-                        binnedAxes[axis] = { maxbins: propBins };
-                    } else if (typeof templateEnc[axis].bin === 'object' && templateEnc[axis].bin.maxbins) {
-                        binnedAxes[axis] = templateEnc[axis].bin;
-                    } else {
-                        binnedAxes[axis] = { maxbins: 10 };
-                    }
-                }
-            }
-            if (Object.keys(binnedAxes).length > 0) {
-                declaration.binnedAxes = binnedAxes;
-            }
-        }
-    }
-
-    // Merge paramOverrides into effective options
-    const effectiveOptions: AssembleOptions = {
-        // Vega-Lite's native width:{step} preserves the authored category pitch.
-        bandStepFit: 0,
-        // Vega-Lite native font defaults (labels 10, titles 11).
-        baseLabelFontSize: 10,
-        baseTitleFontSize: 11,
-        ...options,
-        ...(declaration.paramOverrides || {}),
+    return {
+        chartType, semanticTypes, themeSpec, themePresets, baseSize, sizeCeiling, options,
+        template: chartTemplate, chartProperties, chartDefaultsReport, chartGeometry, geometryReport, warnings,
     };
+}
 
-    // How much room one category gets is a house decision — a journal that
-    // prints three wide boxes and a dashboard that prints thirty thin bars are
-    // both right about their own page. A template's band size is a guess made
-    // without knowing the house, so the house's number replaces it; a caller
-    // who states one outranks both.
-    //
-    // But a band step is a statement about bar thickness, and where *both* axes
-    // are banded there are no bars: the marks are cells, and a cell's size is
-    // fixed by the two counts and the room they share. A house that asks for
-    // A bar-sized category step would print a grid of stripes. That one the
-    // layout keeps.
-    const houseBandStep = themeSpec?.layout?.bandStep;
-    const houseBandStepFit = themeSpec?.layout?.bandStepFit;
-    const cellGrid = declaration.axisFlags?.x?.banded === true
-        && declaration.axisFlags?.y?.banded === true;
-    // A template may state a floor its read cannot go below (a slopegraph needs
-    // its two columns spread wide however compact the house). The house sets
-    // the band step, but not below that floor.
-    const minBandStep = (declaration.paramOverrides as AssembleOptions | undefined)?.minBandStep;
-    if (houseBandStepFit != null && options.bandStepFit == null && !cellGrid) {
-        effectiveOptions.bandStepFit = Math.max(0, Math.min(1, houseBandStepFit));
-        chartDefaultsReport.push({
-            stage: 'ground',
-            path: 'layout.bandStepFit',
-            message: `the house blends ${Math.round(effectiveOptions.bandStepFit * 100)}% toward the available span per category`,
-        });
-    }
-    const fitsToRoom = (effectiveOptions.bandStepFit ?? 0) > 0;
-    if (houseBandStep && options.defaultBandSize == null && !cellGrid) {
-        const step = minBandStep ? Math.max(houseBandStep, minBandStep) : houseBandStep;
-        effectiveOptions.defaultBandSize = step;
-        // A house that also fits its sparse bands to the room has to be able to
-        // pass its own base pitch; the layout's sparse ceiling holds it in.
-        if (!fitsToRoom) {
-            effectiveOptions.maxBandSize = Math.max(step, effectiveOptions.maxBandSize ?? 0);
-        }
-        chartDefaultsReport.push({
-            stage: 'ground',
-            path: 'layout.bandStep',
-            message: minBandStep && step > houseBandStep
-                ? `the house gives each category ${houseBandStep}px, but this chart reads only above ${minBandStep}px — held to ${step}px`
-                : `the house gives each category ${houseBandStep}px`,
-        });
-    } else if (houseBandStep && cellGrid) {
-        chartDefaultsReport.push({
-            stage: 'ground',
-            path: 'layout.bandStep',
-            message: `the house asks for ${houseBandStep}px categories, but both axes are banded — the marks are cells, whose size the grid settles, not the house`,
-        });
-    }
+/** The plan inputs a Vega-Lite compile gives the planner. */
+function vegaLitePlanContext(input: ChartAssemblyInput, prepared: VegaLitePreparation, analysis: ChartAnalysis): PlanContext {
+    const { chartType, semanticTypes, themeSpec, baseSize, sizeCeiling, options, chartProperties } = prepared;
+    return {
+        chartProperties,
+        authoredProperties: input.chart_spec.chartProperties,
+        semanticTypes,
+        options,
+        chartType,
+        size: { baseSize, canvasSize: sizeCeiling },
+        titled: Boolean(input.chart_spec.title?.trim() || input.chart_spec.subtitle?.trim()),
+        theme: themeSpec,
+        profile: VEGA_LITE_LAYOUT,
+        bandLabels: chartType === 'Bar Table' ? undefined : { skip: (channel) => templateStatesAxisLabels(analysis.template.template, channel) },
+    };
+}
 
-    const {
-        addTooltips: addTooltipsOpt = false,
-        minSubplotSize: minSubplotVal = 60,
-    } = effectiveOptions;
-
-    // VL facet overhead:
-    //   Fixed: y-axis labels (~35px width) + x-axis labels (~22px height)
-    //          + titles/legend margin.
-    //   Gap:   config.facet.spacing between panels; shrunk post-layout for
-    //          small subplots (see facetGapVal below).
-    if (effectiveOptions.facetFixedPadding == null) {
-        effectiveOptions.facetFixedPadding = { width: 50, height: 40 };
-    }
-    if (effectiveOptions.facetGap == null) {
-        effectiveOptions.facetGap = 10;
-    }
-    if (effectiveOptions.targetBandAR == null) {
-        effectiveOptions.targetBandAR = 10;
-    }
-
-    // Resolve the optional canvasSize ceiling into per-dimension stretch caps
-    // (βx, βy) so single plots AND facet grids honor the same budget. Falls
-    // back to maxStretch when no ceiling is set.
-    const caps = deriveStretchCaps(baseSize, sizeCeiling, effectiveOptions);
-    effectiveOptions.maxStretchX = caps.maxStretchX;
-    effectiveOptions.maxStretchY = caps.maxStretchY;
-    // The fit aims at the room the *plot* gets, not the whole box: a chart that
-    // spends its margins on a value gutter and a key has that much less to hand
-    // its bands. The reserve is a soft margin, not a guarantee.
-    const keyPlacement: string[] = themeSpec?.legend?.placement ?? [];
-    // A key is reserved on the house's placement alone. Whether one appears is
-    // a fact about the compiled spec, and templates that build their own from a
-    // working column (a waterfall's step types) never show a bound channel here.
-    const keyed = Boolean(channelSemantics.color?.field || channelSemantics.group?.field)
-        || chartTemplate.channels?.includes('color') === true;
-    const titled = Boolean(input.chart_spec.title?.trim() || input.chart_spec.subtitle?.trim());
-    const reserveW = (channelSemantics.y?.field ? FURNITURE.valueGutter : 0)
-        + (keyed && keyPlacement.some((p) => SIDE_KEY.has(p)) ? FURNITURE.sideKey : 0);
-    const reserveH = (channelSemantics.x?.field ? FURNITURE.tickGutter : 0)
-        + (titled ? FURNITURE.titleBlock : 0)
-        + (keyed && keyPlacement.some((p) => STACKED_KEY.has(p)) ? FURNITURE.stackedKey : 0);
-    const ceilingW = sizeCeiling?.width ?? baseSize.width;
-    const ceilingH = sizeCeiling?.height ?? baseSize.height;
-    // Furniture may take a chart's margins, never most of its plot.
-    effectiveOptions.bandStepFitCapacityX = Math.max(ceilingW * 0.6, ceilingW - reserveW);
-    effectiveOptions.bandStepFitCapacityY = Math.max(ceilingH * 0.6, ceilingH - reserveH);
-    effectiveOptions.facetColumns = resolveFacetColumnsOption(input.chart_spec.chartProperties);
-    const facetFixW = effectiveOptions.facetFixedPadding.width;
-    const facetFixH = effectiveOptions.facetFixedPadding.height;
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // STEP 0b: filterOverflow (VL-free)
-    // ═══════════════════════════════════════════════════════════════════════
-
-    // Collect mark types for sort strategy
-    const allMarkTypes = new Set<string>();
-    if (templateMarkType) allMarkTypes.add(templateMarkType);
-    if (Array.isArray(chartTemplate.template?.layer)) {
-        for (const layer of chartTemplate.template.layer) {
-            const lm = typeof layer.mark === 'string' ? layer.mark : layer.mark?.type;
-            if (lm) allMarkTypes.add(lm);
-        }
-    }
-
-    // ── Channel budgets (shared, in layout module) ─────────────────────
-    // Computes per-channel max-to-keep using the most conservative
-    // assumptions (minStep, maxStretch).  Also decides facet grid.
-    const budgets = computeChannelBudgets(
-        channelSemantics, declaration, convertedData, canvasSize, effectiveOptions,
-    );
-    const facetGridResult = budgets.facetGrid;
-
-    const overflowResult = filterOverflow(
-        channelSemantics, declaration, encodings, convertedData,
-        budgets, allMarkTypes,
-    );
-
-    const values = overflowResult.filteredData;
-    const nominalCounts = overflowResult.nominalCounts;
-    warnings.push(...overflowResult.warnings);
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // PHASE 1: Compute Layout (VL-free)
-    // ═══════════════════════════════════════════════════════════════════════
-
-    const layoutResult = computeLayout(
-        channelSemantics,
-        declaration,
-        values,  // post-overflow filtered data
-        canvasSize,
-        effectiveOptions,
-        facetGridResult,
-    );
-
-    // Attach overflow truncations from filterOverflow
-    layoutResult.truncations = overflowResult.truncations;
+/**
+ * Writes the Vega-Lite spec for a planned chart. Reads the analysis and the plan; changes neither.
+ * `plotAsPlanned` is false when a stage after the plan (the theme fitting a long title) changed the plot size.
+ */
+function emitVegaLite(input: ChartAssemblyInput, prepared: VegaLitePreparation, analysis: ChartAnalysis, plan: LayoutPlan): { spec: any; plotAsPlanned: boolean } {
+    const { chartType, semanticTypes, themeSpec, themePresets, baseSize: canvasSize, chartProperties, chartGeometry, geometryReport } = prepared;
+    const warnings: ChartWarning[] = [...prepared.warnings, ...analysis.warnings, ...plan.warnings];
+    const chartDefaultsReport: ThemeReport[] = [...prepared.chartDefaultsReport, ...plan.report];
+    const { data, convertedData, encodings, channelSemantics, authoredTemplate, transformed, staticSeries, templateMarkType } = analysis;
+    const chartTemplate = analysis.template;
+    const typedRawEncodings = analysis.typedEncodings;
+    const { declaration, facetGrid: facetGridResult, rows: values, layout: layoutResult } = plan;
+    const nominalCounts = { ...plan.nominalCounts };
+    const effectiveOptions = plan.options;
+    const addTooltipsOpt = effectiveOptions.addTooltips ?? false;
+    const facetFixW = effectiveOptions.facetFixedPadding!.width;
+    const facetFixH = effectiveOptions.facetFixedPadding!.height;
 
     // ═══════════════════════════════════════════════════════════════════════
     // PHASE 2: Instantiate VL Spec
@@ -653,6 +381,7 @@ export function assembleVegaLite(input: ChartAssemblyInput): any {
     const instantiateContext: InstantiateContext = {
         channelSemantics,
         layout: layoutResult,
+        plot: plan.plot,
         table: values,
         fullTable: convertedData,
         resolvedEncodings,
@@ -666,10 +395,7 @@ export function assembleVegaLite(input: ChartAssemblyInput): any {
         geometry: chartGeometry,
     };
 
-    const axisLabelFontSize = themeSpec
-        ? resolveThemeFontSize(themeSpec, themeSpec.type?.axisLabel?.size, 10, layoutResult.subplotWidth || canvasSize.width)
-        : undefined;
-    if (chartType !== 'Bar Table') vlPlanBandLabels(instantiateContext, vgObj, axisLabelFontSize);
+    const axisLabelFontSize = plan.axisLabelFontSize;
     chartTemplate.instantiate(vgObj, instantiateContext);
 
     // Facet-identity augmentation is presentation-only: the structural series
@@ -740,8 +466,8 @@ export function assembleVegaLite(input: ChartAssemblyInput): any {
     vgObj.config = vgObj.config || {};
     vgObj.config.facet = { spacing: facetGapVal };
 
-    const maxFacetColumns = Math.max(2, Math.floor((defaultChartWidth * caps.maxStretchX - facetFixW) / (minSubplotWidth + facetGapVal)));
-    const maxFacetRows = Math.max(2, Math.floor((defaultChartHeight * caps.maxStretchY - facetFixH) / (minSubplotHeight + facetGapVal)));
+    const maxFacetColumns = Math.max(2, Math.floor((defaultChartWidth * effectiveOptions.maxStretchX! - facetFixW) / (minSubplotWidth + facetGapVal)));
+    const maxFacetRows = Math.max(2, Math.floor((defaultChartHeight * effectiveOptions.maxStretchY! - facetFixH) / (minSubplotHeight + facetGapVal)));
     const maxFacetNominalValues = maxFacetColumns * maxFacetRows;
 
     // Bin quantitative facets
@@ -840,6 +566,7 @@ export function assembleVegaLite(input: ChartAssemblyInput): any {
     // or tolerate a tighter chart); it does not own it. Only *realization* is
     // gated, so an untheme'd chart gets its numbers without also getting a
     // house's ink, type and furniture.
+    const plannedPlotSize = plotSizeFields(vgObj);
     const markTypes = collectMarkTypes(vgObj);
     // Some templates write their own text on the marks. Where they do, the
     // label layer stands down (it will not print a second number beside the
@@ -900,6 +627,7 @@ export function assembleVegaLite(input: ChartAssemblyInput): any {
     chartTemplate.postProcess?.(vgObj, instantiateContext);
     vlFinalizeTemporalAxes(vgObj, instantiateContext);
     vlWrapLegendText(vgObj, instantiateContext);
+    const plotAsPlanned = plotSizeFields(vgObj) === plannedPlotSize;
 
     // ═══════════════════════════════════════════════════════════════════════
     // RESULT
@@ -920,8 +648,8 @@ export function assembleVegaLite(input: ChartAssemblyInput): any {
     if (warnings.length > 0) {
         result._warnings = warnings;
     }
-    if (overflowResult.viewports.length > 0) {
-        result._viewports = overflowResult.viewports;
+    if (plan.viewports.length > 0) {
+        result._viewports = plan.viewports;
     }
     const unfaceted = !resolvedEncodings.column?.field && !resolvedEncodings.row?.field;
     // A projected chart navigates its projection extent, so both axes move
@@ -1028,8 +756,8 @@ export function assembleVegaLite(input: ChartAssemblyInput): any {
         continuousColorFocus: design.interaction.continuousColorFocus,
         neutralizeContinuousColor: chartTemplate.chart === 'Map' || chartTemplate.chart === 'Choropleth',
     };
-    result._width = layoutResult.subplotWidth;
-    result._height = layoutResult.subplotHeight;
+    result._width = plan.plot.width;
+    result._height = plan.plot.height;
     // Annotated option catalog: every configurable property this template
     // exposes, tagged with whether it is *applicable* for this spec + data and
     // the *value* the compiler will use (host choice if set, else the engine's
@@ -1128,7 +856,56 @@ export function assembleVegaLite(input: ChartAssemblyInput): any {
     if (legacyPivot.surface) {
         result._pivot = legacyPivot.surface;
     }
-    return result;
+    return { spec: result, plotAsPlanned };
+}
+
+export function assembleVegaLite(input: ChartAssemblyInput): any {
+    const prepared = prepareVegaLite(input);
+    const analysis = analyzeChart(input, prepared.template, prepared.chartProperties, vlGetTemplateDef);
+    const plan = planLayout(analysis, vegaLitePlanContext(input, prepared, analysis));
+    return emitVegaLite(input, prepared, analysis, plan).spec;
+}
+
+/** The rows a re-plan lays out: a subset of the analysis rows, or rows the host supplies. */
+export type ReplanRows =
+    | { keep: (row: Record<string, any>) => boolean }
+    | { rows: readonly Record<string, unknown>[] };
+
+/** A compiled chart that keeps its analysis, so it can be planned again for the rows it shows. */
+export interface VegaLiteSession {
+    /** The chart as compiled. */
+    readonly spec: any;
+    /** The plot the chart draws; undefined when it draws several views. */
+    readonly plot: { width: number; height: number } | undefined;
+    /**
+     * The chart planned for other rows from the same analysis, and the plot it draws (undefined as
+     * for `plot`). `pinPlot` holds the plot at its compiled size, as a window into the data does;
+     * without it the plot follows the rows.
+     */
+    replan(change: ReplanRows & { pinPlot?: boolean }): { spec: any; plot: { width: number; height: number } | undefined };
+}
+
+export function openVegaLiteSession(input: ChartAssemblyInput): VegaLiteSession {
+    const prepared = prepareVegaLite(input);
+    const analysis = analyzeChart(input, prepared.template, prepared.chartProperties, vlGetTemplateDef);
+    const context = vegaLitePlanContext(input, prepared, analysis);
+    const drawnPlot = (planned: LayoutPlan, plotAsPlanned: boolean) =>
+        planned.composite || !plotAsPlanned ? undefined : planned.plot;
+    const plan = planLayout(analysis, context);
+    const emitted = emitVegaLite(input, prepared, analysis, plan);
+    return {
+        spec: emitted.spec,
+        plot: drawnPlot(plan, emitted.plotAsPlanned),
+        replan: (change) => {
+            const next = planLayout(analysis, {
+                ...context,
+                rows: 'keep' in change ? analysis.convertedData.filter(change.keep) : analysis.shapeRows(change.rows),
+                ...(change.pinPlot ? { pins: { plot: plan.plot } } : {}),
+            });
+            const replanned = emitVegaLite(input, prepared, analysis, next);
+            return { spec: replanned.spec, plot: drawnPlot(next, replanned.plotAsPlanned) };
+        },
+    };
 }
 
 /**
@@ -1147,31 +924,6 @@ export function assembleVegaLite(input: ChartAssemblyInput): any {
 function templateOwnsValueLabels(template: ChartTemplateDef): boolean {
     return template.ownsValueLabels === true;
 }
-
-/** A key charges the dimension it sits along, and only that one. */
-const SIDE_KEY = new Set(['right', 'left', 'seriesEnd']);
-const STACKED_KEY = new Set(['top', 'bottom']);
-
-/**
- * A soft margin for what a chart draws *around* its plot.
- *
- * Read off presence rather than measured: is there a title block, where does
- * the key sit, is the axis labelled at all. Wrong in the small — a long name
- * costs more than a short one, a facet pays per panel — but it stops the fit
- * aiming a banded axis at room the axes and key have already spent.
- */
-const FURNITURE = {
-    /** Tick labels down the side of the plot. */
-    valueGutter: 70,
-    /** One line of tick labels under it. */
-    tickGutter: 35,
-    /** Headline plus deck. */
-    titleBlock: 30,
-    /** A key in the side margin. */
-    sideKey: 100,
-    /** A key above or below. */
-    stackedKey: 30,
-};
 
 function resolveValueLabelChoice(
     chartProperties: Record<string, any> | undefined,

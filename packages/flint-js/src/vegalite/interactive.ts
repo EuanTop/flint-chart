@@ -6,7 +6,7 @@ import { currentFilters, isFilterControls } from '../interactive/filter-controls
 import { createFloatingPanel } from '../interactive/floating-panel';
 import { isCanvasInteraction, type ChartState, type InteractionContext, type InteractionDef } from '../interactive/interactions';
 import type { InteractiveRendererAdapter, TargetFeedbackOptions, ViewportState } from '../interactive/types';
-import { assembleVegaLite } from './assemble';
+import { openVegaLiteSession } from './assemble';
 import { canvasFurnitureMarkup, readCanvasFurniture } from './canvas-furniture';
 import { enableGuideLabelTooltips, planTemporalTickValues } from './instantiate-spec';
 import {
@@ -256,11 +256,16 @@ export function createVegaInteractiveRenderer(
             const mountedInput: ChartAssemblyInput = navigatesX
                 ? { ...interactiveInput, options: { ...interactiveInput.options, liveLayoutSignal: LIVE_LAYOUT_SIGNAL } }
                 : interactiveInput;
-            const assembled = assembleVegaLite(mountedInput) as any;
+            const session = openVegaLiteSession(mountedInput);
+            const assembled = session.spec;
             const viewports = (assembled._viewports ?? []) as CategoryViewport[];
             // Only a windowed chart needs its first window assembled again.
             const firstInput = viewports.length > 0 ? windowedInput(mountedInput, viewports, {}) : mountedInput;
-            const vlSpec = viewports.length > 0 ? assembleVegaLite(firstInput) as any : assembled;
+            const drawn = viewports.length > 0 ? openVegaLiteSession(firstInput) : session;
+            const vlSpec = drawn.spec;
+            // The plot the chart draws now; a filter that re-lays the chart out replaces it. A
+            // category rail draws a window of the rows, which the plan does not own, so it reports none.
+            let currentPlot = viewports.length > 0 ? undefined : drawn.plot;
             const inputRows: readonly Record<string, unknown>[] = interactiveInput.data.values ?? [];
             // The windows over the rows now current: a filter leaves fewer categories to scroll through.
             let currentViewports = viewports;
@@ -314,7 +319,7 @@ export function createVegaInteractiveRenderer(
                 const xScale = findVegaAxisScale(vegaSpec, 'x')?.name;
                 if (!interactionPlan.geoNavigation && interactionPlan.navigationChannels?.includes('x')
                     && viewports.length === 0 && liveField && xScale) {
-                    const planner = liveLayoutPlanner(interactiveInput, liveField, liveLayoutOf(vlSpec, liveField));
+                    const planner = liveLayoutPlanner(interactiveInput, liveField, liveLayoutOf(vlSpec, liveField), session.replan);
                     if (bindLiveLayout(vegaSpec, xScale, findVegaAxisScale(vegaSpec, 'y')?.name, planner)) {
                         livePlanner = planner;
                     }
@@ -357,18 +362,30 @@ export function createVegaInteractiveRenderer(
                 if (relaidSignals.length > 0) {
                     // Flint lays the chart out again for the rows a filter leaves: fewer bars get thicker steps and a shorter chart.
                     const stepsFor = new WeakMap<readonly Record<string, unknown>[], Record<string, number>>();
+                    const plotFor = new WeakMap<readonly Record<string, unknown>[], { width: number; height: number } | undefined>();
                     interactionPlan.dataSignals = (rows) => {
                         const current = rows ?? inputRows;
                         let signals = stepsFor.get(current);
                         if (!signals) {
-                            const relaid = assembleVegaLite({ ...interactiveInput, data: { values: [...current] } }) as any;
+                            const replanned = session.replan({ rows: current });
+                            const relaid = replanned.spec;
+                            // A step comes from the spec; a plain size is the planned plot's, which the
+                            // spec states in its view config rather than as a top-level size.
                             signals = Object.fromEntries(relaidSignals.flatMap((entry) => {
                                 const size = relaid[entry.dimension];
-                                const value = entry.kind === 'step' ? size?.step : size;
+                                const value = entry.kind === 'step' ? size?.step : replanned.plot?.[entry.dimension] ?? size;
                                 return typeof value === 'number' ? [[entry.signal, value]] : [];
                             }));
                             stepsFor.set(current, signals);
+                            // The chart now draws the re-planned size on each dimension a signal sets, and
+                            // keeps the mounted size on the others.
+                            const applied = new Set(relaidSignals.filter((entry) => entry.signal in signals!).map((entry) => entry.dimension));
+                            plotFor.set(current, replanned.plot && drawn.plot ? {
+                                width: applied.has('width') ? replanned.plot.width : drawn.plot.width,
+                                height: applied.has('height') ? replanned.plot.height : drawn.plot.height,
+                            } : undefined);
                         }
+                        if (viewports.length === 0) currentPlot = plotFor.get(current);
                         return signals;
                     };
                 }
@@ -471,6 +488,9 @@ export function createVegaInteractiveRenderer(
             return {
                 viewports,
                 warnings: interactionPlan?.warnings ?? [],
+                get layout() {
+                    return currentPlot ? { plot: currentPlot } : undefined;
+                },
                 getInteractionContext() {
                     return interactionController?.getInteractionContext() ?? fallbackContext();
                 },

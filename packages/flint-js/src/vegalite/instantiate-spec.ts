@@ -23,7 +23,7 @@ import type {
 } from '../core/types';
 import { formatSpecToLabelExpr } from './format';
 import { snapToBoundHeuristic } from '../core/field-semantics';
-import { AXIS_LABEL_LIMIT, planBandLabels } from '../core/compute-layout';
+import { AXIS_LABEL_LIMIT } from '../core/compute-layout';
 import {
     timeMillisecond, timeSecond, timeMinute, timeHour, timeDay, timeWeek, timeMonth, timeYear,
     utcMillisecond, utcSecond, utcMinute, utcHour, utcDay, utcWeek, utcMonth, utcYear,
@@ -267,13 +267,14 @@ function fitLegendText(spec: any, context: InstantiateContext, budget?: { width?
 export function vlWrapLegendText(spec: any, context: InstantiateContext): void {
     if (spec.config?.legend?.disable) return;
     const layout = context.layout;
-    let plotWidth = layout.subplotWidth ?? context.canvasSize.width;
-    let plotHeight = layout.subplotHeight ?? context.canvasSize.height;
+    // The plan's plot, where it has one; a size a node states outright is what is drawn and wins.
+    let plotWidth = context.plot?.width ?? layout.subplotWidth ?? context.canvasSize.width;
+    let plotHeight = context.plot?.height ?? layout.subplotHeight ?? context.canvasSize.height;
     const dimensions = (node: any): void => {
         const width = typeof node.width === 'number' ? node.width
-            : typeof node.width?.step === 'number' ? node.width.step * layout.xNominalCount : undefined;
+            : typeof node.width?.step === 'number' && !context.plot ? node.width.step * layout.xNominalCount : undefined;
         const height = typeof node.height === 'number' ? node.height
-            : typeof node.height?.step === 'number' ? node.height.step * layout.yNominalCount : undefined;
+            : typeof node.height?.step === 'number' && !context.plot ? node.height.step * layout.yNominalCount : undefined;
         if (width > 0) plotWidth = width;
         if (height > 0) plotHeight = height;
         if (node.spec) dimensions(node.spec);
@@ -408,16 +409,13 @@ export function vlWrapLegendText(spec: any, context: InstantiateContext): void {
     };
 }
 
-export function vlPlanBandLabels(context: InstantiateContext, template: any, themeFontSize?: number): void {
-    // A template that states its own axis labels keeps them.
-    planBandLabels(context, {
-        fontSize: themeFontSize,
-        skip: (channel) => [context.resolvedEncodings[channel], template.encoding?.[channel],
-            ...(template.layer ?? []).map((layer: any) => layer.encoding?.[channel])].filter(Boolean)
-            .some((encoding) => encoding.axis === null || encoding.axis === false
-                || encoding.axis?.labelExpr !== undefined || encoding.axis?.labelAngle !== undefined
-                || encoding.axis?.labelLimit !== undefined || encoding.axis?.format !== undefined),
-    });
+/** Whether a template states its own labels for this axis, so the band labels are left as it wrote them. */
+export function templateStatesAxisLabels(template: any, channel: 'x' | 'y'): boolean {
+    return [template.encoding?.[channel], ...(template.layer ?? []).map((layer: any) => layer.encoding?.[channel])]
+        .filter(Boolean)
+        .some((encoding) => encoding.axis === null || encoding.axis === false
+            || encoding.axis?.labelExpr !== undefined || encoding.axis?.labelAngle !== undefined
+            || encoding.axis?.labelLimit !== undefined || encoding.axis?.format !== undefined);
 }
 
 // ---------------------------------------------------------------------------
@@ -1433,12 +1431,15 @@ export function vlFinalizeTemporalAxes(spec: any, context: InstantiateContext): 
             const domainSpan = Array.isArray(domain) && domain.length === 2
                 ? +new Date(domain[1]) - +new Date(domain[0]) : original.end - original.start;
             const span = (channel === 'x' ? plotWidth : plotHeight) * (original.end - original.start) / domainSpan;
+            const fontSize = settings.labelFontSize ?? (channel === 'x' ? context.layout.xLabel : context.layout.yLabel).fontSize;
             const plan = planTemporalTicks({
                 start: original.start, end: original.end, semanticType: original.semanticType,
-                utc: original.inputs.utc, span, vertical: channel === 'y', settings,
-                fontSize: settings.labelFontSize ?? (channel === 'x' ? context.layout.xLabel : context.layout.yLabel).fontSize,
+                utc: original.inputs.utc, span, vertical: channel === 'y', settings, fontSize,
             });
-            if (plan) Object.assign(encoding.axis, axisPropertiesOf(plan));
+            if (!plan) continue;
+            Object.assign(encoding.axis, axisPropertiesOf(plan));
+            original.labelExpr = plan.labelExpr;
+            original.inputs = { ...original.inputs, settings: temporalPlanSettings(settings), fontSize };
         }
         if (node.spec) visit(node.spec, plotWidth, plotHeight);
         for (const child of [...(node.layer ?? []), ...(node.vconcat ?? []), ...(node.hconcat ?? []), ...(node.concat ?? [])]) {

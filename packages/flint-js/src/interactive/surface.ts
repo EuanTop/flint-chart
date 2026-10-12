@@ -435,6 +435,9 @@ export function mountInteractiveChartSurface(
         chartId,
         ready,
         warnings: ready.then(() => warnings as readonly ChartWarning[], () => warnings as readonly ChartWarning[]),
+        get layout() {
+            return renderer?.layout;
+        },
         getViewportState: () => ({ ...state }),
         setViewport,
         dispatch: async (interactionId, payload) => {

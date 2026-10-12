@@ -67,6 +67,16 @@ function orderedDistinct(table: any[], field: string): any[] {
     return values;
 }
 
+/**
+ * How far the two periods sit in from the plot edges, in steps, so the end points and their
+ * value labels are not clipped (classic slopegraph framing): more when the ends carry labels.
+ */
+function periodInset(chartProperties: Record<string, any> | undefined): number {
+    const labelled = chartProperties?.showText === true;
+    const named = labelled && chartProperties?.showSeriesInLabel === true;
+    return named ? 0.75 : labelled ? 0.55 : 0.4;
+}
+
 export const slopeChartDef: ChartTemplateDef = {
     chart: "Slope Chart",
     template: {
@@ -107,7 +117,7 @@ export const slopeChartDef: ChartTemplateDef = {
             ),
         };
     },
-    declareLayoutMode: (cs, table) => {
+    declareLayoutMode: (cs, table, chartProperties) => {
         // Force the period axis to a discrete band so the two periods sit at two
         // equally-spaced positions regardless of the field's native type.
         const resolvedTypes: Record<string, 'nominal' | 'ordinal' | 'quantitative' | 'temporal'> = {};
@@ -117,6 +127,7 @@ export const slopeChartDef: ChartTemplateDef = {
         }
         return {
             axisFlags: { x: { banded: true } },
+            bandAxes: { x: { scale: 'point', padding: periodInset(chartProperties) } },
             ...(Object.keys(resolvedTypes).length ? { resolvedTypes } : {}),
             paramOverrides: {
                 // Spread the two periods well apart and keep the plot from being
@@ -155,11 +166,7 @@ export const slopeChartDef: ChartTemplateDef = {
             if (order.length > 1) xEnc.sort = order;
         }
 
-        // Inset the two period bands from the plot edges so the end points and
-        // their value labels are not clipped (classic slopegraph framing).
-        const labelled = ctx.chartProperties?.showText === true;
-        const named = labelled && ctx.chartProperties?.showSeriesInLabel === true;
-        xEnc.scale = { ...xEnc.scale, padding: named ? 0.75 : labelled ? 0.55 : 0.4 };
+        xEnc.scale = { ...xEnc.scale, padding: periodInset(ctx.chartProperties) };
 
         // Give the value axis a little breathing room (in pixels) so the
         // extreme top / bottom end-point markers — common with zero-crossing

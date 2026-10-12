@@ -240,6 +240,7 @@ export const barChartDef: ChartTemplateDef = {
 
 export const pyramidChartDef: ChartTemplateDef = {
     chart: "Pyramid Chart",
+    composite: true,
     template: {
         spacing: 0,
         resolve: { scale: { y: "shared" } },

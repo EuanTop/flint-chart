@@ -207,6 +207,11 @@ export type MarkCognitiveChannel = 'position' | 'length' | 'area' | 'color';
 /**
  * Template's layout intent — returned by declareLayoutMode().
  */
+/** How a banded axis spaces its bands; its span is the step times the bands it spans. */
+export type BandAxisShape =
+    | { scale: 'band'; nested: boolean }
+    | { scale: 'point'; padding: number };
+
 export interface LayoutDeclaration {
     /**
      * Which axes allocate fixed bands per data position.
@@ -228,6 +233,13 @@ export interface LayoutDeclaration {
      * Template-specific overrides to layout parameters.
      */
     paramOverrides?: Partial<AssembleOptions>;
+
+    /**
+     * How a banded axis spaces its bands, where it is not the default (a band scale,
+     * nested when the axis steps per group): a point scale inset from the plot edges,
+     * or a band whose offset channel does or does not nest within each band.
+     */
+    bandAxes?: Partial<Record<'x' | 'y', BandAxisShape>>;
 
     /**
      * Which axes use binned encoding (e.g. histogram).
@@ -485,12 +497,18 @@ export interface LayoutResult {
  * Phase 2 logic. Combines semantic decisions, layout results, and original
  * inputs.
  */
+/** What a template reads to size its plot in the plan. */
+export type PlotPlanContext = Pick<InstantiateContext, 'layout' | 'canvasSize' | 'assembleOptions' | 'channelSemantics' | 'table' | 'fullTable' | 'semanticTypes' | 'chartProperties'>;
+
 export interface InstantiateContext {
     /** Per-channel semantic decisions (Phase 0) */
     channelSemantics: Record<string, ChannelSemantics>;
 
     /** Layout decisions (Phase 1) */
     layout: LayoutResult;
+
+    /** The plot the plan sized; a template that sets its own size draws at this one. */
+    plot?: { width: number; height: number };
 
     /** The data table (array of row objects, post-overflow filtering) */
     table: any[];
@@ -1008,6 +1026,18 @@ export interface ChartTemplateDef {
         spec: any,
         context: InstantiateContext,
     ) => void;
+
+    /**
+     * Draws several views side by side (columns, halves, tiles, strips, per-category panels),
+     * so the chart has no single plot to report.
+     */
+    composite?: boolean;
+
+    /**
+     * The plot size this chart type draws when it is not the layout's, such as a square pie.
+     * Runs in the plan; `instantiate` draws at `context.plot`. Undefined keeps the layout's size.
+     */
+    planPlot?: (context: PlotPlanContext) => { width: number; height: number } | undefined;
 
     /** Optional configurable properties for the chart type */
     properties?: ChartPropertyDef[];

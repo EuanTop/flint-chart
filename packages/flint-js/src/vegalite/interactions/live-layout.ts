@@ -1,6 +1,6 @@
 import { convertTemporalData } from '../../core/resolve-semantics';
 import type { ChartAssemblyInput } from '../../core/types';
-import { assembleVegaLite } from '../assemble';
+import { AXIS_LABEL_LIMIT } from '../../core/compute-layout';
 import { temporalAxisPlanInputs, type TemporalAxisPlanInputs } from '../instantiate-spec';
 
 export const TEMPORAL_TICKS_FUNCTION = 'flintTemporalTicks';
@@ -10,7 +10,7 @@ export const navigationDomainSignal = (axis: 'x' | 'y'): string => `__flint_navi
 
 /** Flint's layout decisions for the rows a navigated x viewport shows. */
 export interface LiveLayout {
-    x: { fontSize: number; angle: number; align: string; baseline: string };
+    x: { fontSize: number; angle: number; align: string; baseline: string; limit: number; separation: number };
     y: { fontSize: number };
     /** Bar width as a share of the data step. */
     barFill: number | null;
@@ -71,6 +71,8 @@ export function liveLayoutOf(vlSpec: Node, xField: string): LiveLayout {
             angle: axisX.labelAngle ?? 0,
             align: axisX.labelAlign ?? 'center',
             baseline: axisX.labelBaseline ?? 'top',
+            limit: axisX.labelLimit ?? AXIS_LABEL_LIMIT,
+            separation: axisX.labelSeparation ?? 0,
         },
         y: { fontSize: axisY.labelFontSize ?? DEFAULT_LABEL_FONT_SIZE },
         barFill: barFillOf(vlSpec, xField),
@@ -89,7 +91,16 @@ function positionOf(value: unknown): number {
 }
 
 /** Plans the layout for the rows inside a viewport by assembling the chart again for those rows. */
-export function liveLayoutPlanner(input: ChartAssemblyInput, xField: string, initial: LiveLayout): LiveLayoutPlanner {
+/**
+ * Plans the live layout for each x window: `replan` lays the chart out again for the rows a
+ * window keeps, with the plot held at its mounted size, from the analysis of the whole data.
+ */
+export function liveLayoutPlanner(
+    input: ChartAssemblyInput,
+    xField: string,
+    initial: LiveLayout,
+    replan: (change: { keep: (row: Node) => boolean; pinPlot: boolean }) => { spec: Node },
+): LiveLayoutPlanner {
     const rows = input.data.values ?? [];
     const positions = convertTemporalData([...rows], input.semantic_types ?? {})
         .map((row: Node) => positionOf(row[xField]));
@@ -112,7 +123,13 @@ export function liveLayoutPlanner(input: ChartAssemblyInput, xField: string, ini
             const key = `${Math.min(...shown)}:${Math.max(...shown)}`;
             let layout = cache.get(key);
             if (!layout) {
-                layout = liveLayoutOf(assembleVegaLite({ ...input, data: { values: visible } }) as Node, xField);
+                layout = liveLayoutOf(replan({
+                    keep: (row) => {
+                        const position = positionOf(row[xField]);
+                        return position >= lo && position <= hi;
+                    },
+                    pinPlot: true,
+                }).spec, xField);
                 cache.set(key, layout);
             }
             return layout;
@@ -159,6 +176,8 @@ export function bindLiveLayout(vegaSpec: Node, xScale: string, yScale: string | 
                 axis.labelAngle = { signal: `${live}.x.angle` };
                 axis.labelAlign = { signal: `${live}.x.align` };
                 axis.labelBaseline = { signal: `${live}.x.baseline` };
+                axis.labelLimit = { signal: `${live}.x.limit` };
+                axis.labelSeparation = { signal: `${live}.x.separation` };
             } else if (axis.scale === yScale) {
                 axis.labelFontSize = { signal: `${live}.y.fontSize` };
             }
@@ -200,7 +219,7 @@ export function vegaLiteTemporalAxisPlans(
  * A navigated temporal axis keeps Flint's calendar tick plan, re-planned from the live
  * domain: a signal calls the planner whenever the scale domain changes, and the axis
  * reads its tick values and label text from that signal. Under a live layout, the
- * planner measures labels at the live font size and angle.
+ * planner measures labels at the live font size, angle, label limit and separation.
  */
 export function bindTemporalAxisTicks(
     vegaSpec: Record<string, any>,
@@ -214,7 +233,8 @@ export function bindTemporalAxisTicks(
     const live = channel === 'x' && (vegaSpec.signals ?? []).some((entry: Node) => entry.name === LIVE_LAYOUT_SIGNAL);
     const planned = live
         ? `merge(${JSON.stringify(inputs)}, {fontSize: ${LIVE_LAYOUT_SIGNAL}.x.fontSize, `
-            + `settings: merge(${JSON.stringify(inputs.settings)}, {labelAngle: ${LIVE_LAYOUT_SIGNAL}.x.angle})})`
+            + `settings: merge(${JSON.stringify(inputs.settings)}, {labelAngle: ${LIVE_LAYOUT_SIGNAL}.x.angle, `
+            + `labelLimit: ${LIVE_LAYOUT_SIGNAL}.x.limit, labelSeparation: ${LIVE_LAYOUT_SIGNAL}.x.separation})})`
         : JSON.stringify(inputs);
     vegaSpec.signals = [...(vegaSpec.signals ?? []), {
         name: signal,

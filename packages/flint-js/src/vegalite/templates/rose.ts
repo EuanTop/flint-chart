@@ -16,7 +16,7 @@
  * not render arc marks correctly.
  */
 
-import { ChartTemplateDef, ChartPropertyDef } from '../../core/types';
+import { ChartTemplateDef, ChartPropertyDef, PlotPlanContext } from '../../core/types';
 import {
     fieldsFromEncodingChannels,
     firstDiscreteEncodingField,
@@ -31,7 +31,18 @@ import {
 import { withInteractionTextLabel } from '../interaction-provenance';
 import { setMarkProp } from './utils';
 
+/** A rose is square: the shorter side of the subplot, which accounts for faceting. */
+function roseSize(ctx: PlotPlanContext): number {
+    const subW = ctx.layout.subplotWidth ?? ctx.canvasSize.width;
+    const subH = ctx.layout.subplotHeight ?? ctx.canvasSize.height;
+    return Math.min(subW, subH);
+}
+
 export const roseChartDef: ChartTemplateDef = {
+    planPlot: (ctx) => {
+        const size = roseSize(ctx);
+        return { width: size, height: size };
+    },
     chart: "Rose Chart",
     template: {
         mark: {
@@ -267,13 +278,10 @@ export const roseChartDef: ChartTemplateDef = {
             spec.encoding[ch] = enc;
         }
 
-        // ── Sizing: square aspect ratio ──
-        // Use subplot dimensions (which account for faceting).
-        const subW = ctx.layout.subplotWidth ?? ctx.canvasSize.width;
-        const subH = ctx.layout.subplotHeight ?? ctx.canvasSize.height;
-        const size = Math.min(subW, subH);
-        spec.width = size;
-        spec.height = size;
+        // ── Sizing: square aspect ratio, planned by `planPlot` ──
+        const size = roseSize(ctx);
+        spec.width = ctx.plot?.width ?? size;
+        spec.height = ctx.plot?.height ?? size;
 
         // ── Chart properties ──
         const config = ctx.chartProperties;
