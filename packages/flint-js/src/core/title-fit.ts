@@ -47,6 +47,11 @@ export function balancedLines(text: string, count: number, fontSize: number, mea
     return lines;
 }
 
+/** The width inside the canvas the caller asked for, once the theme's padding is kept on both sides. */
+export function canvasContentWidth(layout: { canvasWidth?: number; padding?: number }): number {
+    return layout.canvasWidth ? Math.max(0, layout.canvasWidth - 2 * (layout.padding ?? 0)) : 0;
+}
+
 /** The shortest a plot may be squeezed to make room for a taller headline. */
 const MIN_PLOT_HEIGHT = 80;
 

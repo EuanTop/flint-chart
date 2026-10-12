@@ -272,7 +272,7 @@ The planner takes a backend profile (`BackendLayoutProfile`):
 | `defaults`, `fallbacks` | label 10 / title 11 px, no band-step fit, facet padding and gap |
 | `nestedBandPadding` | 0.2 inner and outer |
 | `spellField` | escapes `.`, `[` and `]` in field names |
-| `measureText` | the width table in a browser (`TEXT_WIDTHS`, generated from Chrome's canvas by `npm run gen:text-widths`), Vega's 0.8 em estimate in Node |
+| `measureText` | what the host states its renderer measures with (`setTextMeasurer`: the MCP server's canvas), else the width table in a browser (`TEXT_WIDTHS`, generated from Chrome's canvas by `npm run gen:text-widths`), else Vega's 0.8 em estimate in Node |
 | `spacing` | Vega's axis, legend and title defaults: tick 5, label padding 2, title padding 4, key offset 18, title offset 4, deck padding 3 |
 
 Only Vega-Lite consumes the plan. ECharts, Chart.js and Plotly call `computeLayout` and make their own
@@ -391,6 +391,8 @@ a mounted chart no longer compiles and mounts again for each resize or filter.
 | Item | Revisit when |
 |---|---|
 | A chart's block is its plot or views widened by 7% for axes plus the category labels; measured axes and headers would make it exact | the block box, checked against Vega's drawn size |
+| Estimates the plan still makes where a measurer is at hand: the block's 7% axis allowance and its category gutter at 0.55 em, the value-label inset at 0.8 em a character, facet headers at 1.7 × their size | each measured, or read back from the drawn chart and checked (2b) |
+| Theme settings in areas Flint leaves to the backend (tick thinning on index axes, units on ticks): either moved into the plan or stated as unsupported so a theme stops expressing them | a decision per setting |
 | Facet headers of more than six panels set 9 px in emit, over the theme's size the reserve measured; header limits are a fixed rule | headers planned with the reserve |
 | A theme that thins index-axis ticks (`tickLabels`) chooses them in realization with a 0.6 em estimate, and the temporal tick planner then skips that axis | the theme's tick preference goes to the planner |
 | A theme's units on ticks and titles ("420 ppm", "(lb)") are added after the plan measured labels and the reserve | units in the plan's label text |
@@ -398,7 +400,6 @@ a mounted chart no longer compiles and mounts again for each resize or filter.
 | A row-faceted chart folds its y title into the row header after the plan counted a turned y title | the plan folds it |
 | Room no reserve counts: outside value labels' fallback padding, flipped inside labels, the masthead tab, the statistics caption, Gantt duration labels | the block box |
 | Dots on a line shrink by view width in realization and by canvas width in the template, beside `plan.pointSize` for clouds | dots on lines in `planPointSize` |
-| Radar spoke labels keep no room | the block box |
 | A theme's closing rules wrap the chart after the plan, their room unplanned (826) | the block box |
 | A violin sizes its panels for no gap and draws the facet gap | the block box |
 | The honour check's Bar Table and Sparkline exemptions (y labels, orders, independent y) | declarations, with the fixes |

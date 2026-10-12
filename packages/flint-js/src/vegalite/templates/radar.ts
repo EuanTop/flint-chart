@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+import type { PlotPlanContext } from '../../core/types';
 import { ChartTemplateDef, ChartPropertyDef, type ViewPlanContext } from '../../core/types';
 import { distinctOf, type ViewNode } from '../../core/views';
 import { resolveSeriesTarget } from '../../core/interaction-semantics';
@@ -32,6 +33,16 @@ function niceMax(v: number): number {
     return nice * pow;
 }
 
+/** A spoke's name over at most two lines no wider than `limit`, broken at the space nearest its middle. */
+function nameLines(name: string, limit: number, measure: ((text: string, fontSize: number) => number) | undefined): string[] {
+    const width = (text: string) => measure ? measure(text, 10) : text.length * 10 * 0.55;
+    if (width(name) <= limit) return [name];
+    const spaces = [...name.matchAll(/ /g)].map((match) => match.index!);
+    if (!spaces.length) return [name];
+    const cut = spaces.reduce((best, at) => (Math.abs(at - name.length / 2) < Math.abs(best - name.length / 2) ? at : best));
+    return [name.slice(0, cut), name.slice(cut + 1)];
+}
+
 // ---------------------------------------------------------------------------
 // Helper: build VL layers for a single radar from long-format rows
 // ---------------------------------------------------------------------------
@@ -40,7 +51,7 @@ function buildRadarLayers(
     axisField: string,
     valueField: string,
     groupField: string | undefined,
-    opts: { filled: boolean; fillOpacity: number; strokeWidth: number; domainPad: number },
+    opts: { filled: boolean; fillOpacity: number; strokeWidth: number; domainPad: number; room?: { width: number; plot: number; measure?: (text: string, fontSize: number) => number } },
 ): any[] {
     const axes: string[] = [];
     const axisSet = new Set<string>();
@@ -167,8 +178,13 @@ function buildRadarLayers(
             dx = -4;
         }
 
+        // A label beside the radar runs no further than the room's edge.
+        const limit = opts.room && Math.abs(sinA) >= 0.15
+            ? Math.max(LABEL_MIN_LIMIT, Math.min(120, Math.floor(opts.room.width / 2 - (opts.room.plot / 2) * (r / opts.domainPad) * Math.abs(sinA) - 4)))
+            : 120;
         return {
-            __label: [axis, `(${maxStr})`],
+            __label: [...nameLines(axis, limit, opts.room?.measure), `(${maxStr})`],
+            __limit: limit,
             __x: r * Math.sin(ang), __y: -r * Math.cos(ang),
             __align: align, __baseline: baseline, __dx: dx, __dy: dy,
         };
@@ -210,7 +226,7 @@ function buildRadarLayers(
                 type: "text", fontSize: 10, fill: "#555",
                 align: lbl.__align, baseline: lbl.__baseline,
                 dx: lbl.__dx, dy: lbl.__dy,
-                limit: 120, lineHeight: 13,
+                limit: lbl.__limit, lineHeight: 13,
             },
             encoding: {
                 x: { field: "__x", type: "quantitative", axis: null },
@@ -283,6 +299,59 @@ function radarSize(canvasSize: { width: number; height: number } | undefined): n
     return Math.min(canvasSize?.width || 400, canvasSize?.height || 400);
 }
 
+/** The share of its room a radar keeps however long its spoke labels; past it, the labels are cut to fit. */
+const RADAR_KEPT_SHARE = 0.75;
+
+/** How wide a spoke's name may run on one line before the plan counts it broken over two. */
+const LABEL_WRAP_FROM = 60;
+
+/** The narrowest a spoke label is cut to. */
+const LABEL_MIN_LIMIT = 40;
+
+/** Where the spoke labels sit, as a share of the half plot: their radius over the scale's padded domain. */
+const LABEL_RADIUS = 1.15 / 1.18;
+
+/**
+ * The square plot a radar draws in `room`, kept small enough that its spoke labels, which stand
+ * outside the outer ring, stay inside the room too.
+ */
+function radarPlotFor(ctx: PlotPlanContext, room: { width: number; height: number }): number {
+    const axisField = ctx.channelSemantics.x?.field;
+    const valueField = ctx.channelSemantics.y?.field;
+    const rows = ctx.table ?? [];
+    const axes = [...new Set(rows.map((row: any) => String(row[axisField!])))];
+    if (!axes.length) return Math.min(room.width, room.height);
+    const measure = (text: string) => Math.min(120, ctx.measureText ? ctx.measureText(text, 10) : text.length * 10 * 0.55);
+    const labels = axes.map((axis, index) => {
+        const angle = (index * 360 / axes.length) * Math.PI / 180;
+        const values = rows.filter((row: any) => String(row[axisField!]) === axis).map((row: any) => Number(row[valueField!])).filter(Number.isFinite);
+        const max = niceMax(values.length ? Math.max(...values) : 1);
+        const lines = [...nameLines(axis, LABEL_WRAP_FROM, ctx.measureText), `(${max % 1 === 0 ? max : max.toFixed(1)})`];
+        return { sin: Math.sin(angle), cos: -Math.cos(angle), width: Math.max(...lines.map(measure)), lines: lines.length };
+    });
+    const overhang = (plot: number) => {
+        const out = { left: 0, right: 0, top: 0, bottom: 0 };
+        const half = plot / 2;
+        for (const label of labels) {
+            const across = Math.abs(label.sin) < 0.15 ? label.width / 2 : label.width + 4;
+            const side = label.sin > 0.15 ? 'right' : label.sin < -0.15 ? 'left' : undefined;
+            if (side) out[side] = Math.max(out[side], half * LABEL_RADIUS * Math.abs(label.sin) + across - half);
+            else for (const edge of ['left', 'right'] as const) out[edge] = Math.max(out[edge], across - half);
+            const down = Math.abs(label.cos) < 0.3 ? 13 : label.lines * 13 + 4;
+            const edge = label.cos < 0 ? 'top' : 'bottom';
+            out[edge] = Math.max(out[edge], half * LABEL_RADIUS * Math.abs(label.cos) + (Math.abs(label.cos) < 0.3 ? down / 2 : down) - half);
+        }
+        return out;
+    };
+    const whole = Math.min(room.width, room.height);
+    let plot = whole;
+    for (let pass = 0; pass < 2; pass++) {
+        const o = overhang(plot);
+        plot = Math.max(1, Math.min(room.width - o.left - o.right, room.height - o.top - o.bottom));
+    }
+    return Math.round(Math.max(plot, whole * RADAR_KEPT_SHARE));
+}
+
 /** The smallest panel a faceted radar draws. */
 const RADAR_MIN_PANEL = 200;
 
@@ -319,7 +388,8 @@ export const radarChartDef: ChartTemplateDef = {
         if (!ctx.table || ctx.table.length === 0 || !ctx.channelSemantics.x?.field || !ctx.channelSemantics.y?.field) return undefined;
         const size = radarSize(ctx.canvasSize);
         const faceted = ctx.channelSemantics.column?.field || ctx.channelSemantics.row?.field;
-        const panel = faceted ? Math.max(RADAR_MIN_PANEL, size) : size;
+        const panel = faceted ? Math.max(RADAR_MIN_PANEL, size)
+            : radarPlotFor(ctx, { width: ctx.canvasSize?.width || size, height: ctx.canvasSize?.height || size });
         return { width: panel, height: panel };
     },
     planViews: radarViews,
@@ -392,7 +462,10 @@ export const radarChartDef: ChartTemplateDef = {
         }
 
         const size = ctx.plot?.width ?? radarSize(canvasSize);
-        const layerOpts = { filled, fillOpacity, strokeWidth, domainPad: 1.18 };
+        const layerOpts = {
+            filled, fillOpacity, strokeWidth, domainPad: 1.18,
+            ...(!columnField && !rowField && canvasSize?.width ? { room: { width: canvasSize.width, plot: size, measure: ctx.measureText } } : {}),
+        };
 
         // ---- No faceting ----
         if (!columnField && !rowField) {

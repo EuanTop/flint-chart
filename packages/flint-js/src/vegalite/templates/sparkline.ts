@@ -363,7 +363,7 @@ export const sparklineDef: ChartTemplateDef = {
                 x: { ...enc.x, axis: null },
                 y: { ...enc.y, axis: null, scale: { ...(enc.y as any).scale, ...trendYScale } },
                 ...(hasColor
-                    ? { color: { field: facetField, type: 'nominal', legend: null } }
+                    ? { color: { field: facetField, type: 'nominal', legend: null, sort: null } }
                     : { color: { value: MONO_LINE } }),
             },
         }];
@@ -416,7 +416,7 @@ export const sparklineDef: ChartTemplateDef = {
                     x: { value: avgW },
                     text: avgTextEncoding,
                     ...(hasColor
-                        ? { color: { field: facetField, type: 'nominal', legend: null } }
+                        ? { color: { field: facetField, type: 'nominal', legend: null, sort: null } }
                         : { color: { value: MONO_VALUE } }),
                 },
             },

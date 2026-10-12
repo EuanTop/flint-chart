@@ -19,7 +19,7 @@ import { format as formatNumber } from 'd3-format';
 import { contrastingInk, parseColor, luminance, mixHex, toHex } from '../core/theme/presence.js';
 import type { AxisLabelPlan } from '../core/axis-labels.js';
 import { bandsHoldSeveral, KEY_CHANNELS, statedStacking, type BuiltFacts, type Stacking } from '../core/structure.js';
-import { fitDeckText, fitHeadlineText, plotHeightAfter, textPx, titleMeasures } from '../core/title-fit.js';
+import { canvasContentWidth, fitDeckText, fitHeadlineText, plotHeightAfter, textPx, titleMeasures } from '../core/title-fit.js';
 import { tableTextMeasurer } from '../core/text-width.js';
 import type { TitlePlan } from '../core/title-plan.js';
 import { OWNED_AXIS_KEYS } from './owned-axis-keys.js';
@@ -494,7 +494,7 @@ function fitTitle(spec: any, d: DesignDecisions, table: any[], say: ReportDepart
         const ticks = axis.ticks === false ? 0 : Math.max(0, axis.tickSize ?? 5);
         gutters[side] = Math.max(gutters[side], labelWidth + Math.max(0, axis.labelPadding ?? 2) + ticks);
     });
-    const block = Math.max((plot ?? 0) + gutters.left + gutters.right, d.layout.canvasWidth ?? 0);
+    const block = Math.max((plot ?? 0) + gutters.left + gutters.right, canvasContentWidth(d.layout));
     if (!block || !Number.isFinite(block)) return;
     const headline = typeof spec.title === 'string' ? spec.title : spec.title?.text;
     const measure = titleMeasures(d.title, d.font, tableTextMeasurer);

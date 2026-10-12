@@ -9,7 +9,6 @@ const TEMPLATE_OWNED: Array<{ chartType: string; decision: string; reason: strin
     { chartType: 'Bar Table', decision: 'orders.y', reason: 'it ranks the rows itself' },
     { chartType: 'Bar Table', decision: 'furniture.facets.independentY', reason: 'its panels are a composite that resolves its own scales' },
     { chartType: 'Sparkline', decision: 'furniture.facets.independentY', reason: 'each strip is scaled to its own series' },
-    { chartType: 'Sparkline', decision: 'orders.color', reason: 'its strips stand in their own order' },
 ]
 
 describe('the plan as drawn', () => {
