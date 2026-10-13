@@ -124,6 +124,36 @@ export function genRidgelineTests(): TestCase[] {
         });
     }
 
+    // 5. Cooperation over rounds for each level of a numeric factor: translucent ridges in
+    //    perspective, a value axis, a gradient legend, and marked values joined across ridges.
+    {
+        const data: any[] = [];
+        for (let level = 0; level <= 6; level++) {
+            const start = 0.15 + level * 0.04;
+            const end = 0.5 + level * 0.07;
+            for (let round = 0; round <= 14; round++) {
+                const t = round / 14;
+                const rate = start + (end - start) * (1 - Math.exp(-3 * t)) / (1 - Math.exp(-3)) + (rand() - 0.5) * 0.04;
+                data.push({ A1: level, Round: round, 'Cooperation Rate': Math.round(Math.max(0, Math.min(1, rate)) * 100) / 100 });
+            }
+        }
+        tests.push({
+            title: 'Cooperation Rate by Round (marked values)',
+            description: 'One ridge per level of A1 in perspective, with values marked at rounds 3, 7 and 14',
+            tags: ['quantitative', 'color', 'small', 'gallery-showcase'],
+            chartType: 'Ridgeline Plot',
+            data,
+            fields: [makeField('Round'), makeField('Cooperation Rate'), makeField('A1')],
+            metadata: {
+                Round: { type: Type.Number, semanticType: 'Quantity', levels: [] },
+                'Cooperation Rate': { type: Type.Number, semanticType: 'Percentage', levels: [] },
+                A1: { type: Type.Number, semanticType: 'Quantity', levels: [] },
+            },
+            encodingMap: { x: makeEncodingItem('Round'), y: makeEncodingItem('Cooperation Rate'), color: makeEncodingItem('A1') },
+            chartProperties: { perspective: true, overlap: 2.5, opacity: 0.45, valueMax: 1, markAt: [3, 7, 14] },
+        });
+    }
+
     return tests;
 }
 
