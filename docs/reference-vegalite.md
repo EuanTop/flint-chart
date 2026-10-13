@@ -6,7 +6,7 @@ The Vega-Lite backend serves as Flint's reference implementation and offers the 
 
 ## What this page covers
 
-This reference lists the 36 chart types currently supported by the Vega-Lite backend, grouped into 6 categories. Each chart entry shows:
+This reference lists the 38 chart types currently supported by the Vega-Lite backend, grouped into 6 categories. Each chart entry shows:
 
 - **Encoding channels** — the visual roles accepted in `chart_spec.encodings`, such as `x`, `y`, `color`, `size`, `column`, or `row`.
 - **Options** — template-specific `chart_spec.chartProperties` keys, including control type, domain, default, availability, and description.
@@ -37,6 +37,24 @@ The **Availability** column shows whether a parameter is `always` available or `
 |---|---|---|---|---|---|
 | `opacity` | number | 0.1 – 1 (step 0.1) | `1` | always | Mark opacity. |
 | `independentYAxis` | toggle | on / off | `false` | conditional | Use independent y-scales for facets. |
+| `logScale_x` | toggle | on / off | `false` | conditional | Use a log/symlog scale on the x-axis. |
+| `logScale_y` | toggle | on / off | `false` | conditional | Use a log/symlog scale on the y-axis. |
+| `includeZero_x` | toggle | on / off | `false` | conditional | Anchor the x-axis at zero. |
+| `includeZero_y` | toggle | on / off | `false` | conditional | Anchor the y-axis at zero. |
+
+### ![](chart-icon-marginal.svg) Marginal Plot
+
+**Encoding channels:** `x`, `y`, `color`, `size`, `shape`, `opacity`
+
+| Parameter | Control | Domain | Default | Availability | Description |
+|---|---|---|---|---|---|
+| `marginal` | choice | Density _(default)_, `histogram` (Histogram), `boxplot` (Boxplot) | — | conditional | What each margin draws along its axis: a density, a histogram or a boxplot. |
+| `opacity` | number | 0.1 – 1 (step 0.1) | `1` | always | Mark opacity. |
+| `stackMode` | choice | Layered (default) _(default)_, `stacked` (Stacked) | — | conditional | Stacking strategy for overlapping series. |
+| `bandwidth` | number | 0.05 – 2 (step 0.05) | `0` | conditional | Kernel-density bandwidth (0 = auto). |
+| `binCount` | number | 5 – 50 (step 1) | `Auto` | conditional | Maximum bin cap; Auto lets the backend choose. |
+| `whiskerMethod` | choice | `iqr` (Tukey (1.5 × IQR)), `minmax` (Min–Max) | `iqr` | conditional | Whiskers |
+| `showOutliers` | toggle | on / off | `true` | conditional | Outliers |
 | `logScale_x` | toggle | on / off | `false` | conditional | Use a log/symlog scale on the x-axis. |
 | `logScale_y` | toggle | on / off | `false` | conditional | Use a log/symlog scale on the y-axis. |
 | `includeZero_x` | toggle | on / off | `false` | conditional | Anchor the x-axis at zero. |
@@ -192,7 +210,26 @@ The **Availability** column shows whether a parameter is `always` available or `
 | Parameter | Control | Domain | Default | Availability | Description |
 |---|---|---|---|---|---|
 | `bandwidth` | number | 0.05 – 2 (step 0.05) | `0` | always | Kernel-density bandwidth (0 = auto). |
+| `opacity` | number | 0.1 – 1 (step 0.1) | `0.7` | conditional | Mark opacity. |
+| `stackMode` | choice | Stacked (default) _(default)_, `normalize` (Normalize (100%)), `layered` (Layered (overlap)) | — | conditional | Stacking strategy for overlapping series. |
 | `independentYAxis` | toggle | on / off | `false` | conditional | Use independent y-scales for facets. |
+
+### ![](chart-icon-ridgeline.svg) Ridgeline Plot
+
+**Encoding channels:** `x`, `y`, `color`
+
+| Parameter | Control | Domain | Default | Availability | Description |
+|---|---|---|---|---|---|
+| `overlap` | number | 0.5 – 4 (step 0.1) | `1.8` | always | How many baselines up the tallest ridge reaches; above 1 the ridges overlap. |
+| `interpolate` | choice | Default (linear) _(default)_, `linear` (Linear), `monotone` (Monotone (smooth)), `step` (Step), `step-before` (Step Before), `step-after` (Step After), `basis` (Basis (smooth)) | — | always | Line or area interpolation method. |
+| `opacity` | number | 0.1 – 1 (step 0.1) | `0.5` | always | Mark opacity. |
+| `order` | choice | As given _(default)_, `mean` (By mean (highest on top)) | — | always | Which order the ridges stand in: as given, or by their mean with the highest on top. |
+| `tailCut` | number | 0 – 0.2 (step 0.01) | `0` | always | Trim each ridge to where its density is at least this share of its own peak (0 = full extent). |
+| `colorBy` | choice | By series _(default)_, `x` (By x value) | — | always | Fill each ridge by its series, or with a ramp along the x axis. |
+| `perspective` | toggle | on / off | `false` | always | Stand the ridges on a floor seen in perspective, presetting skew 0.2, tilt 2.5 and overlap 6 where they are unset. |
+| `skew` | number | 0 – 0.4 (step 0.01) | `0` | always | Shift the ridges behind the front one leftwards by this share of the x range, for a perspective view. |
+| `tilt` | number | 0 – 6 (step 0.1) | `0` | always | Raise the x axis by this many baselines across its range, so the floor is seen in perspective. |
+| `bandwidth` | number | 0.05 – 2 (step 0.05) | `0` | conditional | Kernel-density bandwidth (0 = auto). |
 
 ### ![](chart-icon-ecdf.svg) ECDF Plot
 

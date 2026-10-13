@@ -300,12 +300,14 @@ options.interactions ──► compose ────────────┤
 | Line Chart | ✓ | cartesian | x, y | ✓ | ✓ | ✓ | ✓ |
 | Lollipop Chart | ✓ | cartesian | x, y | ✓ | ✓ | ✓ |  |
 | Map | ✓ | cartesian | geo |  | ✓ |  |  |
+| Marginal Plot | ✓ |  |  |  | ✓ |  |  |
 | Pie Chart | ✓ | cartesian, angular |  |  | ✓ |  |  |
 | Pyramid Chart | ✓ | cartesian |  | ✓ | ✓ | ✓ |  |
 | Radar Chart | ✓ | cartesian, angular |  |  | ✓ |  |  |
 | Range Area Chart | ✓ | cartesian | x, y |  | ✓ | ✓ | ✓ |
 | Ranged Dot Plot | ✓ | cartesian | x, y | 含连接标记 | ✓ | ✓ |  |
 | Regression | ✓ | cartesian | x, y | ✓ | ✓ | ✓ | ✓ |
+| Ridgeline Plot | ✓ | cartesian | x |  |  |  | ✓ |
 | Rose Chart | ✓ | cartesian, angular |  |  | ✓ |  |  |
 | Scatter Plot | ✓ | cartesian | x, y | ✓ | ✓ | ✓ | ✓ |
 | Slope Chart | ✓ | cartesian | x, y | ✓ | ✓ | ✓ | ✓ |
