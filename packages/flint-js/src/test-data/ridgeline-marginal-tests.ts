@@ -26,7 +26,7 @@ export function genRidgelineTests(): TestCase[] {
         tests.push({
             title: 'Monthly Temperatures (12 ridges)',
             description: 'Kernel density of daily temperature readings, one ridge per month',
-            tags: ['quantitative', 'color', 'medium'],
+            tags: ['quantitative', 'color', 'medium', 'gallery-showcase'],
             chartType: 'Ridgeline Plot',
             data,
             fields: [makeField('Temperature'), makeField('Month')],
@@ -38,11 +38,23 @@ export function genRidgelineTests(): TestCase[] {
         });
     }
 
-    // 1b. The same months named on y instead of colour.
+    // 1b. The same ridges on a floor seen in perspective.
     {
         const last = tests[tests.length - 1];
         tests.push({
             ...last,
+            title: 'Monthly Temperatures (perspective)',
+            description: 'The same densities standing on a floor seen in perspective',
+            chartProperties: { perspective: true },
+        });
+    }
+
+    // 1c. The same months named on y instead of colour.
+    {
+        const last = tests[tests.length - 2];
+        tests.push({
+            ...last,
+            tags: ['quantitative', 'color', 'medium'],
             title: 'Monthly Temperatures (months on y)',
             description: 'The month names the ridge from the y channel; colour is free',
             encodingMap: { x: makeEncodingItem('Temperature'), y: makeEncodingItem('Month') },
@@ -81,10 +93,10 @@ export function genRidgelineTests(): TestCase[] {
                 data.push({ Series: name, Time: Math.round(t * 1000) / 1000, Signal: Math.round((0.25 * rand() + 0.3 * Math.abs(Math.sin(t * 6 + index))) * 1000) / 1000 });
             }
         });
-        tests.push({
+        const measured: TestCase = {
             title: 'Layered Signals (measured y)',
             description: 'Each series\' measured signal over time, raised on its own baseline',
-            tags: ['quantitative', 'color', 'small'],
+            tags: ['quantitative', 'color', 'small', 'gallery-showcase'],
             chartType: 'Ridgeline Plot',
             data,
             fields: [makeField('Time'), makeField('Signal'), makeField('Series')],
@@ -94,20 +106,18 @@ export function genRidgelineTests(): TestCase[] {
                 Series: { type: Type.String, semanticType: 'Category', levels: series },
             },
             encodingMap: { x: makeEncodingItem('Time'), y: makeEncodingItem('Signal'), color: makeEncodingItem('Series') },
-        });
-    }
-
-    // 4. The same curves in perspective.
-    {
-        const last = tests[tests.length - 1];
+        };
+        // 4. The same curves in perspective, shown before the flat ones on the wall.
         tests.push({
-            ...last,
+            ...measured,
             title: 'Layered Signals (perspective)',
             description: 'The layered signals with the back ridges shifted left',
             chartProperties: { skew: 0.15 },
         });
+        tests.push(measured);
         tests.push({
-            ...last,
+            ...measured,
+            tags: ['quantitative', 'color', 'small'],
             title: 'Layered Signals (isometric)',
             description: 'The layered signals on a floor whose x axis rises across its range',
             chartProperties: { perspective: true },
@@ -144,15 +154,15 @@ export function genMarginalScatterTests(): TestCase[] {
     };
 
     tests.push({
-        title: 'Iris by Species (density margins)',
+        title: 'Iris sepal length × width, density margins',
         description: 'Sepal measurements with each axis\'s density by species along it',
-        tags: ['quantitative', 'color', 'small'],
+        tags: ['quantitative', 'color', 'small', 'real'],
         chartType: 'Marginal Plot',
         data, fields, metadata,
         encodingMap: { x: makeEncodingItem('Sepal Length'), y: makeEncodingItem('Sepal Width'), color: makeEncodingItem('Species') },
     });
     tests.push({
-        title: 'Iris by Species (histogram margins)',
+        title: 'Iris sepal length × width, histogram margins',
         description: 'The same scatter with binned counts along each axis',
         tags: ['quantitative', 'color', 'small'],
         chartType: 'Marginal Plot',
@@ -161,18 +171,18 @@ export function genMarginalScatterTests(): TestCase[] {
         chartProperties: { marginal: 'histogram' },
     });
     tests.push({
-        title: 'Iris by Species (boxplot margins)',
+        title: 'Iris sepal length × width, boxplot margins',
         description: 'The same scatter with a box and whiskers per species along each axis',
-        tags: ['quantitative', 'color', 'small'],
+        tags: ['quantitative', 'color', 'small', 'real'],
         chartType: 'Marginal Plot',
         data, fields, metadata,
         encodingMap: { x: makeEncodingItem('Sepal Length'), y: makeEncodingItem('Sepal Width'), color: makeEncodingItem('Species') },
         chartProperties: { marginal: 'boxplot' },
     });
     tests.push({
-        title: 'Species × Sepal Length (strip)',
+        title: 'Iris species × sepal length',
         description: 'A category against a measure: a strip plot with counts per species above and the measure\'s density to the right',
-        tags: ['nominal', 'quantitative', 'color', 'small'],
+        tags: ['nominal', 'quantitative', 'color', 'small', 'real'],
         chartType: 'Marginal Plot',
         data, fields, metadata,
         encodingMap: { x: makeEncodingItem('Species'), y: makeEncodingItem('Sepal Length'), color: makeEncodingItem('Species') },
@@ -186,9 +196,9 @@ export function genMarginalScatterTests(): TestCase[] {
             for (let i = 0; i < weights[r][s] * 6; i++) pairs.push({ Region: region, Segment: segment });
         }));
         tests.push({
-            title: 'Region × Segment (heatmap)',
+            title: 'Orders by sales region × customer segment',
             description: 'Two categories: a heatmap of counts with the counts per category along each axis',
-            tags: ['nominal', 'small'],
+            tags: ['nominal', 'small', 'real'],
             chartType: 'Marginal Plot',
             data: pairs,
             fields: [makeField('Region'), makeField('Segment')],
@@ -200,7 +210,7 @@ export function genMarginalScatterTests(): TestCase[] {
         });
     }
     tests.push({
-        title: 'Iris (one series)',
+        title: 'Iris sepal length × width, one series',
         description: 'Sepal measurements with pooled margins',
         tags: ['quantitative', 'small'],
         chartType: 'Marginal Plot',
