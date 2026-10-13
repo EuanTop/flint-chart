@@ -45,6 +45,8 @@
  */
 
 import type {
+    LayoutTrace,
+    PlanStage,
     ChannelSemantics,
     ChartAssemblyInput,
     LayoutDeclaration,
@@ -425,6 +427,17 @@ export function computeLayout(
     const baseBandSize = options.defaultBandSize ?? 20;
     const defaultStepSize = Math.round(baseBandSize * Math.max(1, sizeRatio));
 
+    const r1 = (value: number) => Math.round(value * 10) / 10;
+    const trace: LayoutTrace = { width: [], height: [], xStep: [], yStep: [] };
+    const stage = (key: keyof LayoutTrace, rule: string, value: number | string, read?: PlanStage['read'], note?: string) => {
+        trace[key].push({ rule, value: typeof value === 'number' ? r1(value) : value, ...(read ? { read } : {}), ...(note ? { note } : {}) });
+    };
+    stage('width', 'canvas', defaultChartWidth, { base: canvasSize.width, stretchCap: r1(maxStretchX) }, 'the base width; the plot may stretch past it up to the cap');
+    stage('height', 'canvas', defaultChartHeight, { base: canvasSize.height, stretchCap: r1(maxStretchY) }, 'the base height; the plot may stretch past it up to the cap');
+    for (const key of ['xStep', 'yStep'] as const) {
+        stage(key, 'house band', defaultStepSize, { band: baseBandSize, sizeRatio: r1(sizeRatio) }, 'the band one category gets, scaled with the canvas past 300 px');
+    }
+
     const isDiscreteType = (t: string | undefined) => t === 'nominal' || t === 'ordinal';
 
     // Apply resolved types from template declaration
@@ -612,6 +625,9 @@ export function computeLayout(
     } else {
         subplotHeight = defaultChartHeight;
     }
+
+    if (facetCols > 1) stage('width', 'facet panel', subplotWidth, { columns: facetCols, allowance: fixW, gap: gapX, elasticity: facetElasticityVal }, 'the canvas stretched a little for its columns, less the allowance, shared between them');
+    if (facetRows > 1) stage('height', 'facet panel', subplotHeight, { rows: facetRows, allowance: fixH, gap: gapY, elasticity: facetElasticityVal }, 'the canvas stretched a little for its rows, less the allowance, shared between them');
 
     // --- Facet aspect-ratio resistance (non-gas-pressure charts) ---
     // When faceting compresses one dimension (e.g. width ÷ columns), the
@@ -856,6 +872,8 @@ export function computeLayout(
 
                 subplotWidth = Math.round(finalW);
                 subplotHeight = Math.round(finalH);
+                stage('width', 'crowding', subplotWidth, { points: xNumeric.length, stretchX: r1(idealResult.rawStretchX), banked: useBanking, budget: r1(availW) }, 'both axes continuous: the points press the plot wider by their crowding, the shape is banked toward readable slopes, then fitted to the stretch budget');
+                stage('height', 'crowding', subplotHeight, { points: yNumeric.length, stretchY: r1(idealResult.rawStretchY), banked: useBanking, budget: r1(availH) }, 'both axes continuous: the points press the plot taller by their crowding, the shape is banked toward readable slopes, then fitted to the stretch budget');
             }
         }
     } else if (xIsContinuousNonBanded || yIsContinuousNonBanded) {
@@ -920,6 +938,13 @@ export function computeLayout(
                 }
             }
         }
+    }
+
+    if (!bothContinuousNonBanded && (xIsContinuousNonBanded || yIsContinuousNonBanded)) {
+        const key = xIsContinuousNonBanded ? 'width' : 'height';
+        const value = xIsContinuousNonBanded ? subplotWidth : subplotHeight;
+        const last = trace[key][trace[key].length - 1];
+        if (last.value !== r1(value)) stage(key, 'crowding', value, { rows: table.length }, 'the values along the continuous axis press it longer, by a power of their crowding');
     }
 
     // --- Elastic stretch for discrete axes ---
@@ -999,6 +1024,31 @@ export function computeLayout(
         yStepSize = defaultStepSize;
     }
 
+    for (const axis of ['x', 'y'] as const) {
+        const key = axis === 'x' ? 'xStep' : 'yStep';
+        const items = axis === 'x' ? (xTotalNominalCount || xContinuousAsDiscrete) : (yTotalNominalCount || yContinuousAsDiscrete);
+        const step = axis === 'x' ? xStepSize : yStepSize;
+        if (items <= 0) {
+            stage(key, 'no bands', step, {}, 'the axis is continuous: no step sizes it');
+            continue;
+        }
+        const grouped = axis === 'x' ? xIsDiscrete && xHasGrouping : yIsDiscrete && yHasGrouping;
+        const span = axis === 'x' ? subplotWidth : subplotHeight;
+        const decision = axis === 'x' ? xAxis : yAxis;
+        if (grouped) {
+            stage(key, 'group step', step, { groups: axis === 'x' ? nominalCount.x : nominalCount.y, lanes: nominalCount.group, span }, 'one step holds a group of lanes: a house band per lane, held within the room the groups share');
+            continue;
+        }
+        const perBand = span / items;
+        const pressed = decision.step < defaultStepSize;
+        const stretched = decision.budget > span + 0.5;
+        stage(key, 'bands in the span', decision.step, { bands: items, span, spanPerBand: r1(perBand), budget: r1(decision.budget), stretch: r1(decision.budget / span), fitted: decision.fitted },
+            pressed && stretched ? 'the house band would overrun the span: the span stretches by a power of the pressure, to its cap, and the step shrinks to share it'
+                : pressed ? 'the house band would overrun the span and the cap allows no stretch, so the step is the span per band'
+                    : decision.fitted ? 'sparse bands grow toward the room the canvas leaves' : 'the house band fits the span and keeps its size');
+        if (step !== decision.step) stage(key, 'clamped', step, { min: minStepVal, max: maxStepSize }, 'held between the smallest readable step and the widest a band may be');
+    }
+
     // --- Banded continuous canvas size ---
     for (const axis of ['x', 'y'] as const) {
         const count = axis === 'x' ? xContinuousAsDiscrete : yContinuousAsDiscrete;
@@ -1023,23 +1073,24 @@ export function computeLayout(
     // sizing respects the same budget.
     // When step unit is 'group', divide by the number of groups (nominalCount)
     // rather than the total item count (groups × items-per-group).
+    const budgetNote = 'the plot may stretch only to the cap times the base, less the allowance; the bands share that';
     if (xTotalNominalCount > 0) {
         const divisor = xStepUnit === 'group' ? nominalCount.x : xTotalNominalCount;
         const cap = Math.max(minStepVal, Math.floor(maxSubplotW / divisor));
-        if (xStepSize > cap) xStepSize = cap;
+        if (xStepSize > cap) { xStepSize = cap; stage('xStep', 'stretch budget', cap, { budget: r1(maxSubplotW), bands: divisor, stretchCap: r1(maxStretchX), allowance: fixW }, budgetNote); }
     }
     if (xContinuousAsDiscrete > 0) {
         const cap = Math.max(minStepVal, Math.floor(maxSubplotW / (xContinuousAsDiscrete + 1)));
-        if (xStepSize > cap) xStepSize = cap;
+        if (xStepSize > cap) { xStepSize = cap; stage('xStep', 'stretch budget', cap, { budget: r1(maxSubplotW), bands: xContinuousAsDiscrete + 1, stretchCap: r1(maxStretchX), allowance: fixW }, budgetNote); }
     }
     if (yTotalNominalCount > 0) {
         const divisor = yStepUnit === 'group' ? nominalCount.y : yTotalNominalCount;
         const cap = Math.max(minStepVal, Math.floor(maxSubplotH / divisor));
-        if (yStepSize > cap) yStepSize = cap;
+        if (yStepSize > cap) { yStepSize = cap; stage('yStep', 'stretch budget', cap, { budget: r1(maxSubplotH), bands: divisor, stretchCap: r1(maxStretchY), allowance: fixH }, budgetNote); }
     }
     if (yContinuousAsDiscrete > 0) {
         const cap = Math.max(minStepVal, Math.floor(maxSubplotH / (yContinuousAsDiscrete + 1)));
-        if (yStepSize > cap) yStepSize = cap;
+        if (yStepSize > cap) { yStepSize = cap; stage('yStep', 'stretch budget', cap, { budget: r1(maxSubplotH), bands: yContinuousAsDiscrete + 1, stretchCap: r1(maxStretchY), allowance: fixH }, budgetNote); }
     }
 
     // Recompute banded subplot size after step clamping.
@@ -1049,6 +1100,7 @@ export function computeLayout(
         const stepSize = axis === 'x' ? xStepSize : yStepSize;
         if (axis === 'x') subplotWidth = Math.round(stepSize * (count + 1));
         else subplotHeight = Math.round(stepSize * (count + 1));
+        stage(axis === 'x' ? 'width' : 'height', 'banded values', Math.round(stepSize * (count + 1)), { values: count, step: r1(stepSize) }, 'a continuous field drawn in bands spans one step per value, plus one');
     }
 
     // --- Square cells ---
@@ -1123,6 +1175,7 @@ export function computeLayout(
         if (square >= minStepVal && square * SQUARE_CELL_TOLERANCE >= widest) {
             xStepSize = square;
             yStepSize = square;
+            for (const key of ['xStep', 'yStep'] as const) stage(key, 'square cells', square, { wanted, capX, capY }, 'both axes banded: the marks are cells, pulled to one size so tones compare by area');
         }
     }
 
@@ -1139,6 +1192,8 @@ export function computeLayout(
     // canvasSize when faceting shrinks it, which is already handled above.
 
     // Clamp continuous subplot dimensions.
+    if (subplotWidth > Math.round(maxSubplotW)) stage('width', 'stretch budget', Math.round(maxSubplotW), { stretchCap: r1(maxStretchX), allowance: fixW, columns: facetCols, gap: gapX }, 'held to the cap times the base, less the allowance and the gaps, shared by the columns');
+    if (subplotHeight > Math.round(maxSubplotH)) stage('height', 'stretch budget', Math.round(maxSubplotH), { stretchCap: r1(maxStretchY), allowance: fixH, rows: facetRows, gap: gapY }, 'held to the cap times the base, less the allowance and the gaps, shared by the rows');
     subplotWidth = Math.min(subplotWidth, Math.round(maxSubplotW));
     subplotHeight = Math.min(subplotHeight, Math.round(maxSubplotH));
     // A banded continuous axis spreads its values across the clamped plot, so its step is what the
@@ -1166,6 +1221,7 @@ export function computeLayout(
                     0.5 * Math.log(subplotHeight) + 0.5 * Math.log(idealH));
                 subplotHeight = Math.round(
                     Math.max(minContinuousSizeY, Math.min(blendedH, subplotHeight)));
+                stage('height', 'band shape', subplotHeight, { bandRatio: r1(actualBandAR), target: targetBandAR, step: r1(xStepSize), ideal: r1(idealH) }, 'bars taller than the target ratio of their step blend halfway toward it, in log space');
             }
         } else if (yIsBanded && !xIsBanded) {
             // Y is banded, X is continuous → band AR = subplotWidth / yStepSize
@@ -1176,6 +1232,7 @@ export function computeLayout(
                     0.5 * Math.log(subplotWidth) + 0.5 * Math.log(idealW));
                 subplotWidth = Math.round(
                     Math.max(minContinuousSizeX, Math.min(blendedW, subplotWidth)));
+                stage('width', 'band shape', subplotWidth, { bandRatio: r1(actualBandAR), target: targetBandAR, step: r1(yStepSize), ideal: r1(idealW) }, 'bars longer than the target ratio of their step blend halfway toward it, in log space');
             }
         }
     }
@@ -1186,6 +1243,8 @@ export function computeLayout(
     if (pinnedPlot) {
         subplotWidth = pinnedPlot.width;
         subplotHeight = pinnedPlot.height;
+        stage('width', 'pinned', subplotWidth, {}, 'the plot is held at the size it was pinned to');
+        stage('height', 'pinned', subplotHeight, {}, 'the plot is held at the size it was pinned to');
     }
 
     // --- Label sizing ---
@@ -1238,6 +1297,7 @@ export function computeLayout(
                     const cap = Math.max(minStepVal, Math.floor(maxSubplotW / stats.count));
                     if (desiredStep <= cap) {
                         xStepSize = Math.max(xStepSize, desiredStep);
+                        stage('xStep', 'room for names', xStepSize, { widestName: r1(labelPx), wanted: desiredStep, cap }, 'a few short names read straight, so the band widens to hold the widest with a gap, within the stretch budget');
                         xLabel = computeLabelSizing(xStepSize, xHasDiscreteItems, labelOpts);
                         labelPx = stats.maxLen * xLabel.fontSize * APPROX_CHAR_WIDTH_RATIO;
                     }
@@ -1323,6 +1383,7 @@ export function computeLayout(
         } : undefined,
         effectiveFacetGap: gapX,
         truncations: [],  // Overflow truncations are handled by filterOverflow
+        trace,
     };
 }
 

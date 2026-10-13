@@ -19,6 +19,7 @@ const pages: NavEntry[] = [
     group: 'Layout',
     children: [
       { to: 'labs', label: 'Overview' },
+      { to: 'layout-inspector', label: 'Layout inspector' },
       { to: 'overflow-viewport', label: 'Overflow viewport' },
       { to: 'zoom-clipping', label: 'Zoom clipping' },
       { to: 'band-stretching', label: 'Band stretching' },

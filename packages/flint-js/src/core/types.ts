@@ -496,6 +496,27 @@ export interface LayoutResult {
 
     /** Items truncated due to overflow */
     truncations: TruncationWarning[];
+
+    /** How each dimension and step came to its value, stage by stage. */
+    trace?: LayoutTrace;
+}
+
+/** One stage a value passed through: the rule applied, what it read, and the value it left. */
+export interface PlanStage {
+    rule: string;
+    value: number | string;
+    /** The numbers the rule read, by name. */
+    read?: Record<string, number | string | boolean | undefined>;
+    /** What the rule did with them, where the value alone does not say. */
+    note?: string;
+}
+
+/** The plot's width and height and each axis's step, stage by stage. */
+export interface LayoutTrace {
+    width: PlanStage[];
+    height: PlanStage[];
+    xStep: PlanStage[];
+    yStep: PlanStage[];
 }
 
 // ============================================================================
