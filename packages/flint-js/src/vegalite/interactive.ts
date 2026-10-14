@@ -8,7 +8,7 @@ import { createFloatingPanel } from '../interactive/floating-panel';
 import { isCanvasInteraction, type ChartState, type InteractionContext, type InteractionDef } from '../interactive/interactions';
 import type { InteractiveRendererAdapter, TargetFeedbackOptions, ViewportState } from '../interactive/types';
 import { openVegaLiteSession, type Replanned } from './assemble';
-import { canvasFurnitureMarkup, readCanvasFurniture } from './canvas-furniture';
+import { canvasFurnitureMarkup, readCanvasFurniture, readCanvasPatterns, type CanvasPattern } from './canvas-furniture';
 import { enableGuideLabelTooltips, planTemporalTickValues } from './instantiate-spec';
 import {
     addVegaLiteInteractions,
@@ -153,16 +153,20 @@ function windowedInput(
  * Canvas furniture (such as a masthead tab) sits at absolute canvas pixels that Vega cannot
  * express. A layer over the rendered chart draws it for either renderer and survives re-renders.
  */
-function mountCanvasFurniture(container: HTMLElement, items: ReturnType<typeof readCanvasFurniture>): void {
+function mountCanvasFurniture(container: HTMLElement, items: ReturnType<typeof readCanvasFurniture>, patterns: CanvasPattern[] = []): void {
     container.querySelector(':scope > .flint-canvas-furniture')?.remove();
     const rendered = container.querySelector(':scope > canvas, :scope > svg');
-    if (items.length === 0 || !rendered) return;
+    if ((items.length === 0 && patterns.length === 0) || !rendered) return;
     if (getComputedStyle(container).position === 'static') container.style.position = 'relative';
     const layer = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     layer.setAttribute('aria-hidden', 'true');
     layer.setAttribute('class', 'flint-canvas-furniture');
     layer.style.cssText = 'position:absolute;width:1px;height:1px;overflow:visible;pointer-events:none;';
-    layer.innerHTML = canvasFurnitureMarkup(items);
+    // Laid out on the chart's own width: a rule along the top edge runs the canvas whatever it renders at.
+    const width = (rendered as HTMLElement).offsetWidth || Number(rendered.getAttribute('width')) || rendered.getBoundingClientRect().width;
+    // Fill patterns are defined here too: ids are the document's, so the chart's marks resolve them.
+    const height = (rendered as HTMLElement).offsetHeight || Number(rendered.getAttribute('height')) || rendered.getBoundingClientRect().height;
+    layer.innerHTML = canvasFurnitureMarkup(items, width, patterns, height);
     rendered.after(layer);
     // SVG elements have no offsetLeft, so measure rects and undo any CSS scale on an ancestor.
     const place = (): void => {
@@ -459,7 +463,8 @@ export function createVegaInteractiveRenderer(
             const view = new View(
                 parse(vegaSpec, { background: options.background } as any, { ast: true } as any),
                 {
-                    renderer: options.renderer ?? 'canvas',
+                    // A pattern fill is an SVG reference a canvas cannot draw.
+                    renderer: readCanvasPatterns(vlSpec).length ? 'svg' : options.renderer ?? 'canvas',
                     container,
                     ...(options.expressionInterpreter ? { expr: options.expressionInterpreter } : {}),
                 } as any,
@@ -472,7 +477,7 @@ export function createVegaInteractiveRenderer(
             // After the tooltip: setting it re-initializes the view's event handler.
             scaleAwareCanvasPicking((view as any)._handler);
             await view.runAsync();
-            mountCanvasFurniture(container, readCanvasFurniture(vlSpec));
+            mountCanvasFurniture(container, readCanvasFurniture(vlSpec), readCanvasPatterns(vlSpec));
             const mountedInteractions = mountedInteractionList(interactions, interactionPlan?.interactions ?? canvasInteractions);
             const interactionController = interactionPlan
                 ? mountVegaInteractions(
@@ -647,7 +652,7 @@ export function createVegaInteractiveRenderer(
                     view.resize();
                     // Vega encodes some guide parts on enter only; running the enter set lets them read the pushed values.
                     await (view as unknown as { runAsync(encode: string): Promise<unknown> }).runAsync('enter');
-                    if (change.furniture) mountCanvasFurniture(container, readCanvasFurniture(replanned.spec));
+                    if (change.furniture) mountCanvasFurniture(container, readCanvasFurniture(replanned.spec), readCanvasPatterns(replanned.spec));
                     interactionController?.refresh();
                     return true;
                 },

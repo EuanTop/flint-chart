@@ -1,26 +1,32 @@
 import type { ChartAnalysis } from './analyze';
 import type { AssembleOptions, ChannelSemantics, ChartEncoding, ChartWarning, LayoutDeclaration, LayoutResult, OverflowResult, PlotPlanContext } from './types';
-import type { DesignDecisions, ThemeReport, ThemeSpec } from './theme/types';
+import type { DesignDecisions, LabelFitStep, ThemeReport, ThemeSpec } from './theme/types';
 import { computeChannelBudgets, computeLayout, deriveStretchCaps, planBandLabels, resolveFacetColumnsOption } from './compute-layout';
-import { groundTheme, headlineText, resolveBandFraction, resolveThemeFontSize, resolveValueLabelChoice, themeBodyFamily } from './theme/ground';
+import { fontWeightOf, groundTheme, headlineText, resolveBandFraction, resolvedGroupSpacing, resolveThemeFontSize, resolveValueLabelChoice, themeBodyFamily } from './theme/ground';
 import { filterOverflow } from './filter-overflow';
 import { axisRoles, type AxisFieldFacts } from './axis-roles';
+import { applyTextCase } from './text-case';
+import { planHeader, type HeaderPlan } from './header-plan';
 import { axisTitles, chartDisplayNames, chartStructure, segmentedBands, stackedAxis, type ChartStructure } from './structure';
 import { continuousBandSpan, freeHeadroom, measureDomain, measureExtent, type MeasureDomain } from './measure-domain';
-import { planValueLabels, type ValueLabelPlan } from './value-label-plan';
+import { groupPadding } from './group-gaps';
+import { planSource, type SourcePlan } from './source-plan';
+import { fitInsideLabels, planValueLabels, someLabelsOverrun, type ValueLabelPlan } from './value-label-plan';
 import { niceDomain, spacingRuler, type AxisRuler } from './ruler';
 import { planFurniture, rulerOverhang, type FurniturePlan } from './furniture-plan';
 import { categoryOrder, encodedType, sizeRange, type CategoryOrder } from './channel-decisions';
 import { planLegendPlacement, type RunValueScale } from './series-end';
 import { keysToLayout, planLegend, type LegendPlan } from './legend-plan';
-import { familyMeasure, tableTextMeasurer } from './text-width';
+import { familyMeasure, hostTextMeasurer, measuresDrawnFace, tableTextMeasurer } from './text-width';
+import { valueLabelMeasurer } from './value-label-measure';
 import { planKeyLayout, type TextMeasurer } from './legend-layout';
 import { encodingTitle } from './structure';
 import { format as formatNumber } from 'd3-format';
 import { chartBlock, heightAfterTitle, planTitle, type TitlePlan } from './title-plan';
 import { planRules, withRules, type ClosingRule } from './rule-plan';
 import { plotHeightAfter } from './title-fit';
-import { planAxisLabels, type AxisLabelFacts, type AxisLabelPlan } from './axis-labels';
+import { planAxisLabels, resolveLabelOverflow, type AxisLabelFacts, type AxisLabelPlan } from './axis-labels';
+import { sequenceKindOf } from './label-sequence';
 import { measureReserve, NO_RESERVE, type FurnitureReserve, type FurnitureSpacing } from './furniture-reserve';
 import { facetViews, gapOf, shortenViews, viewsExtent, type ViewNode } from './views';
 
@@ -59,6 +65,10 @@ export interface LayoutPlan {
     laidOutViews?: ViewNode;
     /** The rules a theme closes the chart's block with, and whether their room came out of the plot. */
     rules?: { rules: ClosingRule[]; room: number; fromPlot: boolean };
+    /** What the chart draws on its canvas's top edge, above its headline and beside it. */
+    header?: HeaderPlan;
+    /** The source line at the chart's foot, where the chart gives one. */
+    source?: SourcePlan;
     layout: LayoutResult;
     /** The theme's axis label size at this plot size; undefined without a theme. */
     axisLabelFontSize: number | undefined;
@@ -414,10 +424,10 @@ function valueLabelChoice(
 
 /**
  * An axis's tick labels with pinned values in place of the planned ones. A pinned angle brings
- * its own anchoring; the plan's crowding and refusal notes no longer apply to what was pinned.
+ * its own anchoring; the plan's crowding and overflow notes no longer apply to what was pinned.
  */
 function pinAxisLabels(planned: AxisLabelPlan, pin: { fontSize?: number; angle?: number }): AxisLabelPlan {
-    const { crowdedFrom, straightRefused, ...rest } = planned;
+    const { crowdedFrom, overflowFit, ...rest } = planned;
     const next: AxisLabelPlan = { ...rest };
     if (pin.fontSize !== undefined) next.fontSize = pin.fontSize;
     else if (crowdedFrom !== undefined) next.crowdedFrom = crowdedFrom;
@@ -425,10 +435,35 @@ function pinAxisLabels(planned: AxisLabelPlan, pin: { fontSize?: number; angle?:
         next.angle = pin.angle;
         next.align = pin.angle === 0 ? 'center' : 'right';
         next.baseline = Math.abs(pin.angle) >= 90 ? 'middle' : 'top';
-    } else if (straightRefused) {
-        next.straightRefused = straightRefused;
+        // Names cut to their band were cut for standing straight; turned, they keep their length.
+        // A flat trim (wrapped or skipped names cut to their band) does not apply once the names turn.
+        if (overflowFit?.trimmed && (overflowFit.step === 'wrap' || overflowFit.step === 'skip') && pin.angle !== 0) {
+            if (overflowFit.uncutLimit !== undefined) next.limit = overflowFit.uncutLimit;
+            else delete next.limit;
+            delete next.lineHeight;
+        }
+    } else if (overflowFit) {
+        next.overflowFit = overflowFit;
     }
     return next;
+}
+
+/** Semantic types whose values are codes: read whole or not at all. */
+const IDENTIFIER_TYPES = new Set(['ID', 'ZipCode']);
+
+/** The ways x names may take, whether they run as a sequence, and the theme's thresholds. */
+function xLabelOverflow(theme: ThemeSpec | undefined, chartProperties: Record<string, any> | undefined, channelSemantics: Record<string, any>) {
+    const semanticType = channelSemantics.x?.semanticAnnotation?.semanticType;
+    const sequence = sequenceKindOf(semanticType);
+    // An identifier cut short names nothing: codes are never truncated, whatever the theme allows.
+    const code = IDENTIFIER_TYPES.has(semanticType);
+    const overflow = resolveLabelOverflow(theme?.labels, chartProperties?.labelOverflow, sequence ? 'sequence' : 'names');
+    return {
+        overflow,
+        ...(sequence ? { sequence } : {}),
+        ...(theme?.labels?.truncation === 'never' || code ? { noLimit: true } : {}),
+        ...(theme?.labels?.fit ? { fit: theme.labels.fit } : {}),
+    };
 }
 
 /** Everything a plan reads besides the analysis. */
@@ -444,6 +479,10 @@ export interface PlanContext {
     size: LayoutSize;
     /** The headline and deck the author wrote, as a title. */
     title?: { text: string; subtitle?: string[] };
+    /** The figure label or kicker the author wrote, above the headline. */
+    label?: string;
+    /** Where the data comes from, as the author wrote it: the source line. */
+    source?: string | { text: string; href?: string };
     /** The names the author gave fields. */
     fieldDisplayNames?: Record<string, string>;
     /** The chart type the spec names. */
@@ -645,6 +684,21 @@ export function planLayout(analysis: PlanAnalysis, context: PlanContext): Layout
             first = planAroundPlot(prepared, pinned ?? NO_RESERVE);
         }
     }
+    // Labels too wide for their band widen the bands, into the room the canvas has (L3). A label
+    // whose type grows with the plot can need a little more once the plot is wider; a few passes settle it.
+    const unwidened = { prepared, first };
+    for (let pass = 0; pass < 3; pass++) {
+        const labelBands = widenBandsForLabels(first, prepared, context);
+        if (!labelBands) break;
+        prepared = labelBands;
+        first = planAroundPlot(prepared, pinned ?? NO_RESERVE);
+    }
+    // Wider bands that still do not print their labels buy nothing: the chart keeps its bands.
+    if (prepared !== unwidened.prepared && !first.design.dataLabels.show) {
+        ({ prepared, first } = unwidened);
+        first.report.push({ stage: 'realize', path: 'dataLabels', code: 'value-labels-band-full',
+            message: 'widening the bands into the canvas\'s spare room was not enough for the labels — the bands are kept, and the labels withheld' });
+    }
     if (pinned) return { ...first, reserve: pinned };
     const along = { width: first.layout.xStepFitted === true, height: first.layout.yStepFitted === true };
     if (!along.width && !along.height) return first;
@@ -670,6 +724,57 @@ export function planLayout(analysis: PlanAnalysis, context: PlanContext): Layout
     return { ...planAroundPlot(prepared, reserve), reserve };
 }
 
+/**
+ * The second remedy for value labels wider than their band (L3): the band widens to what the labels
+ * need, where the canvas less its furniture holds the wider plot. Grounding states the need; when
+ * the canvas cannot hold it the labels stay withheld, and the report says how wide the bands would
+ * have to be. Panels and a template's own composite keep their bands.
+ */
+function widenBandsForLabels(first: LayoutPlan, prepared: PreparedPlan, context: PlanContext): PreparedPlan | undefined {
+    const need = first.design.dataLabels.bandNeed;
+    if (!need || first.layout.facet || prepared.analysis.template.composite) return undefined;
+    const axis = need.channel;
+    const step = axis === 'x' ? first.layout.xStep : first.layout.yStep;
+    if (!(step > 0) || need.step <= step) return undefined;
+    const reserve = measureReserve({
+        along: { width: axis === 'x', height: axis === 'y' },
+        structure: first.structure,
+        design: first.design,
+        themed: Boolean(context.theme),
+        layout: first.layout,
+        channelSemantics: prepared.analysis.channelSemantics,
+        axisLabels: first.axisLabels,
+        axisTitles: first.axisTitles,
+        domains: first.domains,
+        rulers: first.rulers,
+        furniture: first.furniture,
+        legend: first.legend,
+        title: printedTitle(context, first.structure),
+        titlePlan: first.title,
+        rows: first.rows,
+        spacing: context.profile.spacing,
+        measure: context.profile.measureText ?? tableTextMeasurer,
+    });
+    const ceiling = context.size.canvasSize ?? context.size.baseSize;
+    const room = axis === 'x' ? ceiling.width - reserve.width : ceiling.height - reserve.height;
+    const plot = axis === 'x' ? first.plot.width : first.plot.height;
+    const widened = Math.ceil((plot * need.step) / step);
+    const say = (code: string, message: string): ThemeReport => ({ stage: 'realize', path: 'dataLabels', code, message });
+    if (widened > room) {
+        first.report.push(say('value-labels-band-full',
+            `the labels need ${need.step}px bands (a ${widened}px plot); the canvas has room for ${Math.max(0, Math.floor(room))}px — they are withheld rather than overlapped`));
+        return undefined;
+    }
+    const from = prepared.labelBandsFrom ?? { step: Math.round(step), plot: Math.round(plot) };
+    return {
+        ...prepared,
+        labelBandsFrom: from,
+        options: { ...prepared.options, labelStep: { [axis]: need.step } },
+        report: [...prepared.report.filter((r) => r.code !== 'band-widened-for-labels'), say('band-widened-for-labels',
+            `the bands widen from ${from.step}px to ${need.step}px so each value label fits its band, into the canvas's spare room (the plot ${from.plot} → ${widened}px)`)],
+    };
+}
+
 /** What a plan settles before it lays out the plot: its options, the facet grid and the rows that fit. */
 interface PreparedPlan {
     analysis: PlanAnalysis;
@@ -681,6 +786,8 @@ interface PreparedPlan {
     report: ThemeReport[];
     /** The gap between facet panels the plan laid them out for and draws. */
     facetSpacing?: FurniturePlan['facets']['spacing'];
+    /** The band step and plot before the bands widened for their value labels. */
+    labelBandsFrom?: { step: number; plot: number };
 }
 
 /**
@@ -731,8 +838,11 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
         const shape = declaration.bandAxes?.[channel] ?? { scale: 'band', nested: grouped };
         if (shape.scale === 'point') return step * (bands - 1 + 2 * shape.padding);
         if (!shape.nested) return step * bands;
+        // A themed group is spaced by the house's group rule (G1), the same answer realization draws.
+        const lanes = declaration.groupLaneCount ?? nominalCounts.group ?? 1;
+        const themedGroup = themeFillsBars ? resolvedGroupSpacing(theme as ThemeSpec, context.chartType, template.geometryKinds) : undefined;
         const inner = themeFillsBars
-            ? Math.max(0, Math.min(0.9, 1 - resolveBandFraction(theme as ThemeSpec, context.chartType, template.geometryKinds, layoutResult.stepPadding)))
+            ? groupPadding(themedGroup!, resolveBandFraction(theme as ThemeSpec, context.chartType, template.geometryKinds, layoutResult.stepPadding), lanes, step).inner
             : profile.nestedBandPadding.inner;
         return step * (bands - inner + 2 * profile.nestedBandPadding.outer);
     };
@@ -742,7 +852,16 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
     if (context.bandLabels) {
         planBandLabels(
             { layout: layoutResult, canvasSize: size.baseSize, channelSemantics, assembleOptions: effectiveOptions, table: values },
-            { fontSize: axisLabelFontSize, skip: (channel) => context.bandLabels!.skip(channel) || declaration.axisLabels?.[channel] !== undefined },
+            {
+                fontSize: axisLabelFontSize,
+                textCase: (theme as ThemeSpec | undefined)?.type?.axisLabel?.case,
+                // A themed chart's names are measured in the face they are drawn in, as its value labels are.
+                ...(theme ? { minFontSize: Math.max((theme as ThemeSpec).type?.minSize ?? 8, (axisLabelFontSize ?? 10) * 0.75) } : {}),
+                ...(theme ? { measure: bandLabelMeasure(theme as ThemeSpec) } : {}),
+                // How x names that do not stand flat may be set, weighed by cost: the chart's ways, else the theme's, else the rule.
+                ...xLabelOverflow(theme as ThemeSpec | undefined, chartProperties, channelSemantics),
+                skip: (channel) => context.bandLabels!.skip(channel) || declaration.axisLabels?.[channel] !== undefined,
+            },
         );
     }
 
@@ -775,20 +894,6 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
     const categoryChannel = axisRoles({ x: fieldFacts('x'), y: fieldFacts('y') }).categoricalChannel;
     const xNamed = typeOf('x') === 'nominal' || typeOf('x') === 'ordinal';
     const xField = channelSemantics.x?.field;
-    let xCategories: AxisLabelFacts['xCategories'];
-    if (present.x && xField && (categoryChannel === 'x' || xNamed)) {
-        const names = new Set<string>();
-        for (const row of values) names.add(String(row?.[xField] ?? ''));
-        const widthOf = measureText(axisLabelFontSize ?? layoutResult.xLabel.fontSize, theme ? themeBodyFamily(theme) ?? 'sans-serif' : 'sans-serif', 'normal', 'normal');
-        names.delete('');
-        xCategories = {
-            named: xNamed,
-            distinct: names.size,
-            widest: Math.max(0, ...[...names].map(widthOf)),
-            band: composite || layoutResult.xNominalCount > 0 || !names.size ? layoutResult.xStep : plot.width / names.size,
-        };
-    }
-
     const structure = chartStructure(template, {
         channelSemantics,
         resolvedTypes: declaration.resolvedTypes as Record<string, string> | undefined,
@@ -833,6 +938,7 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
         headline: headlineText(title),
         hostSurface: (options as Record<string, any>).background,
         valueLabels: valueLabelChoice(template, structure, resolveValueLabelChoice(chartProperties)),
+        labelOverflow: chartProperties?.labelOverflow,
         geometryKinds: template.geometryKinds,
         liveLayoutSignal: options.liveLayoutSignal,
     });
@@ -840,9 +946,11 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
     const axisLabels = planAxisLabels(layoutResult, declaration, axisLabelFontSize === undefined ? undefined : {
         fontSize: axisLabelFontSize,
         noLimit: theme?.labels?.truncation === 'never',
-        angle: theme?.labels?.angle,
         font: theme ? themeBodyFamily(theme) : undefined,
-    }, { present, xCategories });
+    }, {
+        present,
+        xRuler: typeOf('x') === 'temporal' || typeOf('x') === 'quantitative',
+    });
     for (const channel of ['x', 'y'] as const) {
         const pin = { ...declaration.axisLabels?.[channel], ...context.pins?.axisLabels?.[channel] };
         if (Object.keys(pin).length) axisLabels[channel] = pinAxisLabels(axisLabels[channel], pin);
@@ -850,13 +958,37 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
     const titles = axisTitles(structure, {
         encodings, channelSemantics, displayNames: chartDisplayNames(context.fieldDisplayNames, analysis.staticSeries ?? undefined), spellField: profile.spellField,
     });
+    // An axis title is cased once, here, so it is measured, moved into a deck and drawn the same.
+    for (const channel of ['x', 'y'] as const) {
+        const title = titles[channel];
+        const textCase = design.axes[channel]?.title.textCase;
+        if (typeof title === 'string' && textCase) titles[channel] = applyTextCase(title, textCase);
+    }
     const titleInputs = {
         structure, design, layout: layoutResult, axisLabels, axisTitles: titles, plot, rows: values,
         title: context.title, rowFacet: channelSemantics.row?.field, themed: Boolean(theme),
     };
+    // The header is planned before the title: its edge band and the line above push the title down,
+    // and what sits beside the headline is taken from the width the title is fitted to.
+    const header = planHeader({
+        design, label: context.label, block: chartBlock(titleInputs) ?? size.baseSize.width, measure: tableTextMeasurer,
+        titleAnchor: theme ? design.title.anchor : 'middle',
+    });
+    if (header?.moved) report.push({ stage: 'realize', path: 'furniture', code: 'header-moved-above-title', message: header.moved });
+    if (header && (header.beside.start || header.beside.end)) Object.assign(titleInputs, { beside: header.beside });
     let titlePlan = composite ? undefined : context.pins?.title ?? planTitle(titleInputs);
 
-    let valueLabels = planValueLabels({ design, structure, segmented, channelSemantics, rows: values });
+    const labelLengths = drawnLengths(plot, titlePlan, undefined);
+    let valueLabels = planValueLabels({ design, structure, segmented, channelSemantics, rows: values, lengths: labelLengths });
+    // A house that would rather every label read alike prints them all past the bar's end once one
+    // bar is too short for its own (L4).
+    if (valueLabels && !('refused' in valueLabels) && design.dataLabels.fallback === 'allOutside'
+        && (valueLabels.channel === 'x' || valueLabels.channel === 'y')
+        && someLabelsOverrun(valueLabels, design, values, labelLengths[valueLabels.channel])) {
+        valueLabels = planValueLabels({ design, structure, segmented, channelSemantics, rows: values, lengths: labelLengths, outside: true });
+        report.push({ stage: 'realize', path: 'dataLabels.fallback', code: 'value-labels-all-outside',
+            message: 'some bars are too short to hold their own label, so every label is printed past its bar’s end, as the house asks' });
+    }
     const domains = measureDomains(structure, segmented, channelSemantics, values);
     if (valueLabels && !('refused' in valueLabels) && valueLabels.headroom && valueLabels.channel === 'y') {
         const { headroom: asked, ...rest } = valueLabels;
@@ -902,6 +1034,11 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
         length: drawnLengths(plot, titlePlan, valueLabels), measure: measureText, points,
     }) : {};
     const rulers: typeof measured = furniture.facets.independentY ? { ...(measured.x ? { x: measured.x } : {}) } : measured;
+    // Inside labels are checked one by one against the axis as it will be drawn.
+    if (valueLabels && !('refused' in valueLabels) && valueLabels.inside && (valueLabels.channel === 'x' || valueLabels.channel === 'y')) {
+        const along = valueLabels.channel;
+        valueLabels = fitInsideLabels(valueLabels, design, values, { length: drawnLengths(plot, titlePlan, valueLabels)[along], domain: rulers[along]?.domain });
+    }
     const displayNames = chartDisplayNames(context.fieldDisplayNames, analysis.staticSeries ?? undefined);
     const channelTitles: Partial<Record<string, string>> = {};
     for (const [channel, encoding] of Object.entries(encodings)) {
@@ -931,10 +1068,18 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
     const bandedY = (type: string | undefined) => type === 'nominal' || type === 'ordinal';
     const plotGives = Boolean(template.planViews) || !(bandedY(structure.y?.type) || bandedY(typeOf('y')) || layoutResult.yNominalCount > 0);
     const ruled = rules && 'rules' in rules ? rules : undefined;
-    const drawnViews = views && (ruled || titlePlan) && plotGives
+    // The header's edge band and the line above the headline come out of the plot too, and so does
+    // the source line at the foot.
+    const sourcePlan = planSource({
+        design, source: context.source, block: chartBlock({ ...titleInputs, ...(extent ? { viewsWidth: extent.width } : {}) }) ?? size.baseSize.width,
+        measure: tableTextMeasurer,
+    });
+    const headerRoom = (header ? header.edge + header.line : 0) + (sourcePlan?.room ?? 0);
+    const drawnViews = views && (ruled || titlePlan || headerRoom) && plotGives
         ? shortenViews(views, (height) => {
             const titled = heightAfterTitle(height, titlePlan);
-            return ruled ? plotHeightAfter(titled, ruled.room) : titled;
+            const closed = ruled ? plotHeightAfter(titled, ruled.room) : titled;
+            return headerRoom ? plotHeightAfter(closed, headerRoom) : closed;
         })
         : views;
     const viewsDrawn = drawnViews && ruled ? withRules(drawnViews, ruled.rules) : drawnViews;
@@ -942,9 +1087,11 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
         placement: planLegendPlacement({
             design, structure, channelSemantics, orders, rows: values,
             value: runValueScale(structure, domains, rulers, channelSemantics.y, design, values, Boolean(theme)),
+            ...(composite ? {} : { plot }),
         }),
         structure, design: theme ? design : undefined, channelSemantics, orders, rows: values,
         layout: layoutResult, plot, composite, flatYTitle: (furniture.yTitle?.top ?? 0) > 0,
+        ...(furniture.yTitle ? { flatYTitleLift: furniture.yTitle.lift } : {}),
         ...(extent ? { viewsWidth: extent.width } : {}),
     });
     const keyTitles: Partial<Record<string, string>> = {};
@@ -984,6 +1131,8 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
         ...(viewsDrawn ? { views: viewsDrawn } : {}),
         ...(views ? { laidOutViews: views } : {}),
         ...(ruled ? { rules: { ...ruled, fromPlot: plotGives } } : {}),
+        ...(header ? { header } : {}),
+        ...(sourcePlan ? { source: sourcePlan } : {}),
         structure,
         design,
         axisTitles: titles,
@@ -1009,5 +1158,20 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
         viewports: overflowResult.viewports,
         warnings: overflowResult.warnings,
         report,
+    };
+}
+
+/**
+ * How a themed chart's category names are measured for their bands: in the face they are drawn in,
+ * as its value labels are. A face the width table does not know is measured as the fallback it
+ * knows, with room for running up to a tenth wider.
+ */
+function bandLabelMeasure(theme: ThemeSpec): (fontSize: number) => (text: string) => number {
+    const family = themeBodyFamily(theme) ?? 'sans-serif';
+    const weight = theme.type?.axisLabel?.weight !== undefined ? fontWeightOf(theme.type.axisLabel.weight) ?? 'normal' : 'normal';
+    const margin = hostTextMeasurer() || measuresDrawnFace(family) ? 1 : 1.1;
+    return (fontSize) => {
+        const measure = valueLabelMeasurer()(fontSize, family, weight, 'normal');
+        return (text) => measure(text) * margin;
     };
 }

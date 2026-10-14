@@ -554,14 +554,14 @@ describe('masthead furniture', () => {
         expect(Array.isArray(tabs)).toBe(true);
         expect(tabs).toHaveLength(1);
         const tab = tabs[0];
-        expect(tab.kind).toBe('mastheadTab');
+        expect(tab.kind).toBe('rect');
         expect(tab.color).toBe('#e3120b');
         expect(tab.width).toBe(26);
         expect(tab.height).toBe(3);
         // The tab anchors to the same left margin the title anchors to.
         const pad = spec.padding;
         const left = typeof pad === 'number' ? pad : pad.left;
-        expect(tab.x).toBe(left);
+        expect(tab.left).toBe(left);
         // A band of top padding is reserved so the tab opens above the headline.
         const top = typeof pad === 'number' ? pad : pad.top;
         expect(top).toBeGreaterThanOrEqual(tab.y + tab.height);
@@ -683,13 +683,13 @@ describe('subtitle fitting', () => {
     });
 });
 
-describe('a closing rule under a banded plot', () => {
-    /** The synthetic rect a footerRule is drawn as, if one was drawn. */
+describe('a closing rule at the foot', () => {
+    /** The rule a footerRule is drawn as on the canvas, if one was drawn. */
     function closingRule(spec: any): any {
-        return (spec.vconcat ?? []).find((child: any) => child.__themeSynthetic && child.mark?.type === 'rect');
+        return (spec.usermeta?.flintCanvasFurniture ?? []).find((item: any) => item.kind === 'rule');
     }
 
-    function ruled(): any {
+    function ruled(source?: string): any {
         const themeSpec = {
             id: 'ruled',
             label: 'Ruled',
@@ -703,19 +703,31 @@ describe('a closing rule under a banded plot', () => {
                 chartType: 'Bar Chart',
                 title: 'Rain keeps falling',
                 encodings: { x: 'Month', y: 'Rainfall' },
+                ...(source ? { source } : {}),
             },
             theme_spec: themeSpec,
         } as any) as any;
     }
 
-    it('runs the width of the bands, not the width a continuous plot would have taken', () => {
+    it('runs across the drawn graphic, the width the title spans, not a concatenated block', () => {
         const spec = ruled();
+        expect(spec.vconcat).toBeUndefined();
         const rule = closingRule(spec);
         expect(rule).toBeTruthy();
-        const continuous = spec.config?.view?.continuousWidth;
-        expect(typeof continuous).toBe('number');
-        // Four months at Vega-Lite's own step is nowhere near a continuous plot,
-        // and a rule drawn at that width would stretch the canvas to meet it.
-        expect(rule.width).toBeLessThan(continuous);
+        const padding = typeof spec.padding === 'number' ? { left: spec.padding, right: spec.padding, bottom: spec.padding } : spec.padding;
+        expect(rule.left).toBe(padding.left);
+        expect(rule.right).toBe(padding.right);
+        expect(rule.width).toBeUndefined();
+        // Seated in the padding under the chart, a gap clear of it.
+        expect(rule.bottom + rule.height).toBeLessThan(padding.bottom);
+    });
+
+    it('sits above a source line, which takes the foot', () => {
+        const spec = ruled('Met Office');
+        const items = spec.usermeta.flintCanvasFurniture;
+        const rule = closingRule(spec);
+        const text = items.find((item: any) => item.kind === 'text');
+        expect(text).toBeTruthy();
+        expect(rule.bottom).toBeGreaterThan(text.bottom + text.height);
     });
 });

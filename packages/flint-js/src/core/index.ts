@@ -237,4 +237,6 @@ export {
     DEFAULT_THEME_ICON,
     listThemePresets,
     resolveThemeSpec,
+    withChrome,
+    type ChartChrome,
 } from './theme';

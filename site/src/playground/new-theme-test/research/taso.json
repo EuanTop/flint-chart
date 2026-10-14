@@ -1,0 +1,109 @@
+{
+  "id": "taso",
+  "org": "TASO (Transforming Access and Student Outcomes in Higher Education)",
+  "urls": [
+    "https://taso-he.github.io/technicalguide/data-vis/",
+    "https://taso-he.github.io/technicalguide/data-vis/styling.html",
+    "https://taso-he.github.io/technicalguide/data-vis/principles.html"
+  ],
+  "access": "full",
+  "accessNotes": "All guide pages are static Quarto HTML and were fully readable, including the R/ggplot2 theme code shown under 'Show the code', which provides exact colours, sizes and fonts. Example PNGs downloaded from the guide.",
+  "summary": "A UK higher-education research charity's report/social chart style built in R/ggplot2: warm 'putty' (#EDEBE3) background, serif Neuton active headline above a Barlow statistical subtitle, sparse light gridlines, a dark slate x-axis baseline with long ticks, and italic bottom-left source/notes. Charts favour direct labelling, a single peacock-blue (#3b66bc) series with greyed/tinted context and arrow annotations for social versions.",
+  "context": "report",
+  "colors": {
+    "categorical": ["#3b66bc", "#07dbb3", "#f9466c", "#485866", "#e4e2d9"],
+    "categoricalNotes": "Count-specific palettes from the R code: 1 colour = #3b66bc; 2 = #3b66bc,#07dbb3; 3 = +#f9466c; 4 = +#485866; 5 = +#e4e2d9. A principles-page example uses an alternative 3-colour line palette #3b66bc, #00a8da, #07dbb3. For line charts aim for no more than four or five colours. Gradients can be generated with RColorBrewer or the learnui data-colour-picker.",
+    "sequential": [],
+    "diverging": ["#f9466c", "#fea3ac", "#f1f1f1", "#9ea8d7", "#3b66bc"],
+    "highlight": "#3b66bc",
+    "context": null,
+    "positive": null,
+    "negative": null,
+    "background": "#EDEBE3",
+    "text": "#000000",
+    "textSecondary": null,
+    "gridline": "#CECABC",
+    "axis": "#485866",
+    "notes": "Brand colours listed: #07dbb3 (teal), #3b66bc (peacock blue), #e4e2d9, #edebe3 (putty), #f9466c (pink-red), #485866 (slate). Diverging list is the 'taso_likert' 5-point palette. Zero/reference line drawn in #404040. Text black but data labels may be white on coloured bars. In the social example, non-highlighted bars are a pale tint of the blue (alpha-reduced #3b66bc over putty) rather than grey."
+  },
+  "typography": {
+    "family": "Barlow",
+    "fallback": null,
+    "title": { "size": 16, "weight": "normal (Neuton serif; bold in report version)", "align": "left", "case": "sentence", "color": "#000000" },
+    "subtitle": { "size": 12, "weight": "normal", "style": "normal", "color": "#000000" },
+    "axisLabel": { "size": 10, "color": null },
+    "axisTitle": { "size": 9, "weight": "normal (italic in some examples)", "placement": "x-axis title centred below axis; y-axis title usually omitted (y = \"\")" },
+    "dataLabel": { "size": null, "weight": "bold" },
+    "source": { "size": 9, "style": "italic, left-aligned to plot edge", "color": null },
+    "notes": "Title font is Neuton (serif); all other text Barlow at base 12pt (ggplot sizes in pt). Title must be the largest text, then subtitle; all other text smaller. Text should almost always be horizontal. Direct line-end labels in Barlow bold 3.5 (ggplot mm units)."
+  },
+  "structure": {
+    "gridlines": "Major gridlines only, solid #CECABC at 0.3 linewidth (both directions by theme_minimal in the default example; examples prune to fewer lines); minor gridlines removed.",
+    "axisLine": "x-axis line drawn in #485866 at 0.5 linewidth; y-axis line removed. A separate zero line (geom_hline/vline) in #404040 solid.",
+    "ticks": "x-axis ticks only, #485866, long (0.3 cm); labels offset 7pt below.",
+    "zeroLine": "Yes — solid #404040 line at 0 (y=0 for vertical bars, x=0 for horizontal bars).",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "omitted by default (y = \"\"); formal report version may show rotated y title",
+    "unitPlacement": "In tick labels (e.g. £0, £5,000) or subtitle",
+    "frame": "none — whole plot sits on a putty rectangle with 0.25in margin; no panel border",
+    "background": "#EDEBE3 putty for both plot and panel",
+    "notes": "plot.title.position and plot.caption.position = 'plot' so title and caption align to the left edge of the whole graphic, not the panel."
+  },
+  "legend": {
+    "placement": "none",
+    "directLabels": "Strongly preferred: legend.position='none'; series names placed at line ends in bold, coloured to match.",
+    "title": "not shown",
+    "swatchShape": null,
+    "notes": "Guide argues integrating the legend into the chart avoids eye-travel."
+  },
+  "marks": {
+    "bars": "Flat solid fills, no outline, no rounding; horizontal bars recommended to keep text horizontal; ggplot default ~0.9 width. Value labels in white bold inside bar end.",
+    "lines": "Default ggplot line width with point markers at each observation; direct labels at end.",
+    "areas": null,
+    "points": "Shown on line vertices (geom_point).",
+    "pies": null,
+    "notes": "No gradients or 3D effects. Error bars shown in formal reports for 95% CIs."
+  },
+  "labels": {
+    "dataLabels": "Label points directly where possible (allows dropping axes); bold white labels inside bars.",
+    "numberFormat": "Thousands comma, currency prefix (£5,000).",
+    "dates": "Plain years (2019, 2020...) with no 'Year' axis title.",
+    "notes": "Use bold/italic in annotations and data labels only with purpose."
+  },
+  "furniture": {
+    "title": "Active title stating the key takeaway (max two lines) in Neuton; subtitle is formal statistical title, e.g. 'Figure 18: Average anxiety level over time by disability type'. In formal reports the figure number + title may sit above the chart in bold blue serif with a neutral descriptive title.",
+    "source": "Caption bottom-left, italic, smallest text: 'Source: ...' then blank line then 'Notes: ...'.",
+    "logo": "TASO logo bottom-right for web/social versions; omitted in PDF reports that already carry branding.",
+    "other": "Key words in the title can be coloured in the highlight series colour (ggtext markdown) to act as a legend."
+  },
+  "annotations": "Concise annotations near relevant data, distinguished by font size/weight; social example uses a curved thin dark-grey arrow and bold dark-grey Barlow callout text.",
+  "layout": "Default 180mm × 120mm for A4 PDF reports (180mm max width; height flexible). Social sizes: Instagram story 1080×1920, carousel 1080×566 / 1080×1350 / 1080×1080, X 1600×900 (min 600×335), LinkedIn 1200×627. Export PNG/JPEG. 0.25in plot margin.",
+  "interaction": null,
+  "accessibility": "Foreground/background contrast must pass WCAG AA. Alt text formula (Amy Cesal): 'Chart type of type of data where reason for including chart'. Refers to Government Analysis Function and RSS guides.",
+  "chartTypes": {
+    "preferred": ["horizontal bar", "bar", "line"],
+    "discouraged": ["3D charts", "gradient fills"],
+    "notes": "Use FT Visual Vocabulary to choose; RAISE principles (Reduce clutter, Annotate, Integrate text, Show the data, Engage)."
+  },
+  "distinctiveRules": [
+    { "rule": "Whole chart background is putty #EDEBE3 (plot and panel), not white.", "source": "https://taso-he.github.io/technicalguide/data-vis/styling.html", "quote": "Background should be #EDEBE3 (putty)." },
+    { "rule": "Title set in serif Neuton; everything else in sans Barlow; title is always the largest text, subtitle second.", "source": "https://taso-he.github.io/technicalguide/data-vis/styling.html", "quote": "The fonts for the charts are Neuton for the header and Barlow for all other text." },
+    { "rule": "Title is an active takeaway sentence; subtitle beneath is the formal statistical title (optionally prefixed 'Figure N:').", "source": "https://taso-he.github.io/technicalguide/data-vis/principles.html", "quote": "opt for an active title that succinctly captures the key takeaway, complemented by a formal statistical subtitle" },
+    { "rule": "Gridlines solid #CECABC at thin weight; no minor gridlines.", "source": "https://taso-he.github.io/technicalguide/data-vis/styling.html", "quote": "Gridlines should generally be \"#CECABC\"" },
+    { "rule": "Only the x (category/value) axis line drawn, slate #485866 0.5 weight, with long (0.3cm) slate ticks; no y-axis line.", "source": "https://taso-he.github.io/technicalguide/data-vis/styling.html", "quote": "axis.line.y = element_blank(), axis.line = element_line(colour = \"#485866\", linewidth = 0.5) ... axis.ticks.length = unit(0.3, \"cm\")" },
+    { "rule": "A solid dark #404040 zero line is drawn at the bar baseline.", "source": "https://taso-he.github.io/technicalguide/data-vis/styling.html", "quote": "geom_hline(yintercept = 0, linetype = \"solid\", color = \"#404040\")" },
+    { "rule": "Source/notes caption bottom-left, italic, smallest text, 'Source:' prefix then 'Notes:' on a separate line.", "source": "https://taso-he.github.io/technicalguide/data-vis/styling.html", "quote": "The caption should be in the bottom left of the chart. It should be in italics, and smaller than the rest of the text" },
+    { "rule": "Title and caption are aligned to the left edge of the whole graphic (plot), not the panel.", "source": "https://taso-he.github.io/technicalguide/data-vis/styling.html", "quote": "plot.title.position = \"plot\" ... plot.caption.position = \"plot\"" },
+    { "rule": "No legend box; series labelled directly at line ends in bold coloured text.", "source": "https://taso-he.github.io/technicalguide/data-vis/principles.html", "quote": "incorporate legends directly into the chart" },
+    { "rule": "Single-series charts use peacock blue #3b66bc; multi-series follow fixed order blue, teal #07dbb3, pink #f9466c, slate #485866, light #e4e2d9.", "source": "https://taso-he.github.io/technicalguide/data-vis/styling.html", "quote": "taso_four_colour <- c(\"#3b66bc\", \"#07dbb3\", \"#f9466c\",\"#485866\")" },
+    { "rule": "Highlight one category in full blue and show others as a pale tint; colour the matching words in the title in the highlight colour.", "source": "https://taso-he.github.io/technicalguide/data-vis/principles.html", "quote": "By using ggtext::element_markdown, we can use markdown stylings to colour specific words in the chart to highlight a point" },
+    { "rule": "Text should almost always be horizontal — prefer horizontal bars over rotated labels; drop redundant axis titles like 'Year'.", "source": "https://taso-he.github.io/technicalguide/data-vis/principles.html", "quote": "Text should almost always be horizontal." },
+    { "rule": "Logo bottom-right on web/social versions only.", "source": "https://taso-he.github.io/technicalguide/data-vis/styling.html", "quote": "If you are including the logo, it should be in the bottom right corner" },
+    { "rule": "Default report size 180mm × 120mm (180mm max width).", "source": "https://taso-he.github.io/technicalguide/data-vis/styling.html", "quote": "180mm (width) x 120mm (height) is the default standard chart size for A4 PDF reports." }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/taso/styling_bar.png", "url": "https://taso-he.github.io/technicalguide/data-vis/styling_files/figure-html/unnamed-chunk-1-1.png", "describes": "Template vertical bar chart on putty #EDEBE3 background. Two-line left-aligned black serif (Neuton) title at top, sans (Barlow) regular subtitle directly below. Four flat peacock-blue bars with small gaps. Thin light-beige gridlines both horizontal and vertical (vertical through bar centres). Dark slate solid zero line at 0 plus a separate x-axis line slightly below with long downward tick marks at each category. Grey Barlow tick labels; small centred x-axis title 'Axis Title'; no y title, no legend. Bottom-left italic 'Source: This is the source in italics' and, after a blank line, italic 'Notes: ...'." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/taso/report_ed_pathways.png", "url": "https://taso-he.github.io/technicalguide/images/data-vis-images/report_ed_pathways_chart.png", "describes": "Formal report version: bold blue serif 'Figure 2: When we control for KS4 ...' headline above (outside) a putty panel. Inside, black Barlow statistical subtitle top-left, horizontal medium-blue bars with dark error bars (95% CI), black vertical zero axis line at left, light vertical gridlines at £5,000 steps, slate x-axis baseline with ticks, currency tick labels £0–£15,000, centred x title 'Average earnings premium', rotated y title 'Highest qualification'. Italic Source line and multi-line italic Note block bottom-left." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/taso/social_ed_pathways.png", "url": "https://taso-he.github.io/technicalguide/images/data-vis-images/social_media_ed_pathways_chart.png", "describes": "Social version on putty: large black Neuton active title with key phrase 'top third HE provider graduates' coloured blue; Barlow two-line subtitle. Horizontal bars: top bar solid peacock blue, all others pale blue-grey tint. Grey category labels right-aligned to the left of a black zero line; light vertical gridlines; slate x baseline with ticks; no axis titles. Bold dark-grey annotation text with curved thin arrow pointing to the highlighted bar. Italic source bottom-left; teal/blue 'TASO' wordmark logo bottom-right." }
+  ]
+}

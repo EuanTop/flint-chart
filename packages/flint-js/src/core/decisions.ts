@@ -1,3 +1,4 @@
+import type { LabelFitStep } from './theme/types';
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
@@ -750,7 +751,11 @@ export interface LabelSizingDecision {
     labelBaseline?: string;
     labelValues?: string[];
     labelLines?: string[][];
+    /** The size band labels were fitted at, where the theme's did not fit and they shrank toward its floor. */
+    fittedFontSize?: number;
     labelLineHeight?: number;
+    /** How names along x that did not stand flat and whole were set (`chooseXLabels`), for the renderers and the report. */
+    overflow?: { step: LabelFitStep; trimmed: boolean; needed: number; band: number; shown?: string[] };
 }
 
 export function fitTwoLineLabels(labels: string[], fontSize: number, maxWidth: number, ellipsis = false,
@@ -811,10 +816,16 @@ export function computeBandLabelLayout(input: {
     gutterLimit: number;
     baselineLimit: number;
     elasticity: number;
-}): { step: number; width: number; lines: string[][]; lineHeight: number } | null {
-    const { labels, axis, fontSize, step, baseSpan, maxSpan, gutterLimit, baselineLimit, elasticity } = input;
+    /** How the labels are measured, in the font they are drawn in; unset, 0.62 em a character. */
+    measure?: (text: string) => number;
+    /** Widen the bands past the elastic budget, up to `maxSpan`, until every name fits flat or wrapped. */
+    stretchToFit?: boolean;
+    /** `false`: return the flat layout and its cost without weighing it against cut or turned names (the caller weighs every way). */
+    compareBaseline?: boolean;
+}): { step: number; width: number; lines: string[][]; lineHeight: number; cost: number } | null {
+    const { labels, axis, fontSize, step, baseSpan, maxSpan, gutterLimit, baselineLimit, elasticity, measure } = input;
     if (!labels.length || baseSpan <= 0 || maxSpan <= 0) return null;
-    const widthOf = (text: string) => text.length * fontSize * 0.62;
+    const widthOf = measure ?? ((text: string) => text.length * fontSize * 0.62);
     const lineHeight = Math.ceil(fontSize * 1.2);
     const widths = labels.map(widthOf);
     const demands = labels.map((label, index) => {
@@ -844,10 +855,13 @@ export function computeBandLabelLayout(input: {
         maxStretch: Math.max(1, maxSpan / baseSpan),
     });
     const minimumYStep = minimumYStepForLines(widths.some(width => width > preferredWidth) ? 2 : 1);
-    const proposedStep = Math.min(maxSpan / count, Math.max(step, solved.step, axis === 'y' ? minimumYStep : 0));
+    const needed = input.stretchToFit && axis === 'x' ? Math.ceil(Math.max(...preferredDemands)) : 0;
+    const proposedStep = Math.min(maxSpan / count, Math.max(step, solved.step, needed, axis === 'y' ? minimumYStep : 0));
     const width = axis === 'x' ? proposedStep - 6 : preferredWidth;
-    if (width < fontSize * 4 && widths.some((labelWidth) => labelWidth > width)) return null;
-    const fit = fitTwoLineLabels(labels, fontSize, width, true);
+    // Too narrow to wrap into: measured, a band narrower than the widest single word; estimated, 4 em.
+    const widestWord = Math.max(0, ...labels.flatMap((label) => label.split(/\s+/)).map(widthOf));
+    if ((measure ? width < widestWord : width < fontSize * 4) && widths.some((labelWidth) => labelWidth > width)) return null;
+    const fit = fitTwoLineLabels(labels, fontSize, width, true, widthOf);
     const lines = fit?.lines ?? labels.map((label) => [label]);
     const rows = Math.max(...lines.map((parts) => parts.length));
     if (axis === 'y' && minimumYStepForLines(rows) > proposedStep) return null;
@@ -871,10 +885,10 @@ export function computeBandLabelLayout(input: {
         + 0.04 * wrappedShare + (axis === 'y' ? 0.15 * imbalance(lines, width) : 0);
     const baselineCost = loss(baseline, baselineLimit)
         + (axis === 'x' ? 0.3 : 0.15 * imbalance(baseline, baselineLimit));
-    if (horizontalCost > baselineCost) return null;
+    if (input.compareBaseline !== false && horizontalCost > baselineCost) return null;
     if (axis === 'x' && !fit && widths.some((labelWidth) => labelWidth > width)) return null;
     if (axis === 'y' && !fit) return null;
-    return { step: proposedStep, width, lines, lineHeight };
+    return { step: proposedStep, width, lines, lineHeight, cost: horizontalCost };
 }
 
 /**
@@ -884,8 +898,10 @@ export function computeBandLabelLayout(input: {
  * The font descends the **shrink → rotate → cap** ladder from a backend-native
  * base font (`baseFont`), never exceeding it and never dropping below `minFont`:
  *   1. Wide band  → horizontal label at (up to) `baseFont`.
- *   2. Medium band → shrink a little and rotate -45°.
- *   3. Narrow band → shrink more and rotate -90°.
+ *   2. Medium band → shrink a little and stand upright (-90°).
+ *   3. Narrow band → shrink more and stand upright (-90°).
+ * Labels never turn -45° here: a turn, when needed, is upright. Category names are then set by
+ * the band-label choice (`chooseXLabels`), which weighs every way the theme allows.
  * `labelLimit` caps the label width so long text is truncated (…) rather than
  * overflowing arbitrarily.
  *
@@ -923,12 +939,12 @@ export function computeLabelSizing(
         labelAlign = 'right';
         labelBaseline = 'middle';
     } else if (effectiveStep < 16) {
-        // Medium band → rotate 45°, shrink slightly.
-        labelAngle = -45;
+        // Medium band → upright, shrink slightly.
+        labelAngle = -90;
         fontSize = Math.max(minFont, Math.min(baseFont - 1, fontStep));
         labelLimit = 60;
         labelAlign = 'right';
-        labelBaseline = 'top';
+        labelBaseline = 'middle';
     }
 
     return { fontSize, labelLimit, labelAngle, labelAlign, labelBaseline };

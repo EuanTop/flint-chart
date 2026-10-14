@@ -184,8 +184,7 @@ export const mckinsey: ThemePreset = {
             }
         },
         "labels": {
-            "truncation": "never",
-            "angle": "horizontal"
+            "truncation": "never"
         },
         "legend": {
             "show": "always",

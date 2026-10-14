@@ -51,6 +51,7 @@ import { normalizeChartProperties } from '../core/normalize-properties';
 import { analysisReadsProperty } from '../core/analyze';
 import { groundTheme, resolveChartDefaults, resolveCompileDefaults, resolveThemeFontSize } from '../core/theme/ground';
 import { resolveThemeSpec } from '../core/theme/presets';
+import { withChrome } from '../core/theme/chrome';
 import {
     realizeThemePlotly, realizeValueLabelsPlotly, plCollectMarkTypes, plCollectPositional, fitPlotlyTitle,
 } from './theme';
@@ -97,7 +98,8 @@ export function assemblePlotly(input: ChartAssemblyInput): any {
     const chartType = input.chart_spec.chartType;
     const semanticTypes = input.semantic_types ?? {};
     // `theme_spec` may name a house Flint ships rather than spell one out.
-    const themeSpec = resolveThemeSpec(input.theme_spec);
+    // A chart may turn off part of its house's chrome (a logo, the header, the footer).
+    const themeSpec = withChrome(resolveThemeSpec(input.theme_spec), input.chart_spec.chrome);
     // A house may prefer a size, a stretch budget, a facet gap. Those settle
     // before anything is measured, and in a fixed order: the chart spec first,
     // the theme's presets under it, flint's own defaults under that.
@@ -509,6 +511,7 @@ export function assemblePlotly(input: ChartAssemblyInput): any {
             .join(' '),
         hostSurface: (input.options as any)?.background,
         valueLabels: resolvePlValueLabelChoice(chartProperties),
+        labelOverflow: chartProperties?.labelOverflow,
     });
 
     if (themeSpec) {

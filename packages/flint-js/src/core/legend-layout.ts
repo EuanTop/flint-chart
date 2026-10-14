@@ -1,3 +1,5 @@
+import { applyTextCase, type TextCase } from './text-case';
+
 /** Measures text in px for a font: size, family, weight and style. */
 export type TextMeasurer = (fontSize: number, font: string, weight: string | number, style: string) => (text: string) => number;
 
@@ -11,6 +13,8 @@ export interface KeyStyle {
     titleFontSize: number;
     titleFontWeight: string | number;
     titleFontStyle: string;
+    /** The case the labels are drawn in, so they are measured and broken as drawn. */
+    labelCase?: TextCase;
     symbolSize?: number;
     padding: number;
     rowPadding?: number;
@@ -175,7 +179,8 @@ function fitKey(
     const s = key.style;
     const fontSize = s.labelFontSize;
     const titleFontSize = s.titleFontSize;
-    const labelWidth = measure(fontSize, s.labelFont, s.labelFontWeight, s.labelFontStyle);
+    const measureLabel = measure(fontSize, s.labelFont, s.labelFontWeight, s.labelFontStyle);
+    const labelWidth = (text: string) => measureLabel(applyTextCase(text, s.labelCase));
     const measureTitle = measure(titleFontSize, s.titleFont, s.titleFontWeight, s.titleFontStyle);
     const sideWidth = fontSize * 18;
     const horizontal = ['top', 'bottom'].includes(at.orient) && at.direction !== 'vertical';
@@ -244,7 +249,7 @@ function fitKey(
             const at = `${width}|${maxLines}`;
             let wrapping = wrapped.get(at);
             if (!wrapping) {
-                const lines = labels.map((label) => wrapLines(label, width, maxLines, labelWidth));
+                const lines = labels.map((label) => wrapLines(applyTextCase(label, s.labelCase), width, maxLines, measureLabel));
                 wrapping = {
                     lines,
                     rowLines: Math.max(...lines.map((entry) => entry.length)),

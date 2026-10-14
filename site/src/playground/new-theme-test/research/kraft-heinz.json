@@ -1,0 +1,109 @@
+{
+  "id": "kraft-heinz",
+  "org": "Kraft Heinz (Delish Design System)",
+  "urls": [
+    "https://delish.supernova-docs.io/latest/about/delish-design-system-lWrOQArP",
+    "https://satisfied-anaconda-cyan.supernova-docs.io/latest/data-visualization/data-viz-overview-obPVY4HN",
+    "https://satisfied-anaconda-cyan.supernova-docs.io/latest/data-visualization/chart-selection-9Bls4HoD",
+    "https://satisfied-anaconda-cyan.supernova-docs.io/latest/data-visualization/color-by7wvwHy",
+    "https://satisfied-anaconda-cyan.supernova-docs.io/latest/data-visualization/chart-guidelines/bar-yNxnO53Z",
+    "https://satisfied-anaconda-cyan.supernova-docs.io/latest/data-visualization/chart-guidelines/line-FCHWnDHx",
+    "https://satisfied-anaconda-cyan.supernova-docs.io/latest/data-visualization/chart-guidelines/plot-A14HMSFA",
+    "https://satisfied-anaconda-cyan.supernova-docs.io/latest/data-visualization/chart-guidelines/part-to-whole-aZUPf3Es",
+    "https://satisfied-anaconda-cyan.supernova-docs.io/latest/data-visualization/chart-guidelines/other-NpAl9Ig0",
+    "https://satisfied-anaconda-cyan.supernova-docs.io/latest/foundations/typography/overview-AjrAWMIk"
+  ],
+  "access": "full",
+  "accessNotes": "The Supernova docs site redirects to satisfied-anaconda-cyan.supernova-docs.io; pages are server-rendered HTML and were read with curl. All Data Visualization pages (overview, chart selection, colour, bar/line/plot/part-to-whole/other guidelines) plus Foundations > Typography were read. Example images are hosted on studio-assets.supernova.io. The guide gives colour tokens and do/don't rules but no explicit chart-level pixel specs (gridline colour, axis widths, chart title sizes); those are described from the example images only.",
+  "summary": "Kraft Heinz's internal 'Delish' enterprise design system for analytics products (Tableau, Power BI, React dashboards). Charts are clean business-dashboard style in Segoe UI: a cobalt blue lead colour, gray for de-emphasis, light horizontal gridlines with a darker baseline, few gridlines at logical increments, sorted bars, and highlight-one-in-colour/rest-gray storytelling.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#295cad", "#a2aeb5", "#b94431", "#05a3b1", "#0b3873", "#529c74", "#df9f37"],
+    "categoricalNotes": "Core data-viz palette in documented order: Blue #295cad, Gray #a2aeb5, Red #b94431, Teal #05a3b1, Ocean #0b3873, Green #529c74, Yellow #df9f37. Use one colour for bars showing the same categorical data; use gray to de-emphasise. Pie charts max 4–5 segments; line charts up to 4 lines, never more than 6.",
+    "sequential": ["#9ebbe6", "#6f94ce", "#295cad", "#133a77"],
+    "diverging": [],
+    "highlight": "#295cad",
+    "context": "#a2aeb5",
+    "positive": "#529c74",
+    "negative": "#b94431",
+    "background": null,
+    "text": null,
+    "textSecondary": null,
+    "gridline": null,
+    "axis": null,
+    "notes": "Semantic on light backgrounds: Positive #529c74, Negative #b94431, Notice #df9f37. Semantic on dark backgrounds: Positive #37bb65, Negative #cc2e48, Notice #df9f37. Sequential 4-step ramps (dark→light): Blue #133a77 #295cad #6f94ce #9ebbe6; Gray #36383a #646b6f #a2aeb5 #d1dbe2; Red #460f05 #8c2e20 #b94431 #cf8a7e; Teal #063f44 #136a73 #05a3b1 #80d0d7; Ocean #071e39 #0b3873 #5a74cb #9ab2ff; Green #08362a #1d6953 #529c74 #87c3a9; Yellow #563b10 #a06a14 #df9f37 #ffd592. No diverging palette is documented."
+  },
+  "typography": {
+    "family": "Segoe UI",
+    "fallback": null,
+    "title": { "size": null, "weight": null, "align": null, "case": null, "color": null },
+    "subtitle": { "size": null, "weight": null, "style": null, "color": null },
+    "axisLabel": { "size": null, "color": null },
+    "axisTitle": { "size": null, "weight": null, "placement": null },
+    "dataLabel": { "size": null, "weight": null },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "Product type scale (Segoe UI, 5 weights): caption2 10/14px, caption1 12/16px, body1 14/22px, body2 16/24px, title4 20/28px, title3 24/34px, title1Stronger 32/48 bold, display 40–52px. Chart-specific sizes are not stated; example charts use small regular gray Segoe UI tick labels and legends."
+  },
+  "structure": {
+    "gridlines": "Horizontal only, light gray, few and at logical increments (e.g. 0/10/20/30, not 0/6/12/18/24/30); 'Provide enough gridlines … Don't overcrowd'. Use gridlines OR direct labels on bar charts, not both.",
+    "axisLine": "Always draw the baseline: x-axis line on column charts, y-axis line on horizontal bar charts ('Don't let the columns or bars float'); examples show a darker gray baseline than the gridlines.",
+    "ticks": "No tick marks in examples.",
+    "zeroLine": "Bars/columns always start at zero; zero baseline drawn as a darker line.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": null,
+    "unitPlacement": null,
+    "frame": "Charts sit in light-gray (#f7f7f7-ish) rounded cards in the doc examples; no plot border.",
+    "background": null,
+    "notes": ""
+  },
+  "legend": {
+    "placement": "top-left above the plot in examples (horizontal row)",
+    "directLabels": "Direct labels allowed instead of gridlines; legend required for forecast dashed lines.",
+    "title": "Not shown in examples.",
+    "swatchShape": "circle (small dots) in examples",
+    "notes": ""
+  },
+  "marks": {
+    "bars": "Sorted greatest-to-least (or reverse) unless a natural order exists; single colour for one categorical series; time on vertical columns (if horizontal, most recent at top); square corners, bar width > gap in examples.",
+    "lines": "Medium-thick lines that stand out from gridlines but show detail; ≤4 lines (never >6), else small multiples; circular markers at points in examples; forecasts as dashed line in same colour (with legend entry) or lighter shade or shaded/labelled background.",
+    "areas": "Area charts emphasise magnitude; radar shapes use transparency.",
+    "points": "Transparent dots with outlines for overlapping points; bubbles only when size differences are large and the metric is positive; dumbbells with 2 (max 3) dots.",
+    "pies": "Allowed; must include all parts summing to 100%; max 4–5 segments; highlight one segment in colour and others in shades of gray; avoid pies for comparing wholes.",
+    "notes": "Map outlines kept light like gridlines; timelines read left to right."
+  },
+  "labels": {
+    "dataLabels": "Either gridlines or direct value labels, not both. Stacked/ribbon examples show white labels inside segments.",
+    "numberFormat": null,
+    "dates": null,
+    "notes": ""
+  },
+  "furniture": { "title": null, "source": null, "logo": null, "other": "Less familiar chart types carry a 'Consider other chart types before using' label in the docs." },
+  "annotations": "Forecast periods via dashed line or shaded, labelled background; timelines heavily annotated.",
+  "layout": null,
+  "interaction": "Charts built in Tableau/Power BI/React; guidance on interactions offered via office hours but not documented.",
+  "accessibility": "Easily differentiable colours for pie wedges especially with legends; links to WebAIM/colour-accessibility resources; separate semantic colours for dark backgrounds.",
+  "chartTypes": {
+    "preferred": ["bar", "column", "grouped bar", "line", "area", "slope", "scatter", "dot plot", "100% stacked bar", "stacked bar", "pie", "donut", "treemap", "progress bar", "bullet"],
+    "discouraged": ["waterfall", "ribbon", "lollipop", "butterfly", "histogram", "dumbbell", "box and whisker", "gauge", "map", "radar", "sankey", "timeline"],
+    "notes": "'Discouraged' here = types flagged 'Consider other chart types before using' (book office hours). Single box plot discouraged; spaghetti charts discouraged."
+  },
+  "distinctiveRules": [
+    { "rule": "Categorical order: Blue #295cad, Gray #a2aeb5, Red #b94431, Teal #05a3b1, Ocean #0b3873, Green #529c74, Yellow #df9f37.", "source": "https://satisfied-anaconda-cyan.supernova-docs.io/latest/data-visualization/color-by7wvwHy", "quote": "Colors / Data viz / Core #295cad Blue #a2aeb5 Gray #b94431 Red …" },
+    { "rule": "Highlight the key bar/line/slice in colour (blue) and render the rest gray.", "source": "https://satisfied-anaconda-cyan.supernova-docs.io/latest/data-visualization/chart-guidelines/line-FCHWnDHx", "quote": "Gray can be used to deemphasize lines that are shown for context" },
+    { "rule": "Bar charts use gridlines or direct value labels — never both.", "source": "https://satisfied-anaconda-cyan.supernova-docs.io/latest/data-visualization/chart-guidelines/bar-yNxnO53Z", "quote": "Gridlines or direct labels. Use one or the other, you generally don't need both." },
+    { "rule": "Always draw a baseline axis line (x for columns, y for horizontal bars); bars start at zero.", "source": "https://satisfied-anaconda-cyan.supernova-docs.io/latest/data-visualization/chart-guidelines/bar-yNxnO53Z", "quote": "Don't let the columns or bars float without the clearly defined baseline." },
+    { "rule": "Few horizontal gridlines at round increments (≈3–4 lines), light gray, with darker zero baseline.", "source": "https://satisfied-anaconda-cyan.supernova-docs.io/latest/data-visualization/chart-guidelines/line-FCHWnDHx", "quote": "Use logical increments. Don't overcrowd the chart with more gridlines than necessary" },
+    { "rule": "Bars sorted by value; time series as vertical columns, or most-recent-at-top if horizontal.", "source": "https://satisfied-anaconda-cyan.supernova-docs.io/latest/data-visualization/chart-guidelines/bar-yNxnO53Z", "quote": "Sort, sort, sort! … start with the most recent data point at the top." },
+    { "rule": "Max 4 lines per chart (hard limit 6), otherwise small multiples.", "source": "https://satisfied-anaconda-cyan.supernova-docs.io/latest/data-visualization/chart-guidelines/line-FCHWnDHx", "quote": "only include up to 4 lines in a single chart. Try to never use more than 6 lines." },
+    { "rule": "Forecast data drawn as dashed line in the same colour, with a legend entry.", "source": "https://satisfied-anaconda-cyan.supernova-docs.io/latest/data-visualization/chart-guidelines/line-FCHWnDHx", "quote": "use a dashed line in the same color as the past data. Make sure to add a legend entry" },
+    { "rule": "Pies: 4–5 segments max, sum to 100%, one highlighted segment with gray shades for the rest.", "source": "https://satisfied-anaconda-cyan.supernova-docs.io/latest/data-visualization/chart-guidelines/part-to-whole-aZUPf3Es", "quote": "try not to use more than 4 or 5 segments … shades of gray are a good choice for less important segments" },
+    { "rule": "Overlapping points drawn as transparent dots with outlines.", "source": "https://satisfied-anaconda-cyan.supernova-docs.io/latest/data-visualization/chart-guidelines/plot-A14HMSFA", "quote": "use transparent dots with outlines rather than solid dots" },
+    { "rule": "Semantic positive/negative/notice colours switch for dark backgrounds (#37bb65/#cc2e48/#df9f37 vs #529c74/#b94431/#df9f37).", "source": "https://satisfied-anaconda-cyan.supernova-docs.io/latest/data-visualization/color-by7wvwHy", "quote": "Colors / Data viz / Semantic / Dark bkgd #37bb65 Positive #cc2e48 Negative" },
+    { "rule": "All chart text in Segoe UI (product font).", "source": "https://satisfied-anaconda-cyan.supernova-docs.io/latest/foundations/typography/overview-AjrAWMIk", "quote": "Across our digital products, we use the font Segoe UI" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/kraft-heinz/f3a502f0-9cb8-4241-a754-2b872120a837.png", "url": "https://studio-assets.supernova.io/design-systems/106148/f3a502f0-9cb8-4241-a754-2b872120a837.png", "describes": "Do/Don't line chart pair on light-gray rounded cards. 'Do': two thick lines (cobalt blue #295cad and amber #df9f37) with filled circle markers; only three light-gray horizontal gridlines at 10/20/30 plus a darker charcoal baseline at 0; y tick labels in regular gray Segoe UI to the left, no tick marks, no axis titles, no y-axis line. 'Don't': same data with gridlines every 3 units (too many)." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/kraft-heinz/7375d4c3-7491-4122-8df8-539c129d3992.png", "url": "https://studio-assets.supernova.io/design-systems/106148/7375d4c3-7491-4122-8df8-539c129d3992.png", "describes": "Do/Don't column chart: four cobalt-blue square-cornered columns, bar width wider than gaps. 'Do' has a thin dark-gray x baseline; 'Don't' shows columns floating with no baseline. No gridlines, labels or titles; light-gray card background." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/kraft-heinz/7ed5c5a4-e07e-4009-bfa2-0092f20ed154.png", "url": "https://studio-assets.supernova.io/design-systems/106148/7ed5c5a4-e07e-4009-bfa2-0092f20ed154.png", "describes": "Ribbon chart thumbnail: legend at top-left with small circle swatches (blue, light gray, dark gray) labelled 'Label'; light horizontal gridlines with '#$' tick labels at left; stacked columns in cobalt blue, slate gray and light gray with white '$%' labels inside segments, connected by translucent ribbons; category labels below. Segoe UI, small gray text." }
+  ]
+}

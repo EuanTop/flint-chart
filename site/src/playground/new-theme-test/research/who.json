@@ -1,0 +1,116 @@
+{
+  "id": "who",
+  "org": "World Health Organization (GHO / WHO Data Design Language)",
+  "urls": [
+    "https://apps.who.int/gho/data/design-language/",
+    "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/",
+    "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/design-system/",
+    "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/design-system/colors/",
+    "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/design-system/typography/",
+    "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/design-system/chart-anatomy/",
+    "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/design-system/interaction/",
+    "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/design-system/symbology/",
+    "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/charts/",
+    "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/assets/charts/charts-header.png"
+  ],
+  "access": "full",
+  "accessNotes": "apps.who.int/gho/data/design-language/ now redirects to a 'legacy GHO retired' notice and the Wayback Machine was temporarily offline. The complete Data Design Language v0.9.2 (by Truth & Beauty / Moritz Stefaner for WHO) is hosted as a prerendered SvelteKit site at clients.truth-and-beauty.net/who/data-dot-viz/docs/ (internal links point to /gho/data/design-language/), from which colour, typography, anatomy, interaction and symbology pages and illustrations were read.",
+  "summary": "WHO's Data Design Language (DDL v0.9.2) for GHO / data.who.int: an accessible, internationalised chart system for public-health data in dashboards and web pages. Charts sit in a card container with a bold Noto Sans title, grey subtitle stating geography and time range, a thin divider, dotted grey gridlines with a heavy solid zero baseline, 3-6 ticks, inline data labels for selected items, and legends in a footer. Colour is built on the WHO brand blue #008dc9 with six colour-blind-safe, equally salient category colours, AAA text variants, special region/sex mappings, and full light/dark themes.",
+  "context": "government",
+  "colors": {
+    "categorical": ["#f4a81d", "#f26829", "#bd53bd", "#6363c0", "#008dc9", "#40bf73"],
+    "categoricalNotes": "category/base/0-5 in this order; category/base/99 'other' = #cccccc. Each category has a darker AAA-compliant text colour for labels in that series: #754d06, #9a3709, #8e2f8e, #4b4baf, #245993, #1d6339 (other #595959), plus 'stronger' variants for small marks. Colours are colour-blind-safe, nameable, equally salient, with sufficient contrast on light and dark backgrounds. Special mappings: WHO regions AFR #6363c0, AMR #f26829, EMR #bd53bd, EUR #008dc9, SEAR #40bf73, WPR #f4a81d (text variants #4b4baf, #9a3709, #8e2f8e, #245993, #1d6339, #754d06); gender/sex and trend-category mappings also defined. When more than 2-3 items are selected, non-selected items turn a uniform low-contrast colour.",
+    "sequential": ["#d7e6f3", "#75b6d6", "#0582bb", "#0f2d5b"],
+    "diverging": ["#ee8f00", "#ebc26f", "#d6dae5", "#6fbedf", "#1c4e94"],
+    "highlight": "#ffcb01",
+    "context": "#cccccc",
+    "positive": null,
+    "negative": null,
+    "background": "#ffffff",
+    "text": "#000000",
+    "textSecondary": "#595959",
+    "gridline": "#cccccc",
+    "axis": "#595959",
+    "notes": "Theme tokens (light): brand/base #008dc9, brand/stronger #0f2d5b, brand/weaker #90d3fb; foreground/base #000000, foreground/weaker #595959 (axes), foreground/weakest #cccccc (ticks, help-lines); background/base #ffffff, background/weaker #f7f7f7 (behind cards); text/base #000000, text/weaker #595959. Sequential stops (LAB-interpolated): brand/base above; brand/secondary #75b6d6 #0582bb #0f2d5b; complementary/base #f5dbd9 #f8908b #da484a #a00016; colorful/base #fbf6ca #bacf99 #8297ec #865fbb #960055; colorful/alt #fbf6ca #eabd89 #c88684 #875b9e #1c3e94. Diverging: base above (zero or median at centre), alt #a00016 #d9777d #d6dae5 #53abd0 #0f2d5b. Functional: accent #ffcb01 (author accents), focus #fff400 (keyboard focus), notAvailable #b2b2b2 (missing data), notApplicable #f2f2f2, projectedHatch #ffffff, selection/stroke #1a1a1a, selection/default #008dc9. All tokens have separate dark-theme values (dark navy background, e.g. used for hero charts; seen in charts-header.png); downloadable as design tokens."
+  },
+  "typography": {
+    "family": "Noto Sans",
+    "fallback": "sans-serif",
+    "title": { "size": 20, "weight": "bold (700)", "align": "left", "case": "sentence", "color": "#000000" },
+    "subtitle": { "size": 18, "weight": "regular (400)", "style": "normal", "color": "#595959" },
+    "axisLabel": { "size": 14, "color": "#595959" },
+    "axisTitle": { "size": null, "weight": null, "placement": "omitted; unit given in title (e.g. '(%)') and on tick labels" },
+    "dataLabel": { "size": 14, "weight": "regular; bold for selected/focused; italic for projected values" },
+    "source": { "size": 14, "style": "regular", "color": "#595959" },
+    "notes": "Fixed size scale by chart size (px) - Large: xxxl 54, xxl 22, xl 20, l 18, m 16, s 14; Medium: 38/22/20/18/16/14; Small: 28/20/18/16/14/12. Title = size-xl bold text/base; subtitle = size-l regular text/weaker; axis tick labels = size-s regular text/weaker; reference-line labels = size-s regular text/base; data labels in category text colour; projected value labels size-s italic. Weights 400/600/700. Only two text brightness levels: base and weaker. Numbers formatted per locale (decimal sign, thousand separator incl. thin space e.g. '1 600', ten-thousand separator in Chinese), only warranted significant figures; RTL scripts supported."
+  },
+  "structure": {
+    "gridlines": "Dotted grey gridlines (foreground/weakest #cccccc) - horizontal for value axis, also vertical dotted at year ticks on line charts.",
+    "axisLine": "No y-axis line; x baseline drawn.",
+    "ticks": "3-6 ticks per axis maximum, round numbers; tick marks/help-lines in #cccccc.",
+    "zeroLine": "Zero baseline is a heavy solid line.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "omitted; unit in title and tick labels",
+    "unitPlacement": "In the title in parentheses ('(%)') and suffix on tick labels (60%, 1.5bn).",
+    "frame": "Chart container card: thin light-grey rounded border, header area (title + subtitle) separated from plot by a full-width horizontal rule; optional footer area (legend/source) separated by another rule.",
+    "background": "#ffffff in card; page behind cards #f7f7f7; dark theme available",
+    "notes": "In right-to-left languages the x-axis is flipped. Three container size sets (small/medium/large) by width, each with its own font and spacing scale (spacing xxl 30 ... xxs 4 for large)."
+  },
+  "legend": {
+    "placement": "bottom, in the chart container footer, centred",
+    "directLabels": "Preferred: selected items get inline data labels; line series labelled inline on the line in category text colour; projected styles may be explained by direct labelling.",
+    "title": "none",
+    "swatchShape": "line segment (solid/dotted for status), rectangle for bounds/areas",
+    "notes": "Legends required when colour/shape/texture encodes data; distinguish sequential, categorical and diverging legends and line styles for value status (estimated, reported). Higher end placed left in RTL."
+  },
+  "marks": {
+    "bars": "Wide columns with gaps roughly half the bar width; square corners; non-selected bars may be light grey; selected bars outlined with #1a1a1a stroke; projected bars hatched.",
+    "lines": "Medium-weight lines with small dots at data points; projected segments dotted/dashed.",
+    "areas": "Uncertainty drawn as lower-opacity area between thinner upper/lower bound lines; mean drawn normally.",
+    "points": "Small filled dots on lines; selected point labelled.",
+    "pies": null,
+    "notes": "Missing data #b2b2b2; not applicable #f2f2f2. Data gaps marked with consistent symbols explained in legend."
+  },
+  "labels": {
+    "dataLabels": "Inline value annotation in all charts: rule-based default labels (e.g. top X, extremes) when no focus; selection annotation style (bold) for author/user selections; inspection labels on hover/tap/focus; labels in category text colour; projected values italic.",
+    "numberFormat": "Localised; significant-figure precision; abbreviations like 425k, 1.5bn, 4.5k; space as thousands separator in examples ('67 000', '1 150'); uncertainty in text in square brackets.",
+    "dates": "Years; intermediate years abbreviated with apostrophe ('20, '22) between full first/last/selected years.",
+    "notes": "Selected tick label bold (e.g. 2023)."
+  },
+  "furniture": {
+    "title": "Indicator name as title (bold, size-xl, with unit in parentheses), subtitle states geography and time range (e.g. 'Austria, selected years 2000-2025').",
+    "source": "Container provides the source for citation in external contexts, plus optional caption for explanatory text.",
+    "logo": "WHO logo used in the DDL site header; not shown on example charts.",
+    "other": "Factoids (big number + indicator title + geo focus), data-generated text with underlined coloured entities, tables with inline bars/sparklines and highlighted rows."
+  },
+  "annotations": "Reference marks (points, lines, areas) tied to data values with labels - e.g. solid black target line labelled 'Target (1.0bn)' in size-s text/base; shaded grey band highlighting a focused year with a thin dotted vertical rule; author accents in #ffcb01.",
+  "layout": "Charts and containers come in small/medium/large size sets based on width; dimensions affect font sizes, chart type and interaction (responsive). Compositions combine multiple containers in grids.",
+  "interaction": "Filter (subset of data) vs focus (highlighted & labelled elements) model. Hover/tap/keyboard focus shows inspection labels; selections get bold labels, #1a1a1a outline and keep colour while others go grey when >2-3 selected. Keyboard focus colour #fff400. Standard dropdown controls offered alongside in-chart selection.",
+  "accessibility": "Colour-blind-safe palettes; category text colours meet AAA; selection colours >=3:1 contrast; hidden data table and aria-labelled hidden data point elements for screen readers; keyboard focus; hatching and line styles in addition to colour; i18n incl. RTL flipping.",
+  "chartTypes": {
+    "preferred": ["factoid", "data-generated text", "table with bars/sparklines", "column chart", "line chart", "line chart grid", "map", "population pyramid"],
+    "discouraged": [],
+    "notes": "Column charts for limited number of entities; line charts for many time points; maps for many countries, best at large sizes, with disputed areas per WHO guidelines."
+  },
+  "distinctiveRules": [
+    { "rule": "Default gridlines are dotted; the zero baseline is a heavy solid line.", "source": "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/design-system/chart-anatomy/", "quote": "Default gridlines are dotted, the zero baseline has a heavy, solid line style." },
+    { "rule": "Use 3-6 ticks per axis maximum, at round numbers.", "source": "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/design-system/chart-anatomy/", "quote": "We supply 3-6 ticks per axis maximum. If there are more available values than ticks, round numbers should be used." },
+    { "rule": "Chart sits in a card container: bold black Noto Sans title (size-xl), grey subtitle (size-l, #595959) with geography and time range, then a full-width thin rule above the plot.", "source": "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/design-system/typography/", "quote": "large/size-xl/bold text/base ... large/size-l/regular text/weaker" },
+    { "rule": "Fixed type scale per chart size: large charts 54/22/20/18/16/14 px, small charts 28/20/18/16/14/12 px; tick labels use size s.", "source": "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/design-system/typography/", "quote": "Our charts use a fixed set of font sizes, ranging from xxl ... to s (for captions and axes labels)." },
+    { "rule": "Categorical order: #f4a81d, #f26829, #bd53bd, #6363c0, #008dc9, #40bf73; 'other' #cccccc.", "source": "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/design-system/colors/", "quote": "category/base/0 #f4a81d ... category/base/99 #cccccc Used for nominal data in the 'other' category." },
+    { "rule": "Labels for a series are drawn in that category's darker AAA text colour (e.g. purple #4b4baf for category 3).", "source": "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/design-system/typography/", "quote": "For each category color in use, a dedicated text color in the same color tone and AAA background contrast is available." },
+    { "rule": "When more than 2-3 items are selected, non-selected items are rendered in a uniform low-contrast grey; selected items get data labels and a #1a1a1a outline.", "source": "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/design-system/interaction/", "quote": "non-selected items will be rendered in a uniform, low contrast color" },
+    { "rule": "Projected values: hatched fills and dashed/dotted lines, with italic data labels.", "source": "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/design-system/symbology/", "quote": "Projected values are indicated through hatching for filled areas and dashed lines... Data labels for projected values are shown in italics." },
+    { "rule": "Uncertainty shown as a lower-opacity band between thinner upper/lower bound lines; in text as square brackets.", "source": "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/design-system/symbology/", "quote": "an area with lower opacity is drawn between upper & lower bound. Upper & lower bound are indicated through thinner lines." },
+    { "rule": "Every chart has inline value annotation: rule-based default labels (e.g. top X) or bold selection labels; no axis titles, units in title.", "source": "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/design-system/interaction/", "quote": "Explicit, inline value annotation is supplied in all charts and is tied to the selection state of entities." },
+    { "rule": "Missing data coloured #b2b2b2, not-applicable #f2f2f2, keyboard focus #fff400, author accent #ffcb01.", "source": "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/design-system/colors/", "quote": "functional/notAvailable #b2b2b2 ... functional/focus #fff400" },
+    { "rule": "Legend placed in a footer band of the container, centred, separated by a rule; swatches are line segments or rectangles matching mark style.", "source": "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/assets/design-system/design-system-symbology-estimates.png", "quote": "Legend: '— mean value  ··· projected  ▭ higher and lower bound'" },
+    { "rule": "Numbers localised with only warranted significant figures; examples use space thousands separator ('67 000') and k/bn abbreviations.", "source": "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/design-system/typography/", "quote": "numbers are to be presented only to a warranted level of precision (significant figures)." },
+    { "rule": "In right-to-left languages the x-axis is flipped and legends run high-to-low from the left.", "source": "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/design-system/chart-anatomy/", "quote": "In right-to-left languages, the x-axis is flipped." }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/who/design-system-typography-in-use-l.png", "url": "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/assets/design-system/design-system-typography-in-use-l.png", "describes": "Annotated large line chart in a white card with thin grey rounded border: title 'Health emergencies protection' bold black Noto Sans top-left (size-xl/bold), grey subtitle 'Worldwide, estimated 2019, projected to 2025' (size-l regular), then a full-width grey divider. Plot: dotted light-grey horizontal and vertical gridlines, grey y ticks 0/0.5bn/1.0bn/1.5bn (size-s, text/weaker), x ticks 2019, '20, '22, 2023 (bold, selected), '24, 2025. Dashed purple (#6363c0) projected line with small dots; selected point labelled '0.9bn' in italic purple; light-grey vertical band highlights 2023 with dotted drop line; solid black reference line labelled 'Target (1.0bn)'. No legend, no axis titles." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/who/design-system_interaction_inspect_select.png", "url": "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/assets/design-system/design-system_interaction_inspect_select.png", "describes": "Column chart card 'Estimate of current tobacco use prevalence (%)' (bold) with grey subtitle 'Austria, selected years 2000-2025' and divider. Six wide square-cornered columns: unselected ones light grey-lavender (#d9dae2-ish), selected ones in blues (#0582bb, lighter blues) with black outlines; values above selected columns ('34.3%' bold, '28.4%' regular for hovered, '19.6%' bold); x labels only for selected years, bold; grey baseline only, no gridlines or y axis; cursor hovering 2015 with lighter outline." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/who/design-system-symbology-estimates.png", "url": "https://clients.truth-and-beauty.net/who/data-dot-viz/docs/assets/design-system/design-system-symbology-estimates.png", "describes": "Uncertainty/projection chart in card: bold title, grey subtitle, divider; light-blue (#008dc9 at low opacity) rectangles for upper/lower bounds with thin blue bound lines and a thicker blue mean line; 2020 and 2025 bounds and means dotted (projected) with italic blue labels 24.6% / 19.6% / 14.5%; dotted grey horizontal gridlines at 20/40/60%, grey tick labels with % suffix, solid grey baseline; footer band separated by a rule containing centred legend: solid line 'mean value', dotted line 'projected', rectangle 'higher and lower bound' in grey text." }
+  ]
+}

@@ -3,6 +3,7 @@ import type { LayoutResult } from '../core/types';
 import type { LegendPlan } from '../core/legend-plan';
 import { KEY_CHANNELS } from '../core/structure';
 import { rendererTextMeasurer } from '../core/text-width';
+import { caseLabelExpr } from '../core/text-case';
 import { plannedKeyFor } from './theme';
 
 
@@ -123,6 +124,26 @@ export function vlWriteKeyLayout(
             .map(({ key, laid }) => ({ field: key.via ?? key.field, orient: laid!.orient, width: laid!.width, height: laid!.height, fontSize: laid!.labelFontSize })),
         overflow: layout.overflow,
     };
+}
+
+/**
+ * Key labels in the case the theme asks for (T3). Runs after the layout is written: a label the
+ * layout broke over lines was measured and broken in that case already, so only the fallback text
+ * of its lookup — or the bare label — is cased here.
+ */
+export function vlCaseKeyLabels(spec: any, plan: LegendPlan): void {
+    walk(spec, (node) => {
+        for (const channel of KEY_CHANNELS) {
+            const encoding = node.encoding?.[channel];
+            if (!encoding?.field || encoding.legend === null || encoding.legend === false) continue;
+            const key = plannedKeyFor(plan.keys, channel, encoding);
+            const index = key ? plan.keys.indexOf(key) : -1;
+            const textCase = index >= 0 ? plan.keyInputs?.[index]?.style.labelCase : undefined;
+            if (!key || !textCase || !key.entries) continue;
+            const labelExpr = caseLabelExpr(encoding.legend?.labelExpr, textCase, key.entries);
+            if (labelExpr) encoding.legend = { ...(encoding.legend ?? {}), labelExpr };
+        }
+    });
 }
 
 /** What a Vega-Lite legend states for itself: its config merged under its own settings. */

@@ -22,6 +22,10 @@ import { DemoWall } from './playground/DemoWall';
 import { ThemeLab } from './playground/ThemeLab';
 import { ThemeLabR2 } from './playground/ThemeLabR2';
 import { ThemeLabReal } from './playground/ThemeLabReal';
+import { NewThemeTest } from './playground/new-theme-test/NewThemeTest';
+import { ThemeImprovement } from './playground/theme-improvement/ThemeImprovement';
+import { LabelAngles } from './playground/label-angles/LabelAngles';
+import { CanvasSqueeze } from './playground/canvas-squeeze/CanvasSqueeze';
 import { BandStretchingLab } from './playground/BandStretchingLab';
 import { LabelExperimentLab } from './playground/LabelExperimentLab';
 import { AxisLabelLab } from './playground/AxisLabelLab';
@@ -99,6 +103,10 @@ function AppRoutes({ locale }: { locale: Locale }) {
           <Route path="theme-labs" element={<ThemeLab />} />
           <Route path="theme-lab-r2" element={<ThemeLabR2 />} />
           <Route path="theme-lab-real" element={<ThemeLabReal />} />
+          <Route path="new-theme-test" element={<NewThemeTest />} />
+          <Route path="theme-improvement" element={<ThemeImprovement />} />
+          <Route path="label-angles" element={<LabelAngles />} />
+          <Route path="canvas-squeeze" element={<CanvasSqueeze />} />
           <Route path="band-stretching" element={<BandStretchingLab />} />
           <Route path="label-experiment" element={<LabelExperimentLab />} />
           <Route path="axis-label" element={<AxisLabelLab />} />

@@ -1,0 +1,109 @@
+{
+  "id": "datadog",
+  "org": "Datadog (DRUIDS design system)",
+  "urls": [
+    "https://druids.datadoghq.com/patterns/dataviz",
+    "https://druids.datadoghq.com/src/%40druids/docs-builder.1ed4aea44bc97ba88240.min.css",
+    "https://druids.datadoghq.com/src/41190/docs.9122f1bd6d568b1d4e26.min.js",
+    "https://docs.datadoghq.com/dashboards/guide/widget_colors/",
+    "https://docs.dd-static.net/images/dashboards/guide/colors/3_classic_palette.1fb6dabdf783fb35697478aa0a4535c9.png"
+  ],
+  "access": "partial",
+  "accessNotes": "The DRUIDS site is a client-rendered React app (web_fetch returns only 'Datadog Docs'). The 'Dataviz & Graphing' page text (PageDataviz.tsx) was recovered from the compiled docs JS chunk, and design tokens (fonts, dataviz/axis colour variables) from the compiled DRUIDS CSS. The page itself is short: an overview, a 'Visualization titles' rule (min 13px), and a catalogue of chart widgets with light/dark preview images. Palette guidance came from the public Datadog docs page 'Selecting the right colors for your graphs'. Classic-palette hex values were sampled from the official palette PNG (pixel values, so may be off by 1-2 units; DRUIDS CSS token --ui-dataviz-blue is #3598ec light / #6b9cc8 dark, which matches the 2nd swatch). No published spec for gridline/axis widths; structure notes come from the official preview images.",
+  "summary": "Datadog's charts are dense, product-UI observability widgets (timeseries, top lists, query values, heatmaps) rendered inside dashboard tiles ('Unitile') in Noto Sans. The look is light and airy: pale pastel-plus-saturated blue/purple/yellow categorical palette, faint horizontal gridlines only, no axis lines, small grey axis text, and widget titles at a 13px minimum. Every visualization ships in a light and dark mode and supports colour-vision accessibility modes.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#95cbff", "#3498eb", "#d7c3ff", "#7463e0", "#ffcd1d", "#fff095"],
+    "categoricalNotes": "Default 'Classic' palette = six colours in pairs (light blue, blue, light purple, purple, yellow, light yellow), sampled from the official palette image. 'Colors assigned to series repeat if the number of series exceeds six. Adjacent series typically have distinct colors.' Alternative 'Consistent/Semantic' palette assigns a fixed colour per tag value (red = error etc.) and does not guarantee unique adjacent colours. Colour overrides allow one fixed colour per query. An internal 'datadog16' 16-colour palette also exists (hex not published). Single-series bar/top-list uses a light blue fill (product-analytics categoricalBar default backgroundColor ['#c9d0fd','#303e9c'] light/dark).",
+    "sequential": [],
+    "diverging": [],
+    "highlight": "#3598ec",
+    "context": null,
+    "positive": null,
+    "negative": null,
+    "background": "#ffffff",
+    "text": "#1f2137",
+    "textSecondary": null,
+    "gridline": null,
+    "axis": "#1f2137",
+    "notes": "Tokens from DRUIDS CSS: --ui-dataviz-blue light #3598ec / dark #6b9cc8; --ui-dataviz-graph-axis = --ui-text (light #1f2137 at ~98% alpha 'fa', dark #ffffff at 76% alpha 'c2'); --ui-dataviz-graph-axis-text-underlay light rgba(255,255,255,0.85) / dark rgba(29,28,31,0.85) (a halo behind axis text); --ui-dataviz-graph-disabled-series token exists for toggled-off series. Sequential palettes offered: purple, orange, gray, red, green, blue. Diverging: 'cool' (green and blue) or 'warm' (yellow to orange). Change Graph uses red/green rectangles behind values to show up/down. Accessibility modes: protanopia, deuteranopia, tritanopia, high contrast, low saturation. Every widget has light and dark mode variants."
+  },
+  "typography": {
+    "family": "Noto Sans",
+    "fallback": "NotoSans, 'Lucida Grande', 'Lucida Sans Unicode', sans-serif (monospace: 'Roboto Mono', Menlo, 'Liberation Mono', Courier, monospace)",
+    "title": { "size": 13, "weight": "normal", "align": "left", "case": "sentence", "color": "#1f2137" },
+    "subtitle": { "size": null, "weight": null, "style": null, "color": null },
+    "axisLabel": { "size": null, "color": null },
+    "axisTitle": { "size": null, "weight": "normal", "placement": "rotated, left of y-axis, in light grey (e.g. 'Percent' in timeseries preview); usually omitted" },
+    "dataLabel": { "size": null, "weight": "bold for values (top list ranks, donut totals)" },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "'Use at least the DRUIDS basic typography size md (13px) for titles above visualizations' - Unitile uses md by default; if a title is too long, shorten or wrap rather than shrinking below 13px. Axis labels, legends and annotations have their own (smaller) typographic roles. Big-number 'Query Value' widget uses a very large numeral."
+  },
+  "structure": {
+    "gridlines": "Horizontal only, very faint light-grey hairlines (seen in timeseries and stacked-bar previews); no vertical gridlines.",
+    "axisLine": "No y-axis line; a thin baseline at the x-axis bottom in some previews.",
+    "ticks": "No visible tick marks; labels only.",
+    "zeroLine": "Baseline at 0 (bars/areas start at 0).",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "usually omitted; when shown, rotated light-grey text left of the axis",
+    "unitPlacement": "Units in axis title or formatted into values (e.g. 10.74M); time axis shows HH:MM.",
+    "frame": "Charts live inside dashboard tiles (Unitile) - white card with a thin light-grey 1px border and title top-left inside the card.",
+    "background": "white (light mode) / near-black (dark mode)",
+    "notes": "Dense, compact layout; axis text has a semi-opaque underlay halo so it stays legible over plotted data."
+  },
+  "legend": {
+    "placement": "Optional: horizontal legend below the graph, or a 'table legend' with per-series values; default relies on hover tooltips.",
+    "directLabels": "Pie/donut uses leader-line callouts with the category name and bold value outside the ring; top lists print label inside bar and bold value left of it.",
+    "title": "no",
+    "swatchShape": "line/rectangle",
+    "notes": "'Add a horizontal legend to help users identify series without interacting, or add a table legend to reveal more information about each series.'"
+  },
+  "marks": {
+    "bars": "Stacked bars with narrow 1-2px gaps between bars; flat ends (no rounded corners). Top List = horizontal bars sorted most-to-least, light blue fill, label inside the bar at left, value bold to the left of the bar, thin white gap between bars.",
+    "lines": "Thin (~1.5-2px) unsmoothed lines, no point markers; many series allowed.",
+    "areas": "Stacked areas with solid fills from the palette, thin white separators between layers.",
+    "points": "Scatter plot of circles.",
+    "pies": "Allowed as Pie/Sunburst (donut with big total in the centre). 'Smaller slices are bundled together automatically in an \u201cOther\u201d category'; '4 to 7 main categories are ideal'; for higher cardinality use Treemap or Top List; for precise comparison use Top List.",
+    "notes": "Timeseries can be rendered as lines, stacked bars or areas, support positive/negative stacking, event overlays and threshold markers."
+  },
+  "labels": {
+    "dataLabels": "Top lists and donuts print values (bold dark text); timeseries rely on tooltips.",
+    "numberFormat": "Abbreviated with SI suffixes (9.43M, 74.5M); integers without separators on top lists.",
+    "dates": "Time axis 'HH:MM' (09:30, 16:45).",
+    "notes": "Query Value widget supports threshold-based colour coding of the number or background."
+  },
+  "furniture": {
+    "title": "Title above the visualization, left-aligned inside the tile, minimum 13px ('md'); peer titles consistent; visually distinct from section headings; wrap rather than shrink.",
+    "source": "none",
+    "logo": "none",
+    "other": "Status pills ('Experimental') on catalogue cards only. Event overlays and threshold markers on timeseries."
+  },
+  "annotations": "Event overlays (vertical markers) and horizontal markers for thresholds/ranges on timeseries; Change Graph uses red/green rectangles behind values.",
+  "layout": "Dashboard grid of tiles; widgets responsive with density levels (Top List 'has responsive levels of display density').",
+  "interaction": "Hover tooltips on all widgets; legend toggling greys out series (disabled-series token); dark mode for every widget; sorting/search inside Table widget.",
+  "accessibility": "Classic palette 'has visual accessibility support'; user-selectable modes: protanopia, deuteranopia, tritanopia, high contrast, low saturation. Consistent palette has no accessibility support.",
+  "chartTypes": {
+    "preferred": ["Timeseries (line/area/stacked bar)", "Top List (horizontal sorted bars)", "Query Value (big number)", "Heatmap", "Histogram", "Scatter Plot", "Treemap", "Table", "Geomap (choropleth)", "Funnel", "Change Graph", "Pie/Sunburst", "Topology Map"],
+    "discouraged": ["Pie with >7 categories (use Treemap or Top List)", "Pie for precise comparisons (use Top List)"],
+    "notes": "Timeseries are 'far and away the most frequently used visualizations in the Datadog platform'."
+  },
+  "distinctiveRules": [
+    { "rule": "Visualization titles sit above the chart, left-aligned, and are never smaller than 13px (DRUIDS 'md'); long titles wrap instead of shrinking.", "source": "https://druids.datadoghq.com/patterns/dataviz", "quote": "Use at least the DRUIDS basic typography size md (13px) for titles above visualizations." },
+    { "rule": "Default categorical palette is the six-colour Classic palette ordered light blue, blue, light purple, purple, yellow, light yellow; colours repeat after six series.", "source": "https://docs.datadoghq.com/dashboards/guide/widget_colors/", "quote": "The default Classic palette uses a set of six distinct colors optimized for readability. Colors assigned to series repeat if the number of series exceeds six." },
+    { "rule": "Font is Noto Sans throughout charts and UI (monospace Roboto Mono).", "source": "https://druids.datadoghq.com/src/%40druids/docs-builder.1ed4aea44bc97ba88240.min.css", "quote": "font-family: NotoSans, Lucida Grande, Lucida Sans Unicode, sans-serif" },
+    { "rule": "Axis text uses the body text colour (#1f2137 light / white 76% dark) over an 85%-opaque background underlay so labels stay legible over data.", "source": "https://druids.datadoghq.com/src/%40druids/docs-builder.1ed4aea44bc97ba88240.min.css", "quote": "--ui-dataviz-graph-axis: var(--ui-text); --ui-dataviz-graph-axis-text-underlay: rgba(255,255,255,0.85) / rgba(29,28,31,0.85)" },
+    { "rule": "Only faint horizontal gridlines; no y-axis line or tick marks; y-axis labels left, time labels HH:MM along the bottom.", "source": "https://druids.datadoghq.com/patterns/dataviz", "quote": "Observed in the official Timeseries preview image" },
+    { "rule": "Pie/Sunburst: ideally 4-7 categories, small slices auto-bundled into 'Other', drawn as a donut with a large total in the centre and leader-line labels with bold values.", "source": "https://druids.datadoghq.com/patterns/dataviz", "quote": "Smaller slices are bundled together automatically in an \u201cOther\u201d category ... 4 to 7 main categories are ideal" },
+    { "rule": "Top List is a horizontal bar chart sorted most-to-least, light-blue bars, category label inside the bar at the left, bold value to the left of the bar, no axes.", "source": "https://druids.datadoghq.com/patterns/dataviz", "quote": "A Top List is a horizontal bar chart that sorts entities from most to least or vice versa." },
+    { "rule": "Change Graph marks increases/decreases with a green or red rectangle behind the two values.", "source": "https://druids.datadoghq.com/patterns/dataviz", "quote": "A red or green rectangle is added behind the first and second value to indicate if the value went up or down." },
+    { "rule": "Every chart has a light and dark mode; dark-mode accent blue is #6b9cc8 vs #3598ec in light mode.", "source": "https://druids.datadoghq.com/src/%40druids/docs-builder.1ed4aea44bc97ba88240.min.css", "quote": "--ui-dataviz-blue: var(--LIGHT, #3598ec) var(--DARK, #6b9cc8)" },
+    { "rule": "Legend is optional: a horizontal legend under the chart or a table legend with per-series stats; otherwise identification is via hover tooltip. Toggled-off series use a 'disabled series' grey.", "source": "https://druids.datadoghq.com/patterns/dataviz", "quote": "Add a horizontal legend to help users identify series without interacting, or add a table legend" },
+    { "rule": "Sequential palettes come in purple, orange, gray, red, green and blue; diverging is 'cool' (green-blue) or 'warm' (yellow-orange).", "source": "https://docs.datadoghq.com/dashboards/guide/widget_colors/", "quote": "There are two Diverging palette options: cool (green and blue) or warm (interpolates between yellow and orange)." },
+    { "rule": "Charts sit in dashboard tiles: white card, thin light-grey border, title top-left inside the tile.", "source": "https://docs.datadoghq.com/dashboards/guide/widget_colors/", "quote": "Observed in the Classic palette example image (donut and stacked bar widgets)" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/datadog/timeseries_light-dc9c30e8800fadcdf4b98c8f668745b2.png", "url": "https://druids.datadoghq.com/src/dc9c30e8/timeseries_light-dc9c30e8800fadcdf4b98c8f668745b2.png", "describes": "Timeseries preview (500x300) on white: left half thin unsmoothed lines (blue, pale yellow, dark purple, lilac, light blue, yellow), right half the same data as stacked areas in the Classic palette (blue, purple, yellow, pale yellow, light blue). Only faint horizontal grey gridlines at 0/5/10/.../30; no vertical gridlines, no y-axis line, no ticks. Y labels small grey Noto Sans left of plot, rotated light-grey axis title 'Percent'. X labels 09:30, 09:45, 10:00, 10:15 in grey. No title, no legend." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/datadog/top-list_light-47e8914557fb4659c44c681a504855b7.png", "url": "https://druids.datadoghq.com/src/47e89145/top-list_light-47e8914557fb4659c44c681a504855b7.png", "describes": "Top List: ten horizontal bars sorted descending (California 233 ... Massachusetts 41), all in one pale blue (~#bfdcfc), separated by thin white gaps, flat ends. Category names in dark Noto Sans regular inside each bar at the left; values bold dark, right-aligned in a column left of the bars. No axes, gridlines, title or legend." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/datadog/classic_palette.png", "url": "https://docs.dd-static.net/images/dashboards/guide/colors/3_classic_palette.1fb6dabdf783fb35697478aa0a4535c9.png", "describes": "Classic palette strip (light blue, blue, lilac, purple, yellow, pale yellow) above two dashboard widgets in thin-bordered white tiles with left-aligned regular-weight titles ('Contribution % to number of indexed logs pe...' truncated with ellipsis; 'Lambda throttled invocation attempts by function'). Left: donut with big bold '74.5M' total in the centre, leader-line labels outside showing name (regular) and bold value (e.g. 'balance-checker 10.74M'), small slices grey/'other'. Right: dense stacked bar timeseries cycling the six colours, faint horizontal gridlines 0-20, small grey y labels left, time labels 16:45-17:30 at the bottom, no legend." }
+  ]
+}

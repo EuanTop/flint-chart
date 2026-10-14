@@ -98,3 +98,6 @@ scripts/.*.mjs
 # Third-party theme research artifacts. Keep provenance and findings tracked;
 # source PDFs/images remain local and are reproducible from the manifest.
 theme-evidence/*
+# Third-party house logos for local review only (trademarks; see the README in the folder)
+site/src/playground/new-theme-test/logos/*
+!site/src/playground/new-theme-test/logos/README.md

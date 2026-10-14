@@ -1,11 +1,12 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-import { describe, it, expect } from 'vitest';
+import { afterAll, beforeAll, describe, it, expect } from 'vitest';
 import { compile } from 'vega-lite';
-import { parse, View } from 'vega';
+import { parse, textMetrics, View } from 'vega';
 import { assembleVegaLite } from '../src';
 import { TEST_GENERATORS } from '../src/test-data';
+import { tableTextMeasurer } from '../src/core/text-width';
 
 /**
  * Vega drops a tick label only once its box *overlaps* its neighbour's. Two
@@ -64,6 +65,13 @@ function bars(theme?: string): any {
 }
 
 describe('pyramid outside-value clearance', () => {
+    // Without a canvas Vega bounds text at 0.8em a character, wider than any digit is drawn. A
+    // reader's browser measures the glyphs; so does this check, from the table Flint is calibrated to.
+    const estimate = textMetrics.width;
+    beforeAll(() => {
+        textMetrics.width = (item: any, text: any) => tableTextMeasurer(item.fontSize ?? 11, item.font ?? 'sans-serif', item.fontWeight ?? 'normal', item.fontStyle ?? 'normal')(String(text ?? item.text ?? ''));
+    });
+    afterAll(() => { textMetrics.width = estimate; });
     it.each(['nature', 'mckinsey', 'datawrapper'])('keeps labels apart and both halves comparable (%s)', async (theme) => {
         for (const fixtureIndex of [3, 6]) {
             const fixture = TEST_GENERATORS['Pyramid Chart']()[fixtureIndex];

@@ -83,6 +83,13 @@ export interface SemanticAnnotation {
 
     /** Explicit ordinal ordering. E.g., ["Low", "Medium", "High"] */
     sortOrder?: string[];
+
+    /**
+     * Colours bound to values of this field, wherever they fall: `{ "DFL": "#0793AB" }`. Matched on
+     * the value, trimmed and case-insensitive. Values left out take the palette in order, which then
+     * skips the bound colours. Wins over the theme's role inks.
+     */
+    colors?: Record<string, string>;
 }
 
 /** d3-compatible format specification */

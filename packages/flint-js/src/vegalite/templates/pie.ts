@@ -49,7 +49,9 @@ function pieLayout(
             maxStretch: ctx.assembleOptions?.maxStretch,
             maxStretchX: ctx.assembleOptions?.maxStretchX,
             maxStretchY: ctx.assembleOptions?.maxStretchY,
-            margin: 50,   // room for labels around pie
+            // A hairline of room for the slice outlines: nothing is set around the pie, so the pie
+            // fills its square and the title sits on it rather than a margin above it.
+            margin: 4,
         });
     return { radius, size: Math.min(canvasW, canvasH) };
 }
@@ -137,7 +139,16 @@ export const pieChartDef: ChartTemplateDef = {
         // order follows the `order` channel; `color.sort` keeps the legend in
         // step with the wedges.
         const sortSlices = config?.sortSlices;
-        if (sortSlices === 'descending' || sortSlices === 'ascending') {
+        if ((sortSlices === undefined || sortSlices === 'none') && colorField) {
+            // Data order (M3): the colour scale and the key already follow the data (`sort: null`);
+            // without an order Vega-Lite stacks the wedges alphabetically, so the first wedge from
+            // 12 o'clock is not the first row and the wedges disagree with their key.
+            const names = [...new Set((ctx.fullTable ?? ctx.table).map((row: any) => String(row?.[colorField])))];
+            spec.transform = [...(spec.transform ?? []), {
+                calculate: `indexof(${JSON.stringify(names)}, toString(datum[${JSON.stringify(colorField)}]))`, as: '__flintArcOrder',
+            }];
+            spec.encoding.order = { field: '__flintArcOrder', type: 'quantitative', sort: 'ascending' };
+        } else if (sortSlices === 'descending' || sortSlices === 'ascending') {
             spec.encoding.order = thetaField
                 ? { field: thetaField, type: 'quantitative', sort: sortSlices }
                 : { aggregate: 'count', type: 'quantitative', sort: sortSlices };

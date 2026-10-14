@@ -1,0 +1,111 @@
+{
+  "id": "material",
+  "org": "Google Material Design (M2) — Data visualization",
+  "urls": [
+    "https://material.io/design/communication/data-visualization.html",
+    "https://m2.material.io/design/communication/data-visualization.html",
+    "https://m2.material.io/site_meta.js",
+    "https://m2.material.io/page-data/Guidelines/6333242734280704.json"
+  ],
+  "access": "full",
+  "accessNotes": "The m2.material.io page is a JS-rendered Angular app; the full guideline content (text, tables, image URLs and captions) was read from the site's page-data JSON endpoint (/page-data/Guidelines/6333242734280704.json) found via site_meta.js routes. material.io (M3) no longer hosts a data-viz page. Web Archive was offline. The guide gives no hex palette; the colours listed here were sampled (most-common pixel values) from the guide's own example images and are flagged as such.",
+  "summary": "Material's data-viz guidance is a product-UI (Android/web/wearable) chart style: charts live in white cards with a large Roboto title and grey subtitle, light horizontal gridlines, y-axis values on the RIGHT, a light grey baseline, and Material primary purple (#6200EE) as the lead series colour. It emphasises progressive disclosure (hover/touch-and-hold tooltips), direct labelling for simple charts, a legend below the chart on desktop (above on mobile), and highlight-one/grey-the-rest colour use.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#6200ee", "#eb3693", "#2381f1", "#ff7f29", "#00a3ad"],
+    "categoricalNotes": "Not specified as tokens in the guide. Sampled from the 'City population' example (legend order: Staten Island purple, Bronx pink, Manhattan blue, Queens orange, Brooklyn teal). Single-series charts use the Material baseline primary purple #6200EE. Guide: 'Many colors in a single chart can hinder focus'; 'Use a combination of color highlights and neutral colors to provide contrast and emphasis.'",
+    "sequential": [],
+    "diverging": [],
+    "highlight": "#6200ee",
+    "context": null,
+    "positive": null,
+    "negative": null,
+    "background": "#ffffff",
+    "text": "#414549",
+    "textSecondary": "#757575",
+    "gridline": "#e8eaed",
+    "axis": "#dadce0",
+    "notes": "All hex values sampled from guide example images (bar-rounded.png, text-hierarchy.png): white card on #e5e5e5 page, title ~#414549, subtitle ~#757575, axis tick labels ~#616164, gridlines ~#e8eaed/#ebebeb, baseline ~#dadce0, legend/annotation text #212121. In the highlight example the non-focus lines are translucent mid/dark greys. Four uses of colour: distinguish categories, represent quantity, highlight data, express meaning. Don't use colour alone to indicate meaning — reinforce with icons, shape, texture, high-contrast shading or text labels."
+  },
+  "typography": {
+    "family": "Roboto",
+    "fallback": null,
+    "title": { "size": 18, "weight": "Regular (400)", "align": "left", "case": "sentence", "color": "#414549" },
+    "subtitle": { "size": 14, "weight": "Regular (400)", "style": "normal", "color": "#757575" },
+    "axisLabel": { "size": 12, "color": "#616164" },
+    "axisTitle": { "size": 12, "weight": "Regular", "placement": "horizontal, above the top of the right-hand y-axis (e.g. 'Population', 'Users'); x-axis title omitted" },
+    "dataLabel": { "size": 22, "weight": "Regular (400)" },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "Type scale table (pt): Chart title Roboto Regular 18; Chart subtitle Roboto Regular 14; Data label Roboto Regular 22 (large hero value, e.g. in tooltip); Sub-label Roboto Regular 14; Axis labels Roboto Regular 12; Legend labels Roboto Regular 12. Bold used sparingly for one or two key elements only. Text labels horizontal — never rotated or stacked vertically."
+  },
+  "structure": {
+    "gridlines": "Horizontal only, thin solid light grey (~#e8eaed); no vertical gridlines.",
+    "axisLine": "No y-axis line; x-axis baseline drawn as a slightly heavier light-grey rule (~#dadce0, ~2px).",
+    "ticks": "Small vertical tick marks on the x-axis baseline in line charts; none on the y-axis.",
+    "zeroLine": "Bar charts must start at a zero baseline; baseline drawn as grey rule.",
+    "yAxisPlacement": "right",
+    "yAxisTitle": "horizontal, right-aligned above the top tick (e.g. 'Users'), or omitted with units in subtitle ('in Fahrenheit')",
+    "unitPlacement": "In subtitle ('in Fahrenheit', 'Positive comments') or on top tick only (e.g. '40%', '100°', '4,000k' with lower ticks bare numbers)",
+    "frame": "White card container with subtle shadow/rounded corners on a light grey page; no plot border.",
+    "background": "#ffffff card",
+    "notes": "Guide suggests considering removing axes altogether and placing values directly on chart elements. Balanced (not excessive) number of axis labels."
+  },
+  "legend": {
+    "placement": "bottom on desktop (below chart, left-aligned, wraps to rows); top on mobile so it stays visible during interactions",
+    "directLabels": "Preferred for simple charts; dense charts or chart groups use a legend.",
+    "title": "not shown",
+    "swatchShape": "short horizontal line segment (dash) for line charts",
+    "notes": "Legend label Roboto Regular 12pt, dark text."
+  },
+  "marks": {
+    "bars": "Vertical bars, moderately thin (bar narrower than gap); subtle rounded top corners only, small enough that the top edge still measures length precisely; zero baseline. Rotate to horizontal bars rather than rotating labels.",
+    "lines": "Thin (~2px) unsmoothed polylines, no markers by default; focused point shown as hollow circle with halo on hover; dashed lines/varied opacity for forecasts, thresholds, confidence intervals, comparisons.",
+    "areas": "Stacked area preferred; overlapped area not recommended with more than two series. Zero baseline when more than one series.",
+    "points": "Scatterplots may encode category with shape (circles, squares, triangles).",
+    "pies": "Allowed (donut example for categories); don't use multiple pies to show change over time.",
+    "notes": "Line chart: any baseline, works for 8+ series. Bar chart: zero baseline, 4 or fewer series. Area chart: 8 or fewer series."
+  },
+  "labels": {
+    "dataLabels": "Optional; values can be placed directly on chart elements when axes are removed. Annotate highest/lowest points on small displays.",
+    "numberFormat": "Thousands separator comma ('1,000'); abbreviations with lowercase k ('4,000k'); percent on ticks ('40%').",
+    "dates": "Abbreviated month names ('Jan', 'Mar', 'Aug 15'); first tick may carry full date 'Aug 1, 2019'.",
+    "notes": "Labels horizontal; don't rotate or stack vertically."
+  },
+  "furniture": {
+    "title": "Left-aligned title (18pt Roboto Regular, dark grey) at top of card with a grey 14pt subtitle beneath describing measure/units ('in Fahrenheit', 'Estimated by borough'). Presentation dashboards use 'dynamic headlines that explain the trends'.",
+    "source": null,
+    "logo": null,
+    "other": "Charts usually sit inside cards; dashboards (analytics / operations / presentation) compose multiple cards."
+  },
+  "annotations": "Annotations highlight data points, outliers and noteworthy content. Example: threshold drawn as a dashed grey horizontal line with a white callout bubble (small shadow, pointer) labelled 'Required housing temp'. Annotate key points (highest and lowest) on small screens; threshold lines give context.",
+  "layout": "Square-ish card charts (720×720 examples). Desktop vs mobile: legend moves top on mobile; wearables show a simplified version; don't place key data points off-screen. Dashboards prioritise information via layout with a focal point.",
+  "interaction": "Progressive disclosure: hover reveals details on desktop; touch-and-hold shows a tooltip placed above the chart on mobile. Tooltip = white rounded card with shadow, small grey label ('July') next to large value ('3,000k'), with a dashed vertical crosshair and coloured dots on each series at that x; the focused point is a hollow circle with a translucent halo. Zoom via click-drag/scroll (desktop) or pinch/double-tap (mobile); panning constrained to meaningful direction; swipe pagination on mobile; data controls via toggles, tabs, dropdowns; purposeful motion between states; empty states may use character animation.",
+  "accessibility": "Don't use colour alone; supplement with icons, shape, texture, high-contrast shading and text labels (which also remove the need for a legend). Use labels along with icons. Refers to Material colour-contrast guidance.",
+  "chartTypes": {
+    "preferred": ["line", "bar", "stacked bar", "stacked area", "donut", "scatter", "bubble", "heatmap", "histogram", "box plot", "sankey", "treemap", "sunburst", "bullet", "waterfall", "candlestick"],
+    "discouraged": ["multiple pies for change over time", "overlapped area with >2 series", "non-zero bar baselines"],
+    "notes": "Chart taxonomy by purpose: change over time, category comparison, ranking, part-to-whole, correlation, distribution, flow, relationship."
+  },
+  "distinctiveRules": [
+    { "rule": "Y-axis tick labels sit on the right side of the plot; no y-axis line.", "source": "https://m2.material.io/design/communication/data-visualization.html", "quote": "Observed in every example image (Customer feedback, Average temperature, City population, Users in the last 30 days)." },
+    { "rule": "Title 18pt Roboto Regular, subtitle 14pt Roboto Regular grey, axis and legend labels 12pt Roboto Regular.", "source": "https://m2.material.io/design/communication/data-visualization.html", "quote": "Chart title Roboto Regular 18pt; Chart subtitle 14pt; Data label 22pt; Axis labels 12pt; Legend labels 12pt" },
+    { "rule": "Only horizontal light-grey gridlines; x-axis baseline is a slightly heavier light-grey rule.", "source": "https://m2.material.io/design/communication/data-visualization.html", "quote": "Observed in example images." },
+    { "rule": "Legend below the chart on desktop, above it on mobile.", "source": "https://m2.material.io/design/communication/data-visualization.html", "quote": "On desktop, it's recommended to place a legend below a chart. On mobile, place the legend above the chart to keep it visible during interactions." },
+    { "rule": "Legend swatches are short coloured line segments, left-aligned, wrapping into rows.", "source": "https://m2.material.io/design/communication/data-visualization.html", "quote": "Observed in 'City population' and 'Average temperature' images." },
+    { "rule": "Bars have subtle rounded corners at the top only, and must start at zero.", "source": "https://m2.material.io/design/communication/data-visualization.html", "quote": "The bars in this chart have subtle rounded corners, ensuring that the top of the bar precisely measures the bar's length." },
+    { "rule": "Never rotate axis labels; rotate bars to horizontal instead.", "source": "https://m2.material.io/design/communication/data-visualization.html", "quote": "Orient text horizontally on bar charts, rotating the bars if needed to make space. Don't rotate bar labels." },
+    { "rule": "Unit appears only on the top tick (e.g. '40%', '100°', '4,000k') or as a horizontal y-title above the right axis.", "source": "https://m2.material.io/design/communication/data-visualization.html", "quote": "Observed in example images." },
+    { "rule": "Highlight one series in primary purple and render the others as translucent greys.", "source": "https://m2.material.io/design/communication/data-visualization.html", "quote": "Use a combination of color highlights and neutral colors to provide contrast and emphasis." },
+    { "rule": "Chart sits in a white elevated card with left-aligned title + grey subtitle stacked at top-left.", "source": "https://m2.material.io/design/communication/data-visualization.html", "quote": "Observed in example images." },
+    { "rule": "Tooltip on hover (desktop) / touch-and-hold (mobile) appears above the chart as a white shadowed card with a dashed vertical crosshair and dots on each series.", "source": "https://m2.material.io/design/communication/data-visualization.html", "quote": "On mobile, a touch and hold gesture displays a tooltip placed above the chart." },
+    { "rule": "Thresholds and forecasts drawn as dashed lines; vary line texture rather than colour for the same category over periods.", "source": "https://m2.material.io/design/communication/data-visualization.html", "quote": "Vary a line's texture to represent different data types. Don't use different colors to show periodical variation for the same data category." },
+    { "rule": "Bold used for only one or two key elements in the chart.", "source": "https://m2.material.io/design/communication/data-visualization.html", "quote": "Bold used just for one or two key elements creates a balanced design." },
+    { "rule": "Bar charts with 4 or fewer series; line charts for 8+ series; area charts 8 or fewer; no overlapped areas beyond 2 series.", "source": "https://m2.material.io/design/communication/data-visualization.html", "quote": "Bar chart ... 4 or fewer; Area chart ... 8 or fewer" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/material/bar-rounded.png", "url": "https://lh3.googleusercontent.com/D4c1K_5WHlnf2PogDXC_PCy-PDMfhHt6l0KpaYmnulh60_91YwTmKT4SLqAjrV5Gxb6tFGP5A_Fr9jyzSiAI3LbvqwAZlmt7IPcNIg", "describes": "White card (rounded corners, faint shadow) on light grey page. Title 'Customer feedback' top-left in large Roboto Regular dark grey; subtitle 'Positive comments' below in lighter grey. Four vertical bars Q1–Q4 in solid #6200EE purple, thin bars with wide gaps, very slightly rounded tops. Horizontal light-grey gridlines; y-axis labels on the RIGHT (0, 10%, 20%, 30%, 40%) in grey Roboto; x-axis baseline a light grey rule; category labels below. No legend, no source, no logo." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/material/legend-annotation.png", "url": "https://lh3.googleusercontent.com/09qg5fiIyTc-HYDifjgAruuxZ9zc7Iad6a4BLVl_jBjha4wAeJwKgsAJbWvWXp9xNdCcEFPauzGOatHTp9zWIvktegLdsB8vcwlB6lw", "describes": "Card line chart 'Average temperature' with grey subtitle 'in Fahrenheit'. Two thin lines: orange 'High' and purple 'Low'. Right-side y-axis 20–100° (degree sign only on top tick), light horizontal gridlines, x-axis months Jan..Nov with small ticks. A dashed grey horizontal threshold line with a white callout bubble 'Required housing temp' (annotation, callout #1). Legend below the plot, left-aligned, with short line swatches 'High' 'Low' (callout #2)." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/material/text-hierarchy.png", "url": "https://lh3.googleusercontent.com/iCneoyNGr_-eF5M0qAl1HJGwuTMUMmy8BQHbYJd27I3UUnOh5cWjaEs-S2GplX-P7sDBEAlgsom93cmI4PuKxNsxkA9sbVhTKwcVwQ", "describes": "'City population' / 'Estimated by borough' multi-line chart with five series (purple, pink, blue, orange, teal). Horizontal y-axis title 'Population' above the right-hand axis; ticks 0..4,000k (k only on top tick). Hover state: dashed vertical crosshair at July, coloured dots on each line, hollow orange focus point with peach halo, white rounded tooltip above with small grey 'July' and larger '3,000k'. Legend below in two rows with line-segment swatches. Illustrates bold used sparingly." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/material/highlight-neutral.png", "url": "https://lh3.googleusercontent.com/yhoTfFV-ubIKv7ARYoeB-r9U0xmCii272DkkGflKTgqlihncX82yz594C-eUDL0gg9JqLhE6TzIPg8Qi1LBSibdUfWKLAAFkVPu8Pg", "describes": "'Users in the last 30 days' line chart: one purple highlight line over ~20 translucent grey context lines. Y-axis title 'Users' horizontal above right axis, ticks 0–1,000; light horizontal gridlines; x-axis 'Aug 1, 2019', 'Aug 15', 'Aug 31' with ticks on a grey baseline. No legend." }
+  ]
+}

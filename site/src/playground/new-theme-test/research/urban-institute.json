@@ -1,0 +1,112 @@
+{
+  "id": "urban-institute",
+  "org": "Urban Institute",
+  "urls": [
+    "https://urbaninstitute.github.io/graphics-styleguide/",
+    "https://github.com/UrbanInstitute/urbnthemes/blob/master/R/theme_urbn_print.R",
+    "https://github.com/UrbanInstitute/urbnthemes/blob/master/R/palette_urbn.R",
+    "https://github.com/UrbanInstitute/urbnthemes/blob/master/R/set_urbn_defaults.R",
+    "https://urbaninstitute.github.io/graphics-styleguide/img/chart-typography-and-layout-2024-web.png",
+    "https://urbaninstitute.github.io/graphics-styleguide/img/bar-chart.png",
+    "https://urbaninstitute.github.io/graphics-styleguide/img/LineChart.png"
+  ],
+  "access": "full",
+  "accessNotes": "Style guide page (last updated 27 Aug 2025) fully readable as static HTML; palette hexes read from inline JS arrays and swatch classes. Exact ggplot values read from the urbnthemes R package source on GitHub via the GitHub API. The Highcharts theme was not consulted (R package was sufficient).",
+  "summary": "Research-report / think-tank style for a nonprofit policy institute: clean, left-aligned, Lato-set charts with a bold title-case headline, italic sentence-case subtitle, cyan (#1696D2) as the dominant data colour with yellow/magenta for highlights, light grey horizontal gridlines, a black x-axis line with outside ticks and no y-axis line. Web charts carry 'Source:'/'Notes:' lines with bold lead-ins at bottom-left and the URBAN INSTITUTE tagline bottom-right.",
+  "context": "report",
+  "colors": {
+    "categorical": ["#1696D2", "#FDBF11", "#000000", "#D2D2D2", "#EC008B", "#55B748", "#5C5859", "#DB2B27"],
+    "categoricalNotes": "Order above is urbnthemes palette_urbn_main (cyan, yellow, black, gray, magenta, green, space gray, red), used by the R theme. The style guide states the brand hierarchy as main colors cyan, gray, black; secondary yellow and magenta ('used sparingly ... best for highlighting'); tertiary space gray, green, red ('used infrequently'). The guide's per-count recommended categorical sets (first set is what Excel add-in/R use): 2 groups blue+black (alternatives blue+gray, blue+yellow, black+yellow, blue+red - 'Use blue and red sparingly, usually only when comparing political data'); 3 groups blue, black, gray; 4 groups blue, black, gray, yellow; 5 groups blue, black, gray, yellow, magenta; 6 groups blue, black, gray, yellow, green, magenta; 8 groups: 'Consider consolidating categories ... Eight groups is really too many.' Keep categories to fewer than seven. One group: cyan; 'grey should not be used as it loses focus while magenta draws attention'. Do not use blue for men and pink for women; use e.g. yellow and cyan.",
+    "sequential": ["#CFE8F3", "#A2D4EC", "#73BFE2", "#46ABDB", "#1696D2", "#12719E", "#0A4C6A", "#062635"],
+    "diverging": ["#CA5800", "#FDBF11", "#FDD870", "#FFF2CF", "#CFE8F3", "#73BFE2", "#1696D2", "#0A4C6A"],
+    "highlight": "#FDBF11",
+    "context": "#D2D2D2",
+    "positive": null,
+    "negative": null,
+    "background": "#FFFFFF",
+    "text": "#000000",
+    "textSecondary": null,
+    "gridline": "#DEDDDD",
+    "axis": "#000000",
+    "notes": "Shades of main colours (light->dark, 8 steps): cyan CFE8F3 A2D4EC 73BFE2 46ABDB 1696D2 12719E 0A4C6A 062635; gray F5F5F5 ECECEC E3E3E3 DCDBDB D2D2D2 9D9D9D 696969 353535; yellow FFF2CF FCE39E FDD870 FCCB41 FDBF11 E88E2D CA5800 843215; magenta F5CBDF EB99C2 E46AA7 E54096 EC008B AF1F6B 761548 351123; green DCEDD9 BCDEB4 98CF90 78C26D 55B748 408941 2C5C2D 1A2E19; space gray D5D5D4 ADABAC 848081 5C5859 332D2F 262223 1A1717 0E0C0D; red F8D5D4 F1AAA9 E9807D E25552 DB2B27 A4201D 6E1614 370B0A. Sequential count-specific (urbnthemes): 2 = A2D4EC,1696D2; 3 = A2D4EC,1696D2,0A4C6A; 4 = CFE8F3,73BFE2,1696D2,0A4C6A. A second diverging palette (magenta-green): 761548 AF1F6B E46AA7 EB99C2 BCDEB4 98CF90 408941 2C5C2D. Figure number colour #0A4B69. Tagline: 'Urban' #1696D2, 'Institute' #000000. Facet strip background #DEDDDD. Choropleths normally use the blue sequential ramp. 'Start With Gray' option: grey lines with colour for the highlighted series. Highlight in examples: a single yellow bar among cyan bars; black for an 'Overall' bar. WCAG 2.0 AA: palette swatches list white/black text that passes contrast."
+  },
+  "typography": {
+    "family": "Lato",
+    "fallback": "Arial",
+    "title": { "size": 20, "weight": "Lato Black (900)", "align": "left", "case": "title", "color": "#000000" },
+    "subtitle": { "size": 16, "weight": "regular", "style": "italic", "color": "#000000" },
+    "axisLabel": { "size": 12, "color": "#000000" },
+    "axisTitle": { "size": 12, "weight": "regular italic", "placement": "y-axis title horizontal above the y-axis labels, left-aligned (web layout spec); urbnthemes print theme rotates it 90°" },
+    "dataLabel": { "size": 12, "weight": "regular" },
+    "source": { "size": 11, "style": "regular, 'Source:' and 'Notes:' lead-ins in bold", "color": "#000000" },
+    "notes": "Web sizes (px) / PDF sizes (pt): figure number Lato Regular ALL CAPS #0A4B69 11px/8pt; title Lato Black title case 20px/12pt; subtitle Lato Italic sentence case 16px/10pt; axis titles 12px/8.5pt; axis labels 12px/8.5pt; data labels 12px/8.5pt; legend text 14px/9.5pt; source and notes 11px/8pt. All text inside the figure uses sentence case. Tagline 'URBAN INSTITUTE' Lato Bold 9pt small caps with 0.5pt expanded tracking. urbnthemes base_size 8.5, title 12, subtitle 9.5, caption 7, axis titles italic, lineheight 0.9; facet strip text bold 9.5."
+  },
+  "structure": {
+    "gridlines": "Horizontal only, solid #DEDDDD, 1px; no vertical or minor gridlines. Omit gridlines and y-axis labels when bars are directly labelled.",
+    "axisLine": "X-axis line solid #000000, 1pt; y-axis line not visible (horizontal bar charts show a black category baseline on the left).",
+    "ticks": "X-axis major tick marks outside; no minor ticks; no y-axis ticks.",
+    "zeroLine": "Bars always start at zero; x-axis line is the black baseline.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "Horizontal, italic, placed above the top of the y-axis labels and left-aligned with the chart (web spec)",
+    "unitPlacement": "Unit of measurement mentioned only once: in the subtitle or the y-axis title; tick labels can carry $ or % (e.g. '$1,400').",
+    "frame": "none",
+    "background": "white",
+    "notes": "'Left-align all elements' - title, subtitle, legend, y-axis title, source and notes share one left edge. urbnthemes plot.margin right = 12pt; title and subtitle 10pt bottom margin; legend margin 6pt top/bottom."
+  },
+  "legend": {
+    "placement": "top - stretched across the chart between the subtitle and the y-axis title, horizontal, left-aligned",
+    "directLabels": "Preferred: 'When possible, directly label the data in the chart and omit the legend'; on line charts labels at the far right end of lines, evenly spaced and aligned.",
+    "title": "No legend title (urbnthemes legend.title blank)",
+    "swatchShape": "Short line (with marker when lines have markers) for line charts; square for bars; 10pt keys",
+    "notes": "Legend order must mirror the order of data in the chart. Legend text 14px."
+  },
+  "marks": {
+    "bars": "Bar width about twice the gap between bars; one colour when all bars measure the same variable (highlight one in yellow or black for 'Overall'); no 3-D; always start at zero. Horizontal bars: category labels right-aligned and vertically centred. Stacked: series on the baseline should be most important or largest, unless logical ordering applies.",
+    "lines": "Default line size 1 (ggplot) in #1696D2; avoid markers on long time series (hollow circle markers used when lines are near-parallel); direct labels at line ends.",
+    "areas": null,
+    "points": "Default point size 3, #1696D2.",
+    "pies": "Allowed for part-to-whole but keep slices fewer than 5.",
+    "notes": "Dot plots limited to two dots per group. Maps: sf fill #1696D2 with white 0.1 borders."
+  },
+  "labels": {
+    "dataLabels": "Placed as close as possible to the data point - just outside the ends of bars (grey text in example) or on line points; when bars have data labels, omit y-axis labels and gridlines.",
+    "numberFormat": "Comma thousands separators; currency prefix on tick labels ($1,400); percentages with one decimal (23.4%).",
+    "dates": "Full four-digit years on axis (2000, 2002 ...).",
+    "notes": "Abbreviations allowed in axis titles/labels if defined in notes ('FPL = federal poverty level'). Asterisks only for significance levels; superscript letters for cell notes."
+  },
+  "furniture": {
+    "title": "Required. Short, active, title case, left-aligned; draw a conclusion where possible ('The Labor Force Participation Rate Has Declined for Men and Increased for Women'); subtitle (italic, sentence case) gives time period, frequency, units, geography. Optional figure number above in ALL CAPS #0A4B69 ('FIGURE 1').",
+    "source": "Required on all figures. Bottom-left: 'Source: ...' then 'Notes: ...' on the following line, 11px, with 'Source' and 'Notes' in bold; full citation in Urban notes style or 'Authors' analysis.'",
+    "logo": "Web charts: 'URBAN INSTITUTE' tagline bottom-right (Lato Bold 9pt small caps, 'URBAN' in #1696D2, 'INSTITUTE' black, letter-spaced); in PDFs added in Word at bottom right; omitted on government-funded products.",
+    "other": "For PDF products title/subtitle/source/notes live in the Word document, not the chart image; for web all text is in a single image. Full width 760px (web) / 6.25in (PDF); half-width 3.13in in PDFs."
+  },
+  "annotations": "Explanatory text inside the graph to highlight values or explain how to read the chart; concise explanatory labels near data; 'Start With Gray' approach - grey context lines with colour for highlighted series.",
+  "layout": "Full-width charts 760px on web, 6.25in in PDF (3.13in half-width; 8.67in landscape tables). Small multiples: same type, shape, size and identical scales. Everything left-aligned to a common edge.",
+  "interaction": null,
+  "accessibility": "WCAG 2.0 AA contrast (4.5:1 normal text, 3:1 large text); palette swatches labelled with passing white/black text; consider hashmarks, stripes or patterns as extra encodings; alt text required for all web charts (content and function, not description); 508-compliant tables with no merged/blank cells or spanner headings. Avoid blue/pink for gender; consider ordering of race/ethnicity groups (alphabetical in example; see Do No Harm guide).",
+  "chartTypes": {
+    "preferred": ["bar/column", "paired bar", "stacked bar", "dot plot", "line", "slope", "sparklines", "area", "scatter", "bubble", "connected scatter", "heatmap", "beeswarm", "box-and-whisker", "histogram", "choropleth", "tile map", "waffle/unit chart", "treemap", "table"],
+    "discouraged": ["3-D charts", "dual-axis charts", "pie charts with 5+ slices", "bar charts with non-zero baselines", "charts with 7+ categories"],
+    "notes": "Consider text, a big aggregate number or a table instead of a chart when appropriate."
+  },
+  "distinctiveRules": [
+    { "rule": "Left-align all elements: title, subtitle, legend, y-axis title, source and notes share the same left edge.", "source": "https://urbaninstitute.github.io/graphics-styleguide/img/chart-typography-and-layout-2024-web.png", "quote": "Left-align all elements" },
+    { "rule": "Title in Lato Black 20px, title case; subtitle Lato Italic 16px, sentence case; everything inside the plot in sentence case.", "source": "https://urbaninstitute.github.io/graphics-styleguide/", "quote": "Title Lato Black ... 20px; Subtitle Lato Italic ... Sentence ... 16px" },
+    { "rule": "Horizontal gridlines only, solid #DEDDDD, 1px.", "source": "https://urbaninstitute.github.io/graphics-styleguide/img/chart-typography-and-layout-2024-web.png", "quote": "Horizontal gridlines Solid #DEDDDD width: 1px" },
+    { "rule": "Y-axis line invisible with no tick marks; x-axis line solid black 1pt with outside major ticks and no minor ticks.", "source": "https://urbaninstitute.github.io/graphics-styleguide/img/chart-typography-and-layout-2024-web.png", "quote": "Y-axis line should not be visible, Major tick marks: None ... X-axis line Solid #000000 weight: 1pt Major tick marks: Outside" },
+    { "rule": "Y-axis title is italic 12px, horizontal, sitting above the y-axis labels at top-left; x-axis title italic, centred below the axis.", "source": "https://urbaninstitute.github.io/graphics-styleguide/img/chart-typography-and-layout-2024-web.png", "quote": "Y-axis title Sentence case Lato Italic 12px" },
+    { "rule": "Legend stretched horizontally across the top between subtitle and y-axis title, no legend title, order mirroring the data; direct labels preferred.", "source": "https://urbaninstitute.github.io/graphics-styleguide/", "quote": "Stretch legends across the top of the chart between the title/subtitle and y-axis label." },
+    { "rule": "Source and Notes lines bottom-left at 11px with the words 'Source' and 'Notes' in bold.", "source": "https://urbaninstitute.github.io/graphics-styleguide/img/chart-typography-and-layout-2024-web.png", "quote": "Bold the words “Source” and “Notes,” as well as any statistical significance notes." },
+    { "rule": "URBAN INSTITUTE tagline bottom-right on web charts: Lato Bold 9pt small caps, letter-spaced, 'URBAN' in #1696D2 and 'INSTITUTE' in black.", "source": "https://urbaninstitute.github.io/graphics-styleguide/", "quote": "Urban charts posted on the web also include an Urban tagline/logo in the lower-right corner" },
+    { "rule": "Cyan #1696D2 is the default single-series colour; highlight one category in yellow #FDBF11 (or black for an 'Overall' bar); yellow and magenta used sparingly for highlighting.", "source": "https://urbaninstitute.github.io/graphics-styleguide/", "quote": "yellow and magenta should be used sparingly; these colors are best for highlighting purposes" },
+    { "rule": "Bar width about twice the gap between bars; bars always start at zero; when bars carry data labels at their ends, drop gridlines and value-axis labels.", "source": "https://urbaninstitute.github.io/graphics-styleguide/", "quote": "The width of the bars should be about twice the width of the space between the bars ... Urban style is to omit y-axis labels and gridlines" },
+    { "rule": "Horizontal bar category labels right-aligned and vertically centred on the bar.", "source": "https://urbaninstitute.github.io/graphics-styleguide/", "quote": "right-align the category labels and center them vertically" },
+    { "rule": "Fewer than seven categories; pies fewer than 5 slices; avoid dual axes and 3-D.", "source": "https://urbaninstitute.github.io/graphics-styleguide/", "quote": "our standard is to keep the number of categories in any graph to fewer than seven" },
+    { "rule": "Figure number above the title in ALL CAPS Lato Regular 11px, colour #0A4B69.", "source": "https://urbaninstitute.github.io/graphics-styleguide/", "quote": "Figure number Lato Regular #0A4B69 ... ALL CAPS ... 11px" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/urban-institute/chart-typography-and-layout-2024-web.png", "url": "https://urbaninstitute.github.io/graphics-styleguide/img/chart-typography-and-layout-2024-web.png", "describes": "Annotated web chart template, 760px wide. Title top-left in Lato 20px (shown regular weight in the wireframe), italic 16px subtitle below, legend row with short thick line swatches (yellow 'Black, non-Hispanic', black 'White, non-Hispanic') in 14px. Y-axis title 'Tax programs' in italic 12px sitting horizontally above the y labels at the left edge. Five light grey (#DEDDDD 1px) horizontal gridlines; y labels left of the grid; no y-axis line or ticks. Black 1pt x-axis line with outside tick marks and 12px labels; italic x-axis title centred below. A pink dashed guide marks a single left alignment edge. Bottom-left 'Source:' and 'Notes:' paragraphs in 11px with bold lead-ins; 'URBAN · INSTITUTE' letter-spaced tagline bottom-right with URBAN in blue." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/urban-institute/bar-chart.png", "url": "https://urbaninstitute.github.io/graphics-styleguide/img/bar-chart.png", "describes": "Horizontal bar chart 'State and Local Direct General Expenditures' - title bold/black, left-aligned, title case; subtitle regular (not italic here) 'Share of total, by functional category, fiscal year 2021'. Bars cyan #1696D2 sorted descending, one bar highlighted in yellow #FDBF11. Category labels right-aligned to a thin black vertical baseline; no gridlines, no value axis; data labels in dark grey just past bar ends (23.4%). Bar thickness roughly twice the gaps. Bottom-left 'Source:' and 'Note:' with bold lead-ins; 'URBAN INSTITUTE' tagline bottom-right with URBAN in cyan, letter-spaced caps." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/urban-institute/LineChart.png", "url": "https://urbaninstitute.github.io/graphics-styleguide/img/LineChart.png", "describes": "Line chart with a long bold title-case headline stating the finding, regular subtitle with units ('Outstanding loans in billions of dollars'). Legend across the top, centred-left, with line+hollow-circle swatches; series cyan, black, light grey, yellow, each with white-filled circle markers. Light grey horizontal gridlines, y labels left with $ and commas ($1,400), no y axis line; black x-axis line with outside ticks and two-year labels. Source/Note bottom-left with bold lead-ins, URBAN INSTITUTE tagline bottom-right." }
+  ]
+}

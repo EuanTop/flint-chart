@@ -1,0 +1,119 @@
+{
+  "id": "sonos",
+  "org": "Sonos — Data visualisation guidelines (by Agency SR)",
+  "urls": [
+    "https://www.agencysr.co.uk/works/data-visualisation-guidelines",
+    "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/6435480c79996525df94b7d0_SR_Works_Sonos_Spreads_1.jpg",
+    "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/64354827bcb5604b7fedb6ea_SR_Works_Sonos_Spreads_2.jpg",
+    "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/6435482743537823800cb86b_SR_Works_Sonos_Spreads_4.jpg",
+    "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/643548275286f3cb3027b7dc_SR_Works_Sonos_Spreads_5.jpg",
+    "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/643548275efcf23acdd324c4_SR_Works_Sonos_Spreads_6.jpg",
+    "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/643548277999655cc594b9b5_SR_Works_Sonos_Spreads_7.jpg",
+    "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/64354827b29d15158cbb10e8_SR_Works_Sonos_Spreads_8.jpg",
+    "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/64354827aa83860fa5838a6a_SR_Works_Sonos_Spreads_9.jpg",
+    "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/6435482768eeb87115fd6d65_SR_Works_Sonos_Spreads_10.jpg",
+    "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/643548274f3694d7a9ab06d5_SR_Works_Sonos_Spreads_11.jpg",
+    "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/6435484c20509a5c2f801b8f_SR_Works_Sonos_iPad-single_2.jpg",
+    "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/6435484cb29d15ec31bb15a2_SR_Works_Sonos_iPad-single_3.jpg"
+  ],
+  "access": "partial",
+  "accessNotes": "The guideline document itself is not public. Agency SR's case-study page has only a short description; all specifics were read visually from 1920×1080 mock-up photos of ~12 guideline spreads (pages 15–16, 21–22, 33–34, 47, 52, 54, 62, 67, 69, 71, 75, 104–105). Secondary palette hex values were read from a zoomed crop of page 15. The primary palette page, typography page and axis/number-format pages were not shown, so fonts and sizes are inferred from appearance only.",
+  "summary": "Brand/infographic data-design system for Sonos presentations and partner agencies: stark white (or reversed black) pages, SONOS wordmark top-left, huge bold black sans 'Chart title' set inside the graphic, and saturated flat colour fields of coral red, teal green and ultramarine blue plus black. Charts are 'hero data' graphics — fan/radial bars, full-bleed stacked bars, bubble clusters, treemaps and layered areas — with Regular-weight labels and Bold values, circular legend swatches and dotted/dashed axes.",
+  "context": "brand",
+  "colors": {
+    "categorical": ["#FD4F57", "#00948E", "#2B2AA8", "#000000"],
+    "categoricalNotes": "Secondary palette ('introduced when there are multiple categories and when incorporating data from brand competitors'): Red #FD4F57, Green #00948E, Blue #2B2AA8, each with 80/60/40/20% tints. Examples consistently use red, green (teal), blue and black/dark grey as the series set. Black as fourth series is observed, not a stated hex. Patterns (Hatch, Dotted, Waves) are used before adding another colour.",
+    "sequential": ["#2B2AA8", "#5555B9", "#807FCB", "#AAAADC", "#D5D4EE"],
+    "diverging": [],
+    "highlight": "#FD4F57",
+    "context": null,
+    "positive": null,
+    "negative": null,
+    "background": "#FFFFFF",
+    "text": "#000000",
+    "textSecondary": null,
+    "gridline": null,
+    "axis": null,
+    "notes": "Tint ramps from page 15: Red 80% #FD7279, 60% #FE959A, 40% #FEB9BC, 20% #FFDCDD; Green 80% #33A9A5, 60% #66BFBB, 40% #99D4D2, 20% #CCEAE8; Blue 80% #5555B9, 60% #807FCB, 40% #AAAADC, 20% #D5D4EE (sequential above = Blue ramp). Primary palette page not visible. All charts have a reversed dark/black-background version (icons and dashboards shown both ways). Background and text colours are observed (white page, black type), not stated hex."
+  },
+  "typography": {
+    "family": "Neo-grotesque sans (Helvetica/Neue Haas-like in the spreads; not named in visible pages)",
+    "fallback": null,
+    "title": { "size": null, "weight": "bold", "align": "left", "case": "title", "color": "#000000" },
+    "subtitle": { "size": null, "weight": "regular", "style": "normal", "color": "#000000" },
+    "axisLabel": { "size": null, "color": null },
+    "axisTitle": { "size": null, "weight": "regular", "placement": "small rotated title beside the axis in fan chart; usually omitted" },
+    "dataLabel": { "size": null, "weight": "bold for values, regular for labels" },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "Consistent two-weight system: category labels in 'Regular', values in 'Bold'. Value label point size scales with the size of the section/segment it sits in (large stacked bar, treemap). Horizontal axis increments in Bold (area graph); vertical axis labels in Regular. Page header: chart-type name in bold with 'hero data' in regular beneath, beside the SONOS wordmark."
+  },
+  "structure": {
+    "gridlines": "Dotted (area graph) or dashed (stacked area) horizontal value-axis lines stretching the width of the graph; dotted concentric circular axes on fan charts.",
+    "axisLine": "No solid axis lines; bars/areas sit on a baseline at the start of bars.",
+    "ticks": "White vertical line markers at each horizontal-axis increment, running up to the highest value (stacked area).",
+    "zeroLine": null,
+    "yAxisPlacement": "left",
+    "yAxisTitle": "omitted",
+    "unitPlacement": null,
+    "frame": "none; charts often bleed to page edges ('Graph scaled to the full dimensions of the page').",
+    "background": "white page (reversed black version available)",
+    "notes": "Where data overlaps the axis, axis labels can be reversed out in white. Horizontal-axis labels sit to the right of their marker except the last, which aligns left."
+  },
+  "legend": {
+    "placement": "under the chart title (fan, donut) or top-right / aligned to the top line of the vertical axis (area charts)",
+    "directLabels": "Bubbles, treemap tiles, large stacked bars and radial bars carry label + value directly.",
+    "title": "not shown",
+    "swatchShape": "circle",
+    "notes": "Legend text Regular weight with circular swatches; where colours overlap, legend swatches can use Multiply blending."
+  },
+  "marks": {
+    "bars": "Large stacked bar: no gap between sections, scaled to full page. Fan/radial bars: large gap between bars and sections, ranked in order of size. Don't use stacked bars with more than six data sets.",
+    "lines": null,
+    "areas": "Flat opaque fills layered so the series with the lowest first value is in front; thin white lines drawn on top of each area to show overlaps; coloured circular markers (white outline) at each data point.",
+    "points": "Coloured circular markers with white stroke on area vertices.",
+    "pies": "Multiple (nested) donut rings allowed for multi-category part-to-whole; values bold inside the top of each section; large gaps between rings; pies used in dashboards with leader-line labels.",
+    "notes": "Bubble clusters with no gap, arranged large to small; treemap with white gaps between tiles, label/value bottom-left."
+  },
+  "labels": {
+    "dataLabels": "Label (Regular) + value (Bold) inside the mark, at bottom-left (treemap, stacked bar), centre (bubble), base of bar (radial bar) or outside top of bar (fan).",
+    "numberFormat": null,
+    "dates": "Placeholder 'Time 01', 'Time 02' on horizontal axis, bold.",
+    "notes": "Fan-chart labels rotate with the bar angle once it passes 90°."
+  },
+  "furniture": {
+    "title": "Very large bold 'Chart title' set within the graphic, left-aligned to the start of the bars / outermost axis line / top-left of graph.",
+    "source": null,
+    "logo": "SONOS wordmark top-left of every page/graphic; top-right in dashboard examples.",
+    "other": "Page header rule with section name, 'Data visualization guidelines' and page number; layouts on a 9-column × 5-row grid for screen and 9 × 9 for print, with zones for titles (black), hero data (blue), secondary data (green) and body text (red). Line icon set (outline icons, also reversed)."
+  },
+  "annotations": null,
+  "layout": "Screen grid 9 columns × 5 rows; print grid 9 × 9. Charts can be full-width for maximum impact or sized to fit with other content. 'Hero data' graphics fill most of the page.",
+  "interaction": null,
+  "accessibility": "Three pattern fills (hatch, dotted, waves) support the palette and differentiate categories; consider a pattern before adding a colour.",
+  "chartTypes": {
+    "preferred": ["large stacked bar", "stacked fan bar", "radial bar", "multiple donut", "area", "stacked area", "bubble cluster", "treemap", "pie"],
+    "discouraged": ["fan/radial charts when a precise comparison is needed", "stacked bars with >6 data sets", "bubbles/treemaps for marginal differences"],
+    "notes": "Each chart page lists Pros / Cons / Do / Don't and offers Adobe Illustrator and PowerPoint templates."
+  },
+  "distinctiveRules": [
+    { "rule": "Series colours are coral red #FD4F57, teal green #00948E and ultramarine blue #2B2AA8 (plus black), each with 80/60/40/20% tints.", "source": "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/64354827bcb5604b7fedb6ea_SR_Works_Sonos_Spreads_2.jpg", "quote": "Red ... Hex: #FD4F57; Green ... Hex: #00948E; Blue ... Hex: #2B2AA8" },
+    { "rule": "Labels in Regular weight, values in Bold weight, consistently across chart types.", "source": "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/6435482768eeb87115fd6d65_SR_Works_Sonos_Spreads_10.jpg", "quote": "Bubble label and value aligned to the center of each bubble. The label should be set in 'Regular' weight with the value in 'Bold'" },
+    { "rule": "Huge bold 'Chart title' placed inside the graphic, left-aligned to the start of the bars/outermost axis.", "source": "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/643548275efcf23acdd324c4_SR_Works_Sonos_Spreads_6.jpg", "quote": "Chart title aligned to the start of the bars" },
+    { "rule": "Legend uses circular swatches with Regular-weight text, placed directly under the title (or aligned to the top line of the vertical axis).", "source": "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/6435480c79996525df94b7d0_SR_Works_Sonos_Spreads_1.jpg", "quote": "Legend for sections set in 'Regular' weight with circular swatches aligned underneath the title" },
+    { "rule": "Value axes are dotted/dashed lines spanning the graph width with Regular labels; x increments in Bold.", "source": "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/64354827b29d15158cbb10e8_SR_Works_Sonos_Spreads_8.jpg", "quote": "Dotted line vertical axis stretching the width of the graph. Axis labels set in 'Regular' ... Horizontal axis increments labeled at the bottom of the graph in 'Bold' weight" },
+    { "rule": "Area series layered with lowest first value in front; thin white lines on top of each area and coloured circular markers at each point.", "source": "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/64354827b29d15158cbb10e8_SR_Works_Sonos_Spreads_8.jpg", "quote": "White lines on top of each colored area to show where data overlaps" },
+    { "rule": "Large stacked bar: no gap between sections, scaled to the full page, label bottom-left with value size proportional to the section.", "source": "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/643548275286f3cb3027b7dc_SR_Works_Sonos_Spreads_5.jpg", "quote": "No gap between sections ... Graph scaled to the full dimensions of the page" },
+    { "rule": "Fan and radial bars: large gaps between bars, ranked by size; labels rotate as the bar angle passes 90°.", "source": "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/6435480c79996525df94b7d0_SR_Works_Sonos_Spreads_1.jpg", "quote": "Rotation of labels should change as the angle of the bar passes 90°" },
+    { "rule": "Treemap tiles separated by white gaps; label and value at bottom-left of each tile, size relative to tile.", "source": "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/643548274f3694d7a9ab06d5_SR_Works_Sonos_Spreads_11.jpg", "quote": "Label and value aligned to the bottom left of each segment" },
+    { "rule": "Bubbles clustered large-to-small with no gap between them.", "source": "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/6435482768eeb87115fd6d65_SR_Works_Sonos_Spreads_10.jpg", "quote": "No gap between bubbles" },
+    { "rule": "SONOS wordmark at top-left of every graphic with chart-type name in bold beside it.", "source": "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/6435480c79996525df94b7d0_SR_Works_Sonos_Spreads_1.jpg", "quote": "Observed on all spreads." },
+    { "rule": "Every chart has both a white and a reversed black-background version.", "source": "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/6435484c20509a5c2f801b8f_SR_Works_Sonos_iPad-single_2.jpg", "quote": "Print application example shows light and dark Listenership dashboards." },
+    { "rule": "Use hatch, dotted or wave pattern fills before adding another colour.", "source": "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/64354827bcb5604b7fedb6ea_SR_Works_Sonos_Spreads_2.jpg", "quote": "Before using an additional color, consider if a pattern fill would instead be best suited." },
+    { "rule": "Layouts sit on a 9-column × 5-row grid (screen) or 9 × 9 (print).", "source": "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/6435482743537823800cb86b_SR_Works_Sonos_Spreads_4.jpg", "quote": "A 9 column by 5 row grid for screen use and 9 column by 9 row for print" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/sonos/Spreads_9.jpg", "url": "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/64354827aa83860fa5838a6a_SR_Works_Sonos_Spreads_9.jpg", "describes": "Stacked area graph spread (p.69). Left page: SONOS wordmark top-left, bold 'Stacked area graph' + regular 'hero data'. Full-bleed smooth stacked areas in ultramarine blue (bottom), teal and coral red (top), flat fills. Thin white vertical markers at each 'Time 01–06' increment running up to the top value; small circular markers with white outline at each data point and tiny 'xx' value labels; short left tick labels 0–100; bold white x labels inside the blue area. Legend of circle swatches top-right ('Group 01–03'). Right page: Pros/Cons/Do/Don't columns and numbered annotations." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/sonos/Spreads_1.jpg", "url": "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/6435480c79996525df94b7d0_SR_Works_Sonos_Spreads_1.jpg", "describes": "Stacked fan bar chart (p.52): wedge-shaped radial stacked bars in blue (inner), teal and coral red (outer) radiating from a small white hub, white separators between wedges, faint dotted concentric circular axes, small rotated labels outside each bar. Large bold black 'Chart title' left of the fan with a Regular-weight circle-swatch legend (Group 01–03) directly beneath. Tiny vertical 0–100 scale with rotated 'Axis title'." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/sonos/iPad-single_2.jpg", "url": "https://cdn.prod.website-files.com/63f7b37a54bcadeb3d0ff55c/6435484c20509a5c2f801b8f_SR_Works_Sonos_iPad-single_2.jpg", "describes": "Print application example (p.104): two 'Listenership dashboard' posters, white and black versions. Bold two-line title top-left under a thin rule, small SONOS wordmark top-right. Row of three pies (coral red dominant with teal and blue slices) with thin leader lines to small coloured labels. Red hourglass icon with '% of total daily streams'. Large coral-red area chart with small white-ringed point markers, thin horizontal gridlines, tiny axis labels; area bleeds to the edges." }
+  ]
+}

@@ -1,0 +1,202 @@
+{
+  "id": "monash-climate",
+  "org": "Monash Climate Change Communication Research Hub (MCCCRH)",
+  "urls": [
+    "https://apo.org.au/node/314650",
+    "https://apo.org.au/sites/default/files/resource-files/2021-04/apo-nid314650.pdf",
+    "https://www.monash.edu/monashclicomm/publications/reports/best-practice-data-visualisation-guidelines-and-case-study"
+  ],
+  "access": "full",
+  "accessNotes": "APO is behind a Cloudflare challenge for curl; the 26-page PDF 'Best practice data visualisation: guidelines and case study' (Painter, Zwar, Carino, Kermonde, April 2021) was fetched through a browser session and text-extracted with pypdf; figures rendered with PyMuPDF. The guide is a short student/academic report (guidelines on pp.5–6, case study pp.7–12, iteration notes Appendix C), so many theme parameters (sizes, palettes) are not specified; chart colours were sampled from the embedded case-study figure images.",
+  "summary": "Research-based guidelines for climate-change graphics aimed at broad Australian audiences (news, print, TV). The look is minimal and message-led: a headline title that states the finding, Helvetica, white/plain background, horizontal gridlines only, grey context points with a single bold colour (turquoise-green) carrying the key message, units on tick labels, and direct labels instead of legends.",
+  "context": "academic",
+  "colors": {
+    "categorical": [],
+    "categoricalNotes": "No fixed categorical palette. Rules: use contrasting colours to differentiate categories; adjacent colours high contrast; avoid red/black, light-blue/purple, yellow-green/light grey, brown/green pairs (Fig.1, typical vision) and yellow/green, red/green pairs (Fig.2, colour blindness); avoid very bright and very dim colours; avoid yellow in background or non-focus aspects. Use colour sparingly to highlight the key message.",
+    "sequential": [
+      "#954c22",
+      "#be612f",
+      "#c06632",
+      "#dfb18d",
+      "#efd8bf"
+    ],
+    "diverging": [],
+    "highlight": "#61c3a5",
+    "context": "#b5b5b8",
+    "positive": "#25b683",
+    "negative": null,
+    "background": "#ffffff",
+    "text": "#000000",
+    "textSecondary": null,
+    "gridline": null,
+    "axis": null,
+    "notes": "Sequential guidance: 'Use varied intensity (brightness rather than hue) to indicate size of values (i.e., use colours within a horizontal line in fig. 3–4)'. Fig.3 'warm colours' rows (dark→light), e.g. gold #b89f39,#d7bb41,#f5d64b,#f5e69d,#f8eecb; orange #954c22,#be612f,#c06632,#dfb18d,#efd8bf; red #8c2028,#b52b36,#d73642,#e49788,#f0c8bc; plum #64195a,#7e2276,#973184,#be90bb,#dbc3cf. Fig.4 'cool colours': lime #728935..#e7eace; green #3a783c,#458c46,#49944d,#a7cb9f,#d0e2cc; teal #357477,#428e8f,#4c9ea5,#8bc0cc,#c3ddde; blue #2f6097,#2e5f95,#3771a9,#83a5c6,#bdcbdb; navy #1f3a71,#274c8b,#2a5a9f,#8296be,#c6c8db; violet #35145e,#482676,#563286,#9785b4,#bfb8ca (sampled from vector swatches in the PDF). Colour associations: high temperature warm (red), low temperature blue; traffic light red=danger, amber=caution, green=safe. Case study: turquoise-green trend line (sampled #61c3a5) chosen to align with MCCCRH/ACF palettes and red-green colour-blind safety; grey scatter points (~#b5b5b8); icons #25b683/#8fd1ba. Report states a 'solid, white background' was selected, though the printed figures sit on a very light grey panel (~#f5f5f6). Orange was trialled for heating 'without catastrophising'."
+  },
+  "typography": {
+    "family": "Helvetica",
+    "fallback": null,
+    "title": {
+      "size": null,
+      "weight": "bold",
+      "align": "center",
+      "case": "sentence",
+      "color": "#000000"
+    },
+    "subtitle": {
+      "size": null,
+      "weight": null,
+      "style": null,
+      "color": null
+    },
+    "axisLabel": {
+      "size": null,
+      "color": "grey"
+    },
+    "axisTitle": {
+      "size": null,
+      "weight": "regular",
+      "placement": "y title rotated vertical left; x title centred below"
+    },
+    "dataLabel": {
+      "size": null,
+      "weight": null
+    },
+    "source": {
+      "size": null,
+      "style": null,
+      "color": null
+    },
+    "notes": "'Helvetica typeface was employed as it is aligned with Monash University branding.' Heading bolder than axis titles. Plain language, no jargon in labels (e.g. 'Urban heating' not 'UHI'), simple sentences. Title is a sentence-case statement ('Tree coverage reduces urban heating effect')."
+  },
+  "structure": {
+    "gridlines": "Horizontal only, thin light grey; vertical gridlines removed.",
+    "axisLine": "Solid x-axis line removed (Appendix C); no y-axis line.",
+    "ticks": "No tick marks; minimal number of increments.",
+    "zeroLine": "No; y range minimised to accentuate gradient (non-zero baseline acceptable for scatter/trend).",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "rotated, left of axis, plain-language label",
+    "unitPlacement": "Units on every tick label (12°C, 10°C; 5%, 10%) so axis titles can be simple",
+    "frame": "none (figures sit in a light-grey panel in the report)",
+    "background": "solid white per text (light grey panel in printed figures)",
+    "notes": "Same y range across side-by-side small multiples for comparison. 2D only."
+  },
+  "legend": {
+    "placement": "none",
+    "directLabels": "Preferred: 'Avoid legends if direct labels are possible'; or embed legend in title with colour-coded words.",
+    "title": null,
+    "swatchShape": null,
+    "notes": "Icons (trees/shrubs) at the ends of the x axis act as pictorial anchors instead of a legend."
+  },
+  "marks": {
+    "bars": "Bar or line charts preferred generally.",
+    "lines": "Key trend line thick and coloured; data points not connected.",
+    "areas": null,
+    "points": "Small grey, unconnected scatter points to keep focus on the trend.",
+    "pies": null,
+    "notes": "Gradient on trend line rejected as adding complexity; no 3D."
+  },
+  "labels": {
+    "dataLabels": "Not printed; values revealed via rollover tooltip.",
+    "numberFormat": "Units inline on ticks: °C, %; tooltip values to 2 decimals (20.91%, 7.03°C).",
+    "dates": null,
+    "notes": "Plain language, no idioms or jargon."
+  },
+  "furniture": {
+    "title": "Headline states the message/finding ('Tree coverage reduces urban heating effect'), bold, centred above the plot; bolder than axis titles.",
+    "source": null,
+    "logo": null,
+    "other": "Report figures captioned below as 'FIGURE n. italic description' in small caps-spaced label."
+  },
+  "annotations": "Familiar greyscale/green icons (trees, shrubs) placed at low and high ends of the x axis to depict the change; fewer, simpler icons so they don't distract from the trend.",
+  "layout": "Simple, consistent, linear, logical layout; side-by-side panels with shared y range for comparison; check readability on a mobile phone screen.",
+  "interaction": "Rollover/tap on a data point shows a white rectangular tooltip with bold place name and detail lines ('Maroondah / Tree Coverage: 20.91% / UH: 7.03°C').",
+  "accessibility": "Test in colour-blindness simulators; turquoise-green chosen for red-green CVD; single high-contrast simple palette helps low vision/autism; title readable by text-to-speech; consider sonification and subtitles/transcripts for audio.",
+  "chartTypes": {
+    "preferred": [
+      "bar",
+      "line",
+      "scatter with trend line"
+    ],
+    "discouraged": [
+      "maps for general audiences",
+      "3D",
+      "reversed axes",
+      "gradient-coloured lines"
+    ],
+    "notes": "Use familiar chart types and common colour coding."
+  },
+  "distinctiveRules": [
+    {
+      "rule": "Title is a bold sentence that states the finding, centred above the chart, bolder than axis titles.",
+      "source": "https://apo.org.au/sites/default/files/resource-files/2021-04/apo-nid314650.pdf",
+      "quote": "The title ‘Tree Coverage Reduces Urban Heating’ states the relationship ... Bolder heading than axes titles is effective"
+    },
+    {
+      "rule": "One saturated colour only, on the key-message mark (thick turquoise-green trend line); all other data points small and light grey.",
+      "source": "https://apo.org.au/sites/default/files/resource-files/2021-04/apo-nid314650.pdf",
+      "quote": "The trend line is the primary coloured item ... Grey was used for all the scatter points"
+    },
+    {
+      "rule": "Remove vertical gridlines and the solid x-axis line; keep thin horizontal gridlines only.",
+      "source": "https://apo.org.au/sites/default/files/resource-files/2021-04/apo-nid314650.pdf",
+      "quote": "Remove solid x-axis line · Remove vertical grid-lines"
+    },
+    {
+      "rule": "Put the unit on every tick label (°C, %) and keep axis titles short plain-language words.",
+      "source": "https://apo.org.au/sites/default/files/resource-files/2021-04/apo-nid314650.pdf",
+      "quote": "Place unit values on axis markers ... accompanied by their unit of measurement ... to simplify the axes titles"
+    },
+    {
+      "rule": "Few axis increments to reduce clutter; y range minimised to accentuate the slope.",
+      "source": "https://apo.org.au/sites/default/files/resource-files/2021-04/apo-nid314650.pdf",
+      "quote": "Increments on the axes were minimised to decrease clutter ... vertical axes ranges were minimised"
+    },
+    {
+      "rule": "No legend when direct labels are possible; alternatively colour-code words in the title as the legend.",
+      "source": "https://apo.org.au/sites/default/files/resource-files/2021-04/apo-nid314650.pdf",
+      "quote": "Avoid legends if direct lables are possible · Try to embed the legend into the chart title with color coding"
+    },
+    {
+      "rule": "Helvetica throughout (Monash branding).",
+      "source": "https://apo.org.au/sites/default/files/resource-files/2021-04/apo-nid314650.pdf",
+      "quote": "Helvetica typeface was employed as it is aligned with Monash University branding"
+    },
+    {
+      "rule": "Never use yellow for backgrounds or non-focus elements; avoid very bright or very dim colours.",
+      "source": "https://apo.org.au/sites/default/files/resource-files/2021-04/apo-nid314650.pdf",
+      "quote": "Avoid yellow in background or non-focus aspects · Avoid very bright and very dim colours"
+    },
+    {
+      "rule": "Encode magnitude with lightness of one hue, not with different hues; warm hues for heat, blues for cold, traffic-light semantics.",
+      "source": "https://apo.org.au/sites/default/files/resource-files/2021-04/apo-nid314650.pdf",
+      "quote": "Use varied intensity (brightness rather than hue) to indicate size of values"
+    },
+    {
+      "rule": "Solid plain background with no gradients, 3D or decorative effects.",
+      "source": "https://apo.org.au/sites/default/files/resource-files/2021-04/apo-nid314650.pdf",
+      "quote": "A solid, white background was selected ... Gradient concept rejected as it increased complexity"
+    },
+    {
+      "rule": "Prefer bar or line charts; keep layout simple, consistent, linear, logical.",
+      "source": "https://apo.org.au/sites/default/files/resource-files/2021-04/apo-nid314650.pdf",
+      "quote": "Prefer the use of bar or line charts · Keep it: simple, consistent, linear, logical"
+    }
+  ],
+  "referenceImages": [
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/monash-climate/page-08.png",
+      "url": "https://apo.org.au/sites/default/files/resource-files/2021-04/apo-nid314650.pdf#page=8",
+      "describes": "Report page 8 with Figures 5–6: two scatter-plus-trend charts on very light grey panels. Bold black centred Helvetica headline 'Shrub coverage reduces urban heating effect' / 'Tree coverage reduces urban heating effect'. Thin light-grey horizontal gridlines only, no axis lines or ticks; small grey tick labels with units on every tick (4°C…12°C; 2%…9% / 5%…30%). Rotated y-title 'Urban heating', x-title below centred, regular weight black. Small light-grey unconnected scatter dots; one thick (~5px) turquoise-green (#61c3a5) linear trend line. Green tree/shrub icons at left (small) and right (large cluster) ends of x axis. No legend, no source, captions 'FIGURE 5.' below in small spaced caps + italic."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/monash-climate/page-12.png",
+      "url": "https://apo.org.au/sites/default/files/resource-files/2021-04/apo-nid314650.pdf#page=12",
+      "describes": "Page 12 with Figure 10 rollover example: same tree-coverage chart with greyscale/light-green icons and a white rectangular tooltip outlined thinly, containing bold 'Maroondah' then 'Tree Coverage: 20.91%' and 'UH: 7.03°C' in regular black text, anchored at a data point on the trend."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/monash-climate/page-05.png",
+      "url": "https://apo.org.au/sites/default/files/resource-files/2021-04/apo-nid314650.pdf#page=5",
+      "describes": "Guidelines page: two-column bullet lists under blue section headings (Message, Layout, Language, Colour). Bottom shows donut-swatch pairs to avoid (red/black, light blue/purple, yellow-green/grey, brown/green; yellow/green and red/green for colour blindness) and two grids of 5-step lightness ramps: warm (gold, amber, orange, red, plum) and cool (lime, green, teal, blue, navy, violet)."
+    }
+  ]
+}

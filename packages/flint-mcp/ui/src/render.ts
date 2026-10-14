@@ -7,7 +7,7 @@
  * the chart re-renders instantly as the user edits options. No server round
  * trip, no data leaving the host.
  */
-import { assembleVegaLite, injectCanvasFurnitureSVG, readCanvasFurniture, resolveThemeSpec } from 'flint-chart';
+import { assembleVegaLite, injectCanvasFurnitureSVG, placeCanvasFurniture, readCanvasFurniture, readCanvasPatterns, resolveThemeSpec } from 'flint-chart';
 import type { ChartAssemblyInput } from 'flint-chart';
 import { compile } from 'vega-lite';
 import { parse, View, Error as VegaError } from 'vega';
@@ -180,13 +180,44 @@ export async function renderFlintSvg(
   // markup, the PNG by drawing straight onto the same view's canvas at the
   // scale it was rasterised at.
   const furniture = readCanvasFurniture(vlSpec);
-  const svg = injectCanvasFurnitureSVG(rawSvg, furniture);
-  if (furniture.length) {
+  const patterns = readCanvasPatterns(vlSpec);
+  const svg = injectCanvasFurnitureSVG(rawSvg, furniture, patterns);
+  if (patterns.length) {
+    // A canvas cannot draw a pattern fill: the PNG is rasterised from the finished SVG instead.
+    const ctx = canvas.getContext('2d') as CanvasRenderingContext2D | null;
+    const image = new Image();
+    image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    await image.decode().catch(() => undefined);
+    if (ctx && image.complete && image.naturalWidth) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    }
+  }
+  if (furniture.length && !patterns.length) {
     const ctx = canvas.getContext('2d') as CanvasRenderingContext2D | null;
     if (ctx) {
+      // Placed against the canvas's own width, as in the SVG: a rule on the top edge runs edge to edge.
+      const width = canvas.width / pngScale;
+      const height = canvas.height / pngScale;
       for (const item of furniture) {
-        ctx.fillStyle = item.color;
-        ctx.fillRect(item.x * pngScale, item.y * pngScale, item.width * pngScale, item.height * pngScale);
+        const box = placeCanvasFurniture(item, width, height);
+        if (item.text !== undefined) {
+          const size = item.fontSize ?? 11;
+          const end = item.left === undefined && item.x === undefined && item.right !== undefined;
+          ctx.font = `${item.fontStyle ?? 'normal'} ${item.fontWeight ?? 'normal'} ${size * pngScale}px ${item.font ?? 'sans-serif'}`;
+          ctx.fillStyle = item.color ?? '#000000';
+          ctx.textAlign = item.center ? 'center' : end ? 'right' : 'left';
+          const x = item.center ? ((item.left ?? 0) + width - (item.right ?? 0)) / 2 : end ? width - (item.right ?? 0) : box.x;
+          ctx.fillText(item.text, x * pngScale, (box.y + size * 0.82) * pngScale);
+        } else if (item.src) {
+          const image = new Image();
+          image.src = item.src;
+          await image.decode().catch(() => undefined);
+          if (image.complete && image.naturalWidth) ctx.drawImage(image, box.x * pngScale, box.y * pngScale, box.width * pngScale, box.height * pngScale);
+        } else {
+          ctx.fillStyle = item.color ?? '#000000';
+          ctx.fillRect(box.x * pngScale, box.y * pngScale, box.width * pngScale, box.height * pngScale);
+        }
       }
     }
   }

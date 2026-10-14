@@ -41,6 +41,7 @@ interface SemanticAnnotation {
   intrinsicDomain?: [number, number];  // e.g. Rating [1, 5]
   unit?: string;                        // e.g. USD, °C
   sortOrder?: string[];                 // custom ordinal order
+  colors?: Record<string, string>;      // 绑定到取值的颜色，如 { DFL: "#0793AB" }
 }
 ```
 
@@ -155,7 +156,9 @@ interface InteractionSpec {
 | `encodings` | 通道 → 编码映射 |
 | `baseSize` | **目标**布局尺寸（像素，默认 400×320）：典型数据下图表瞄准的尺寸。密集数据可能超出，直至上限。 |
 | `canvasSize` | **硬上限：** 图表可达到的最大尺寸，含分面网格。若省略，上限为 `baseSize × options.maxStretch`（默认 1.5×）。各维度上限为 `βx = canvasSize.width / baseSize.width`、`βy = canvasSize.height / baseSize.height`（均 ≥ 1）。基准会被钳制到上限，因此单独设置 `canvasSize` 即相当于固定框，图表会填充并缩小以适配而不溢出。 |
-| `chartProperties` | 模板特定开关（例如 `orient`、`opacity`） |
+| `chartProperties` | 模板特定开关（例如 `orient`、`opacity`），以及通用开关如 `labelOverflow`——x 轴类别名称放不下时依次尝试的步骤（默认 `["wrap", "rotate90"]`；时间、日期、年份或排名序列默认为 `["wrap", "skip", "rotate90"]`，`skip` 仅显示整值刻度；每一步都可截断） |
+| `source` | 可选。数据来源（如 `"UN World Population Prospects 2024"`，或 `{ text, href }` 以加链接），按主题的 `source` 绘制在图表底部，默认为 `type.footnote` 样式的 “Source: …”。仅在来源已知时提供；未提供则不绘制页脚。 |
+| `chrome` | 可选。不填则按主题绘制。`false` 去掉主题的页眉装饰、页脚和徽标；`{ header?, footer?, logos? }` 中设为 `false` 的一项被去掉：`header` 为标题周围的装饰，`footer` 为页脚线和来源署名，`logos` 为所有图片装饰及署名图片（署名文字保留）。图表自身的 `label` 和 `source` 文字不受影响。 |
 
 > **base 与 canvas，一句话：** `baseSize` 是图表*瞄准*的尺寸；`canvasSize` 是*绝不超过*的尺寸。固定插槽用 `canvasSize`，舒适目标且密集数据可增长用 `baseSize`。见[示例：自动布局](/playgrounds/auto-layout)。
 

@@ -1,0 +1,103 @@
+{
+  "id": "catalyst-california",
+  "org": "Catalyst California",
+  "urls": [
+    "https://www.catalystcalifornia.org/campaign-tools/publications/data-storytelling-guide",
+    "https://catalyst-ca.cdn.prismic.io/catalyst-ca/ZuI6KRoQrfVKl_vi_CatalystCaliforniaDataStorytellingGuideFinal.pdf"
+  ],
+  "access": "full",
+  "accessNotes": "The landing page only embeds the PDF; the 17-page PDF 'Data Storytelling with an Equity and People-Focused Lens' (September 2024) was downloaded and its text extracted with pypdf; example pages 10, 12, 13 (PDF pages 12, 14, 15) were rendered with ImageMagick. The guide is mostly about equity framing and process, not a formal chart spec: it gives no hex codes, font sizes or axis rules. All colours below were measured from pixels of the example charts (Catalyst purple #3a207d, grey #dedede, orange #f25922 accents), not stated by the guide.",
+  "summary": "Racial-equity research and advocacy organisation's storytelling guide. Visual guidance is minimal and principle-led: one key point per chart, findings-based people-first titles that name systems as actors, start in grayscale and add a single bold colour (in practice Catalyst deep purple) to emphasise the largest disparity, sort bars meaningfully, and strip gridlines/legends that add no meaning. Examples are clean, sans-serif report and social graphics.",
+  "context": "report",
+  "colors": {
+    "categorical": ["#3a207d", "#dedede"],
+    "categoricalNotes": "No palette defined. Rule: 'Start with a grayscale graph, then use color to emphasize. Less is more with color.' Examples use one deep purple (#3a207d, measured) for highlighted bars and light grey (#dedede, measured) for the rest; a navy/near-black (#070024, measured) single-colour bar chart appears in the RACE COUNTS example. Avoid colours, icons or shapes that reinforce stereotypes; consider colour-blind-visible colours.",
+    "sequential": [],
+    "diverging": [],
+    "highlight": "#3a207d",
+    "context": "#dedede",
+    "positive": null,
+    "negative": null,
+    "background": "#ffffff",
+    "text": "#000000",
+    "textSecondary": null,
+    "gridline": null,
+    "axis": null,
+    "notes": "Guide document itself uses purple #3a207d for section headings, orange #f25922 for tip lead-ins, and lime #ceea01 annotation callout boxes (all measured). Map example (from a partner report) uses light-to-dark blue choropleth."
+  },
+  "typography": {
+    "family": null,
+    "fallback": null,
+    "title": { "size": null, "weight": "bold (key phrase in heavier weight/colour)", "align": "left", "case": "sentence", "color": "#000000" },
+    "subtitle": { "size": null, "weight": "bold, smaller", "style": "normal", "color": null },
+    "axisLabel": { "size": null, "color": null },
+    "axisTitle": { "size": null, "weight": null, "placement": "omitted; measure stated in subtitle or as a text label inside the plot" },
+    "dataLabel": { "size": null, "weight": null },
+    "source": { "size": null, "style": "small text below the chart; survey question, notes and 'Catalyst California's calculations based on ...'", "color": null },
+    "notes": "No fonts specified. Examples use geometric/grotesque sans serifs (guide body set in Inter-like sans). Plain language, people-first terms (e.g. 'People with Disabilities'), community-preferred labels such as Latinx/Latine."
+  },
+  "structure": {
+    "gridlines": "Question them: 'Does it really need grid lines or both axis labels?' Examples keep faint light-grey gridlines parallel to the value axis (vertical for horizontal bars, horizontal for columns).",
+    "axisLine": "Examples: thin grey baseline only.",
+    "ticks": "None in examples.",
+    "zeroLine": null,
+    "yAxisPlacement": "left",
+    "yAxisTitle": "omitted; measure in subtitle or an in-plot text label",
+    "unitPlacement": "subtitle (e.g. 'Percent of people by race who ...')",
+    "frame": "none",
+    "background": "white",
+    "notes": "'Only include elements that increase understanding ... go for a clean, minimal look.'"
+  },
+  "legend": {
+    "placement": "avoid unless necessary",
+    "directLabels": "Implied; examples label bars by category and use in-plot text.",
+    "title": null,
+    "swatchShape": null,
+    "notes": "'Does every line or shape in a map need a legend?'"
+  },
+  "marks": {
+    "bars": "Simple bar charts preferred; sorted highest to lowest disparity; one highlight colour on the key bar(s), others grey. Horizontal bars for long race labels; relatively thick bars with small gaps.",
+    "lines": null,
+    "areas": null,
+    "points": null,
+    "pies": null,
+    "notes": "Separate multiple points into multiple standalone or connected graphs."
+  },
+  "labels": {
+    "dataLabels": "Key findings stated as text next to the chart (e.g. side panel: '5 times more than White people' with the number phrase in bold purple).",
+    "numberFormat": null,
+    "dates": null,
+    "notes": "Race/ethnicity abbreviations (AIAN, NHPI, SWANA) defined in a note below the chart."
+  },
+  "furniture": {
+    "title": "Findings-based, people-first headline that states the one key point and names the system as actor ('law enforcement officers stopped Black drivers', 'SDPD disproportionately targets Black people as gang members'); a smaller bold subtitle states the measure.",
+    "source": "Below the chart in small text: survey question with n, notes, abbreviation definitions, then 'Catalyst California's calculations based on ...'.",
+    "logo": null,
+    "other": "Social graphics: large headline with the key phrase in bold purple, grey rounded side panel with takeaway text."
+  },
+  "annotations": "Takeaway text in a light-grey rounded panel beside the chart, key numbers in bold purple. Name data limitations and who is missing from the data.",
+  "layout": "One key message per visual; static graphics with plain text for social media; interactive charts should offer a static download.",
+  "interaction": "RACE COUNTS example: interactive chart with a download button to save a static version.",
+  "accessibility": "Plain language at an accessible reading level; colour-blind-friendly colours; avoid stereotyping colours/icons; people-first, community-preferred labels.",
+  "chartTypes": {
+    "preferred": ["simple bar chart", "horizontal bar chart", "choropleth map"],
+    "discouraged": ["complex or novel chart types that wow rather than convey meaning"],
+    "notes": "Use graphs that are easy to read even if commonly used."
+  },
+  "distinctiveRules": [
+    { "rule": "Start every chart in grayscale and add one bold colour only to the data that carries the message (largest disparity / desired outcome).", "source": "https://catalyst-ca.cdn.prismic.io/catalyst-ca/ZuI6KRoQrfVKl_vi_CatalystCaliforniaDataStorytellingGuideFinal.pdf", "quote": "Start with a grayscale graph, then use color to emphasize. Less is more with color." },
+    { "rule": "Highlighted bars in Catalyst deep purple (#3a207d measured), all other bars light grey (#dedede measured).", "source": "https://catalyst-ca.cdn.prismic.io/catalyst-ca/ZuI6KRoQrfVKl_vi_CatalystCaliforniaDataStorytellingGuideFinal.pdf", "quote": "We started with a grayscale and only highlighted important points in purple." },
+    { "rule": "One key message per visual; split multiple points into multiple graphs.", "source": "https://catalyst-ca.cdn.prismic.io/catalyst-ca/ZuI6KRoQrfVKl_vi_CatalystCaliforniaDataStorytellingGuideFinal.pdf", "quote": "There should only be one key message per visual." },
+    { "rule": "Headline is a findings-based statement in people-first language that names the system as actor, not a topic label.", "source": "https://catalyst-ca.cdn.prismic.io/catalyst-ca/ZuI6KRoQrfVKl_vi_CatalystCaliforniaDataStorytellingGuideFinal.pdf", "quote": "\"law enforcement officers stopped Black drivers\" as opposed to \"Black drivers were stopped.\"" },
+    { "rule": "Order bars meaningfully, typically highest to lowest disparity.", "source": "https://catalyst-ca.cdn.prismic.io/catalyst-ca/ZuI6KRoQrfVKl_vi_CatalystCaliforniaDataStorytellingGuideFinal.pdf", "quote": "arrange the racial groups from highest to lowest disparity" },
+    { "rule": "Remove gridlines, second axis labels and legends unless they add meaning; aim for clean, minimal look.", "source": "https://catalyst-ca.cdn.prismic.io/catalyst-ca/ZuI6KRoQrfVKl_vi_CatalystCaliforniaDataStorytellingGuideFinal.pdf", "quote": "Does it really need grid lines or both axis labels? Does every line or shape in a map need a legend?" },
+    { "rule": "Below-chart note block lists survey question, sample size, abbreviation definitions and 'Catalyst California's calculations based on ...'.", "source": "https://catalyst-ca.cdn.prismic.io/catalyst-ca/ZuI6KRoQrfVKl_vi_CatalystCaliforniaDataStorytellingGuideFinal.pdf", "quote": "Survey Question: ... (n=...) Catalyst California's calculations based on O.U.R. LA Coalition ..." },
+    { "rule": "Headline emphasises the key phrase in a heavier weight and the highlight colour (e.g. 'targets Black people' in bold purple).", "source": "https://catalyst-ca.cdn.prismic.io/catalyst-ca/ZuI6KRoQrfVKl_vi_CatalystCaliforniaDataStorytellingGuideFinal.pdf", "quote": "SDPD disproportionately targets Black people as gang members" },
+    { "rule": "Name data limitations and who is missing from the data alongside the chart.", "source": "https://catalyst-ca.cdn.prismic.io/catalyst-ca/ZuI6KRoQrfVKl_vi_CatalystCaliforniaDataStorytellingGuideFinal.pdf", "quote": "Have we named who the data does not include and where it may fall short" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/catalyst-california/p14.png", "url": "https://catalyst-ca.cdn.prismic.io/catalyst-ca/ZuI6KRoQrfVKl_vi_CatalystCaliforniaDataStorytellingGuideFinal.pdf", "describes": "Guide page 12 example from 'Representation in LA City': horizontal bar chart with a large bold black left-aligned two-line findings headline 'BIPOC people do not feel LA City Council takes action on their needs compared to White people.' and a smaller bold subtitle 'Percent of people by race who feel LA City Council does not take action on their needs'. Seven thick deep-purple (#3a207d) bars sorted descending (Black, NHPI, Latinx, Asian, AIAN, Multiracial, White), category labels left in small grey, faint vertical grey gridlines every 5, x axis 0-60 at bottom with no axis title or line, no legend, very light off-white background. Below: tiny grey notes (survey question with n, abbreviation definitions, 'Catalyst California's calculations based on ...'). A lime-green callout box with dashed lime arrow annotates the 'findings-based title'." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/catalyst-california/p15.png", "url": "https://catalyst-ca.cdn.prismic.io/catalyst-ca/ZuI6KRoQrfVKl_vi_CatalystCaliforniaDataStorytellingGuideFinal.pdf", "describes": "Guide page 13 social-media graphic: headline in three lines, 'SDPD disproportionately' in regular black, 'targets Black people' in large bold purple, 'as gang members' regular. Left: rounded light-grey (#dedede) panel with takeaway text, key phrases '5 times more than White people' and 'second highest rate' in bold purple. Right: column chart, first bar (Black) deep purple #3a207d, all other bars light grey, sorted descending, faint horizontal gridlines, small y tick labels 0-40, rotated x labels, measure stated as text inside the plot ('Number of people stopped for field interview cards per 1k people of same race'), abbreviation footnote underneath. Lime callouts explain 'started with a grayscale and only highlighted important points in purple'." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/catalyst-california/p12.png", "url": "https://catalyst-ca.cdn.prismic.io/catalyst-ca/ZuI6KRoQrfVKl_vi_CatalystCaliforniaDataStorytellingGuideFinal.pdf", "describes": "Guide page 10 screenshot of RACE COUNTS interactive chart: findings sentence above the chart, centred title 'Registered Voters (%)', column chart with near-black navy (#070024) bars inside light outlined total-population bars, a 'BEST RATE' grey highlighted band behind the first column, dotted horizontal reference line for the total, faint horizontal gridlines, uppercase small category labels; right sidebar with county name in a dark header bar, KPI numbers on hatched grey bars and 'About this Data' notes; download icon top-right of chart." }
+  ]
+}

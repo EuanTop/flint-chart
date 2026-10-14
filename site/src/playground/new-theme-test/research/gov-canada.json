@@ -1,0 +1,117 @@
+{
+  "id": "gov-canada",
+  "org": "Government of Canada — Aurora Design System (GCcollab / GCTools) data visualization",
+  "urls": [
+    "https://design.gccollab.ca/data/data-overview/",
+    "https://design.gccollab.ca/data/choosing-visualizations",
+    "https://design.gccollab.ca/data/column-and-bar-graphs",
+    "https://design.gccollab.ca/data/legends-and-tooltips",
+    "https://design.gccollab.ca/data/line-graphs",
+    "https://design.gccollab.ca/data/scatterplots",
+    "https://design.gccollab.ca/data/stylized-numbers",
+    "https://design.gccollab.ca/data/tables",
+    "https://design.gccollab.ca/component/colour",
+    "https://design.gccollab.ca/component/typography"
+  ],
+  "access": "full",
+  "accessNotes": "All eight Aurora data pages plus the colour and typography component pages were read as server-rendered HTML; example images downloaded from /static/. The guide does not define a dedicated chart palette (it says any colour meeting contrast is acceptable); the series colours listed are sampled from its example images and the Aurora/GCTools swatch families. Canada.ca / Statistics Canada guidance was not needed and not consulted.",
+  "summary": "Aurora is the Government of Canada's GCTools design system; its data-viz guidance targets accessible web applications/dashboards. Charts are minimal and teal/slate-toned: a centred title-case Rubik title, both axes always titled, light dashed grey gridlines, a heavier blue-grey axis baseline, flat square-topped bars twice as wide as their gaps with value labels, and line series distinguished by both colour and hollow marker shape. Every visualisation must be accompanied by a raw data table, and legends are white shadowed cards.",
+  "context": "government",
+  "colors": {
+    "categorical": ["#477c8e", "#ade18d", "#43bdbc"],
+    "categoricalNotes": "No prescribed chart palette: 'Any colour is acceptable for a visualization so long as it meets contrast requirements.' Use as little colour as possible; one designated colour per variable; multiple colours only for multiple variables, chosen as a complementary, distinguishable palette; avoid biased pairs such as red/green unless meaningful. Colours above are sampled from the guide's multi-line example (Series 1 slate #477c8e triangles, Series 2 light green #ade18d squares, Series 3 teal #43bdbc circles); single-series column example uses mint #55c0a3; area example slate line #467b8d. Aurora Borealis swatch family (GCTools main colours): #002D42, #137991, #6DD2DA, #15A3A6, #92CC6F. Canada.ca theme: #333000 (as printed), #26374A, #AF3C43, #F5F5F5, #FFFFFF. Thunder and Lightning: #002D42, #4D5D6C, #96A8B2, #CECECE, #FEC04F.",
+    "sequential": [],
+    "diverging": [],
+    "highlight": null,
+    "context": null,
+    "positive": "#2B542C",
+    "negative": "#923534",
+    "background": "#FFFFFF",
+    "text": "#252525",
+    "textSecondary": null,
+    "gridline": "#E0E0E0",
+    "axis": "#96A8B2",
+    "notes": "Text says 'Axis lines should use light grey (#E0E0E0)'; in the example images #E0E0E0 is used for the dashed gridlines while the x/y axis baselines are a heavier blue-grey (#96A8B2, sampled; same hex as the table border colour). Negative bars: same colour at 60% opacity. Area fill: line colour at 15% opacity. Stylized-number chevrons: decrease #923534, increase #2B542C. Table borders #96a8b2, striped/selected row fill #F2F5F6. All colours must meet WCAG AA (AAA ideal). Headings/text #252525 on light, #FFFFFF on dark."
+  },
+  "typography": {
+    "family": "Rubik (titles, axis labels) + Nunito Sans (legend, body, sub-headings)",
+    "fallback": "Calibri or similar sans-serif; browser default font if web fonts blocked",
+    "title": { "size": 28, "weight": "Rubik Regular", "align": "center", "case": "title", "color": "#252525" },
+    "subtitle": { "size": null, "weight": null, "style": null, "color": null },
+    "axisLabel": { "size": null, "color": "#252525" },
+    "axisTitle": { "size": 21, "weight": "Rubik Regular (Heading 4)", "placement": "y title rotated 90° left of axis, x title centred well below the tick labels; both always present, outside the data area" },
+    "dataLabel": { "size": null, "weight": null },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "Graph titles use Heading 2 (Rubik Regular 28pt/1.75em), title case; axis labels Heading 4 (Rubik Regular 21pt). Legend title 'Legend' Nunito Sans Regular 18px; legend items Nunito Sans Regular 16px. Table titles Heading 3 (Rubik Medium 24px, tracking 10); table headers Nunito Sans Bold 16px. Stylized numbers: Rubik Regular 125pt number, Heading 4 caption, Heading 5 percentage with chevron. Body text Nunito Sans 16/24. Example images render tick labels in Rubik at small size in near-black."
+  },
+  "structure": {
+    "gridlines": "Light grey (#E0E0E0) dashed gridlines; horizontal in column charts; both horizontal and vertical in line/area charts ('lightening grids').",
+    "axisLine": "Left y-axis and bottom x-axis drawn as solid ~2–3px blue-grey (#96A8B2) lines.",
+    "ticks": "No visible tick marks; labels centred under ticks.",
+    "zeroLine": "x-axis baseline at 0.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "rotated 90°, left of the tick labels",
+    "unitPlacement": "In the axis label: 'For quantitative labels, the unit of measurement should be included in the label.'",
+    "frame": "none around the plot; legends sit in white cards",
+    "background": "#FFFFFF; 'eliminating backgrounds'",
+    "notes": "Always include one additional increment above the data maximum (e.g. axis to 40 when max is 39). Consistent label intervals; skipping labels allowed. y labels 'left-aligned and kept above the y-axis lines' (per text). Long x labels rotated 45° from an origin directly below the tick."
+  },
+  "legend": {
+    "placement": "side of the graph by default; bottom when there is a secondary axis",
+    "directLabels": "Prefer context on the chart; legends/tooltips only when absolutely necessary; never a legend for one data category.",
+    "title": "Card shows the word 'Legend' at top (Nunito Sans Regular 18px)",
+    "swatchShape": "line segment with the series' hollow marker shape (triangle, square, circle)",
+    "notes": "Legend card: white #FFFFFF rectangle, 4px radius, drop shadow 15% opacity 5px blur, padding 20×16px; items 16px Nunito Sans with 14px vertical padding (side) or inline items with 14×11px padding (bottom; 96px tall when one row). Don't rely on colour alone — use different shapes."
+  },
+  "marks": {
+    "bars": "Bars twice as wide as the gap between them; never rounded tops; one colour per variable; negative bars same colour at 60% opacity; numerical values always shown beside bars. Prefer column (vertical) graphs; always columns when time is a variable; horizontal bars only for long labels or >10 items; 5–15 categories ideal.",
+    "lines": "Medium-weight straight segments with hollow white-filled markers in distinct shapes per series (triangle, square, circle); max three data sets per run chart; time on x-axis; at least ~20 data points ideal.",
+    "areas": "Fill = line colour at 15% opacity; lower opacity where series overlap; stacked area for part-to-whole.",
+    "points": "Scatterplots: vary opacity for overlapping clusters; trend lines only for strong correlations.",
+    "pies": null,
+    "notes": "Stylized numbers (KPI): huge Rubik number, caption below offset left, % change with coloured chevron."
+  },
+  "labels": {
+    "dataLabels": "'Numerical values should always be shown beside visual elements' in bar/column graphs.",
+    "numberFormat": "Money abbreviations $1.2k, $3.4m, $6.2b (lowercase); avoid abbreviations otherwise; round-number increments.",
+    "dates": "Days: Mon, Tues, Wed, Thurs, Fri, Sat, Sun; months: Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec; 12-hour time '1 a.m.', '2 p.m.'.",
+    "notes": "Bilingual (EN/FR) site."
+  },
+  "furniture": {
+    "title": "Short, title-case title reflecting the question the dataset answers; Heading 2; centred above the plot in examples.",
+    "source": null,
+    "logo": null,
+    "other": "A raw data table must accompany every visualisation (multiple formats). Tables: title Heading 3, 13px gap to table, header bottom border 2px #96a8b2, row borders 1px #96a8b2, 21×27px cell padding, striped rows #F2F5F6."
+  },
+  "annotations": "Tooltips only when necessary; example tooltip is a small dark-grey (#4c4c4c) box with white text '(40, Tues)' and a left-pointing arrow beside the hovered marker.",
+  "layout": "If a graph is too complex, split into multiple simple graphs. Zoom on run charts recommended. Tables full container width.",
+  "interaction": "Hover tooltip: dark grey rectangular label with pointer showing '(value, category)'. Interactive tables: sort icons, checkbox column (selected rows #F2F5F6), pagination, filters, search.",
+  "accessibility": "All colours WCAG AA (AAA ideal); use textures as well as colour; distinct marker shapes per series; data table always available; sans-serif fonts for readability.",
+  "chartTypes": {
+    "preferred": ["table", "column", "bar", "line (run chart)", "area", "stacked area", "scatterplot", "stylized numbers"],
+    "discouraged": ["more than three lines in a run chart", "more than 15 categories in a bar/column chart"],
+    "notes": "If the data is easy to understand without a visualization, use a table."
+  },
+  "distinctiveRules": [
+    { "rule": "Bars are twice as wide as the gap between them (bar:gap = 2:1) with square (never rounded) tops.", "source": "https://design.gccollab.ca/data/column-and-bar-graphs", "quote": "Bars should be twice as wide as the space between them. ... Graph bars should never have a rounded top." },
+    { "rule": "Negative bars use the same colour as positive bars at 60% opacity.", "source": "https://design.gccollab.ca/data/column-and-bar-graphs", "quote": "Negative bars should use the same colour but at 60% opacity." },
+    { "rule": "Value labels always shown beside bars/columns.", "source": "https://design.gccollab.ca/data/column-and-bar-graphs", "quote": "Numerical values should always be shown beside visual elements." },
+    { "rule": "Both axes always carry a title, placed outside the data area, with the unit included for quantitative axes.", "source": "https://design.gccollab.ca/data/data-overview/", "quote": "Both the x and y-axes should always be labeled. ... the unit of measurement should be included in the label." },
+    { "rule": "Chart title in title case (Rubik Regular 28pt, Heading 2), centred above the plot.", "source": "https://design.gccollab.ca/data/data-overview/", "quote": "Graph and table titles ... use the typography style for heading 2. ... Titles always use title-case capitalization." },
+    { "rule": "Gridlines light grey #E0E0E0 and dashed; axis baselines heavier blue-grey.", "source": "https://design.gccollab.ca/data/data-overview/", "quote": "Axis lines should use light grey (#E0E0E0), to not distract" },
+    { "rule": "Value axis extends one increment beyond the data maximum.", "source": "https://design.gccollab.ca/data/data-overview/", "quote": "Always include an additional increment greater than the dataset." },
+    { "rule": "Long x labels rotated 45° from directly below their tick.", "source": "https://design.gccollab.ca/data/data-overview/", "quote": "Long text labels should be rotated 45 degrees around an origin directly below their corresponding axis tick." },
+    { "rule": "Line series distinguished by both colour and hollow marker shape (triangle, square, circle); max three lines.", "source": "https://design.gccollab.ca/data/line-graphs", "quote": "Do not have more than three data sets ... Using different shapes for data points will also help distinguish multiple variables" },
+    { "rule": "Area fill = line colour at 15% opacity.", "source": "https://design.gccollab.ca/data/line-graphs", "quote": "Area graphs should be filled in with the same colour as the line, but at 15% opacity." },
+    { "rule": "Legend is a white card (4px radius, 15% shadow, 5px blur, 20×16px padding) titled 'Legend', placed at the side, or at the bottom when there is a secondary axis; never for a single series.", "source": "https://design.gccollab.ca/data/legends-and-tooltips", "quote": "Card component, rectangle (white, #FFFFFF) with a border radius of 4px, drop shadow with 15% opacity and 5px blur." },
+    { "rule": "Every chart is accompanied by a raw data table.", "source": "https://design.gccollab.ca/data/data-overview/", "quote": "a simple data table, or other ways of viewing the raw data, should be available somewhere on the page." },
+    { "rule": "Use column graphs whenever time is a variable; horizontal bars only for long labels or more than 10 items.", "source": "https://design.gccollab.ca/data/column-and-bar-graphs", "quote": "If you are using time as a variable in your visualization, always use a column graph." },
+    { "rule": "Money abbreviated with lowercase suffixes ($1.2k, $3.4m, $6.2b); days abbreviated Mon, Tues, Wed, Thurs.", "source": "https://design.gccollab.ca/data/data-overview/", "quote": "Standard money abbreviations $1.2k, $3.4m, $6.2b" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/gov-canada/column_graph.png", "url": "https://design.gccollab.ca/static/column_graph-8f39bd424429aab2790a88bf4f653ec8-71e8e.png", "describes": "Column chart template: centred 'Graph Title' in Rubik Regular black above the plot. Seven flat mint-green (#55c0a3) columns, square tops, bars about twice the gap width. Light grey dashed horizontal gridlines; heavy blue-grey (#99abb3) left y-axis and bottom x-axis; y ticks 0–40 left; category labels 'Unit' centred below; rotated y title 'Category Axis Title' and centred x title below. No legend, no source, white background." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/gov-canada/line_graph_2.png", "url": "https://design.gccollab.ca/static/line_graph_2-c116132a10de1275450929c7439d8046-29ce1.png", "describes": "Multi-line run chart Mon–Sun with three series: slate blue (#477c8e) with hollow triangles, light green (#ade18d) with hollow squares, teal (#43bdbc) with hollow circles; straight segments. Dashed light grey gridlines in both directions; heavy blue-grey axes; centred title 'Graph Title'; rotated y title; x title well below. A dark grey tooltip '(40, Tues)' with a left-pointing notch beside a hovered triangle." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/gov-canada/area_graph.png", "url": "https://design.gccollab.ca/static/area_graph-3f94aa6be6817c8e593fda4b68dd3c10-29ce1.png", "describes": "Single-series area chart Jan–Dec: slate line (#467b8d) with small hollow circle markers, area filled in the same hue at ~15% opacity (#e3ebee). Dashed light gridlines both directions, heavy blue-grey axes, centred title, rotated 'Category Y-Axis Title' and 'Category X-Axis Title'." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/gov-canada/bottom_aligned_legend.png", "url": "https://design.gccollab.ca/static/bottom_aligned_legend-76bb80b0aa16cf3b2b5a66c4097c0aa4-3fada.png", "describes": "Bottom-aligned legend card: white rectangle with soft shadow, 'Legend' label top-left, then inline items each with a short line segment through a hollow marker (triangle slate, square light green, circle teal) and labels 'Series 1/2/3'." }
+  ]
+}

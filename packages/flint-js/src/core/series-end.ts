@@ -14,8 +14,10 @@ export interface LegendPlacementPlan {
     placement: LegendPlacement;
     orient: DesignDecisions['legend']['orient'];
     direction: DesignDecisions['legend']['direction'];
-    /** Why the theme's series-end naming gave way, where it did. */
+    /** Why the theme's series-end naming, or its key inside the plot, gave way, where it did. */
     demoted?: string;
+    /** The placement that gave way. */
+    demotedFrom?: LegendPlacement;
     /** The dodged positions of series-end names, where they needed dodging. */
     seriesEnd?: SeriesEndLayout;
     /** The chart prints a name at the end of each run itself, so none is drawn for it. */
@@ -38,6 +40,8 @@ export interface SeriesEndInputs {
     orders: Partial<Record<string, CategoryOrder>>;
     value: RunValueScale;
     rows: any[];
+    /** The plot's size in px, where known: a key inside the plot is tested against what is drawn there. */
+    plot?: { width: number; height: number };
 }
 
 const ENDABLE_MARKS = new Set(['line', 'trail', 'area']);
@@ -167,6 +171,74 @@ function seriesEndLayout(inputs: SeriesEndInputs, seriesField: string): { layout
 }
 
 /**
+ * Why a key in the plot's top-right corner would cover the marks, or undefined where the corner is
+ * clear (LG1). The key's box is estimated from its entries: a line of the label size each, as wide
+ * as the longest name and a swatch. A pie or donut fills its square, so its corner is taken unless
+ * the plot is wide enough to leave the key beside it. A chart over two scales is tested by its
+ * points: any mark whose position falls in the box covers it — a bar by its full length, a line or
+ * area by the points it joins. Where the plot or a scale is not known the key keeps the corner.
+ */
+function insideCornerCovered(inputs: SeriesEndInputs): string | undefined {
+    const { design: d, structure, rows, plot } = inputs;
+    if (!plot || !(plot.width > 0) || !(plot.height > 0)) return undefined;
+    const field = structure.series?.field ?? d.bound.seriesField;
+    const names = field ? [...new Set(rows.map((row) => row?.[field]).filter((v) => v != null).map(String))] : [];
+    if (!names.length) return undefined;
+    const size = d.legend.label.fontSize ?? 11;
+    const keyHeight = Math.min(names.length, d.legend.maxSwatches ?? names.length) * (size + 8) + 8;
+    const keyWidth = Math.max(...names.map((n) => n.length)) * size * 0.6 + size + 24;
+    if (structure.marks.includes('arc')) {
+        const side = Math.min(plot.width, plot.height);
+        return plot.width - side >= keyWidth ? undefined : 'the pie fills the plot, so a key in its corner would sit on the wedges';
+    }
+    const fraction = (axis: 'x' | 'y'): ((row: any) => [number, number] | undefined) | undefined => {
+        const a = structure[axis];
+        const f = a && !a.derived ? a.fields[0] : undefined;
+        if (!a || !f) return undefined;
+        const type = a.type ?? '';
+        if (type === 'nominal' || type === 'ordinal') {
+            const cats = [...new Set(rows.map((row) => String(row?.[f])))];
+            const n = Math.max(1, cats.length);
+            // A band, top-down on y: the first category nearest the top.
+            return (row) => {
+                const i = cats.indexOf(String(row?.[f]));
+                if (i < 0) return undefined;
+                return axis === 'y' ? [1 - (i + 1) / n, 1 - i / n] : [i / n, (i + 1) / n];
+            };
+        }
+        const read = (v: unknown) => (type === 'temporal' ? +new Date(v as string) : Number(v));
+        const vals = rows.map((row) => read(row?.[f])).filter(Number.isFinite);
+        if (!vals.length) return undefined;
+        const measure = d.bound.measureChannels.includes(axis);
+        const lo = measure && a.baseline !== 'data' ? Math.min(0, ...vals) : Math.min(...vals);
+        const hi = measure && a.baseline !== 'data' ? Math.max(0, ...vals) : Math.max(...vals);
+        if (hi === lo) return undefined;
+        const bars = structure.marks.some((m) => m === 'bar' || m === 'area') && measure;
+        return (row) => {
+            const v = read(row?.[f]);
+            if (!Number.isFinite(v)) return undefined;
+            const at = (v - lo) / (hi - lo);
+            // A bar or area covers from zero to its value.
+            if (bars) { const z = (0 - lo) / (hi - lo); return [Math.min(z, at), Math.max(z, at)]; }
+            return [at, at];
+        };
+    };
+    const fx = fraction('x');
+    const fy = fraction('y');
+    if (!fx || !fy) return undefined;
+    // The corner box, as fractions of the plot measured from the left and from the bottom.
+    const x0 = 1 - Math.min(1, keyWidth / plot.width);
+    const y0 = 1 - Math.min(1, keyHeight / plot.height);
+    for (const row of rows) {
+        const x = fx(row);
+        const y = fy(row);
+        if (!x || !y) continue;
+        if (x[1] >= x0 && y[1] >= y0) return 'the marks reach the plot’s top-right corner, so a key inside it would cover them';
+    }
+    return undefined;
+}
+
+/**
  * Where the chart names its series. Series-end naming needs a run with an end (a line or a band),
  * a series that is not the category axis, an open run, and, for bands, a margin the value axis
  * leaves free. A chart that prints its own names as text keeps them; otherwise names that would
@@ -176,6 +248,22 @@ function seriesEndLayout(inputs: SeriesEndInputs, seriesField: string): { layout
 export function planLegendPlacement(inputs: SeriesEndInputs): LegendPlacementPlan {
     const { design: d, structure, channelSemantics } = inputs;
     const own: LegendPlacementPlan = { placement: d.legend.placement, orient: d.legend.orient, direction: d.legend.direction };
+    // A key inside the plot sits in its top-right corner; where the marks reach that corner it would
+    // cover them, so it takes the next placement the theme ranked (LG1).
+    if (d.legend.placement === 'inside' && d.legend.show) {
+        const covered = insideCornerCovered(inputs);
+        if (covered) {
+            const next = d.legend.fallbacks?.find((p) => p !== 'inside' && p !== 'seriesEnd' && p !== 'inline') ?? 'right';
+            return {
+                placement: next,
+                orient: next as LegendPlacementPlan['orient'],
+                direction: next === 'top' || next === 'bottom' ? 'horizontal' : 'vertical',
+                demoted: `${covered} — the key is drawn \`${next}\` instead`,
+                demotedFrom: 'inside',
+            };
+        }
+        return own;
+    }
     if (d.legend.placement !== 'seriesEnd' && d.legend.placement !== 'inline') return own;
     if (!d.legend.show) return own;
     const runs = structure.marks.filter((mark) => ENDABLE_MARKS.has(mark));

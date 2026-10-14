@@ -23,15 +23,18 @@
  * more here than a wall with no seams.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { BookOpen, FlaskConical } from 'lucide-react';
-import { THEME_PRESETS, DEFAULT_THEME_ICON } from 'flint-chart';
+import { THEME_PRESETS, DEFAULT_THEME_ICON, type ThemeSpec } from 'flint-chart';
+import { revealInScroller } from '../shared/reveal-in-scroller';
 import { LocaleLink } from '../i18n/LocaleLink';
 import { FlintView } from '../components/FlintView';
 import { ScaleToFit } from '../components/ScaleToFit';
 import { SiteShell } from '../components/SiteShell';
+import { ThemeSwatches } from '../components/ThemeSwatches';
+import { loadHouses, type HouseChoice } from '../shared/house-themes';
 import { ThemeChartModal } from '../components/ThemeChartModal';
 import { siteTheme } from '../shared/theme';
 import { PREVIEW_CASES, type PreviewCase } from '../shared/preview-cases';
@@ -90,7 +93,7 @@ const iconUrl = (svg: string) => `data:image/svg+xml,${encodeURIComponent(svg)}`
 function buildInput(
   c: PreviewCase,
   title: string,
-  theme: string | undefined,
+  theme: string | ThemeSpec | undefined,
   baseSize = { width: 300, height: 200 },
 ) {
   return {
@@ -113,7 +116,7 @@ function Tile({
   onOpen,
 }: {
   c: PreviewCase;
-  theme: string | undefined;
+  theme: string | ThemeSpec | undefined;
   onOpen: () => void;
 }) {
   const { t } = useTranslation();
@@ -173,78 +176,80 @@ function Tile({
   );
 }
 
+/** One chip in the theme selector: a preset (with its icon) or a style-guide house (with its swatch). */
+interface TrayChoice { key: string; label: string; title?: string; icon: ReactNode; selected: boolean; onSelect: () => void }
+
 /**
- * The house switch, named rather than icon-only.
+ * The theme switch, named rather than icon-only, in one tray with its two groups: the presets
+ * Flint ships and the style-guide houses. A tab picks the group; the chips are the group's
+ * themes; the line under the tray says what the theme in view is about.
  *
- * On the playground this control carried no words, because a developer already
- * knows the houses and the wall wanted the space. Here the names *are* the
- * point: a reader who has never heard of Flint cannot switch to "the
- * Economist's house" from a pictogram, and the whole page is an invitation to
- * compare houses by name.
+ * On the playground this control carried no words, because a developer already knows the houses
+ * and the wall wanted the space. Here the names *are* the point: a reader who has never heard of
+ * Flint cannot switch to "the Economist's house" from a pictogram, and the whole page is an
+ * invitation to compare houses by name.
  */
-function ThemeBar({
-  themeId,
-  onTheme,
-  choices,
+function ThemeSelector({
+  groups,
+  group,
+  onGroup,
 }: {
-  themeId: string | undefined;
-  onTheme: (id: string | undefined) => void;
-  choices: ThemeChoice[];
+  groups: { id: 'presets' | 'houses'; label: string; choices: TrayChoice[] }[];
+  group: 'presets' | 'houses';
+  onGroup: (id: 'presets' | 'houses') => void;
 }) {
   const { t } = useTranslation();
+  const active = groups.find((g) => g.id === group) ?? groups[0];
+  const trayRef = useRef<HTMLDivElement>(null);
+  const selectedKey = active.choices.find((c) => c.selected)?.key;
+  // A theme picked for the reader (first visit, deep link, tab switch) may sit below the tray's fold.
+  useEffect(() => {
+    revealInScroller(trayRef.current, trayRef.current?.querySelector('[aria-checked="true"]') ?? null);
+  }, [active.id, selectedKey, active.choices.length]);
   return (
-    <div
-      role="radiogroup"
-      aria-label={t('themes.switchAria')}
-      style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: 4,
-        padding: 4,
-        borderRadius: 8,
-        background: 'rgba(0, 0, 0, 0.05)',
-      }}
-    >
-      {choices.map((choice) => {
-        const selected = choice.id === themeId;
-        return (
+    <div className="themes-selector-body">
+      <div className="themes-tray-tabs" role="tablist" aria-label={t('themes.switchAria')}>
+        {groups.map((g) => (
           <button
-            key={choice.id ?? 'flint'}
+            key={g.id}
+            type="button"
+            role="tab"
+            aria-selected={g.id === active.id}
+            className="themes-tray-tab"
+            onClick={() => onGroup(g.id)}
+          >
+            {g.label}
+            <span>{g.choices.length}</span>
+          </button>
+        ))}
+      </div>
+      <div ref={trayRef} role="radiogroup" aria-label={active.label} className="themes-tray themes-tray-chips" data-group={active.id}>
+        {active.choices.map((choice) => (
+          <button
+            key={choice.key}
             type="button"
             role="radio"
-            aria-checked={selected}
-            onClick={() => onTheme(choice.id)}
-            style={{
-              height: 30,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '0 10px',
-              cursor: 'pointer',
-              fontSize: 12.5,
-              fontWeight: selected ? 600 : 400,
-              borderRadius: 6,
-              border: 0,
-              // The tray holds the containment, so the chip lifts with a fill
-              // and a shadow rather than a second border inside the first.
-              background: selected ? siteTheme.surface : 'transparent',
-              boxShadow: selected ? '0 1px 2px rgba(31, 35, 40, 0.16)' : undefined,
-              color: selected ? siteTheme.text : siteTheme.textMuted,
-              whiteSpace: 'nowrap',
-            }}
+            aria-checked={choice.selected}
+            title={choice.title}
+            onClick={choice.onSelect}
+            className="themes-chip"
           >
-            <img
-              src={iconUrl(choice.icon)}
-              alt=""
-              style={{ width: 15, height: 15, display: 'block', opacity: selected ? 1 : 0.85 }}
-            />
+            {choice.icon}
             {choice.label}
           </button>
-        );
-      })}
+        ))}
+      </div>
+      {active.id === 'houses' && (
+        <p className="themes-credit">
+          <Trans i18nKey="themes.housesCredit" components={{ site: <a className="site-text-link" href={STYLE_GUIDE_SITE} target="_blank" rel="noreferrer" /> }} />
+        </p>
+      )}
     </div>
   );
 }
+
+/** Where the style guides the houses are drawn from were found. */
+const STYLE_GUIDE_SITE = 'https://www.datavizstyleguide.com/';
 
 export function Themes() {
   const { t } = useTranslation();
@@ -252,13 +257,49 @@ export function Themes() {
   const [openCase, setOpenCase] = useState<PreviewCase | null>(null);
   const requestedTheme = searchParams.get('theme') ?? undefined;
   const themeId = requestedTheme && THEME_PRESETS[requestedTheme] ? requestedTheme : undefined;
+  const houseId = themeId ? undefined : searchParams.get('house') ?? undefined;
   const setThemeId = (id: string | undefined) => {
     const next = new URLSearchParams(searchParams);
     next.delete('layout');
+    next.delete('house');
     if (id) next.set('theme', id);
     else next.delete('theme');
     setSearchParams(next, { replace: true });
   };
+  const setHouseId = (id: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('layout');
+    next.delete('theme');
+    next.set('house', id);
+    setSearchParams(next, { replace: true });
+  };
+  const [group, setGroup] = useState<'presets' | 'houses'>(houseId ? 'houses' : 'presets');
+  const [houses, setHouses] = useState<HouseChoice[]>([]);
+  useEffect(() => {
+    let live = true;
+    void loadHouses().then((list) => {
+      if (!live) return;
+      setHouses(list);
+      // A first visit, with no theme named in the link, opens on a theme picked at random from
+      // either group, so the wall starts in a house's style rather than the bare default.
+      const named = searchParams.get('theme') || searchParams.get('house');
+      if (named) return;
+      const presets = Object.keys(THEME_PRESETS);
+      const pick = Math.floor(Math.random() * (presets.length + list.length));
+      if (pick < presets.length) setThemeId(presets[pick]);
+      else {
+        setHouseId(list[pick - presets.length].id);
+        setGroup('houses');
+      }
+    });
+    return () => { live = false; };
+  }, []);
+  const house = houseId ? houses.find((h) => h.id === houseId) : undefined;
+  // What the wall is drawn in: a preset by id, a house by its spec, or Flint's own defaults.
+  const activeTheme: string | ThemeSpec | undefined = themeId ?? house?.theme;
+  const preset = themeId ? THEME_PRESETS[themeId] : undefined;
+  const about = preset ? { name: preset.label, text: preset.description }
+    : house ? { name: house.name, text: house.about } : undefined;
 
   // "Flint default" is a choice in the row rather than an empty slot, because
   // not theming is the baseline every house is read against.
@@ -277,6 +318,32 @@ export function Themes() {
     ],
     [t],
   );
+
+  const trayGroups = [
+    {
+      id: 'presets' as const,
+      label: t('themes.presetsLabel'),
+      choices: choices.map((choice) => ({
+        key: choice.id ?? 'flint',
+        label: choice.label,
+        icon: <img src={iconUrl(choice.icon)} alt="" className="themes-chip-icon" />,
+        selected: !houseId && choice.id === themeId,
+        onSelect: () => setThemeId(choice.id),
+      })),
+    },
+    {
+      id: 'houses' as const,
+      label: t('themes.housesLabel'),
+      choices: houses.map((h) => ({
+        key: h.id,
+        label: h.name,
+        title: h.org,
+        icon: <ThemeSwatches theme={h.theme} />,
+        selected: h.id === houseId,
+        onSelect: () => setHouseId(h.id),
+      })),
+    },
+  ];
 
   const cases = useMemo(
     () => IDS.map((id) => CASE_BY_ID.get(id)).filter((c): c is PreviewCase => Boolean(c)),
@@ -325,30 +392,27 @@ export function Themes() {
           </header>
 
           <div className="themes-preview">
-            <div
-              className="themes-selector"
-              style={{
-                position: 'sticky',
-                top: 0,
-                zIndex: 2,
-                padding: '12px 0',
-                background: siteTheme.surface,
-              }}
-            >
-              <div>
-                <div className="themes-controls-row">
-                  <ThemeBar
-                    themeId={themeId}
-                    onTheme={setThemeId}
-                    choices={choices}
-                  />
-                </div>
-              </div>
+            <div className="themes-selector" style={{ padding: '12px 0' }}>
+              <ThemeSelector
+                groups={trayGroups}
+                group={group}
+                onGroup={(next) => {
+                  if (next === group) return;
+                  setGroup(next);
+                  // Switching tabs shows that tab's first theme.
+                  if (next === 'presets') setThemeId(undefined);
+                  else if (houses[0]) setHouseId(houses[0].id);
+                }}
+              />
             </div>
 
+            <div className="themes-about" aria-live="polite">
+              <strong>{about?.name ?? t('themes.flintDefault')}</strong>
+              <span>{about?.text ?? t('themes.defaultAbout')}</span>
+            </div>
             <div className="themes-wall">
               {cases.map((c) => (
-                <Tile key={c.id} c={c} theme={themeId} onOpen={() => setOpenCase(c)} />
+                <Tile key={c.id} c={c} theme={activeTheme} onOpen={() => setOpenCase(c)} />
               ))}
             </div>
           </div>
@@ -392,7 +456,7 @@ export function Themes() {
           </section>
         </article>
       </div>
-      {openCase && <ThemeChartModal previewCase={openCase} theme={themeId} onClose={() => setOpenCase(null)} />}
+      {openCase && <ThemeChartModal previewCase={openCase} theme={activeTheme} onClose={() => setOpenCase(null)} />}
     </SiteShell>
   );
 }
@@ -505,11 +569,26 @@ const wallStyles = `
     outline: 2px solid ${siteTheme.accent};
     outline-offset: 2px;
   }
-  .themes-controls-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-  }
+  .themes-tray { padding: 4px; border-radius: 8px; background: rgba(0, 0, 0, 0.05); }
+  .themes-tray-tabs { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 2px 22px; margin-bottom: 10px; border-bottom: 1px solid ${siteTheme.border}; }
+  .themes-tray-tab { display: inline-flex; align-items: baseline; gap: 6px; margin-bottom: -1px; padding: 6px 0 8px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: ${siteTheme.textMuted}; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
+  .themes-tray-tab span { font-weight: 400; font-size: 12.5px; }
+  .themes-tray-tab:hover { color: ${siteTheme.text}; }
+  .themes-tray-tab[aria-selected="true"] { color: ${siteTheme.text}; border-bottom-color: ${siteTheme.text}; }
+  .themes-tray-tab:focus:not(:focus-visible) { outline: none; }
+  .themes-tray-tab:focus-visible { outline: 2px solid ${siteTheme.accent}; outline-offset: 2px; border-radius: 2px; }
+  .themes-tray-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .themes-tray-chips[data-group="houses"] { max-height: 140px; overflow-y: auto; overscroll-behavior: contain; }
+  .themes-chip { height: 30px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: ${siteTheme.textMuted}; font: inherit; font-size: 12.5px; white-space: nowrap; cursor: pointer; }
+  .themes-chip:hover { color: ${siteTheme.text}; }
+  .themes-chip[aria-checked="true"] { background: ${siteTheme.surface}; box-shadow: 0 1px 2px rgba(31, 35, 40, 0.16); color: ${siteTheme.text}; font-weight: 600; }
+  .themes-chip:focus-visible { outline: 2px solid ${siteTheme.accent}; outline-offset: 1px; }
+  .themes-chip-icon { width: 15px; height: 15px; display: block; }
+  .themes-credit { margin: 6px 4px 0; color: ${siteTheme.textMuted}; font-size: 12px; line-height: 1.5; text-align: right; }
+  .themes-credit a, .themes-credit a.site-text-link { color: inherit; text-decoration: underline; text-decoration-color: rgba(0, 0, 0, 0.3); text-underline-offset: 2px; }
+  .themes-credit a:hover { color: ${siteTheme.text}; }
+  .themes-about { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin: -4px 0 12px; padding: 0 4px; color: ${siteTheme.textMuted}; font-size: 13.5px; line-height: 1.55; }
+  .themes-about strong { color: ${siteTheme.text}; font-size: 14px; }
   .themes-tile:hover { background: ${siteTheme.hover}; }
   .themes-wall [role="button"]:focus-visible {
     outline: 2px solid ${siteTheme.accent};

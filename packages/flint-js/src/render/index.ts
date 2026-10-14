@@ -1,7 +1,7 @@
 import type { ChartAssemblyInput } from '../core/types';
 import { assembleECharts } from '../echarts/assemble';
 import { assembleVegaLite } from '../vegalite/assemble';
-import { injectCanvasFurnitureSVG, readCanvasFurniture } from '../vegalite/canvas-furniture';
+import { injectCanvasFurnitureSVG, readCanvasFurniture, readCanvasPatterns } from '../vegalite/canvas-furniture';
 
 export type RenderSvgBackend = 'vegalite' | 'echarts';
 
@@ -51,7 +51,7 @@ export async function renderSvg(input: ChartAssemblyInput, options: RenderSvgOpt
     view.logLevel(vega.Error);
     try {
         await view.runAsync();
-        return injectCanvasFurnitureSVG(await view.toSVG(), readCanvasFurniture(vlSpec));
+        return injectCanvasFurnitureSVG(await view.toSVG(), readCanvasFurniture(vlSpec), readCanvasPatterns(vlSpec));
     } finally {
         view.finalize();
     }

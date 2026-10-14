@@ -1,0 +1,113 @@
+{
+  "id": "goldman-sachs",
+  "org": "Goldman Sachs Design System (GS UI Toolkit)",
+  "urls": [
+    "https://design.gs.com/components/charts",
+    "https://web.archive.org/web/20230329192040/https://design.gs.com/components/charts",
+    "https://web.archive.org/web/2023/https://design.gs.com/components/charts/charts-colors",
+    "https://web.archive.org/web/2023/https://design.gs.com/components/charts/charts-guidelines",
+    "https://web.archive.org/web/2023/https://design.gs.com/components/charts/types",
+    "https://web.archive.org/web/20230105205809/https://design.gs.com/chart-editor-intro.png",
+    "https://web.archive.org/web/20210929015426/https://design.gs.com/charts-thumbnail.png",
+    "https://joey-gm.github.io/posts/goldman-sachs-color-design-system/",
+    "https://designsystems.surf/design-systems/goldmansachs",
+    "https://goldmansachs.papirfly.com/newsread/defaultViewer.aspx?docid=10342&nodeid=5202"
+  ],
+  "access": "partial",
+  "accessNotes": "design.gs.com now redirects to goldmansachs.com (the design system was withdrawn from public access in mid-2024 per designsystems.surf). The Charts, Chart Colors, Chart Guidelines and Chart Types pages were read from 2023 Wayback Machine captures (server-rendered Next.js HTML). The page illustrations (chart-anatomy.png, charts-tooltips.png, chart-type-*.png) were never archived; only the chart-editor illustrations and the charts thumbnail were, and those are used as reference images. Per-chart-type detail pages, typography sizes and gridline/axis colours were not retrievable; the GSUI Toolkit docs are internal-only. Full colour ramp (gray, etc.) cross-checked against the GS colour wheel SVG mirrored at joey-gm.github.io. The GS brand VIBE portal (papirfly) lists 'Charts and Graphs' but its pages did not render.",
+  "summary": "Goldman Sachs' design system styles charts for internal/external financial web apps, built on Highcharts and wrapped in the GSUI Toolkit. The look is a clean enterprise dashboard: charts in white cards on a pale blue-grey (#F2F5F7) page under a navy app header, a ten-colour default sequence led by Blue 70 (#0D4EA6), Orange 50 and Teal 50, light horizontal gridlines, small grey axis text and a compact top-right legend with square swatches. Dedicated green/red 'performance' ramps encode positive/negative values, with a blue/orange alternative for colour-blind-safe valuation charts.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#0D4EA6", "#E86427", "#279C9C", "#D9A514", "#AC71F0", "#23254D", "#52A31D", "#CC1D92", "#48B8F0", "#077D55"],
+    "categoricalNotes": "Default Palette tokens dataviz-default-sequence-01…10: Blue 70 #0D4EA6, Orange 50 #E86427, Teal 50 #279C9C, Yellow 40 #D9A514, Purple 50 #AC71F0, Ultramarine 90 #23254D, Lime 50 #52A31D, Pink 60 #CC1D92, Aqua 40 #48B8F0, Green 60 #077D55. 'The data visualization color tokens include enough distinct colors for numerous datasets to be represented, and allows users with color blindness to discern differences between data points.' The full GS colour spectrum may be used for unique cases.",
+    "sequential": ["#F0F4FA", "#D4E4FA", "#ADCCF7", "#75B1FF", "#3D8DF5", "#186ADE", "#0D4EA6", "#103A75", "#11294D", "#0D1826"],
+    "diverging": ["#24120C", "#4F150F", "#75160C", "#A1160A", "#D91F11", "#FA5343", "#FC9086", "#FABBB4", "#FADCD9", "#FCF3F2", "#EBF7ED", "#C7EBD1", "#88DBA8", "#43C478", "#16A163", "#077D55", "#075E45", "#094536", "#092E25", "#081A15"],
+    "highlight": "#0D4EA6",
+    "context": null,
+    "positive": "#077D55",
+    "negative": "#D91F11",
+    "background": "#FFFFFF",
+    "text": null,
+    "textSecondary": null,
+    "gridline": null,
+    "axis": null,
+    "notes": "Performance Values ('Use to show positive, neutral, and negative values'): Positive = Green ramp 100→010 #081A15 #092E25 #094536 #075E45 #077D55 #16A163 #43C478 #88DBA8 #C7EBD1 #EBF7ED; Negative = Red ramp 100→010 #24120C #4F150F #75160C #A1160A #D91F11 #FA5343 #FC9086 #FABBB4 #FADCD9 #FCF3F2 (each swatch annotated with AA/AAA text contrast on white/black). Alternative Palette ('Use to show correlation or valuation or as a color-blind-safe option'): Positive = Blue ramp (listed as sequential above, 010→100), Negative = Orange ramp #1F1410 … #632B17 #8F3415 #BF4815 #E86427 #FC9162 #FCBC97 #FCDDC7 #FCF2EB. Every GS colour ramp has the same contrast level per step (WCAG AA design goal). Page background in examples is Gray 010 #F2F5F7 (also the thumbnail background); app header navy; gray ramp: 010 #f2f5f7, 020 #dce3e8, 030 #c1ccd6, 040 #9fb1bd, 050 #7a909e, 060 #5b7282, 070 #3e5463, 080 #2a3f4d, 090 #1c2b36, 100 #0e171f. Gridline/axis/text hexes for charts not stated in retrievable pages."
+  },
+  "typography": {
+    "family": "Goldman Sans (GS Design System typeface); Roboto Mono for monospace numerals",
+    "fallback": null,
+    "title": { "size": null, "weight": null, "align": "left", "case": null, "color": null },
+    "subtitle": { "size": null, "weight": null, "style": null, "color": null },
+    "axisLabel": { "size": null, "color": null },
+    "axisTitle": { "size": null, "weight": null, "placement": null },
+    "dataLabel": { "size": null, "weight": null },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "Design-system nav lists typefaces Goldman Sans, Sabon, Basis and Roboto Mono plus a 'Type Scale & Formatting' page (not retrieved). In the chart-editor illustrations axis/legend text is small (≈10–11px) grey sans; date ticks rotated 45°."
+  },
+  "structure": {
+    "gridlines": "Horizontal only, thin light grey (from illustrations); faint vertical category separators in the editor preview.",
+    "axisLine": "x baseline light grey; no y-axis line (illustrations).",
+    "ticks": "small x ticks in some illustrations",
+    "zeroLine": "Deviation charts must include a reference point/baseline (usually zero, or target/average/median).",
+    "yAxisPlacement": "left",
+    "yAxisTitle": null,
+    "unitPlacement": null,
+    "frame": "Chart inside a white card; toolbar strip (Export ▾, chart-type, settings icons) on a pale grey band above the plot; light border around plot area.",
+    "background": "#FFFFFF chart card on #F2F5F7 page",
+    "notes": "Anatomy: Header, Legend, Plot Area, Plotted Data, Tooltip and Scrubber, Y-axis, X-axis, Footer. Charts are responsive across screen sizes."
+  },
+  "legend": {
+    "placement": "top-right above the plot (illustrations)",
+    "directLabels": null,
+    "title": "no",
+    "swatchShape": "small filled square",
+    "notes": "'For multiple-series Charts, legends can be checked, unchecked or hovered to hide or highlight data series.'"
+  },
+  "marks": {
+    "bars": null,
+    "lines": "Medium-thin straight polylines with small filled circular markers at every point (illustrations).",
+    "areas": "Area charts 'ideal for adding emphasis to a dataset by virtue of shading or color'; stacked area 100% for percentage share.",
+    "points": "Small filled circles.",
+    "pies": "Pie charts supported for part-to-whole; thumbnail shows a semicircle donut with thick ring in default-sequence order clockwise from the left.",
+    "notes": "Supported types: area, bar, bubble, column, heatmap, line, pie, scatterplot, stock (with navigation and annotations), treemap; plus a Chart Editor (Pick/Data/Edit/Customize)."
+  },
+  "labels": {
+    "dataLabels": null,
+    "numberFormat": null,
+    "dates": "ISO dates 'YYYY-MM-DD' rotated 45° in illustrations; truncated with ellipsis when narrow.",
+    "notes": "Ranking charts must always be sorted ascending or descending."
+  },
+  "furniture": {
+    "title": "Header region at top of chart (anatomy); chart guidelines say to start from the point/relationship you want to convey.",
+    "source": "Footer region in anatomy (content not specified).",
+    "logo": "Goldman Sachs wordmark appears in the app header, not on charts.",
+    "other": "Chart toolbar with Export dropdown, chart-type switcher and settings."
+  },
+  "annotations": "Stock charts support annotations; trend charts should choose a period containing reference points that add perspective.",
+  "layout": "Responsive charts adapting to screen sizes; chart elements can be hidden or reconfigured for different data storytelling layouts.",
+  "interaction": "Tooltips appear on hover; 'By default, charts tooltips are colored to align to the series color used in the chart. Alternately you can use the contrast or primary tooltips.' Scrubber (crosshair) part of anatomy. Legend items check/uncheck to hide series, hover to highlight. Stock charts zoom and pan. Chart Editor modal lets users pick type (Line, Area, Pie, Bar, Stacked Bar, Stock, Column, Stacked Column), edit data and customise.",
+  "accessibility": "Default sequence chosen so colour-blind users can discern data points; alternative blue/orange palette as colour-blind-safe option for positive/negative; ramp swatches labelled with AA/AAA text contrast.",
+  "chartTypes": {
+    "preferred": ["line", "column", "bar", "area", "stacked area 100%", "pie", "bubble", "scatterplot", "heatmap", "treemap", "stock"],
+    "discouraged": [],
+    "notes": "Chart Guidelines map nine functions — Comparison, Composition, Correlation, Deviation, Distribution, Flow, Ranking, Spatial (Maps), Trend — to chart types (e.g. composition must show all components adding to 100%)."
+  },
+  "distinctiveRules": [
+    { "rule": "Series colours follow the 10-step default sequence: #0D4EA6, #E86427, #279C9C, #D9A514, #AC71F0, #23254D, #52A31D, #CC1D92, #48B8F0, #077D55.", "source": "https://web.archive.org/web/2023/https://design.gs.com/components/charts/charts-colors", "quote": "dataviz-default-sequence-01 0D4EA6 Blue 70 … dataviz-default-sequence-10 077D55 Green 60" },
+    { "rule": "Positive/negative values use dedicated green (positive) and red (negative) 10-step ramps.", "source": "https://web.archive.org/web/2023/https://design.gs.com/components/charts/charts-colors", "quote": "Performance Values — Use to show positive, neutral, and negative values." },
+    { "rule": "Colour-blind-safe alternative: blue ramp for positive, orange ramp for negative (also for correlation/valuation).", "source": "https://web.archive.org/web/2023/https://design.gs.com/components/charts/charts-colors", "quote": "Alternative Palette — Use to show correlation or valuation or as a color-blind-safe option." },
+    { "rule": "Tooltips take the colour of the hovered series by default (alternatives: contrast or primary tooltip).", "source": "https://web.archive.org/web/20230329192040/https://design.gs.com/components/charts", "quote": "By default, charts tooltips are colored to align to the series color used in the chart." },
+    { "rule": "Legend items are interactive: check/uncheck hides series, hover highlights.", "source": "https://web.archive.org/web/20230329192040/https://design.gs.com/components/charts", "quote": "legends can be checked, unchecked or hovered to hide or highlight data series." },
+    { "rule": "Chart anatomy is Header, Legend, Plot Area, Plotted Data, Tooltip and Scrubber, Y-axis, X-axis, Footer.", "source": "https://web.archive.org/web/20230329192040/https://design.gs.com/components/charts", "quote": "Anatomy Header Legend Plot Area Plotted Data Tooltip and Scrubber Y-axis X-axis Footer" },
+    { "rule": "Charts sit in white cards on a pale grey-blue (#F2F5F7) app background with a toolbar strip (Export, chart type, settings) above the plot.", "source": "https://web.archive.org/web/20230105205809/https://design.gs.com/chart-editor-intro.png", "quote": "Observed in chart-editor-intro.png" },
+    { "rule": "Legend is a compact row of square swatches at the top-right of the plot.", "source": "https://web.archive.org/web/20230105205809/https://design.gs.com/chart-editor-intro.png", "quote": "Observed: 'Division_A' orange square, 'Division_B' teal square, top-right" },
+    { "rule": "Line charts show a small filled marker at every data point, light horizontal gridlines only, 45°-rotated date labels.", "source": "https://web.archive.org/web/20230105205809/https://design.gs.com/chart-editor-intro.png", "quote": "Observed in chart-editor-intro.png" },
+    { "rule": "Deviation charts must include a reference baseline (zero, target, average or median); ranking charts always sorted.", "source": "https://web.archive.org/web/2023/https://design.gs.com/components/charts/charts-guidelines", "quote": "When using a deviation chart include a reference point or baseline … Ranking charts should always be arranged in ascending or descending order." },
+    { "rule": "Composition charts must show all components summing to 100% of the unit.", "source": "https://web.archive.org/web/2023/https://design.gs.com/components/charts/charts-guidelines", "quote": "show all the components adding to the total (100%) of the unit." }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/goldman-sachs/chart-editor-intro.png", "url": "https://web.archive.org/web/20230105205809im_/https://design.gs.com/chart-editor-intro.png", "describes": "App mock: navy header bar with white 'Goldman Sachs' wordmark top-left and icons right; pale blue-grey page; white card containing a chart with a light-grey toolbar band (Export ▾, chart icon, gear). Line chart with orange (Division_A) and teal (Division_B) straight lines with small filled dot markers; light grey horizontal gridlines; tiny grey y labels 2–10 on the left; no y-axis line; ISO date labels rotated 45°; legend top-right with small square swatches and grey text. No title, source or logo inside the chart." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/goldman-sachs/chart-editor-anatomy.png", "url": "https://web.archive.org/web/20230105205809im_/https://design.gs.com/chart-editor-anatomy.png", "describes": "Chart Editor modal: left panel with tabs Pick/Data/Edit/Customize and blue tiles (Line, Area, Pie, Bar, Stacked Bar, Stock, Column, Stacked Column); right preview of the same orange/teal line chart with light horizontal gridlines, faint vertical category separators, grey truncated x labels ('2018-…'), legend top-right; Cancel (grey) and Apply (blue) buttons; pink numbered callouts." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/goldman-sachs/charts-thumbnail.png", "url": "https://web.archive.org/web/20210929015426im_/https://design.gs.com/charts-thumbnail.png", "describes": "Thumbnail: thick semicircular donut on #F2F5F7 background with segments in default-sequence order Blue 70 #0D4EA6, Orange 50 #E86427, Teal 50 #279C9C, Yellow 40 #D9A514, Purple 50 #AC71F0, largest first from the left; no labels or gaps between segments." }
+  ]
+}

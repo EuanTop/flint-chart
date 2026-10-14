@@ -34,7 +34,7 @@ export interface LegendPlan extends LegendPlacementPlan {
     untitled: boolean;
     /** A horizontal colour ramp the theme leaves to the chart: its length and the block it spans, in px. */
     gradient?: { length: number; block: number };
-    /** How far a top key stands above the plot to clear a flat y title, in px. */
+    /** How much further a top key stands above the plot to clear a flat y title, in px. */
     titleClearance?: number;
     /** What each drawn key needs laid out, by key. */
     keyInputs?: Array<KeyToLayout | undefined>;
@@ -112,6 +112,8 @@ export interface LegendInputs {
     viewsWidth?: number;
     /** Whether a flat y title sits above the plot and no facet header holds that line. */
     flatYTitle: boolean;
+    /** How far above the plot the flat y title's baseline sits, in px. */
+    flatYTitleLift?: number;
 }
 
 /**
@@ -155,7 +157,10 @@ function foldedColour(inputs: LegendInputs, field: string, design: DesignDecisio
         .map((entry) => entry.value);
     const k = s.categorical.length;
     if (ordered.length <= k) return undefined;
-    return { kept: ordered.slice(0, k), others: `Others (${ordered.length - k})` };
+    // A tail of one is still a named category: it takes the overflow ink under its own name, not
+    // an "Others (1)" that hides what it is.
+    const others = ordered.length - k === 1 ? String(ordered[k]) : `Others (${ordered.length - k})`;
+    return { kept: ordered.slice(0, k), others };
 }
 
 /**
@@ -206,8 +211,11 @@ export function planLegend(inputs: LegendInputs): LegendPlan {
         && !structure.marks.includes('text') && structure.marks.some((mark) => mark === 'line' || mark === 'trail')
         && Boolean(structure.series?.field ?? design.bound.seriesField)
         && Boolean(structure.x && !structure.x.derived && structure.y && !structure.y.derived) ? 'bottom' as const : undefined;
+    // The key's last row stands clear of the title's top: the title's lift above the plot, its own
+    // line and a gap, past the key's usual 18 px offset.
+    const titleSize = design?.axes.y?.title.fontSize ?? 11;
     const titleClearance = design && named && placement.orient === 'top' && flatYTitle
-        ? (design.axes.y?.title.fontSize ?? 11) + 12 : undefined;
+        ? Math.max(titleSize + 12, (inputs.flatYTitleLift ?? 0) + titleSize + 6 - 18) : undefined;
     return {
         ...placement,
         keys,
@@ -281,7 +289,10 @@ export function keysToLayout(plan: LegendPlan, inputs: KeyLayoutInputs): Array<K
             : statedTitle !== undefined ? statedTitle
                 : titles[key.channel] ?? key.via ?? key.field ?? null;
         const style: KeyStyle = {
-            labelFont: font, labelFontSize, labelFontWeight: 'normal', labelFontStyle: 'normal',
+            labelFont: font, labelFontSize,
+            // Measured in the weight, slope and case the key is drawn in.
+            labelFontWeight: (styled && l!.label.fontWeight) || 'normal', labelFontStyle: (styled && l!.label.fontStyle) || 'normal',
+            ...(styled && l!.label.textCase ? { labelCase: l!.label.textCase } : {}),
             titleFont: font, titleFontSize, titleFontWeight: 'bold', titleFontStyle: 'normal',
             ...(symbolSize !== undefined ? { symbolSize } : {}),
             padding: corner ? 4 : 0,

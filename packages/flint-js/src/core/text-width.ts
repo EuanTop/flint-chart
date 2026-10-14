@@ -23,6 +23,15 @@ function knownFamily(font: string | undefined): string | undefined {
     return known;
 }
 
+/**
+ * Whether the face a font stack draws in is one the width table knows: its first family is in the
+ * table. When it is not, the table measures a fallback, and a face it does not know may run wider.
+ */
+export function measuresDrawnFace(font: string | undefined): boolean {
+    const first = (font ?? 'sans-serif').split(',')[0].trim().replace(/^['"]|['"]$/g, '');
+    return Boolean(TEXT_WIDTHS[first]);
+}
+
 /** Measured widths in em, by family and weight, then by text; a table past its size starts again. */
 const measured = new Map<string, Map<string, number>>();
 const MEASURED_LIMIT = 20000;

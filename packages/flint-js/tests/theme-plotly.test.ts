@@ -429,17 +429,22 @@ describe('an outlined house on bars too thin to hold the outline', () => {
 });
 
 describe('a banded axis measured against the room it has', () => {
-    it('keeps the template\'s turned labels where straight ones will not fit', () => {
-        const narrow = monthlyLine(theme({ labels: { angle: 'horizontal' } }), 260);
-        // Twelve month names across 260px cannot read straight.
-        expect(narrow.layout.xaxis.tickangle).not.toBe(0);
-        expect(
-            narrow._theme.report.some((r: any) => r.code === 'labels-straight-refused'),
-        ).toBe(true);
+    it('takes the house\'s overflow where straight labels will not fit, and never thins a row of names', () => {
+        const narrow = monthlyLine(theme({}), 260);
+        // Twelve month names (as plain categories) across 260px: too narrow a band to cut, and a row
+        // of names never drops some, so they stand upright.
+        expect(narrow.layout.xaxis.tickangle).toBe(-90);
+        expect(narrow.layout.xaxis.ticklabelstep).toBeUndefined();
+    });
+
+    it('stands them upright by default where they will not fit', () => {
+        const narrow = monthlyLine(theme({}), 260);
+        expect([0, -90]).toContain(narrow.layout.xaxis.tickangle ?? 0);
+        expect(narrow.layout.xaxis.tickangle).not.toBe(-45);
     });
 
     it('lets the house straighten them where there is room', () => {
-        const wide = monthlyLine(theme({ labels: { angle: 'horizontal' } }), 1400);
+        const wide = monthlyLine(theme({}), 1400);
         expect(wide.layout.xaxis.tickangle).toBe(0);
     });
 });

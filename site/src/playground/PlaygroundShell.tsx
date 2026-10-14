@@ -24,6 +24,7 @@ const pages: NavEntry[] = [
       { to: 'band-stretching', label: 'Band stretching' },
       { to: 'axis-label', label: 'Axis labels' },
       { to: 'calendar-axis', label: 'Calendar axes' },
+      { to: 'canvas-squeeze', label: 'Canvas squeeze' },
     ],
   },
   {
@@ -51,6 +52,9 @@ const pages: NavEntry[] = [
       { to: 'theme-lab-real', label: 'Real-world evaluation' },
       { to: 'label-experiment', label: 'Label experiment' },
       { to: 'style-references', label: 'Style references' },
+      { to: 'new-theme-test', label: 'New theme test' },
+      { to: 'theme-improvement', label: 'Theme improvement' },
+      { to: 'label-angles', label: 'Label angles' },
     ],
   },
   {

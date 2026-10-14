@@ -1,0 +1,116 @@
+{
+  "id": "usaid-oha",
+  "org": "USAID Office of HIV/AIDS (OHA) Strategic Information",
+  "urls": [
+    "https://issuu.com/achafetz/docs/oha_styleguide",
+    "https://www.frank.computer/papers/OHA_StyleGuide_2024_July.pdf",
+    "https://github.com/USAID-OHA-SI/glitr",
+    "https://raw.githubusercontent.com/USAID-OHA-SI/glitr/main/R/si_style.R",
+    "https://raw.githubusercontent.com/USAID-OHA-SI/glitr/main/R/si_themes.R",
+    "https://raw.githubusercontent.com/USAID-OHA-SI/glitr/main/R/si_colors.R",
+    "https://raw.githubusercontent.com/USAID-OHA-SI/glitr/main/R/plot_setup.r",
+    "https://usaid-oha-si.github.io/glitr/",
+    "https://usaid-oha-si.github.io/glitr/articles/adorn-your-plots.html"
+  ],
+  "access": "full",
+  "accessNotes": "Issuu viewer is not scrapeable, but the full 2024 OHA Data Visualization Style Guide PDF (32 pages) was found mirrored at frank.computer and its text extracted with pypdf; pages rendered with Ghostscript. Exact theme values (sizes, colours, gridlines, legend position) come from the glitr R package source (si_style.R, plot_setup.r, si_colors.R) which implements the guide.",
+  "summary": "Government analytic-report style for PEPFAR/HIV data, built for 16:9 slides and inspired by BBC bbplot / FT / FiveThirtyEight. Very clean ggplot-minimal look: Source Sans 3, bold ALL-CAPS takeaway title left-aligned to the plot edge, plain sentence-case subtitle that doubles as an integrated legend, faint light-grey gridlines, no ticks or axis lines, and a light-grey source caption in the bottom-right corner. Colour is used sparingly: one OHA brand colour (often Midnight Blue) for the focus series against grey context.",
+  "context": "government",
+  "colors": {
+    "categorical": ["#15478A", "#5BB5D5", "#8C8C91", "#E14BA1", "#3B5BBE", "#F9C555", "#419164", "#876EC4", "#F36428"],
+    "categoricalNotes": "Nine OHA core colours (glitr 'hemsworth'/'siei' order): Midnight Blue #15478A, Viking #5BB5D5, Slate #8C8C91, Orchid Bloom #E14BA1, Electric Indigo #3B5BBE, Sun Kissed #F9C555, Hunter #419164, Lavender Haze #876EC4, Tango #F36428. Guide splits them into a primary palette (Midnight Blue, Orchid Bloom, Lavender Haze, Tango, Viking) and secondary (Hunter, Slate, Electric Indigo, Sun Kissed). A colour-wheel defines ordering per starting colour, e.g. Electric Indigo -> Orchid Bloom -> Sun Kissed. Slate is never a starting colour; it may accompany any palette as fill/stroke for secondary/tertiary elements. Each colour also has a paired light tint (glitr *_d pairs, e.g. midnight_blue_d = #15478A, #5BB5D5, #8AA3C4, #9DD3E6, #8C8C91). USAID Red was deliberately dropped (saturated, connotes danger). USAID brand palette (USAID Blue #002F6C, USAID Red #BA0C2F, Medium Blue #0067B9, Rich Black #212721, Web Blue #205493, Dark Red #651D32, Dark Gray #6C6463, Medium Gray #8C8985, Light Gray #CFCDC9, Light Blue #A7C6ED) is default for external products. Older 'classic' palette in glitr: #2057a7, #c43d4d, #8980cb, #e07653, #1e87a5, #f2bc40, #287c6f, #808080.",
+    "sequential": ["#15478A", "#446CA1", "#7391B9", "#8AA3C5", "#D0DAE8"],
+    "diverging": [],
+    "highlight": "#15478A",
+    "context": "#BCBEC0",
+    "positive": null,
+    "negative": null,
+    "background": "#FFFFFF",
+    "text": "#202020",
+    "textSecondary": "#505050",
+    "gridline": "#D3D3D3",
+    "axis": "#D3D3D3",
+    "notes": "Chart-element greys (guide p14): Title Nero #202020; Subtitle/Body Matterhorn #505050; Source/Note Suva Gray #909090; Shaded area (annotation layer) Whisper #EBEBEB; Reference line Matterhorn #505050; Grid line Light Gray #D3D3D3. glitr globals: color_title #202020, color_plot_text #505050, color_caption #909090, color_gridline #D3D3D3. Sequential tints for every core colour at 100/80/60/40/20% (Viking: #5BB5D5, #7CC4DD, #9DD3E6, #BDE1EE, #DEF0F7; Slate: #8C8C91, #A3A3A7, #BABABD ...); continuous palettes optimised for 11 steps. Grey family grey10k #E6E7E8 ... grey90k #414042; cookbook examples use grey30k #BCBEC0 for context bars. Palettes checked for colour-blindness (508 compliant). 'Front-office' (FO=TRUE) variant makes all text pure black #000000."
+  },
+  "typography": {
+    "family": "Source Sans 3",
+    "fallback": "Source Sans Pro, Arial, Gill Sans MT",
+    "title": { "size": 14, "weight": "bold", "align": "left", "case": "upper", "color": "#202020" },
+    "subtitle": { "size": 12, "weight": "normal", "style": "normal", "color": "#202020" },
+    "axisLabel": { "size": 10, "color": "#505050" },
+    "axisTitle": { "size": 10, "weight": "normal", "placement": "omitted by default; typically incorporated into title or subtitle" },
+    "dataLabel": { "size": 9, "weight": "normal" },
+    "source": { "size": 9, "style": "sentence case, plain", "color": "#909090" },
+    "notes": "Sizes in pt (ggplot). Guide typography spec: title 14 Nero bold upper case; subtitle 12 Nero sentence case (guide says may be lighter than title); facet/small-multiple titles 11 Matterhorn title case; legend 11 Matterhorn; axis text 10 Matterhorn; annotation text 9-10 Matterhorn sentence case; direct labels Matterhorn; source/notes 9 Suva Grey #909090 sentence case. Annotations written in thin, light typeface. All axis text horizontal - never vertical or 45 degrees. Thousands separator always."
+  },
+  "structure": {
+    "gridlines": "Major gridlines only, thin (ggplot linewidth 0.25) solid Light Gray #D3D3D3; no minor gridlines. Variants: si_style_xgrid (vertical only, for horizontal bars), si_style_ygrid (horizontal only), si_style_nolines.",
+    "axisLine": "None by default; xline/yline variants draw a single axis line in #D3D3D3.",
+    "ticks": "No tick marks ('Remove axis ticks as they detract more than they add').",
+    "zeroLine": "Not emphasised; bar and area charts must start at zero.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "omitted; axis titles used sparingly and usually incorporated into the title or subtitle",
+    "unitPlacement": "in subtitle",
+    "frame": "none - no panel border or background",
+    "background": "white #FFFFFF (transparent variant available)",
+    "notes": "Plot margins 15/15/10/15 pt; title & caption positioned relative to whole plot ('plot.title.position = plot') so title aligns with leftmost y-axis label. Default figure size 5.625 x 10 in (16:9 slide). Facet strips have no background, text left-aligned 11pt."
+  },
+  "legend": {
+    "placement": "top, left-justified directly below the subtitle",
+    "directLabels": "Strongly preferred: label line ends, or integrate the legend into the title/subtitle by colouring words in the category colour.",
+    "title": "shown in glitr (11pt), often removed",
+    "swatchShape": "square",
+    "notes": "No legend background or key box."
+  },
+  "marks": {
+    "bars": "Horizontal bars common, sorted by value (never alphabetical); bars start at zero; overlapping 'target vs result' bars: grey context bar with coloured achieved bar on top; no outlines.",
+    "lines": "No specific width rule; end-of-line direct labels preferred.",
+    "areas": "Must start at zero; shaded reference areas in Whisper #EBEBEB.",
+    "points": null,
+    "pies": null,
+    "notes": "No 3-D, no dual axes (use side-by-side charts), heatmap tiles with white borders."
+  },
+  "labels": {
+    "dataLabels": "Label only the important elements, not every bar/point; if bars are directly labelled, remove the axis text.",
+    "numberFormat": "Comma thousands separators always; round to minimise decimals and avoid false precision; percentages as whole numbers (e.g. 70%).",
+    "dates": "Fiscal-quarter labels like FY50Q1.",
+    "notes": "Abbreviate category labels when known to the audience (DRC, not ISO codes)."
+  },
+  "furniture": {
+    "title": "ALL CAPS takeaway headline (the finding, not a description like 'TESTS BY QUARTER'), bold, left-aligned with the leftmost y-axis label. Subtitle: full sentence giving context, axis/unit info or an integrated colour legend; not bold or italic.",
+    "source": "Caption in lower right-hand corner, light grey (#909090, 9pt), right-aligned; pattern 'Source: <data source (date)> | Ref Id: <code id>'; may include notes and caveats.",
+    "logo": "None on chart.",
+    "other": "Reference lines/areas labelled; small multiples in strategically ordered grid with left-aligned facet titles."
+  },
+  "annotations": "Thin, light, unboxed text in complete sentences (9-10pt Matterhorn #505050), connected to data with thin grey 'swoopy' curved arrows; avoid boxes and thick red arrows; use shaded Whisper #EBEBEB areas or colour to highlight periods.",
+  "layout": "Default 5.625 x 10 in (16:9 slide). Plot margin 15,15,10,15 pt. Small multiples to avoid overplotting; facet spacing 2 lines.",
+  "interaction": null,
+  "accessibility": "Colour-blind-checked palettes (Adobe Colors accessibility tools, 508 compliance); contrast ratio >= 2.5 for big text and >= 4 for small text; alt text required for public documents using Cesal's '<Chart type> of <type of data> where <reason>' formula; direct labels and headline titles to aid graphicacy.",
+  "chartTypes": {
+    "preferred": ["sorted horizontal bar", "overlapping target/result bar", "line", "small multiples", "heatmap", "dot plot"],
+    "discouraged": ["3-D charts", "dual-axis charts", "alphabetically ordered bars"],
+    "notes": "Chart types listed are not exhaustive; style principles apply to all."
+  },
+  "distinctiveRules": [
+    { "rule": "Title is ALL CAPS, bold, 14pt Nero #202020, stating the takeaway, left-aligned with the leftmost y-axis label (plot edge, not panel edge).", "source": "https://www.frank.computer/papers/OHA_StyleGuide_2024_July.pdf", "quote": "Should be written in all upper case letters. Left-aligned on the plot with the left most y-axis label." },
+    { "rule": "Subtitle is a plain (not bold/italic) sentence-case line at 12pt that can contain the axis title, period or an integrated colour legend.", "source": "https://www.frank.computer/papers/OHA_StyleGuide_2024_July.pdf", "quote": "The subtitle can provide additional context, including axis labels, period, or an integrated legend" },
+    { "rule": "Source caption sits in the lower right-hand corner, right-aligned, 9pt Suva Grey #909090, formatted 'Source: <source> | Ref Id: <id>'.", "source": "https://www.frank.computer/papers/OHA_StyleGuide_2024_July.pdf", "quote": "located in the lower right-hand corner of the visual in a light shade of gray" },
+    { "rule": "No tick marks and no axis lines; only thin (0.25) Light Gray #D3D3D3 major gridlines, no minor gridlines.", "source": "https://raw.githubusercontent.com/USAID-OHA-SI/glitr/main/R/si_style.R", "quote": "axis.ticks = element_blank(), axis.line = element_blank(), panel.grid.major = element_line(colour = color_gridline, linewidth = 0.25)" },
+    { "rule": "For horizontal bar charts keep only vertical gridlines (si_style_xgrid); for vertical charts only horizontal ones (si_style_ygrid).", "source": "https://usaid-oha-si.github.io/glitr/articles/adorn-your-plots.html", "quote": "As this plot is oriented horizontally, we can remove the extra y gridlines by using the si_style_xgrid theme." },
+    { "rule": "Legend at top, left-justified under the subtitle, no background/keys; better still, replace with direct labels or coloured words in the title.", "source": "https://raw.githubusercontent.com/USAID-OHA-SI/glitr/main/R/si_style.R", "quote": "Set the legend to be at the top left of the graphic, below title" },
+    { "rule": "Axis text is always horizontal (never rotated); axis titles omitted unless values are unclear.", "source": "https://www.frank.computer/papers/OHA_StyleGuide_2024_July.pdf", "quote": "Text should always, always, always be horizontal as opposed to vertical or at a 45 degree angle." },
+    { "rule": "Highlight the focus series in one OHA colour (e.g. Midnight Blue #15478A) and grey out the rest (grey30k #BCBEC0 / Slate).", "source": "https://www.frank.computer/papers/OHA_StyleGuide_2024_July.pdf", "quote": "Use it to highlight the most important groups -- gray out the rest or mute the colors" },
+    { "rule": "Numbers always use comma thousands separators and minimal decimals.", "source": "https://www.frank.computer/papers/OHA_StyleGuide_2024_July.pdf", "quote": "Values use a comma separator and limit the use of decimal places." },
+    { "rule": "Annotations are thin, light-grey, unboxed full sentences attached with thin curved ('swoopy') grey arrows; shaded highlight areas use Whisper #EBEBEB.", "source": "https://www.frank.computer/papers/OHA_StyleGuide_2024_July.pdf", "quote": "Annotations are a thin stroke, not boxed. And should be complete sentences... Use swoopy arrows to connect annotation to data." },
+    { "rule": "Categories are sorted by value, never alphabetically.", "source": "https://www.frank.computer/papers/OHA_StyleGuide_2024_July.pdf", "quote": "The default ordering for graphs often is alphabetical, which should be avoided." },
+    { "rule": "When values are directly labelled on bars, remove the axis text.", "source": "https://www.frank.computer/papers/OHA_StyleGuide_2024_July.pdf", "quote": "If directly labeling values on the chart elements, remove axis text." },
+    { "rule": "Default canvas is 10 x 5.625 in (16:9 slide), white background, no panel border or background fill.", "source": "https://www.frank.computer/papers/OHA_StyleGuide_2024_July.pdf", "quote": "The default visual size should be 5.625\" x 10\" to fit the dimensions of a 16:9 slide." },
+    { "rule": "Facet (small-multiple) titles are left-aligned 11pt text with no strip background.", "source": "https://raw.githubusercontent.com/USAID-OHA-SI/glitr/main/R/si_style.R", "quote": "strip.background = element_blank(), strip.text = element_text(size = 11, hjust = 0)" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/usaid-oha/si_style-1.png", "url": "https://usaid-oha-si.github.io/glitr/articles/adorn-your-plots_files/figure-html/si_style-1.png", "describes": "Horizontal bar chart with si_style(): title 'HTS_TST_POS FILLED WITH MIDNIGHT BLUE COLOR' in bold all-caps near-black sans, flush left at the very left edge of the image (aligned with y-axis labels, not the panel); subtitle beneath in regular weight, same dark colour, larger than axis text. Bars sorted descending; long light-grey (#BCBEC0) 'total' bars overlaid by short Midnight Blue #15478A bars from zero; small white gaps between bars. Both horizontal and vertical thin light-grey gridlines, no ticks, no axis lines, no panel border, white background. Axis labels mid-grey (#505050), category names right-aligned. Caption 'Source: glitr package `hts` dummy data' in light grey (#909090) bottom-right, right-aligned. No legend." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/usaid-oha/si_style_xgrid-1.png", "url": "https://usaid-oha-si.github.io/glitr/articles/adorn-your-plots_files/figure-html/si_style_xgrid-1.png", "describes": "Same chart with si_style_xgrid(): only vertical gridlines (thin #D3D3D3) remain, x labels formatted with comma separators (20,000 / 40,000 / 60,000), bars start flush against the y labels (no expansion), grey caption bottom-right. Shows the canonical OHA horizontal-bar look: bold caps title top-left, plain subtitle, grey context bars with Midnight Blue highlight." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/usaid-oha/oha-chart-elements.png", "url": "https://www.frank.computer/papers/OHA_StyleGuide_2024_July.pdf", "describes": "Style guide p5 'Chart Elements' anatomy diagram: 'TITLE' bold caps and 'Subtitle' top-left aligned with y-axis labels; y axis 0-1,000 with comma separator, x axis FY50Q1-FY50Q4; faint grey horizontal and vertical gridlines; single Viking-blue circle point with a thin grey curved arrow to an unboxed annotation; small grey 'Data source (date) | reference id' bottom-right; pink callouts explaining rules. Page header uses USAID blue caps heading with thin rules." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/usaid-oha/oha-motivation-remake.png", "url": "https://www.frank.computer/papers/OHA_StyleGuide_2024_July.pdf", "describes": "Style guide p4 before/after: 'NOT IDEAL' Excel stacked 100% bar (blue/orange, legend bottom) vs 'BETTER' remake: caps takeaway title 'IN FY21, FOUR OPERATING UNITS HAD ACHIEVED THE USAID LOCAL PARTNER BUDGET SHARE GOAL OF 70%', sorted horizontal bars with four achieving countries in dark blue and the rest in light blue, small % labels at bar ends, a dashed 70% threshold reference line labelled, unboxed grey annotations to the right, no axis text, small grey source line bottom-right." }
+  ]
+}

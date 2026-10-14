@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+import type { ChartChrome } from './theme/chrome';
 import type { ZeroDecision, ColorSchemeRecommendation } from './semantic-types';
 import type { LabelSizingDecision } from './decisions';
 import type { SemanticAnnotation, FormatSpec, DomainConstraint, TickConstraint } from './field-semantics';
@@ -1241,6 +1242,24 @@ export interface ChartAssemblyInput {
         title?: string;
         /** The deck: the reading of the headline — what is measured, of whom, when, in what units. */
         subtitle?: string;
+        /**
+         * A short line above the headline: a figure label (“Figure 2”) or a kicker. Set in the
+         * theme's `type.kicker`.
+         */
+        label?: string;
+        /**
+         * Where the data comes from, drawn as the chart's source line in the house's way (the theme's
+         * `source`). Optional: give it only where the source is known — an agent should not invent one.
+         */
+        source?: string | { text: string; href?: string };
+        /**
+         * The house chrome this chart keeps. Unset follows the theme. `false` drops it all; an object
+         * turns off parts: `header` (rules, tabs, wordmarks and logos above or beside the title),
+         * `footer` (the closing rule and the house's credit beside the source) and `logos` (every
+         * logo, header or footer — a footer credit then shows its words). The source line itself is
+         * drawn whenever `source` is given.
+         */
+        chrome?: ChartChrome;
         /** Channel → encoding map (e.g., `{ x: { field: 'weight' }, y: { field: 'mpg' } }`).
          * A bare string is shorthand for `{ field: <string> }` (e.g. `{ x: 'weight' }`). */
         encodings: Record<string, RawEncodingValue>;
@@ -1448,6 +1467,12 @@ export interface AssembleOptions {
     bandStepFitCapacityX?: number;
     /** Explicit Y-axis capacity for sparse band fitting. Internal assembler bridge. */
     bandStepFitCapacityY?: number;
+    /**
+     * The smallest band step (per group where bars are grouped) the value labels need on each axis,
+     * which the plan has checked the canvas can hold. Internal: the plan sets it when it widens the
+     * bands for their labels.
+     */
+    labelStep?: { x?: number; y?: number };
     /** Attach the theme's resolved decisions to the spec as `_theme.decisions`, for tools that inspect them. Default: false. */
     themeDecisions?: boolean;
     /**

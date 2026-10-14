@@ -1,0 +1,105 @@
+{
+  "id": "cmu",
+  "org": "Carnegie Mellon University",
+  "urls": [
+    "https://www.cmu.edu/brand/brand-guidelines/data-viz.html",
+    "https://www.cmu.edu/brand/documents/color-palettes-cmu.pdf"
+  ],
+  "access": "full",
+  "accessNotes": "The data-viz guidelines page is static HTML and fully readable. Its linked colour palette PDF (one large landscape page with swatches, example Power BI charts and a typography spec) was downloaded and rendered to PNG with ImageMagick. Note the PDF (Power BI oriented) specifies Arial / Times New Roman sizes that differ from the web page (Tableau Sans / Helvetica table); both are recorded. CMU Red is #c41230 on the web page and #c41330 in the PDF.",
+  "summary": "University brand guideline for Tableau/Power BI reports and dashboards. Accessibility-first, plain style: one colour for all bars unless categories need distinguishing, CMU Red reserved to mark CMU against dark-grey peers, direct labels instead of legends, bold 15pt titles and Helvetica/Tableau Sans text. Example charts are flat, light-grey-gridded Power BI defaults with brand palettes.",
+  "context": "academic",
+  "colors": {
+    "categorical": ["#c41230", "#4d5051", "#1f4c4c", "#007bc0", "#182c4b", "#941120"],
+    "categoricalNotes": "Web page: 'Categorical Core' = CMU Red #c41230 (represents CMU) + Dark Gray #4d5051 (all other values); 'Categorical Secondary' = Dark Green #1f4c4c, Highlands Sky Blue #007bc0, Weaver Blue #182c4b, Skibo Red #941120, used with the core palette. White text on all these colours. For internal audiences or financial data avoid red; use a secondary colour. PDF palettes (ordered top-to-bottom): 'Categorical CMU Basics' #043673, #a89e82, #941120, #007bc0, #1f4c4c, #719f94, #460054, #00853e; 'Categorical CMU Secondary' #007bc0, #043673, #008f91, #fdb515, #ef3a47, #00853e, #800054, #a89e82; 'Categorical Accessible Neutral - PowerBI Default' (all colours contrast above 4.5 and 3:1 for adjacent colours) #6b797c, #362b2b, #b08d72, #40484a, #86989c, #5b3d35, #928f8b, #242828; 'Categorical Bright' #0089b6, #003b76, #ef483d, #800054, #88a427, #137c76, #f7931d, #c2002f. 'CMU Highlight Against Peers': #c41330 for CMU then greys #4d5051, #6e6e6e, #919191, #b6b6b6, #dddddd for peers. Use as few colours as possible.",
+    "sequential": ["#007bc0"],
+    "diverging": ["#007bc0", "#8daacf", "#dddddd", "#e4aa79", "#d87800"],
+    "highlight": "#c41230",
+    "context": "#4d5051",
+    "positive": "#043673",
+    "negative": "#941120",
+    "background": "#ffffff",
+    "text": null,
+    "textSecondary": null,
+    "gridline": null,
+    "axis": null,
+    "notes": "Web page: Sequential Primary = Highlands Sky Blue #007bc0 (single-hue ramp); Sequential Secondary = Gold Thread #fdb515; Divergent = Gold Thread #fdb515 to Highlands Sky Blue #007bc0. PDF Divergent (high to low): #007bc0, #8daacf, #dddddd, #e4aa79, #d87800. PDF Sentiment (positive to negative): #043673, #cdd7e3, #f1f1f1, #eacfd2, #941120. Links in Carnegie Red. Colour must never be the only means of conveying information."
+  },
+  "typography": {
+    "family": "Helvetica (Tableau Sans when using Tableau; Arial in the Power BI palette PDF)",
+    "fallback": "Arial",
+    "title": { "size": 20, "weight": "bold", "align": null, "case": null, "color": null },
+    "subtitle": { "size": 17, "weight": "regular", "style": "normal", "color": null },
+    "axisLabel": { "size": 16, "color": null },
+    "axisTitle": { "size": null, "weight": null, "placement": null },
+    "dataLabel": { "size": 15, "weight": "regular (bold only for data points to call attention to)" },
+    "source": { "size": 16, "style": "regular (notes/annotations 12pt)", "color": null },
+    "notes": "Web page table (pt): section dividers 20pt regular; title 15pt bold; subtitle 13pt regular; axis labels 12pt regular; data labels 11pt regular (bold only to call attention); notes/annotations 12pt regular; links 12pt regular underlined in Carnegie Red. Pixel values above = pt x 4/3. PDF (Power BI): report titles Times New Roman 28-32pt; KPI numbers Arial Bold 24-28pt; KPI titles/headers and chart/table titles Arial Regular 14-16pt; data labels/axis captions Arial Bold 11-12pt; legends & category labels Arial Regular 9-10pt."
+  },
+  "structure": {
+    "gridlines": "Example charts in the palette PDF show thin light-grey horizontal gridlines only (vertical gridlines on horizontal bar examples). Not specified in text.",
+    "axisLine": "Not stated; examples show no axis lines.",
+    "ticks": "Not stated; examples show none.",
+    "zeroLine": "Bars always start at a zero baseline; scatter plots use zero baseline on both axes.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": null,
+    "unitPlacement": null,
+    "frame": "none",
+    "background": "white",
+    "notes": "Skip axis labels at regular intervals to avoid clutter."
+  },
+  "legend": {
+    "placement": "avoid; when used (PDF peer example) top-centre, horizontal",
+    "directLabels": "Preferred: 'When possible, avoid using a legend. Instead, incorporate your data labels directly into the data visualization.'",
+    "title": null,
+    "swatchShape": "circle (PDF example)",
+    "notes": ""
+  },
+  "marks": {
+    "bars": "One colour for all categories compared against the same measure (unless paired with other charts using colour for categories); ordinal data sorted ascending or descending; zero baseline; may be stacked for proportions.",
+    "lines": "PDF examples: medium lines with round point markers at each data point.",
+    "areas": null,
+    "points": "Dot size can convey an extra variable; colour identifies patterns and outliers; trend line allowed.",
+    "pies": "Pie & donut best limited to 2-3 slices; stacked bar preferred for comparing percentages.",
+    "notes": "Heatmap: colour density for one variable. Maps: sequential palette, limit to regions in data, no decorative shading."
+  },
+  "labels": {
+    "dataLabels": "Label important values/data points on the chart; white text over brand colours; bold only data points to call attention to.",
+    "numberFormat": "Commas as thousands separators, limit decimal places, round numbers.",
+    "dates": "Standard abbreviations: Sun, Mon, Tue; Jan, Feb, Mar.",
+    "notes": ""
+  },
+  "furniture": {
+    "title": "Short but descriptive title that summarises the story the chart tells.",
+    "source": "Captions, notes and summaries should concisely explain the visual; no source format specified.",
+    "logo": null,
+    "other": "Accompanying text summary should tell the same story on its own."
+  },
+  "annotations": "Notes/annotations 12pt regular; important data should be indicated with text in the graph, not only via hover.",
+  "layout": "Limit a visualization to one main theme with two or three supporting concepts. Dashboards: presentation (high-level metrics, simple charts), operational, exploratory.",
+  "interaction": "Tableau hover only for drill-down to supporting data; key messages must be visible as text for keyboard/screen-reader users.",
+  "accessibility": "About 4.5% of people have colour-vision deficiency: colour cannot be the only encoding. Accessible Neutral palette: all colours contrast above 4.5:1 and 3:1 between adjacent colours. Consider screen readers, Braille keyboards and keyboard-only navigation.",
+  "chartTypes": {
+    "preferred": ["bar", "line", "scatter plot", "stacked bar", "heatmap", "map"],
+    "discouraged": ["pie/donut with more than 2-3 slices"],
+    "notes": "Stick to common chart types when audience data literacy is unknown."
+  },
+  "distinctiveRules": [
+    { "rule": "When comparing CMU to other institutions, CMU is CMU Red #c41230 and every other value is Dark Gray #4d5051 (or a ladder of greys).", "source": "https://www.cmu.edu/brand/brand-guidelines/data-viz.html", "quote": "use CMU Red to represent CMU. Use Dark Gray to represent all other values." },
+    { "rule": "Data labels and marks that sit over brand colours are white.", "source": "https://www.cmu.edu/brand/brand-guidelines/data-viz.html", "quote": "Use white text for data labels and marks that appear over these colors." },
+    { "rule": "Avoid red for internal audiences or financial data; use a secondary colour instead.", "source": "https://www.cmu.edu/brand/brand-guidelines/data-viz.html", "quote": "If your visualization is directed to an internal audience, use a color from the secondary palette rather than red." },
+    { "rule": "Bars use a single colour for all categories against one measure, sorted ascending/descending, starting at zero.", "source": "https://www.cmu.edu/brand/brand-guidelines/data-viz.html", "quote": "use one color to represent all categories compared against the same measure" },
+    { "rule": "Sequential scales are single-hue Highlands Sky Blue #007bc0; diverging runs Gold Thread #fdb515 to Highlands Sky Blue #007bc0.", "source": "https://www.cmu.edu/brand/brand-guidelines/data-viz.html", "quote": "Sequential Primary: Highlands Sky Blue #007bc0 ... Divergent: Gold Thread, Highlands Sky Blue" },
+    { "rule": "Title 15pt bold, subtitle 13pt regular, axis labels 12pt, data labels 11pt regular, notes 12pt.", "source": "https://www.cmu.edu/brand/brand-guidelines/data-viz.html", "quote": "Title 15pt Bold; Subtitle 13pt Regular; Axis labels 12pt; Data labels 11pt Regular" },
+    { "rule": "Font: Tableau Sans in Tableau, Helvetica in other tools.", "source": "https://www.cmu.edu/brand/brand-guidelines/data-viz.html", "quote": "When using Tableau, the typeface Tableau Sans should be used ... For other data visualization tools, use the typeface Helvetica." },
+    { "rule": "Prefer direct labels over legends.", "source": "https://www.cmu.edu/brand/brand-guidelines/data-viz.html", "quote": "When possible, avoid using a legend. Instead, incorporate your data labels directly" },
+    { "rule": "Pie and donut charts limited to 2-3 slices.", "source": "https://www.cmu.edu/brand/brand-guidelines/data-viz.html", "quote": "Best when limited to 2-3 slices" },
+    { "rule": "Scatter plots use a zero baseline on both axes.", "source": "https://www.cmu.edu/brand/brand-guidelines/data-viz.html", "quote": "Use a baseline of zero for the x-axis and y-axis" },
+    { "rule": "Links in charts are 12pt regular, underlined, in Carnegie Red.", "source": "https://www.cmu.edu/brand/brand-guidelines/data-viz.html", "quote": "Links should be displayed in Carnegie Red" },
+    { "rule": "Sentiment scale: positive navy #043673 through #f1f1f1 neutral to negative Skibo red #941120.", "source": "https://www.cmu.edu/brand/documents/color-palettes-cmu.pdf", "quote": "Sentiment 043673 cdd7e3 f1f1f1 eacfd2 941120 positive---negative" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/cmu/palettes-left.png", "url": "https://www.cmu.edu/brand/documents/color-palettes-cmu.pdf", "describes": "Left half of the palette PDF. Two columns of 8 square swatches with hex labels in white ('Categorical CMU Basics' navy #043673, khaki #a89e82, dark red #941120, sky blue #007bc0, dark green #1f4c4c, sage #719f94, purple #460054, green #00853e; 'Categorical CMU Secondary'). Next to each, Power BI style demo charts: line chart with round point markers and thin light-grey horizontal gridlines, tiny grey tick labels, no axis lines; horizontal stacked bars with vertical light-grey gridlines; grouped vertical bars; a variant with one coloured bar and the rest in a grey ladder; pie with outside labels; packed bubbles. Bottom: typography spec 'Report Titles: Times New Roman 28-32pt' (bold serif), 'KPI Numbers: Arial Bold 24-28pt' in grey, 'Chart/Table Titles: Arial Regular 14-16pt', 'Data Labels/Axis Captions: Arial Bold 11-12pt', 'Legends & Category Labels: Arial Regular 9-10pt'; Divergent swatches #007bc0 #8daacf #dddddd #e4aa79 #d87800 (high to low) and Sentiment #043673 #cdd7e3 #f1f1f1 #eacfd2 #941120 (positive to negative)." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/cmu/palettes-right.png", "url": "https://www.cmu.edu/brand/documents/color-palettes-cmu.pdf", "describes": "Right half: 'Categorical Accessible Neutral - PowerBI Default' (greys and browns #6b797c #362b2b #b08d72 #40484a #86989c #5b3d35 #928f8b #242828) and 'Categorical Bright' palettes with same demo charts; a Washington State choropleth in the blue/orange divergent palette; KPI triangle cards in pale blue/pale pink with bold numbers. 'CMU Highlight Against Peers': swatches #c41330, #4d5051, #6e6e6e, #919191, #b6b6b6, #dddddd and a grouped column chart (Jan/Feb/Mar) where the CMU bar is red and four peer bars step from dark to light grey; legend centred above the plot with circular swatches; thin light-grey horizontal gridlines; y axis 0-5,000 with comma separators; no axis lines." }
+  ]
+}

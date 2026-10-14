@@ -106,6 +106,62 @@ replace `ink.series.categorical`, also consider replacing
 `categoricalExtended`; otherwise high-cardinality charts may return to the
 base preset's extended palette.
 
+How series colour holds up past the palette and on the page:
+
+- Past `categorical` (and `categoricalExtended`), the largest series keep the
+  house inks and the rest take `ink.series.overflow`; with no overflow ink they
+  take a grey derived from `ink.text.muted`. A single extra series keeps its own
+  name. The renderer's default scheme is never used.
+- `ink.series.categoricalText` gives each categorical ink a text variant, used
+  where a series is written in its colour (line-end names, matched values).
+  Without it, an ink under 3:1 against the plot is darkened in its hue for text.
+- `ink.series.minContrast: { fill, stroke }` (defaults 1.25 and 1.6) sets when a
+  faint ink is made visible: fills gain a darker edge, lines darken in hue.
+- `geometry.point.ink` (`series`, `text`, or a colour) sets the ink of a line's
+  vertex dots; by default they take the line's own ink.
+- `ink.series.categoricalByCount: { 2: [...], 3: [...] }` states a set for an
+  exact series count, when the guide publishes one; `ink.series.repeat: true`
+  restarts the palette past its end when the guide says colours repeat.
+- `ink.series.byMark: { line, area, bar, arc, point }` (each `{ single,
+  categorical }`) gives one family of marks its own inks, when the guide does.
+- `ink.series.roles: { other, total, missing }` colours values that play a role
+  (Other, Total, No data) in every chart. Do not put particular values (parties,
+  products) in the theme: those belong to the chart's field annotation
+  `colors`.
+- `ink.series.selection.ordered: "ramp"` with `ink.series.ordinal` gives a
+  series whose order the chart declares (`sortOrder`) tints of one ramp.
+- `geometry.area.fill: "fade"` and `geometry.line.wash: "tint" | "fade"`
+  (with `washOpacity`) draw gradient fills; use them only for a guide that
+  shows them.
+- Mark rules stay with their marks: `geometry.area.edge` is a line on areas
+  only; `geometry.band.opacity` and `outlineInk: "series"` are for bars;
+  `geometry.band.minLength` keeps a near-zero bar visible;
+  `geometry.point.density` (`countable`, `all`, `sparse`) says which lines keep
+  dots; `geometry.arc.order` (`data`, `largestFirst`), `startAngle` and `hole`
+  state pie rules.
+- `marks.redundantChannels: ["texture"]` with `marks.texture` draws pattern
+  fills on bars, wedges and areas: `pattern: "vary" | "hatch"`, or the guide's
+  own order as `patterns` (`solid`, `diagonal`, `antidiagonal`, `horizontal`,
+  `vertical`, `cross`, `dots`), lines `ink: "darker" | "white"`. Pair it with
+  `redundantEncoding: "always"` only when the guide patterns every chart.
+
+Type roles take the full weight scale (`thin`, `extralight`, `light`,
+`regular`, `medium`, `semibold`, `bold`, `extrabold`, `black`, or 100–900) and a
+`case` (`upper`, `lower`, `title`, `sentence`, `asIs`) that is applied before
+text is measured. State the weight the guide names rather than the nearest
+old one. `display` styles a KPI's big number; `annotation` a fitted statistic's
+note; `footnote` is not drawn by Flint.
+
+Furniture says where it sits and what it is measured against. `canvasTop` is
+the canvas's own top edge (y = 0, outside the margin) — use it for a house that
+rules the top of the graphic (the Economist's red line, UNHCR's top bar), with
+`frame: "canvas"` to run edge to edge or `"content"` to stay inside the margin.
+`aboveTitle` is a line over the headline (a wordmark, a logo); `besideTitle`
+sits level with the headline and narrows it; `belowTitle` is a rule over the
+plot block. Logos are `kind: "image"` with inline `svg` or a `src`, a size, an
+`alt` and an optional `href`. The figure label itself is the chart's
+`chart_spec.label`; the theme styles it with `type.kicker`.
+
 Use a standalone theme when the reference system does not honestly inherit a
 preset's layout, typography, and presentation behavior.
 
@@ -118,13 +174,14 @@ the authored blocks and their jobs:
 | --- | --- |
 | `ink` | Canvas, plot, panel, text, structural, series, status, and accent colors |
 | `type` | Minimum size and role-based typography for headlines, axes, values, annotations, footnotes, and displays |
-| `structure` | Semantic categorical/measure axes, grids, baseline, and frame |
-| `marks` | Band width, strokes, interpolation, opacity, corners, outlines, points, connectors, intervals, summaries, and separators |
-| `labels` | Truncation, flush behavior, and angle policy |
+| `structure` | Semantic categorical/measure axes (and `axis.x`/`axis.y` to style the bottom and left axes by side; `placement` takes `opposite`, `leading`/`trailing`, or a screen side), grids, baseline, and frame. Each grid, `grid.zero` and `baseline` is a presence or `{ presence, style, dash, weight, color }`; a grid may also take `layer: "front"` (over the marks). `grid.minor: { presence, divisions, on }` draws finer lines between the labelled ones |
+| `marks` | Band width, strokes, interpolation, opacity, corners, outlines, points, connectors, intervals, summaries, and separators; `group: { gap, spacing }` (also `geometry.band.group`) for grouped bars — the gap between bars in a group and between groups, each a share of a bar's width or `"Npx"` |
+| `labels` | Truncation, flush behavior, and the path category names that do not fit their band take. Leave `overflow` unset for the general path: a row of names `wrap` → `rotate90`; a run of times, dates, years or ranks `wrap` → `skip` (round values only) → `rotate90`. Set `overflow` only where the guide asks for something else, e.g. `["wrap", "rotate45", "rotate90"]` for 45° labels (steps: `wrap`, `skip`, `rotate45`, `rotate90`). Trimming is an add-on to every step, governed by `truncation` (`"never"` forbids it). Flint weighs each step whole and trimmed, at every size down to `type.minSize`, and takes the cheapest within the path's order. `fit` holds the thresholds: `minChars` (4), `turnedLimit` (px or `"40%"` of plot height), `gap` (em), `rowLimit` (px or % of chart width, for names down y). Names that fit are always flat; a row of names is never thinned |
 | `legend` | Visibility, ordered placement choices, direction, title, swatches, redundancy suppression, and how several keys stand: `arrangement` (`row`/`stack`), `titlePosition` (`above`/`inline`) and `align` (`start`/`center`/`end`/`spread`), preferences the layout keeps unless the keys would overflow |
-| `dataLabels` | Visibility, placement, and ink behavior for values on marks |
-| `annotation` | Units, axis titles, number formatting, point emphasis, labels, and statistics |
-| `furniture` | Repeating masthead tabs and header/footer rules |
+| `dataLabels` | Visibility, placement, and ink behavior for values on marks; `anchor` (`end`/`start`/`middle`) for labels inside bars, `fallback` (`perMark`/`allOutside`) when some bars are too short, `minContrast` for the ink inside a bar |
+| `annotation` | Units, axis titles, number formatting, point emphasis, labels, and statistics. `numberFormat.compact` sets number compaction: `style` (k/M/B, K/M/B, k/m/b, k/m/bn), `per` (`scale`: one unit per axis, or `value`), `threshold`, `on` (`axis`, `labels`) and the semantic `types` it covers; values already in a scale (`m`, `bn`, "(millions)") are never compacted |
+| `source` | How a chart's source line reads, when the chart gives one: `leadIn` (and its weight, style, case), `align`, `frame`, a `rule` above it, a house `credit` (`inline`/`end`/`nextLine`); set in `type.footnote` |
+| `furniture` | The header around the title: rules, bands, tabs, wordmarks and logos, placed by `at` (`canvasTop`, `aboveTitle`, `besideTitle`, `belowTitle`) against a `frame` (`canvas`, `content`, `block`) |
 | `facets` | Headers, frames, axis repetition, spacing, columns, and scale sharing |
 | `layout` | Density, target width, title block, and band step |
 | `chartDefaults` | Optional defaults keyed by registered chart type or `*`; caller values still win |

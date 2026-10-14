@@ -22,7 +22,14 @@ export {
     CANVAS_FURNITURE_KEY,
     readCanvasFurniture,
     canvasFurnitureMarkup,
+    appendCanvasFurniture,
+    placeCanvasFurniture,
+    svgDataUri,
     injectCanvasFurnitureSVG,
+    type CanvasPattern,
+    CANVAS_PATTERNS_KEY,
+    readCanvasPatterns,
+    canvasPatternDefs,
 } from './canvas-furniture';
 
 // VL template registry

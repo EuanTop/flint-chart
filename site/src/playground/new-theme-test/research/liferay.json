@@ -1,0 +1,112 @@
+{
+  "id": "liferay",
+  "org": "Liferay (Lexicon design system)",
+  "urls": [
+    "https://liferay.design/lexicon/core-components/charts/",
+    "https://github.com/liferay-design/liferay.design/tree/master/src/markdown/lexicon/core-components/charts",
+    "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/lexicon/core-components/charts/index.md",
+    "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/lexicon/core-components/charts/chart-color-palette.mdx",
+    "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/lexicon/core-components/charts/chart-interaction.md",
+    "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/lexicon/core-components/charts/chart-bar.md",
+    "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/lexicon/core-components/charts/chart-line.md",
+    "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/lexicon/core-components/charts/chart-pie.md",
+    "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/lexicon/core-components/charts/chart-doughnut.md",
+    "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/lexicon/core-components/charts/chart-stacked-bar.md",
+    "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/lexicon/core-components/charts/chart-forecast.md",
+    "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/lexicon/core-components/charts/chart-heatmap.md",
+    "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/articles/2018/building-charts-for-multiple-products.md"
+  ],
+  "access": "full",
+  "accessNotes": "The live URL https://liferay.design/lexicon/core-components/charts/ now returns 404. The full source markdown of every chart page (index, colours, interaction, bar, line, pie, donut, stacked bar, forecast, heatmap) and the images were read from the site's public GitHub repo liferay-design/liferay.design, plus the 2018 article 'Building Charts for Multiple Products'. Font is not stated in the chart pages; the example images appear to use Source Sans Pro (observation only).",
+  "summary": "Lexicon is Liferay's product design language; its charts (implemented as Clay Charts on billboard.js/D3) are flat, bright, friendly dashboard charts on white: a 10-colour flat palette led by bright blue #4b9fff, light dashed gridlines inside a thin rounded plot frame, legends to the right or top with rounded square swatches, and a consistent interaction model (popover on hover, click to select and fade others to 40% opacity). Accessibility via 9 dash styles, 9 marker shapes and 9 area patterns is central.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#4b9fff", "#ffb46e", "#ff5f5f", "#50d2a0", "#ff73c3", "#9ce269", "#af78ff", "#ffd76e", "#5fc8ff", "#7785ff"],
+    "categoricalNotes": "Flat Colors in mandatory order: blue, orange, red, teal, pink, green, purple, yellow, cyan, indigo. 'Lexicon provides a specific color order' – charts must follow the standard order to avoid colour vibration. Non-grouped bar charts use one colour for all bars (no legend). 'Other' slice in donut examples is a very light grey.",
+    "sequential": ["#b1d4ff", "#95c5ff", "#7eb7ff", "#64a9ff", "#4b9fff", "#318dff", "#187fff", "#0071fd", "#0065e4"],
+    "diverging": [],
+    "highlight": null,
+    "context": null,
+    "positive": null,
+    "negative": null,
+    "background": "#ffffff",
+    "text": null,
+    "textSecondary": null,
+    "gridline": null,
+    "axis": null,
+    "notes": "Gradient (sequential) colours: 9 shades per flat colour generated with a Sass colour generator (blue example: l4 #b1d4ff … d4 #0065e4), max nine levels, used for heat maps/maps without embedded text. Heatmap uses a single colour value plus white. Charts should sit on white. The flat colours do not meet W3C contrast for text, so text inside coloured areas is discouraged – use legend, tooltips and popovers instead."
+  },
+  "typography": {
+    "family": null,
+    "fallback": null,
+    "title": { "size": null, "weight": null, "align": null, "case": null, "color": null },
+    "subtitle": { "size": null, "weight": null, "style": null, "color": null },
+    "axisLabel": { "size": null, "color": null },
+    "axisTitle": { "size": null, "weight": null, "placement": "omitted in all examples" },
+    "dataLabel": { "size": null, "weight": null },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "No chart type specs are given. Examples show a humanist sans (looks like Source Sans Pro) in a muted slate grey for tick and legend labels. Hovered/selected legend item text becomes semi-bold."
+  },
+  "structure": {
+    "gridlines": "Bar chart example: horizontal dashed light-grey gridlines only. Line chart example: solid light-grey horizontal and vertical gridlines at each category.",
+    "axisLine": "Plot area enclosed by a thin light-grey rectangle with slightly rounded corners (acts as both axis lines and frame).",
+    "ticks": "No tick marks; labels sit outside the frame.",
+    "zeroLine": "Not emphasised (bottom of frame).",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "omitted",
+    "unitPlacement": null,
+    "frame": "Thin light-grey rounded rectangle around the plot area (also around donut charts).",
+    "background": "#ffffff",
+    "notes": ""
+  },
+  "legend": {
+    "placement": "right of the plot, vertically centred, stacked (bar/line examples); top-left horizontal row above the frame (donut example)",
+    "directLabels": "Not used; text inside coloured areas is not recommended – the legend is 'the best place' for text.",
+    "title": "none",
+    "swatchShape": "rounded square for bars/pies; line segment with the series' dash style and marker shape for line charts",
+    "notes": "Legend required for grouped data; not used when all bars share one colour. Legend items are interactive (hover highlights series)."
+  },
+  "marks": {
+    "bars": "Vertical grouped bars, square corners, small gaps within groups and larger between groups; groups keep the same series order; non-grouped bars all one colour.",
+    "lines": "2px stroke; differentiate by colour + dash type + marker shape (circle, square, triangle up, rhombus, triangle down, semicircles, rectangles); no area fill under line charts.",
+    "areas": "Area fill at 10% opacity so overlaps remain visible; same borders and shapes as line charts.",
+    "points": "Filled markers ~8–10px with 9 shape types.",
+    "pies": "Donut preferred over pie. First element starts at the top-right (12 o'clock, clockwise) following the colour order; thin white gaps between slices; 9 fill patterns available for non-overlapping areas.",
+    "notes": "Stacked bars follow colour order bottom-to-top (vertical) or left-to-right (horizontal). Forecast chart: past as line, present marked where a shaded background begins, future shaded. Heatmap may use up to seven bubble sizes: 0, 4, 8, 12, 16, 24, 32."
+  },
+  "labels": {
+    "dataLabels": "Not recommended inside coloured areas (contrast fails); values surface through popovers/tooltips.",
+    "numberFormat": null,
+    "dates": "Abbreviated months (Jan, Feb …) in examples.",
+    "notes": ""
+  },
+  "furniture": { "title": null, "source": null, "logo": null, "other": "Charts presented without titles in examples; framed plot area." },
+  "annotations": "Forecast region shown by shaded background.",
+  "layout": "Legend column to the right of the framed plot; wide aspect ratio (~2.2:1) in examples.",
+  "interaction": "Hover: show popover; mouse out: dismiss. Click: select element, grey out others to 40% opacity, show popover; click again anywhere resets. Touch = click. Chart-item popover appears on top of the item and the matching legend item turns semi-bold. Axis-item popover shows breakdown for the whole row/column, next to the axis. Legend-item hover highlights all items of that series. Pie/donut: selected slice enlarges, others at 40% opacity. Line: selected line keeps 2px, others drop to 1px and 40% opacity. Highlighting never changes the hue – only opacity of the others.",
+  "accessibility": "Colour is 'the last choice' to differentiate; 9 dash styles, 9 marker shapes and 9 area patterns (for non-overlapping areas like pie slices); colours not to be used for text (fail contrast).",
+  "chartTypes": {
+    "preferred": ["bar (vertical/horizontal, grouped)", "stacked bar", "line", "area", "donut", "pie", "heatmap", "predictive forecast"],
+    "discouraged": ["pie (donut preferred)"],
+    "notes": ""
+  },
+  "distinctiveRules": [
+    { "rule": "Series colours strictly in order: #4b9fff, #ffb46e, #ff5f5f, #50d2a0, #ff73c3, #9ce269, #af78ff, #ffd76e, #5fc8ff, #7785ff.", "source": "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/lexicon/core-components/charts/chart-color-palette.mdx", "quote": "Lexicon provides a specific color order and combinations and rules to follow" },
+    { "rule": "Line charts: 2px strokes, no area fill, each series differs by colour AND dash pattern AND marker shape.", "source": "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/lexicon/core-components/charts/chart-color-palette.mdx", "quote": "Only use borders, 2px thickness … Differentiate them using dash types, shape types, and colors. Don't use background/area colors with line charts" },
+    { "rule": "Area charts fill at 10% opacity.", "source": "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/lexicon/core-components/charts/chart-color-palette.mdx", "quote": "use 10% opacity for each Area Chart's background color" },
+    { "rule": "Selection/hover dims all other marks to 40% opacity without changing hue; non-selected lines also thin to 1px.", "source": "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/lexicon/core-components/charts/chart-interaction.md", "quote": "Selects the element. Grays out the remaining elements with a 40% opacity." },
+    { "rule": "Hovering a mark makes its legend label semi-bold; popover sits on top of the mark.", "source": "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/lexicon/core-components/charts/chart-interaction.md", "quote": "Highlight the legend item (font weight to semi-bold)." },
+    { "rule": "No value text inside coloured areas; use legend, tooltip, popover.", "source": "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/lexicon/core-components/charts/chart-color-palette.mdx", "quote": "you can include text inside the Flat Colors by default, we don't recommend it" },
+    { "rule": "Non-grouped bar charts: every bar the same colour and no legend.", "source": "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/lexicon/core-components/charts/chart-bar.md", "quote": "When data is not grouped, all bars in the chart must have the same color … a legend is not required." },
+    { "rule": "Donut preferred to pie; first slice starts at 12 o'clock going clockwise (top-right) in colour order; white gaps between slices.", "source": "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/lexicon/core-components/charts/chart-doughnut.md", "quote": "the first chart element is displayed in the top-right position" },
+    { "rule": "Stacked segments follow colour order from bottom to top (vertical) or left to right (horizontal).", "source": "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/lexicon/core-components/charts/chart-stacked-bar.md", "quote": "They must start from left to right in horizontal bars and from bottom to top in vertical bars." },
+    { "rule": "Plot area enclosed in a thin light-grey rounded rectangle; legend to the right, vertically centred with rounded-square swatches; no axis titles.", "source": "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/lexicon/core-components/charts/images/charts-12.png", "quote": "observed in example image" },
+    { "rule": "Bar charts use dashed light-grey horizontal gridlines only.", "source": "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/lexicon/core-components/charts/images/charts-12.png", "quote": "observed in example image" },
+    { "rule": "Sequential scales: 9 shades of one flat colour (blue #b1d4ff→#0065e4); heatmaps use one colour plus white.", "source": "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/lexicon/core-components/charts/chart-heatmap.md", "quote": "you must use a single color value and white for the time-spots" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/liferay/charts-12.png", "url": "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/lexicon/core-components/charts/images/charts-12.png", "describes": "Grouped vertical bar chart (3 quarters x 4 series) on white. Plot area boxed by a thin light-grey rounded-corner rectangle; dashed light-grey horizontal gridlines at 100-unit steps; y tick labels 0–400 outside the frame at left, category labels 'First quarter' etc. centred below in slate-grey humanist sans. Bars square-cornered in blue #4b9fff, orange #ffb46e, red #ff5f5f, teal #50d2a0. Legend at right, vertically centred, rounded-square swatches, listed in reverse order (TVs, Tablet, Mobile, Desktop). No title, no axis titles, no value labels." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/liferay/charts-26.png", "url": "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/lexicon/core-components/charts/images/charts-26.png", "describes": "Line chart Jan–Dec with four series, each with a different colour, dash pattern and marker: teal dotted with triangles, orange fine-dotted with small rectangles, blue dotted with squares, red dashed with circles. Solid light-grey vertical and horizontal gridlines inside a thin rounded frame; y labels 0–400 at left. Legend on the right showing line+marker samples with year labels. No titles." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/liferay/charts-16.png", "url": "https://raw.githubusercontent.com/liferay-design/liferay.design/master/src/markdown/lexicon/core-components/charts/images/charts-16.png", "describes": "Donut chart in a thin light-grey rounded card. Legend row above the card, left-aligned, rounded-square swatches: Facebook (blue), Twitter (orange), Linkedin (red), Other (very light grey). Donut ring ~40% thickness, first blue slice starting at 12 o'clock going clockwise, small white gaps between slices; no labels on slices." }
+  ]
+}

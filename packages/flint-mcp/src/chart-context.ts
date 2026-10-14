@@ -127,7 +127,7 @@ function panelEdits(agent: ChartAssemblyInput, shown: ChartAssemblyInput, agentV
   const options = new Set([...Object.keys(from.chartProperties ?? {}), ...Object.keys(to.chartProperties ?? {})]
     .filter((key) => !VIEW_KEYS.has(key)));
   let changed = [...options].filter((key) => !same(from.chartProperties?.[key], to.chartProperties?.[key])).length;
-  for (const key of ['subtitle', 'baseSize', 'canvasSize'] as const) {
+  for (const key of ['subtitle', 'label', 'source', 'chrome', 'baseSize', 'canvasSize'] as const) {
     if (!same(from[key], to[key])) changed += 1;
   }
   if (changed > 0) edits.push(`${edits.length > 0 ? 'and ' : ''}${plural(changed, 'style option')}`);

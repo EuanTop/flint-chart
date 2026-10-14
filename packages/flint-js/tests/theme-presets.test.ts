@@ -674,7 +674,7 @@ describe('theme compileDefaults', () => {
         expect(textFields(compile({ showValueLabels: true })).length).toBeGreaterThan(0);
     });
 
-    it('refuses a house straight angle the category names cannot fit, and keeps it when they can', () => {
+    it('keeps category names flat — widened, shrunk or as they are — before it turns them', () => {
         const compile = (prefix: string) => assembleVegaLite({
             data: {
                 values: Array.from({ length: 12 }, (_, index) => ({
@@ -692,11 +692,18 @@ describe('theme compileDefaults', () => {
             theme_spec: 'powerbi',
         } as any) as any;
 
-        // The house asks for straight labels; `2025-01` is wider than its band,
-        // so the axis must not be left flat — whether it ends up at the layout's
-        // own -45 or Vega-Lite's turn is a rendering detail, not the guarantee.
-        const long = compile('2025-');
-        expect(long.config.axisX.labelAngle ?? -45).not.toBe(0);
+        // `FY2025-01` is wider than its band even at the house's least size: the first step
+        // of the path, `wrap`, holds it whole on one line in bands widened within the stretch
+        // budget, so it stays flat rather than turning.
+        const long = compile('FY2025-');
+        expect(long.config.axisX.labelAngle ?? 0).toBe(0);
+        expect(long.width.step).toBeGreaterThan(compile('P').width.step);
+
+        // `2025-01` fits once set a little smaller: it shrinks, not past the floor, and stays flat.
+        const shrunk = compile('2025-');
+        expect(shrunk.config.axisX.labelAngle).toBe(0);
+        expect(shrunk.config.axisX.labelFontSize).toBeLessThan(compile('P').config.axisX.labelFontSize);
+        expect(shrunk.config.axisX.labelFontSize).toBeGreaterThanOrEqual(compile('P').config.axisX.labelFontSize * 0.75);
 
         // `P01` fits, so the house keeps the straight labels it asked for.
         expect(compile('P').config.axisX.labelAngle).toBe(0);

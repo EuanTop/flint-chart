@@ -114,7 +114,7 @@ export const apple: ThemePreset = {
         structure: {
             axis: {
                 categorical: { line: 'omit', ticks: 'omit', labelGap: 6 },
-                measure: { line: 'omit', ticks: 'omit', labelGap: 6, placement: 'opposite', tickDensity: 'sparse' },
+                measure: { line: 'omit', ticks: 'omit', labelGap: 6, placement: 'trailing', tickDensity: 'sparse' },
             },
             grid: { measure: 'quiet', category: 'omit', style: 'solid', weight: 0.5, zero: 'quiet' },
             frame: 'omit',
@@ -137,7 +137,7 @@ export const apple: ThemePreset = {
             arc: { cornerRadius: 4, gap: 3, gapStyle: 'rule' },
             cell: { gap: 2, cornerRadius: 3 },
         },
-        labels: { truncation: 'ellipsis', angle: 'horizontal' },
+        labels: { truncation: 'ellipsis' },
         legend: {
             show: 'always',
             placement: ['bottom'],

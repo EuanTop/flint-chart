@@ -1,0 +1,65 @@
+{
+  "id": "mayo-clinic",
+  "org": "Mayo Clinic – Genomic and Bioinformatic Services (GBS) UI style guide",
+  "urls": [
+    "https://docs.google.com/document/d/1G1RluXmPC5xhiq8kddKYOOSl4Sqc3UtAHywva9FPh6g/edit",
+    "https://docs.google.com/document/d/1G1RluXmPC5xhiq8kddKYOOSl4Sqc3UtAHywva9FPh6g/export?format=txt",
+    "https://docs.google.com/document/d/1G1RluXmPC5xhiq8kddKYOOSl4Sqc3UtAHywva9FPh6g/export?format=html"
+  ],
+  "access": "full",
+  "accessNotes": "The Google Doc (prepared by the Visual Analytics Group, NCSA, University of Illinois, Sept 7 2022) exported fully as text and HTML; embedded images extracted from the HTML export. IMPORTANT: the document is an application UI style guide for PrimeNG/Ultima-based GBS web apps (foundations, buttons, tags, badges, tabs, inputs, tables, dialogs, paginators). It contains NO chart or data-visualisation guidance (no mention of charts, axes, legends or plots), so all chart-specific fields are null; colour/typography values are the app tokens that a chart theme embedded in these apps would inherit.",
+  "summary": "A clinical-genomics web-application UI guide built on PrimeNG's Ultima theme: Roboto type, Material-style blue primary #2196F3 with a Mayo-blue (#0057B8) top bar, white cards on a #FAFAFA ground, 87%/60% black text, flat square tags, and a strong 'reduce visual noise' philosophy for very dense data tables. Any charts in these apps should inherit this restrained, Material-like, single-primary-colour look.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": [],
+    "categoricalNotes": "No chart palette. For qualitative status colours beyond success/warning/danger: choose from PrimeNG palettes, limit the number of colours, prefer lighter shades to reduce noise. Tag colour pairs (background/text): #B3E5FC/#23547B, #FFD8B2/#805B36, #C8E6C9/#256029, #FEEDAF/#8A5340, #FFCDD2/#C63737, #ECCFFF/#694382 – one colour per unique value; custom tags use the same hue for background and text.",
+    "sequential": ["#f4fafe", "#cae6fc", "#a0d2fa", "#75bef8", "#4baaf5", "#2196f3", "#1c80cf", "#1769aa", "#125386", "#0d3c61"],
+    "diverging": [],
+    "highlight": "#2196f3",
+    "context": null,
+    "positive": "#689f38",
+    "negative": "#d32f2f",
+    "background": "#ffffff",
+    "text": "rgba(0,0,0,0.87)",
+    "textSecondary": "rgba(0,0,0,0.6)",
+    "gridline": "rgba(0,0,0,0.12)",
+    "axis": null,
+    "notes": "Mayo Blue #0057B8 for the top bar (white shield logo, app name white bold H3). Primary #2196F3, primary-lightest/highlight #E3F2FD, error #B00020. Blue palette 50–900 listed in 'sequential' (Ultima). Surfaces: ground #FAFAFA, section/card/overlay #FFFFFF, border rgba(0,0,0,.12), hover rgba(0,0,0,.04); state tints primary at 4% (subtle areas) and 16% (focus). Status: success #689F38 (text #1B5E20 on #C8E6C9), warning #FBC02D (text #7f6003 on #FFECB3), danger #D32F2F (text #B71C1C on #FFCDD2). Icons use secondary text colour. Badges only red or blue (mostly blue). 'gridline' above is the surface-border token, not a chart spec."
+  },
+  "typography": {
+    "family": "Roboto",
+    "fallback": "Helvetica Neue Light, Helvetica Neue, Helvetica, Arial, Lucida Grande, sans-serif",
+    "title": { "size": null, "weight": "600 (card title, text-xl) / 700 (table title h4)", "align": "left", "case": null, "color": null },
+    "subtitle": { "size": null, "weight": null, "style": null, "color": null },
+    "axisLabel": { "size": null, "color": null },
+    "axisTitle": { "size": null, "weight": null, "placement": null },
+    "dataLabel": { "size": null, "weight": null },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "1rem = Roboto 14pt in Ultima. PrimeFlex scale: text-xs .75rem, sm .875, base 1, lg 1.125, xl 1.25, 2xl 1.5, 3xl 1.75, 4xl 2, 5xl 2.5, 6xl 3, 7xl 4, 8xl 6rem. Weights mostly 400/500/600. Dialog title text-xl 500; card title text-xl 600; alt card title text-2xl 700; table column label base 500; cell/paragraph base 400. Avoid line-height-1. Labels lighter weight/shade, values heavier."
+  },
+  "structure": { "gridlines": null, "axisLine": null, "ticks": null, "zeroLine": null, "yAxisPlacement": null, "yAxisTitle": null, "unitPlacement": null, "frame": "Content sits in white cards (shadow-1 elevation) on #FAFAFA ground; overlays use shadow-8.", "background": "#ffffff card on #fafafa", "notes": "No chart structure guidance." },
+  "legend": { "placement": null, "directLabels": null, "title": null, "swatchShape": null, "notes": "" },
+  "marks": { "bars": null, "lines": null, "areas": null, "points": null, "pies": null, "notes": "" },
+  "labels": { "dataLabels": null, "numberFormat": "Badges: round or use scientific notation rather than overflow.", "dates": null, "notes": "" },
+  "furniture": { "title": "Block titles left-aligned, h4 bold 700, line-height 1.5, with an optional filter dropdown on the right.", "source": null, "logo": "White-only Mayo shield logo in the Mayo-blue top bar only.", "other": "Tables: 36px title/label line, 36px row height (Small Table default), 36px footer with row count; settings button appears only on row hover." },
+  "annotations": null,
+  "layout": "PrimeFlex 12-column grid; spacing in 0.25rem increments; tighter spacing for related items; dialog paddings 32/21/14px; full-screen dialog 1024px wide; slim side nav to save space for dense data.",
+  "interaction": "Tooltips preferred over help text; default positions (buttons: right; tabs: top; inputs: bottom). Row hover turns grey (surface-hover rgba(0,0,0,.04)); focus uses primary at 16%. Keep PrimeNG standard states.",
+  "accessibility": "Consider colour blindness and contrast; don't rely on grey tags to mean 'unimportant'.",
+  "chartTypes": { "preferred": [], "discouraged": [], "notes": "No chart guidance in the document." },
+  "distinctiveRules": [
+    { "rule": "Use a single primary colour (#2196F3) and its tints; avoid other palettes ('Minimal Palette').", "source": "https://docs.google.com/document/d/1G1RluXmPC5xhiq8kddKYOOSl4Sqc3UtAHywva9FPh6g/edit", "quote": "Refrain from using palettes other than the primary palette." },
+    { "rule": "All app text in Roboto; primary text rgba(0,0,0,.87), secondary/icons rgba(0,0,0,.6).", "source": "https://docs.google.com/document/d/1G1RluXmPC5xhiq8kddKYOOSl4Sqc3UtAHywva9FPh6g/edit", "quote": "The primary font family in the Ultima theme is Roboto." },
+    { "rule": "Top bar always Mayo Blue #0057B8 with white-only shield logo and bold white app name.", "source": "https://docs.google.com/document/d/1G1RluXmPC5xhiq8kddKYOOSl4Sqc3UtAHywva9FPh6g/edit", "quote": "recommending that all applications use the “Mayo blue” color (#0057B8) for the top bar" },
+    { "rule": "White cards (#FFFFFF) on #FAFAFA ground, borders rgba(0,0,0,.12), hover rgba(0,0,0,.04).", "source": "https://docs.google.com/document/d/1G1RluXmPC5xhiq8kddKYOOSl4Sqc3UtAHywva9FPh6g/edit", "quote": "--surface-ground #FAFAFA … --surface-border rgba(0,0,0,.12)" },
+    { "rule": "Status colours: success #689F38, warning #FBC02D (also 'medium'), danger #D32F2F, each with light-background/dark-text message variants.", "source": "https://docs.google.com/document/d/1G1RluXmPC5xhiq8kddKYOOSl4Sqc3UtAHywva9FPh6g/edit", "quote": "There are 3 general statuses: Success, Warning and Danger" },
+    { "rule": "Categorical tags: square-cornered (no pills), text only, fixed pastel-background/dark-text pairs, one colour per value.", "source": "https://docs.google.com/document/d/1G1RluXmPC5xhiq8kddKYOOSl4Sqc3UtAHywva9FPh6g/edit", "quote": "We do NOT recommend usage of tag types ‘Pills’ and ‘Icons.’ The addition of rounded edges and imagery adds visual noise." },
+    { "rule": "Prefer lighter shades and plain text to reduce visual noise; only primary actions, errors and navigation targets should stand out.", "source": "https://docs.google.com/document/d/1G1RluXmPC5xhiq8kddKYOOSl4Sqc3UtAHywva9FPh6g/edit", "quote": "When everything stands out, nothing stands out." },
+    { "rule": "Dense layout: 36px rows/headers/footers, small components by default, avoid large buttons.", "source": "https://docs.google.com/document/d/1G1RluXmPC5xhiq8kddKYOOSl4Sqc3UtAHywva9FPh6g/edit", "quote": "use the ‘Small Table’ size as the default size for most tables. In this option, the line heights of rows are 36px." },
+    { "rule": "Labels in lighter weight/shade, values in heavier weight/shade.", "source": "https://docs.google.com/document/d/1G1RluXmPC5xhiq8kddKYOOSl4Sqc3UtAHywva9FPh6g/edit", "quote": "choose lighter weights and shades for labels and heavier weights/shades for associated values" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/mayo-clinic/img001.png", "url": "https://docs.google.com/document/d/1G1RluXmPC5xhiq8kddKYOOSl4Sqc3UtAHywva9FPh6g/export?format=html", "describes": "Application top bar (not a chart): full-width Mayo blue (#0057B8) bar with a circular lighter-blue expand button at far left, white outline Mayo shield logo with 'Mayo Clinic Laboratories' in small white two-line text, a slightly darker separator, app name 'WorkBench' in bold white Roboto, and white outline search/bell icons plus avatar at the right." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/mayo-clinic/img008.png", "url": "https://docs.google.com/document/d/1G1RluXmPC5xhiq8kddKYOOSl4Sqc3UtAHywva9FPh6g/export?format=html", "describes": "PrimeFlex type-scale table (not a chart): class names text-xs … text-8xl in bold blue on the left, grey Roboto sample text 'Lorem ipsum dolor sit amet' growing from .75rem to 6rem, rem values in blue at right, thin light-grey row dividers." }
+  ]
+}

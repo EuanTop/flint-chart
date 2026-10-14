@@ -1,0 +1,116 @@
+{
+  "id": "semrush",
+  "org": "Semrush — Intergalactic design system (D3 chart)",
+  "urls": [
+    "https://developer.semrush.com/intergalactic/data-display/chart-showcase/chart-showcase",
+    "https://github.com/semrush/intergalactic/blob/master/website/docs/data-display/d3-chart/d3-chart.md",
+    "https://github.com/semrush/intergalactic/blob/master/website/docs/data-display/color-palette/color-palette.md",
+    "https://github.com/semrush/intergalactic/blob/master/website/docs/data-display/chart-legend/chart-legend.md",
+    "https://github.com/semrush/intergalactic/blob/master/website/docs/data-display/line-chart/line-chart.md",
+    "https://github.com/semrush/intergalactic/blob/master/website/docs/data-display/bar-chart/bar-chart.md",
+    "https://github.com/semrush/intergalactic/blob/master/website/docs/data-display/donut-chart/donut-chart.md",
+    "https://github.com/semrush/intergalactic/blob/master/website/docs/style/design-tokens/design-tokens.json",
+    "https://github.com/semrush/intergalactic/blob/master/website/docs/style/design-tokens/base-tokens.json",
+    "https://github.com/semrush/intergalactic/blob/master/website/docs/style/typography/typography.md"
+  ],
+  "access": "full",
+  "accessNotes": "The developer.semrush.com site is JS-rendered, so the markdown sources and token JSON were read directly from the semrush/intergalactic GitHub repo (master). Tokens are defined in OKLCH; the hex values below were computed from the OKLCH token values with a standard OKLCH→sRGB conversion (approximate to ±1 per channel); original OKLCH strings are noted where relevant. Documentation screenshots appear to predate the current OKLCH palette (they show a brighter blue/green/orange/pink set).",
+  "summary": "Product-UI dashboard charts for an SEO SaaS: charts live inside white cards with a bold card title + info icon, an interactive checkbox legend at top-left, period switchers top-right, dim horizontal gridlines, hidden y-axis line, 3px straight lines, 2px-rounded bar tops, and rich hover tooltips with a vertical guide line. The categorical palette leads with near-black then indigo, mint, lilac and amber.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#191D21", "#666BDB", "#38E3B5", "#C18DFF", "#FFB400", "#B0C1FE", "#F56BED", "#B0CBC7"],
+    "categoricalNotes": "'Basic pack' = --intergalactic-chart-palette-order-1..8 in fixed order. Second pack (order-9..16): #5C5CC4, #00AA7D, #A261FD, #92B3AF, #A35400, #FF95FB, #94A5F5, #00CC9A. Third pack (order-17..24): #D3B1FF, #EB9500, #AB23A5, #749390, #4C4AA4, #00845F, #8029EC, #CD7200. Special tokens: total amount #818E99 (oklch 0.64 0.022 243.8), other/missing data #BBC6CD, null/n/a #D8DFE3. Maximum recommended 30 colours; beyond the packs use base palette hues at 300, then 200, then 400. Same entity = same colour across widgets on a page. Red used carefully (reserved for destructive/invalid states).",
+    "sequential": ["#CEDDFF", "#B0C1FE", "#94A5F5", "#666BDB", "#5C5CC4"],
+    "diverging": [],
+    "highlight": null,
+    "context": "#BBC6CD",
+    "positive": "#70E26C",
+    "negative": "#FF7073",
+    "background": "#FFFFFF",
+    "text": "#191D21",
+    "textSecondary": "#001324 at 59% alpha",
+    "gridline": "#D1D9DE",
+    "axis": "#94A0AB",
+    "notes": "Sequential example is the blue base ramp --blue-100..500; same 100–500 ramps exist for green, salad, orange, yellow, red, pink, violet, gray (gray: #D8DFE3, #BBC6CD, #A0ADB6, #818E99, #636D77). Semantic chart tokens: chart-data-success #70E26C, chart-data-critical #FF7073, warning #FFAA4C, new #38E3B5, lost #FF7073; intent colours commercial #C18DFF, informational #666BDB, navigational #38E3B5, task #F56BED, transactional #FFB400. Grid tokens: --chart-grid-line oklch(0.7 0.021 242) ≈#94A0AB (description: 'Grid and axis guide lines'), --chart-grid-x-axis ≈#D1D9DE, hover guide line --chart-grid-y-accent-hover-line ≈#D1D9DE, bar hover background oklch(0.375 0.09 242.7/0.05), period highlight bg ≈#EFF2F5, chart-grid-border #ffffff (separates datasets/dots). NB: the colour-palette doc says --chart-grid-line is for grid lines while d3-chart doc says 'Additional axes are colored with --chart-grid-line' and the X-axis with --chart-grid-x-axis; screenshots show very light grid lines."
+  },
+  "typography": {
+    "family": "Inter",
+    "fallback": null,
+    "title": { "size": null, "weight": "bold (Card.Title)", "align": "left", "case": "sentence", "color": "#191D21" },
+    "subtitle": { "size": null, "weight": "normal (Card.Description)", "style": "normal", "color": "#001324 at 59% alpha" },
+    "axisLabel": { "size": 12, "color": "grey (--chart-grid-text-label, text-secondary at 40% alpha)" },
+    "axisTitle": { "size": null, "weight": null, "placement": "usually omitted; add labels only if chart name isn't sufficient" },
+    "dataLabel": { "size": null, "weight": null },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "Font sizes tokens: fs-100 12px, fs-200 14px, fs-300 16px, fs-500 24px. Donut centre metric: 24px bold --text-primary with 12px --text-secondary description. Legend labels use --text-primary. Axis label size 12px inferred from screenshots/fs-100; not explicitly stated."
+  },
+  "structure": {
+    "gridlines": "Horizontal lines for time-trend charts; vertical lines for horizontal bar charts; both for scatter/bubble. Dim (keep additional lines dim). 3–5 horizontal guides (≤3 for small 120px charts, ≤5–6 for tall charts).",
+    "axisLine": "Y-axis hidden by default; X-axis line drawn in --chart-grid-x-axis.",
+    "ticks": "No tick marks in examples; Y values have 16px left/right margins, X values 12px top margin.",
+    "zeroLine": "Bars start at zero; when all line values are zero, draw the line on the zero axis.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "omitted",
+    "unitPlacement": "Abbreviated rounded values on each tick (25K, 20K, 15K; 25M, 50M, 100M); avoid units in tooltips unless needed.",
+    "frame": "Card container (Card.Header with Card.Title + Card.Description, Card.Body with chart), thin light border, rounded corners.",
+    "background": "white (--bg-primary-neutral)",
+    "notes": "Reference lines/date ranges can be highlighted with --chart-grid-period-bg. Minimum chart height 120px."
+  },
+  "legend": {
+    "placement": "top-left above the chart (recommended); alternatives below-left or right",
+    "directLabels": null,
+    "title": "not shown",
+    "swatchShape": "checkbox (interactive) or circle (static); line and square shapes also available",
+    "notes": "Show legend only with more than one dataset. Hover on legend item fades other categories to 30% opacity. Disabled items stay disabled on hover. If all items disabled, show the X-axis. Donut legend within 24px of chart; items 12px apart; can move below chart with 24px margin."
+  },
+  "marks": {
+    "bars": "Top corners border-radius 2px (--chart-rounded); ≥20% gap between bars; 4px between grouped bars; minimum bar height 2px; single colour or shades of one colour; hover shows --chart-grid-bar-hover background band.",
+    "lines": "3px thick, straight (non-curved) by default; dots shown when points are few or irregular; missing periods drawn dashed between known points; single-point series shown as dot with dashed line in other-data colour.",
+    "areas": null,
+    "points": "8×8px dots with 1px solid white border (--chart-grid-border); 10×10px on hover.",
+    "pies": "Donut only; clockwise; 1px gap between segments; sizes 24/80/180px with 6/20/30px ring thickness; semi-donut variants; hovered sector outerRadius +8px; zeros in legend, not drawn.",
+    "notes": "Total amount uses grey #818E99; missing/other data #BBC6CD."
+  },
+  "labels": {
+    "dataLabels": "Not typical; values shown in tooltip.",
+    "numberFormat": "Rounded abbreviated axis values (25K, 50M, 100M); 'n/a' for missing; 0 ≠ n/a.",
+    "dates": "Short 'Jan 1', 'Jan 5' axis ticks; tooltip header 'January 10, 2021'.",
+    "notes": "Category tick labels may be links to other reports."
+  },
+  "furniture": {
+    "title": "Every chart has a title; inside a Card use Card.Title (bold, with optional info 'i' icon).",
+    "source": "Optional Card.Description text can explain the data source or give advice.",
+    "logo": null,
+    "other": "Period switcher tabs (1M/3M/6M/All time) top-right of card; tab-like toggles (Traffic/Keywords); skeleton placeholders during loading with title visible."
+  },
+  "annotations": "Reference lines and highlighted date ranges; 'start of data collection' tooltip note in --chart-grid-y-accent-hover-line colour; forecast line gradient token exists.",
+  "layout": "Charts inside cards; min height 120px; legend top-left; donut sizes tied to widget width (<400px vs >400px).",
+  "interaction": "Tooltip follows cursor with 4px offset, 12px padding, white with soft shadow; shows all series for the hovered x with values right-aligned, includes totals, 'n/a' for missing data; tooltips can be synchronised across charts. Vertical hover guide line on line charts; hovered bar gets translucent background band; legend hover fades others to 30%.",
+  "accessibility": "Pattern fills, dots and line styles available for colour-independent reading; separate A11y tab per chart (data tables, summaries).",
+  "chartTypes": {
+    "preferred": ["line", "bar", "horizontal bar", "stacked bar", "area", "donut", "scatter", "bubble", "histogram", "venn", "cigarette (stacked progress bar)", "mini chart", "radar", "sankey", "funnel", "kagi", "lollipop", "quadrant"],
+    "discouraged": ["curved lines by default", "non-zero bar baselines"],
+    "notes": "Chart showcase lists all available D3 chart types."
+  },
+  "distinctiveRules": [
+    { "rule": "Legend sits top-left above the plot as a row of coloured checkboxes (interactive) or circles (static).", "source": "https://github.com/semrush/intergalactic/blob/master/website/docs/data-display/chart-legend/chart-legend.md", "quote": "The recommended placement of the legend is the top left position above the chart." },
+    { "rule": "Hide the legend when there is only one dataset.", "source": "https://github.com/semrush/intergalactic/blob/master/website/docs/data-display/chart-legend/chart-legend.md", "quote": "If there is only one data set on the chart, then don't display the legend" },
+    { "rule": "Y-axis line hidden; only horizontal dim gridlines and an X-axis line.", "source": "https://github.com/semrush/intergalactic/blob/master/website/docs/data-display/d3-chart/d3-chart.md", "quote": "The Y-axis is hidden by default." },
+    { "rule": "Use 3–5 horizontal gridlines with rounded abbreviated values (25K, 20K...).", "source": "https://github.com/semrush/intergalactic/blob/master/website/docs/data-display/d3-chart/d3-chart.md", "quote": "Use 3-5 horizontal additional horizontal lines for clarity. Use rounded values on axes" },
+    { "rule": "Lines are 3px, straight (no curve) by default; dots 8px with 1px white border, 10px on hover.", "source": "https://github.com/semrush/intergalactic/blob/master/website/docs/data-display/line-chart/line-chart.md", "quote": "Line thickness: 3px." },
+    { "rule": "Missing data drawn as a dashed line between known points; 0 is data, n/a is not.", "source": "https://github.com/semrush/intergalactic/blob/master/website/docs/data-display/d3-chart/d3-chart.md", "quote": "Represent missing data with a dashed line." },
+    { "rule": "Bars have 2px rounded top corners, ≥20% gaps, 4px between grouped bars and 2px minimum height.", "source": "https://github.com/semrush/intergalactic/blob/master/website/docs/data-display/bar-chart/bar-chart.md", "quote": "The upper part of the bar should have border-radius: 2px." },
+    { "rule": "Categorical palette starts with near-black (#191D21) then indigo #666BDB, mint #38E3B5, lilac #C18DFF, amber #FFB400.", "source": "https://github.com/semrush/intergalactic/blob/master/website/docs/style/design-tokens/design-tokens.json", "quote": "--intergalactic-chart-palette-order-1: oklch(0.23 0.009 245)" },
+    { "rule": "Totals in grey #818E99; other/missing data in light grey #BBC6CD; null in #D8DFE3.", "source": "https://github.com/semrush/intergalactic/blob/master/website/docs/data-display/color-palette/color-palette.md", "quote": "Use --intergalactic-chart-palette-order-total-amount token to indicate total values." },
+    { "rule": "Charts live in a Card with bold Card.Title (plus info icon) and optional Card.Description; period controls top-right.", "source": "https://github.com/semrush/intergalactic/blob/master/website/docs/data-display/d3-chart/d3-chart.md", "quote": "In our design system, data is typically placed within a Card" },
+    { "rule": "Tooltip: 12px padding, 4px from cursor, shows every series at the hovered x with right-aligned values and totals; vertical hover guide line.", "source": "https://github.com/semrush/intergalactic/blob/master/website/docs/data-display/d3-chart/d3-chart.md", "quote": "Tooltip padding is always 12px." },
+    { "rule": "Legend hover fades other series to 30% opacity.", "source": "https://github.com/semrush/intergalactic/blob/master/website/docs/data-display/chart-legend/chart-legend.md", "quote": "reducing the transparency of other data categories to 30%" },
+    { "rule": "Donuts run clockwise with 1px gaps between segments; hovered sector grows 8px.", "source": "https://github.com/semrush/intergalactic/blob/master/website/docs/data-display/donut-chart/donut-chart.md", "quote": "Display values in a clockwise direction. The gap between values is 1px." },
+    { "rule": "Y tick labels have 16px left/right margins; X tick labels 12px top margin.", "source": "https://github.com/semrush/intergalactic/blob/master/website/docs/data-display/d3-chart/d3-chart.md", "quote": "Y-axis values have 16px left and right margins. X-axis values have a 12px top margin." }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/semrush/heading.png", "url": "https://raw.githubusercontent.com/semrush/intergalactic/master/website/docs/data-display/d3-chart/static/heading.png", "describes": "White card with light grey border/rounded corners; header row with bold dark 'Chart title' and grey italic 'i' info icon, separated from body by a thin rule. Below: legend row top-left of coloured checkbox icons (blue, green, orange, pink) + 'Label'; right-aligned period tabs '1M' (underlined blue, active) '3M' '6M' 'All time'. Multi-line chart with ~3px straight lines, no markers; faint horizontal gridlines; grey y labels 0/25M/50M/100M at left, no y-axis line; x labels Jan 1 … Jan 29 in grey. Inter-like sans font. No source/logo." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/semrush/legend-bottom.png", "url": "https://raw.githubusercontent.com/semrush/intergalactic/master/website/docs/data-display/chart-legend/static/legend-bottom.png", "describes": "Same card layout but with a segmented toggle 'Traffic | Keywords' top-left and period tabs top-right; legend moved below the chart at bottom-left: checkbox swatches with device icons, 'Label 1 • English' style secondary grey text. Five straight lines (blue, green, orange, yellow, pink) over faint horizontal gridlines." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/semrush/tooltip-scheme.png", "url": "https://raw.githubusercontent.com/semrush/intergalactic/master/website/docs/data-display/d3-chart/static/tooltip-scheme.png", "describes": "Hover state: thin vertical grey guide line at the hovered date, a blue dot on the zero line; white tooltip card with soft shadow and rounded corners: grey header 'January 10, 2021', row with blue dot + 'Keywords' and right-aligned value '0', and a light grey footer area 'Place for a useful message.' Faint horizontal gridlines, y labels 0–125M." }
+  ]
+}

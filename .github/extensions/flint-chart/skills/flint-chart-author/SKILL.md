@@ -191,6 +191,23 @@ title:    "A pyramid that is no longer a pyramid"
 subtitle: "United States population by age and sex, 2020, millions"
 ```
 
+Add `chart_spec.label` only when the chart sits in a numbered sequence or
+under a section name: `label: "Figure 2"`. It is drawn above the headline in
+the theme's kicker style.
+
+`chart_spec.source` is optional. Add it only when the user names the source or
+asks for a source line, or the data itself states where it comes from:
+`source: "UN World Population Prospects 2024"` (or `{ text, href }` to link
+it). Never invent or guess one. The theme decides how it reads ("Source:",
+side, rule, credit); a chart without one draws no footer.
+
+`chart_spec.chrome` is the house decoration the theme draws around the chart:
+header rules, tabs, wordmarks, logos, the footer rule and the house credit. It is
+not the chart's own title, label or source. The theme draws it by default; leave
+`chrome` out unless the user asks to drop it: `chrome: false`
+drops all of it; `chrome: { logos: false }` (or `header`, `footer: false`) drops
+one part. Without logos a credit keeps its words.
+
 `Jan`, `Cairo`, `Chrome` name their own kind; `26`, `5,300`, `0.42` do not, and
 the headline is where they get named. Leave it out only where the chart is not
 read on its own — a sparkline in a cell, a tile under its own caption. Nothing
@@ -504,6 +521,11 @@ understates what you know:
 - `sortOrder` — the order the categories should appear in, when the order in
   the data is not the one you want and it isn't alphabetical either:
   `["Low", "Medium", "High"]`. For a handful of categories, not a long list.
+- `colors` — colours that belong to particular values, when the data has a
+  convention the reader expects: `{ "DFL": "#0793AB", "Republican": "#A1000F" }`.
+  Matched on the value (case-insensitive); values left out take the palette,
+  which then skips these colours. Only for real conventions (parties, brands,
+  asset classes), not to restyle a chart — the theme owns the palette.
 
 ## Chart-level properties (`chartProperties`)
 
@@ -557,6 +579,13 @@ relevant; set only to force non-default behavior):
 - `includeZero_x` / `includeZero_y` (boolean) — force the axis to include 0.
 - `xAxisType` / `yAxisType` (`temporal` | `nominal`) — force a temporal
   field to render as discrete bands (or vice-versa).
+- `labelOverflow` (list of steps) — the path x category names that do not
+  fit their band take. Leave it out: names wrap, then stand upright (trimmed
+  if need be), every name printed; a run of times, dates, years or ranks
+  wraps, then prints only round values (16:45, 17:00) flat. Set it only when
+  the user asks, e.g. `["wrap", "rotate90"]` to label every year, or
+  `["wrap", "rotate45", "rotate90"]` for 45° labels. Steps: `wrap`, `skip`
+  (sequences only), `rotate45`, `rotate90`.
 
 ## Parameter overrides — when to reach for them
 

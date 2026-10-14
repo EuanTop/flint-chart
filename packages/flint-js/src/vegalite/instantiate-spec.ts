@@ -233,6 +233,11 @@ export function vlApplyLayoutToSpec(
         config.labelAngle = labels.angle;
         if (labels.align !== undefined) config.labelAlign = labels.align;
         if (labels.baseline !== undefined) config.labelBaseline = labels.baseline;
+        const fit = labels.overflowFit;
+        if (fit?.step === 'skip' && fit.shown) {
+            // The names on round values (16:45, 17:00 …), looked up by the value as written; each band keeps its tick.
+            config.labelExpr = `indexof(${JSON.stringify(fit.shown)}, toString(datum.value)) >= 0 ? datum.label : ''`;
+        }
     }
     for (const channel of ['x', 'y'] as const) {
         const sizing = channel === 'x' ? layout.xLabel : layout.yLabel;

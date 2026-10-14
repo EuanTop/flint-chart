@@ -200,6 +200,30 @@ export function presenceWidth(p: Presence | undefined, base = 1): number {
     }
 }
 
+/** WCAG contrast between two colours, `1` for identical; `21` where either will not parse. */
+export function contrastRatio(a: string, b: string): number {
+    const ca = parseColor(a);
+    const cb = parseColor(b);
+    if (!ca || !cb) return 21;
+    const la = luminance(ca);
+    const lb = luminance(cb);
+    return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+/**
+ * The same hue, moved toward black (or white, on a dark surface) until text set in it reaches
+ * `min`:1 against `surface`. An ink that already reads is returned unchanged.
+ */
+export function readableTextInk(ink: string, surface: string, min = 3): string {
+    if (contrastRatio(ink, surface) >= min) return ink;
+    const away = isDarkSurface(surface) ? '#ffffff' : '#000000';
+    for (let t = 0.05; t <= 0.8 + 1e-9; t += 0.05) {
+        const candidate = mixHex(ink, away, t, ink);
+        if (contrastRatio(candidate, surface) >= min) return candidate;
+    }
+    return mixHex(ink, away, 0.8, ink);
+}
+
 /** Pick whichever of two inks reads better on `background`. */
 export function contrastingInk(background: string, light: string, dark: string): string {
     const bg = parseColor(background);

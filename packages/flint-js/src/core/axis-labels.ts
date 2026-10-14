@@ -1,11 +1,53 @@
 import type { LayoutDeclaration, LayoutResult } from './types';
-import type { ThemeLabels } from './theme/types';
+import type { LabelFitStep, ThemeLabels } from './theme/types';
 
 /** Space two straight names keep between them so they never read as one, in px. */
 export const STRAIGHT_LABEL_GAP = 6;
 
+/** The characters a name cut to its band must keep, before its ellipsis, to still read as itself. */
+export const CUT_LABEL_MIN_CHARS = 4;
+
+/** The widest a turned name runs where nothing else limits it, in px. */
+export const TURNED_LABEL_LIMIT = 100;
+
+/**
+ * The general rule for category names that do not fit their band: two lines, two lines cut to the
+ * band, upright, upright and cut. Every name is printed; nothing is turned −45° or left out unless a
+ * theme or the chart asks.
+ */
+export const DEFAULT_LABEL_OVERFLOW: readonly LabelFitStep[] = ['wrap', 'rotate90'];
+
+/**
+ * The general rule on a sequence axis (times, dates, months, years, ranks), where a name left out
+ * reads from its neighbours: two lines, then the names on round values only (16:45, 17:00 …),
+ * flat; upright only where not even those stand apart.
+ */
+export const DEFAULT_SEQUENCE_OVERFLOW: readonly LabelFitStep[] = ['wrap', 'skip', 'rotate90'];
+
+/**
+ * Whether a name cut to its band still reads: the band, less the gap two names keep, holds
+ * {@link CUT_LABEL_MIN_CHARS} characters and an ellipsis. Narrower, a cut leaves a stub.
+ */
+export function cutReads(band: number, fontSize: number): boolean {
+    return band - STRAIGHT_LABEL_GAP >= (CUT_LABEL_MIN_CHARS + 1) * fontSize * 0.6;
+}
+
 /** Flint's own tick-label size; a fitted size under it means the labels did not fit at the size Flint wanted. */
 export const BASE_LABEL_FONT_SIZE = 10;
+
+/** How the names along x were made to fit, where they did not fit their band whole and flat. */
+export interface LabelOverflowFit {
+    step: LabelFitStep;
+    /** The step trims its names. */
+    trimmed: boolean;
+    /** The widest name as drawn, plus the gap two names keep, and the band it had, in px. */
+    needed: number;
+    band: number;
+    /** The limit before a flat cut, restored where a pin turns the names. */
+    uncutLimit?: number;
+    /** `skip` (sequence axes only): the names printed, those on a round value. */
+    shown?: string[];
+}
 
 /** The tick labels one axis draws. */
 export interface AxisLabelPlan {
@@ -24,8 +66,8 @@ export interface AxisLabelPlan {
     baseline?: string;
     /** The theme's size, where crowded labels keep the smaller fitted size instead. */
     crowdedFrom?: number;
-    /** The theme asked for straight labels that would run into each other, so they stay turned. */
-    straightRefused?: boolean;
+    /** The step of the overflow sequence that made names too wide for their band fit. */
+    overflowFit?: LabelOverflowFit;
 }
 
 /** What a theme states about tick labels. */
@@ -33,7 +75,6 @@ export interface AxisLabelTheme {
     fontSize: number;
     /** The theme never truncates labels. */
     noLimit: boolean;
-    angle: ThemeLabels['angle'];
     font?: string;
 }
 
@@ -41,27 +82,18 @@ export interface AxisLabelTheme {
 export interface AxisLabelFacts {
     /** Whether a field is on the axis. */
     present: Record<'x' | 'y', boolean>;
-    /** The names along x, when x carries categories. */
-    xCategories?: {
-        /** Whether the names are nominal or ordinal values rather than numbers or dates. */
-        named: boolean;
-        distinct: number;
-        /** The widest name at the theme's label size, in px. */
-        widest: number;
-        /** The width each name gets on the drawn axis. */
-        band: number;
-    };
+    /** The x axis is a continuous ruler (dates or numbers on a time or linear scale). */
+    xRuler?: boolean;
 }
 
 /**
  * The tick labels of each axis, from the label sizing the layout fitted and the theme. Numbers
  * keep a gap of 0.6 em between labels so two never read as one; bands are spaced by their scale
  * and keep none. A theme's size holds unless the layout had to shrink the labels to fit their
- * bands. A theme's angle holds unless straight names would run into each other: the widest name
- * as measured, plus the gap two names keep, wider than the band. Names too wide for their band,
- * a theme's straight ones refused, turn −45°, the least that reads, or upright where the band is
- * narrower than a turned line (its height times √2), unless the layout turned them already; names set straight drop the
- * anchoring of a turn the layout fitted.
+ * bands. How category names along x are set — flat, wrapped, cut, turned or thinned, and at what
+ * size — was decided with the layout ({@link planBandLabels}, by cost); a continuous ruler (dates,
+ * numbers on a time or linear scale) is never turned, its ticks thin. Row names down y keep the
+ * layout's angle.
  */
 export function planAxisLabels(
     layout: LayoutResult,
@@ -76,8 +108,13 @@ export function planAxisLabels(
         const fitted = sizing.fontSize;
         const fittedLimit = channel === 'x' || wrapped ? sizing.labelLimit : undefined;
         const fittedLineHeight = wrapped ? sizing.labelLineHeight : undefined;
-        const fittedAngle = sizing.labelAngle === undefined || (channel === 'y' && !wrapped) ? {}
+        const ruler = channel === 'x' && (facts.xRuler === true
+            || declaration.resolvedTypes?.x === 'temporal' || declaration.resolvedTypes?.x === 'quantitative');
+        const fittedAngle = ruler && sizing.labelAngle ? { angle: 0, align: 'center', baseline: 'top' }
+            : sizing.labelAngle === undefined || (channel === 'y' && !wrapped) ? {}
             : { angle: sizing.labelAngle, align: sizing.labelAlign, baseline: sizing.labelBaseline };
+        const decided = channel === 'x' ? sizing.overflow : undefined;
+        const overflowFit = decided ? { overflowFit: { ...decided, ...(fittedLimit !== undefined ? { uncutLimit: fittedLimit } : {}) } } : {};
         if (!theme) {
             return {
                 fontSize: fitted,
@@ -85,76 +122,80 @@ export function planAxisLabels(
                 ...(discrete ? {} : { separation: Math.round(fitted * 0.6) }),
                 ...(fittedLineHeight !== undefined ? { lineHeight: fittedLineHeight } : {}),
                 ...fittedAngle,
+                ...overflowFit,
             };
         }
         const resolved = declaration.resolvedTypes?.[channel];
         const banded = discrete || resolved === 'nominal' || resolved === 'ordinal';
         const separation = !banded ? Math.round(theme.fontSize * 0.6)
             : discrete ? undefined : Math.round(fitted * 0.6);
-        const crowded = (fitted < BASE_LABEL_FONT_SIZE || (channel === 'y' && wrapped && Boolean(fittedLineHeight)))
-            && theme.fontSize > fitted;
-        const fontSize = crowded ? fitted : theme.fontSize;
+        // A crowded axis takes the size the layout fitted; names the band-label choice set smaller
+        // than the theme's take that size.
+        const bandFitted = sizing.fittedFontSize;
+        const crowded = bandFitted !== undefined
+            || ((fitted < BASE_LABEL_FONT_SIZE || (channel === 'y' && wrapped && Boolean(fittedLineHeight))) && theme.fontSize > fitted);
+        const fontSize = bandFitted ?? (crowded ? fitted : theme.fontSize);
         const twoLines = wrapped && Boolean(fittedLineHeight) && (fittedLimit ?? 0) > 0;
-        const limit = twoLines ? fittedLimit : theme.noLimit ? 0 : fittedLimit;
+        // Names the choice trimmed keep its trim; otherwise a theme that never truncates draws them whole.
+        const cut = decided?.trimmed === true;
+        const limit = twoLines || cut ? fittedLimit : theme.noLimit ? 0 : fittedLimit;
         const lineHeight = twoLines ? Math.ceil(fontSize * 1.2) : fittedLineHeight;
-
-        let angle: Pick<AxisLabelPlan, 'angle' | 'align' | 'baseline'> = fittedAngle;
-        let straightRefused = false;
-        if (facts.present[channel]) {
-            const categories = facts.xCategories;
-            const choice = channel === 'x'
-                ? themeLabelAngle(theme.angle, categories && { banded: categories.named, widest: categories.widest }, layout.xStep)
-                : { angle: theme.angle === 'horizontal' ? 0 : undefined };
-            const asked = choice.angle;
-            // Turned −45° a name takes its line height over √2 of the band; narrower, only an upright name clears its neighbour.
-            const diagonal = !categories || !(categories.band > 0) || categories.band >= Math.ceil(fontSize * 1.2 * Math.SQRT2);
-            const turned = diagonal ? { angle: -45, align: 'right', baseline: 'top' } : { angle: -90, align: 'right', baseline: 'middle' };
-            if (asked !== undefined) {
-                const straight = channel !== 'x' || asked !== 0 || !banded || !categories || categories.distinct === 0
-                    || !(categories.band > 0) || categories.widest + STRAIGHT_LABEL_GAP <= categories.band;
-                if (straight) angle = asked === 0 && fittedAngle.angle !== 0 ? { angle: 0 } : { ...fittedAngle, angle: asked };
-                else {
-                    straightRefused = true;
-                    if (fittedAngle.angle === undefined) angle = turned;
-                }
-            } else if (banded && fittedAngle.angle === undefined && categories && categories.distinct > 0 && categories.band > 0
-                && categories.widest + STRAIGHT_LABEL_GAP > categories.band) {
-                // Names too wide for their band, straight asked or not: turned the least that reads.
-                straightRefused = 'reason' in choice && choice.reason === 'too-wide';
-                angle = turned;
-            }
-        }
         return {
             fontSize,
             ...(theme.font !== undefined ? { font: theme.font } : {}),
             ...(limit !== undefined ? { limit } : {}),
             ...(separation !== undefined ? { separation } : {}),
             ...(lineHeight !== undefined ? { lineHeight } : {}),
-            ...angle,
+            ...fittedAngle,
             ...(crowded ? { crowdedFrom: theme.fontSize } : {}),
-            ...(straightRefused ? { straightRefused } : {}),
+            ...overflowFit,
         };
     };
     return { x: plan('x'), y: plan('y') };
 }
 
 /**
- * The x label angle a theme asks for. "Flat" is a preference and "legible" is not: where the
- * band is narrower than the widest category name and the gap two names keep, a flat angle goes
- * back to the layout. The reverse holds too: a name that fits its band at the theme's label size
- * reads straight. `widest` is the widest name as the renderer measures it, in px.
+ * The first step of a path that holds, for a renderer that refits names across a panel (Plotly):
+ * `wrap` there is a trim to the band (four characters and an ellipsis must stand), `skip` holds on
+ * an ordered axis, a turn needs the band to hold the turned line (its height, times √2 at −45°).
+ * Past the path: upright. Any step trims where the names overrun and trimming is allowed.
  */
-export function themeLabelAngle(
-    policy: ThemeLabels['angle'],
-    category: { banded: boolean; widest: number } | undefined,
-    step: number,
-): { angle: number | undefined; reason?: 'too-wide' | 'fits'; needed: number; step: number } {
-    const angle = policy === 'rotated' ? -45 : policy === 'horizontal' ? 0 : undefined;
-    if (!category) return { angle, needed: 0, step };
-    const { banded, widest } = category;
-    const needed = widest + STRAIGHT_LABEL_GAP;
-    const fits = widest > 0 && step > 0 && needed <= step;
-    if (angle === 0 && !fits && widest > 0 && step > 0) return { angle: undefined, reason: 'too-wide', needed, step };
-    if (angle === undefined && fits && banded && policy !== 'rotated') return { angle: 0, reason: 'fits', needed, step };
-    return { angle, needed, step };
+export function chooseLabelStep(
+    steps: readonly LabelFitStep[],
+    at: { band: number; widest: number; fontSize: number; turnLimit: number; noTrim?: boolean; ordered?: boolean },
+): { step: LabelFitStep; trimmed: boolean } {
+    const line = at.fontSize * 1.2;
+    const turnTrim = !at.noTrim && at.widest > at.turnLimit;
+    for (const step of steps) {
+        if (step === 'wrap' && !at.noTrim && cutReads(at.band, at.fontSize)) return { step, trimmed: true };
+        if (step === 'skip' && at.ordered) return { step, trimmed: false };
+        if (step === 'rotate45' && at.band >= Math.ceil(line * Math.SQRT2)) return { step, trimmed: turnTrim };
+        if (step === 'rotate90' && at.band >= line) return { step, trimmed: turnTrim };
+    }
+    return { step: 'rotate90', trimmed: turnTrim };
+}
+
+const FIT_STEPS: readonly LabelFitStep[] = ['wrap', 'skip', 'rotate45', 'rotate90'];
+
+/** A stated path, one step or several, with anything that is not a step left out; undefined where none is stated. */
+function statedSteps(stated: unknown): LabelFitStep[] | undefined {
+    const list = (Array.isArray(stated) ? stated : stated != null ? [stated] : []).filter((step): step is LabelFitStep => FIT_STEPS.includes(step as LabelFitStep));
+    return list.length ? list : undefined;
+}
+
+/**
+ * The path a chart's x names take when they do not stand flat and whole: the chart's own
+ * (`chartProperties.labelOverflow`), else the theme's `labels.overflow`, else the general path —
+ * `wrap` → `rotate90` for a row of names ({@link DEFAULT_LABEL_OVERFLOW}), `wrap` → `skip` →
+ * `rotate90` for a sequence ({@link DEFAULT_SEQUENCE_OVERFLOW}). Whether a step may trim is the
+ * theme's `truncation`, not a step.
+ */
+export function resolveLabelOverflow(labels: ThemeLabels | undefined, chartOverflow?: unknown, axis: 'names' | 'sequence' = 'names'): LabelFitStep[] {
+    return statedSteps(chartOverflow) ?? statedSteps(labels?.overflow)
+        ?? [...(axis === 'sequence' ? DEFAULT_SEQUENCE_OVERFLOW : DEFAULT_LABEL_OVERFLOW)];
+}
+
+/** Whether a sequence keeps names flat until it runs out: no turn in it. */
+export function overflowStaysFlat(sequence: readonly LabelFitStep[]): boolean {
+    return !sequence.some((step) => step.startsWith('rotate'));
 }

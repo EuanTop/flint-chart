@@ -156,7 +156,8 @@ describe('value label precision', () => {
 
   describe('the fit tests inherit the honest width', () => {
     const bars = (values: number[]) => ({
-      data: { values: values.map((v, i) => ({ cat: `Category ${i + 1}`, val: v })) },
+      // Short names that stand flat in the bars' own bands, so the bands — the room — stay the same.
+      data: { values: values.map((v, i) => ({ cat: `C${i + 1}`, val: v })) },
       semantic_types: { cat: 'nominal', val: 'quantitative' },
       chart_spec: {
         chartType: 'Bar Chart',

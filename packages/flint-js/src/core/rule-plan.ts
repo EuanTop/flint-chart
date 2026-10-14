@@ -8,7 +8,10 @@ export const RULE_GAP = 6;
 /** A rule a theme draws across the top or foot of a chart's block. */
 export interface ClosingRule {
     edge: 'top' | 'bottom';
+    /** The block's width, or the theme's own; a rule at the foot runs the drawn graphic's width unless the theme states one. */
     width: number;
+    /** The theme stated the width. */
+    stated?: boolean;
     height: number;
     color?: string;
 }
@@ -34,7 +37,9 @@ export interface RulesInputs {
  */
 export function planRules(inputs: RulesInputs): RulesPlan | undefined {
     const { design, structure, views, block } = inputs;
-    const asked = design.furniture.filter((item) => item.kind === 'headerRule' || item.kind === 'footerRule');
+    // A rule below the title spans the plot block; so do the earlier header and footer rules.
+    const asked = design.furniture.filter((item) => item.kind === 'headerRule' || item.kind === 'footerRule'
+        || ((item.kind === 'rule' || item.kind === 'band') && item.at === 'belowTitle'));
     if (!asked.length) return undefined;
     if (views?.kind === 'concat') {
         return { refused: 'rule-not-drawn', message: 'the closing rule is not drawn — the chart is already a concatenation' };
@@ -47,23 +52,22 @@ export function planRules(inputs: RulesInputs): RulesPlan | undefined {
         return { refused: 'rule-not-drawn', message: 'the closing rule is not drawn — a faceted table is already its own stack of blocks, with no single edge to close' };
     }
     const rules: ClosingRule[] = asked.map((item) => ({
-        edge: (item.anchor ?? 'topLeft').startsWith('top') ? 'top' : 'bottom',
+        edge: item.at === 'belowTitle' || (item.anchor ?? 'topLeft').startsWith('top') ? 'top' : 'bottom',
         width: item.width ?? block,
+        ...(item.width !== undefined ? { stated: true } : {}),
         height: item.height ?? 2,
         ...(item.color ? { color: item.color } : {}),
     }));
     return { rules, room: rules.reduce((sum, rule) => sum + rule.height + RULE_GAP, 0) };
 }
 
-/** The views with the rules set above and below them. */
+/**
+ * The views with the rules set above them. A rule at the foot is drawn on the canvas across the
+ * graphic the renderer laid out, so it does not join the views.
+ */
 export function withRules(views: ViewNode, rules: ClosingRule[]): ViewNode {
     const rule = (item: ClosingRule): ViewNode => ({ kind: 'view', role: 'rule', width: item.width, height: item.height });
-    return {
-        kind: 'concat', direction: 'column', gap: RULE_GAP,
-        children: [
-            ...rules.filter((item) => item.edge === 'top').map(rule),
-            views,
-            ...rules.filter((item) => item.edge === 'bottom').map(rule),
-        ],
-    };
+    const top = rules.filter((item) => item.edge === 'top');
+    if (!top.length) return views;
+    return { kind: 'concat', direction: 'column', gap: RULE_GAP, children: [...top.map(rule), views] };
 }

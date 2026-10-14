@@ -1,0 +1,102 @@
+{
+  "id": "finastra",
+  "org": "Finastra (FusionFabric.cloud / Finastra Design System, FDS)",
+  "urls": [
+    "https://design.fusionfabric.cloud/data-visualization",
+    "https://github.com/xmonvoisin/finastra-design-system",
+    "https://raw.githubusercontent.com/xmonvoisin/finastra-design-system/master/libs/web-components/charts/src/apexcharts.ts",
+    "https://raw.githubusercontent.com/xmonvoisin/finastra-design-system/master/libs/web-components/charts/src/apexcharts-styles.scss",
+    "https://raw.githubusercontent.com/xmonvoisin/finastra-design-system/master/libs/web-components/charts/README.md",
+    "https://raw.githubusercontent.com/xmonvoisin/finastra-design-system/master/libs/angular-components/core/src/palette/palette.defaults.ts",
+    "https://raw.githubusercontent.com/xmonvoisin/finastra-design-system/master/libs/angular-components/chart/src/_chart.theme.scss",
+    "https://raw.githubusercontent.com/xmonvoisin/finastra-design-system/master/libs/angular-components/chart/src/chart.component.ts",
+    "https://raw.githubusercontent.com/xmonvoisin/finastra-design-system/master/themes/fds-theme/color/_light.scss",
+    "https://raw.githubusercontent.com/xmonvoisin/finastra-design-system/master/themes/fds-theme/color/_dark.scss",
+    "https://raw.githubusercontent.com/xmonvoisin/finastra-design-system/master/themes/angular-theme/lib/core/theming/_palette.scss"
+  ],
+  "access": "none",
+  "accessNotes": "design.fusionfabric.cloud no longer resolves (DNS failure) and has no Wayback snapshot; a web search found no copy of the data-visualization guideline text. The original GitHub repo finastra/finastra-design-system returns 404, but a public fork (xmonvoisin/finastra-design-system, 2022) contains the official chart implementations: the @finastra/charts web component (ApexCharts wrapper) whose default ChartTheme encodes the guide's named palettes (semantic 1-3, categorical, focus 1/2, focus angular, sequential 1/2 with label colours), the Angular uxg-chart (Plotly) palette defaults, and the FDS light/dark colour tokens. All values below come from that source code; prose rules from the guide (do/don'ts, layout) could not be read. No reference images were available (the only PNG in the repo was a placeholder icon).",
+  "summary": "Finastra's FDS is an enterprise fintech product-UI system built on Material/Angular with Roboto. Its chart palettes are anchored on the brand violet #694ED6 and fuchsia/pink, with a six-colour categorical palette ending in a light grey 'other', explicit per-colour label (text) colours for contrast, two violet/pink 'focus' gradients that highlight against a neutral grey, and two nine-step sequential ramps.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#694ED6", "#F04E98", "#ED8B00", "#FFD100", "#7FCDDE", "#E5E5E5"],
+    "categoricalNotes": "Web-component default 'categorical' palette (6 colours, last is neutral grey #E5E5E5, presumably for 'other'). Paired data-label colours: white on #694ED6, black on all others. Older Angular/Plotly colorway (8): #694ED6, #C137A2, #E40046, #56C271, #FF8A3D, #D2D755, #F0B323, #5BC1D7 (primary violet, secondary fuchsia, crimson, grass, amber, lime, gold, ocean). Palettes are overridable via CSS variables --fds-chart-categorical-palette etc.",
+    "sequential": ["#2A285C", "#3A327B", "#4A3B99", "#5945B8", "#694ED6", "#8A72E0", "#AB96EB", "#CCB9F5", "#EDDDFF"],
+    "diverging": [],
+    "highlight": "#694ED6",
+    "context": "#E5E5E5",
+    "positive": "#008744",
+    "negative": "#D60040",
+    "background": "#FFFFFF",
+    "text": "#000000",
+    "textSecondary": null,
+    "gridline": null,
+    "axis": null,
+    "notes": "Sequential-2 (pink): #571235, #7D214E, #A43067, #CA3F7F, #F04E98, #F470B2, #F891CC, #FBB3E5, #FFD4FF; sequential label colours switch from white to black at step 6 (seq-1) / step 5 (seq-2). Focus palettes (highlight vs neutral): focus-1 gradient #1379C4 -> #694ED6 with neutral #E5E5E5; focus-2 gradient #C34DD5 -> #F04E98 with neutral #E5E5E5; 'angular' (conic) variants add middle stops. Semantic palettes are monochrome shades (ApexCharts monochrome, shadeTo light, intensity 0.65) of #008744 (green, semantic-1), #D60040 (red, semantic-2), #FF600A (orange, semantic-3). Plotly colour scale: rgb(73,54,150) -> #694ED6 -> rgb(143,123,225) -> rgb(180,166,234) -> rgb(217,211,245) -> rgb(206,206,206). Slice/segment stroke = surface colour (#FFFFFF light, #242424 dark). FDS light: primary #694ED6, secondary #C137A2, surface #FFFFFF, on-surface #000000, outline black 12% alpha, on-surface-medium black 54%. Dark: primary #917EE0, secondary #E453BF, surface #242424. Charts re-render on prefers-color-scheme change."
+  },
+  "typography": {
+    "family": "Roboto",
+    "fallback": "Roboto, sans-serif",
+    "title": { "size": null, "weight": null, "align": null, "case": null, "color": null },
+    "subtitle": { "size": null, "weight": null, "style": null, "color": null },
+    "axisLabel": { "size": null, "color": null },
+    "axisTitle": { "size": null, "weight": null, "placement": null },
+    "dataLabel": { "size": 12, "weight": "300 (light)" },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "Tooltip 12px Roboto; legend 12px Roboto weight 300 with on-surface text colour; Angular charts take body-1 Material typography for chart, axis and legend fonts."
+  },
+  "structure": {
+    "gridlines": null,
+    "axisLine": null,
+    "ticks": null,
+    "zeroLine": null,
+    "yAxisPlacement": null,
+    "yAxisTitle": null,
+    "unitPlacement": null,
+    "frame": null,
+    "background": "transparent plot/paper background (inherits surface)",
+    "notes": "Angular Plotly charts: paper_bgcolor and plot_bgcolor transparent, automargin axes, hovermode 'closest'; bargap derived from a CSS margin (default 10px -> 0.1)."
+  },
+  "legend": {
+    "placement": "bottom, centred (web-component default); Angular demos use vertical right-top",
+    "directLabels": null,
+    "title": null,
+    "swatchShape": null,
+    "notes": "Legend items spaced 8px horizontally / 4px vertically with a 4px gap between marker and text; legend items are clickable (pointer cursor)."
+  },
+  "marks": {
+    "bars": "bargap ~0.1 in Angular Plotly charts.",
+    "lines": null,
+    "areas": null,
+    "points": null,
+    "pies": "Pie and donut are the first-class implemented components; segments separated by a surface-coloured (white) stroke; expandOnClick configurable.",
+    "notes": null
+  },
+  "labels": {
+    "dataLabels": "On by default (hide-data-label to disable); 12px Roboto Light, no background or drop shadow; colour switches black/white per palette slot for contrast.",
+    "numberFormat": null,
+    "dates": null,
+    "notes": null
+  },
+  "furniture": { "title": null, "source": null, "logo": null, "other": null },
+  "annotations": null,
+  "layout": "Charts default to width 100% / height auto (responsive container).",
+  "interaction": "Tooltip 12px Roboto, not filled with series colour, no marker; clickable legend; dark/light mode follows prefers-color-scheme.",
+  "accessibility": "Every palette ships with a matching label-colour array so data labels keep contrast (white on dark violet / dark sequential steps, black on light ones).",
+  "chartTypes": {
+    "preferred": ["Pie", "Donut", "Line", "Area", "Bar"],
+    "discouraged": [],
+    "notes": "Web component exposes all ApexCharts types; pie and donut have dedicated implementations."
+  },
+  "distinctiveRules": [
+    { "rule": "Categorical palette leads with brand violet and ends with a neutral grey: #694ED6, #F04E98, #ED8B00, #FFD100, #7FCDDE, #E5E5E5.", "source": "https://raw.githubusercontent.com/xmonvoisin/finastra-design-system/master/libs/web-components/charts/src/apexcharts.ts", "quote": "categoricalPalette: ['#694ED6', '#F04E98', '#ED8B00', '#FFD100', '#7FCDDE', '#E5E5E5']" },
+    { "rule": "Data labels are on by default in 12px Roboto Light, white on the violet slot and black on all lighter slots.", "source": "https://raw.githubusercontent.com/xmonvoisin/finastra-design-system/master/libs/web-components/charts/src/apexcharts.ts", "quote": "categoricalLabelColor: ['#FFFFFF', '#000000', '#000000', '#000000', '#000000', '#000000'] ... fontWeight: 300" },
+    { "rule": "'Focus' palettes highlight the subject with a blue-to-violet (#1379C4 -> #694ED6) or purple-to-pink (#C34DD5 -> #F04E98) gradient against neutral grey #E5E5E5 for everything else.", "source": "https://raw.githubusercontent.com/xmonvoisin/finastra-design-system/master/libs/web-components/charts/src/apexcharts.ts", "quote": "focus1: { start: '#1379C4', end: '#694ED6', neutral: '#E5E5E5' }" },
+    { "rule": "Sequential palettes are 9-step ramps centred on brand violet (#2A285C ... #694ED6 ... #EDDDFF) or pink (#571235 ... #F04E98 ... #FFD4FF).", "source": "https://raw.githubusercontent.com/xmonvoisin/finastra-design-system/master/libs/web-components/charts/src/apexcharts.ts", "quote": "sequential1: ['#2A285C', ..., '#694ED6', ..., '#EDDDFF']" },
+    { "rule": "Semantic palettes are monochrome tints of a single status colour: green #008744, red #D60040, orange #FF600A.", "source": "https://raw.githubusercontent.com/xmonvoisin/finastra-design-system/master/libs/web-components/charts/src/apexcharts.ts", "quote": "monochrome: { enabled: true, color: semanticPalette1, shadeTo: 'light', shadeIntensity: 0.65 }" },
+    { "rule": "Legend sits below the chart, centred, 12px Roboto Light, items 8px apart.", "source": "https://raw.githubusercontent.com/xmonvoisin/finastra-design-system/master/libs/web-components/charts/src/apexcharts.ts", "quote": "legendPosition=bottom ... legendHorizontalAlign=center ... itemMargin: { horizontal: 8, vertical: 4 }" },
+    { "rule": "Segments (pie/donut/stacks) are separated by a stroke in the surface colour (white in light, #242424 in dark).", "source": "https://raw.githubusercontent.com/xmonvoisin/finastra-design-system/master/libs/web-components/charts/src/apexcharts.ts", "quote": "const strokeColor = styles.getPropertyValue('--fds-surface')" },
+    { "rule": "Charts have transparent backgrounds and follow the OS light/dark preference (dark primary #917EE0).", "source": "https://raw.githubusercontent.com/xmonvoisin/finastra-design-system/master/libs/angular-components/chart/src/chart.component.ts", "quote": "paper_bgcolor: 'transparent', plot_bgcolor: 'transparent'" }
+  ],
+  "referenceImages": []
+}

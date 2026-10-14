@@ -30,6 +30,10 @@
  * =============================================================================
  */
 
+import { groupPadding } from '../core/group-gaps';
+import { applyTextCase } from '../core/text-case';
+import { chooseLabelStep, DEFAULT_LABEL_OVERFLOW, TURNED_LABEL_LIMIT } from '../core/axis-labels';
+import type { LabelFitStep } from '../core/theme/types';
 import type {
     DesignDecisions,
     ThemeReport,
@@ -205,7 +209,8 @@ function needsMarkup(t: ResolvedText | undefined): { bold: boolean; italic: bool
 
 function styleText(s: string, t: ResolvedText | undefined): string {
     const { bold, italic } = needsMarkup(t);
-    let out = s;
+    // Case the words, never the markup between them (`<br>`).
+    let out = t?.textCase ? s.split(/(<[^>]+>)/).map((part) => (part.startsWith('<') ? part : applyTextCase(part, t.textCase))).join('') : s;
     if (bold) out = `<b>${out}</b>`;
     if (italic) out = `<i>${out}</i>`;
     return out;
@@ -1002,6 +1007,45 @@ function labelsFitStraight(ax: any, key: string, a: ResolvedAxis, width: number,
 }
 
 /**
+ * Straight names wider than their band, along the house's path: turned, trimmed to the band with
+ * an ellipsis (`wrap`, which a panel cannot re-break), or on an ordered axis every nth label shown so
+ * the rest stand clear (`skip`). Returns the step taken.
+ */
+function fitOverflowingLabels(ax: any, a: ResolvedAxis, width: number, cats: any[]): LabelFitStep {
+    const span = Array.isArray(ax.domain) && ax.domain.length === 2
+        ? Math.abs(Number(ax.domain[1]) - Number(ax.domain[0]))
+        : 1;
+    const band = (width * (Number.isFinite(span) ? span : 1)) / cats.length;
+    const fontSize = a.label.fontSize ?? 11;
+    const em = fontSize * 0.58;
+    const printed: string[] = Array.isArray(ax.ticktext) ? ax.ticktext.map(String) : cats.map(String);
+    const longest = Math.max(...printed.flatMap((t) => t.split('<br>')).map((t) => t.length));
+    const named = ax.type === undefined || ax.type === 'category' || ax.type === '-';
+    const { step } = chooseLabelStep(a.label.overflow ?? DEFAULT_LABEL_OVERFLOW, {
+        band, widest: longest * em, fontSize,
+        turnLimit: a.label.limit === 0 ? Infinity : a.label.limit ?? TURNED_LABEL_LIMIT, noTrim: a.label.limit === 0 || !named,
+        // Names left out can be read from their neighbours only on an ordered axis (dates, ranks).
+        ordered: a.label.ordered === true || !named || ax.type === 'date',
+    });
+    if (step === 'rotate45' || step === 'rotate90') {
+        ax.tickangle = step === 'rotate45' ? -45 : -90;
+        return step;
+    }
+    if (step === 'wrap') {
+        const room = Math.floor((band - 5) / em);
+        const cut = (t: string) => t.split('<br>').map((line) => (line.length > room ? `${line.slice(0, Math.max(1, room - 1))}…` : line)).join('<br>');
+        if (!Array.isArray(ax.tickvals)) {
+            ax.tickmode = 'array';
+            ax.tickvals = cats;
+        }
+        ax.ticktext = printed.map(cut);
+        return step;
+    }
+    ax.ticklabelstep = Math.max(2, Math.ceil((longest * em + 5) / band));
+    return 'skip';
+}
+
+/**
  * How many powers of ten the values bound to this axis cover. Only meaningful
  * on a log axis, and only used to decide whether its minors need naming.
  */
@@ -1076,17 +1120,14 @@ function applyAxis(
         ax.tickfont = { ...(ax.tickfont ?? {}), ...fontOf(a.label, d.font) };
         // A straight label angle was decided against the whole axis. A facet
         // panel holds a fraction of it, and names that read straight across a
-        // full width run into each other across a quarter of one — so the
-        // angle the template chose stands where the house's will not fit.
+        // full width run into each other across a quarter of one — so they are
+        // measured again against the panel.
         if (a.label.angle != null) {
-            if (labelsFitStraight(ax, key, a, width, cats)) ax.tickangle = a.label.angle;
-            else {
-                // Turned as the layout turns names that will not fit, as Vega-Lite does.
-                if (!ax.tickangle) ax.tickangle = -45;
-                say(
-                    'axes.label.angle', 'labels-straight-refused',
-                    `\`${key}\` keeps its turned labels — straight they would not fit the panel`,
-                );
+            ax.tickangle = a.label.angle;
+            if (!labelsFitStraight(ax, key, a, width, cats)) {
+                // Names too wide for the panel take the first workable step of the house's overflow.
+                const step = fitOverflowingLabels(ax, a, width, cats);
+                say('axes.label.overflow', 'labels-overflow', `\`${key}\`'s labels do not fit the panel straight — overflow step \`${step}\``);
             }
         }
         if (a.label.padding != null) ax.ticklabelstandoff = a.label.padding;
@@ -1465,7 +1506,13 @@ function applyMarks(figure: any, d: DesignDecisions, table: any[], say: ReportDe
     const bars = traces.filter((t: any) => markFamilies(t).includes('bar'));
     if (bars.length) {
         layout.bargap = Math.max(0, Math.min(0.9, 1 - m.bandFraction));
-        if (layout.barmode === 'group' && bars.length > 1) layout.bargroupgap = 0.05;
+        if (layout.barmode === 'group' && bars.length > 1) {
+            // The house's group rule (G1): the space between groups as Plotly's bargap, the gap
+            // between bars as its bargroupgap — each a share of what it divides, as in Vega-Lite.
+            const group = groupPadding(m.group, m.bandFraction, bars.length);
+            layout.bargap = group.inner;
+            layout.bargroupgap = group.lane;
+        }
     }
     const barWidth = drawnBarWidth(figure, bars);
     let saidThinOutline = false;
@@ -1537,8 +1584,9 @@ function applyMarks(figure: any, d: DesignDecisions, table: any[], say: ReportDe
         if (fams.includes('line')) {
             const areaEdge = trace.type === 'scatter' && fams.includes('area');
             const radarEdge = trace.type === 'scatterpolar' && fams.includes('area');
+            // A house that states its area edge (M1) gets that width; otherwise a hairline.
             const width = areaEdge
-                ? Math.min(1, m.strokeWidth)
+                ? m.areaEdge?.width ?? Math.min(1, m.strokeWidth)
                 : radarEdge ? Math.min(2.5, m.strokeWidth) : m.strokeWidth;
             trace.line = { ...(trace.line ?? {}), width };
             if (m.interpolate && !trace._preserveLineShape
@@ -1547,6 +1595,11 @@ function applyMarks(figure: any, d: DesignDecisions, table: any[], say: ReportDe
                 if (shape) trace.line.shape = shape;
                 else say('marks.line.interpolate', 'interpolate-unsupported', `\`${m.interpolate}\` has no Plotly line shape — left straight`);
             }
+        }
+
+        // A bar's own opacity (M2), on the fill only.
+        if (trace.type === 'bar' && m.barOpacity != null) {
+            trace.marker = { ...(trace.marker ?? {}), opacity: m.barOpacity };
         }
 
         if (fams.includes('area') && m.fillOpacity != null && trace.fillcolor == null) {
@@ -1719,7 +1772,8 @@ function applySeriesInk(figure: any, d: DesignDecisions, table: any[], say: Repo
             })).sort((a, b) => (Math.abs(b.value) - Math.abs(a.value)) || (a.i - b.i));
             const head = ranked.slice(0, keep);
             const tail = ranked.slice(keep);
-            const othersLabel = `Others (${tail.length})`;
+            // A tail of one keeps its own name, as the Vega-Lite fold does.
+            const othersLabel = tail.length === 1 ? String(tail[0].label) : `Others (${tail.length})`;
             trace.labels = [...head.map((d) => d.label), othersLabel];
             trace.values = [...head.map((d) => d.value), tail.reduce((sum, d) => sum + d.value, 0)];
             trace.marker = {
@@ -1769,7 +1823,7 @@ function applySeriesInk(figure: any, d: DesignDecisions, table: any[], say: Repo
             figure.data.push({
                 type: 'scatter',
                 mode: 'markers',
-                name: `Others (${tail.length})`,
+                name: tail.length === 1 ? String(tail[0].trace.name ?? 'Other') : `Others (${tail.length})`,
                 x: [null],
                 y: [null],
                 marker: { color: s.overflow },
@@ -1812,6 +1866,8 @@ function applySeriesInk(figure: any, d: DesignDecisions, table: any[], say: Repo
 
     const recoloured = new Map<string, string>();
     let seriesIndex = 0;
+    const bound = (name: unknown): string | undefined =>
+        (s.byValue && name != null ? s.byValue[String(name).trim().toLowerCase()] : undefined);
     for (const trace of traces) {
         if (trace.colorscale != null || trace.marker?.colorscale != null) continue;
         const overflowInk = pointOverflowInks.get(trace);
@@ -1825,8 +1881,9 @@ function applySeriesInk(figure: any, d: DesignDecisions, table: any[], say: Repo
         // series lives in one trace.
         if (Array.isArray(trace.marker?.colors)) {
             if (foldedPies.has(trace)) continue;
+            let next = 0;
             trace.marker.colors = (trace.marker.colors as any[]).map(
-                (c: any, i: number) => (isLiteralColor(c) ? inks[i % inks.length] : c),
+                (c: any, i: number) => (isLiteralColor(c) ? bound(trace.labels?.[i]) ?? inks[(s.byValue ? next++ : i) % inks.length] : c),
             );
             continue;
         }
@@ -1868,7 +1925,7 @@ function applySeriesInk(figure: any, d: DesignDecisions, table: any[], say: Repo
         const inkIndex = Number.isInteger(declaredIndex) && declaredIndex >= 0
             ? declaredIndex
             : seriesIndex;
-        const ink = inks[inkIndex % inks.length];
+        const ink = bound(trace.name) ?? inks[inkIndex % inks.length];
         const was = trace.line?.color ?? trace.marker?.color;
         if (typeof was === 'string' && isLiteralColor(was)) recoloured.set(was.toLowerCase(), ink);
         if (fams.includes('bar') || fams.includes('arc') || fams.includes('boxplot')) {

@@ -1,0 +1,215 @@
+{
+  "id": "minnpost",
+  "org": "MinnPost (minnpost-styles)",
+  "urls": [
+    "https://code.minnpost.com/minnpost-styles/",
+    "https://code.minnpost.com/minnpost-styles/#highcharts",
+    "https://code.minnpost.com/minnpost-styles/#colors",
+    "https://github.com/MinnPost/minnpost-styles",
+    "https://github.com/MinnPost/minnpost-styles/blob/master/styles/_variables.scss",
+    "https://github.com/MinnPost/minnpost-styles/blob/master/js/highcharts.js",
+    "https://github.com/MinnPost/minnpost-styles/blob/master/styles/_charts.scss",
+    "https://github.com/MinnPost/minnpost-styles/blob/master/styles/_typography.scss",
+    "https://github.com/MinnPost/minnpost-styles/blob/master/js/formatters.js",
+    "https://github.com/MinnPost/minnpost-styles/blob/master/styles/_helpers.scss"
+  ],
+  "access": "full",
+  "accessNotes": "Style guide page and GitHub source (last pushed 2020) fully readable. Chart example images were captured by screenshotting the live Highcharts demos on the style-guide page (the demo page overrides series colours per example, e.g. orange/yellow and green, so colours in screenshots are not the Highcharts default palette).",
+  "summary": "News-apps style kit for MinnPost (Minnesota nonprofit newsroom) built on Highcharts + SCSS. Charts are clean and light: Open Sans 12px light-grey labels, dotted horizontal gridlines, no chart title (component label/caption in HTML above), bold dark-grey legend at the top, thick 4px lines without markers, blue-teal data palette. Political party colours and Chroma.js-generated sequential/diverging scales are provided.",
+  "context": "editorial",
+  "colors": {
+    "categorical": [
+      "#0D57A0",
+      "#0793AB",
+      "#55CBDD"
+    ],
+    "categoricalNotes": "Highcharts default colors are the three blues (blue1 #0D57A0, blue2 #0793AB, blue3 #55CBDD). Full 'colors-data' starting set: green1 #1D8C47, green2 #32955D, green3 #36A174, purple #55307E, blue1 #0D57A0, blue2 #0793AB, blue3 #55CBDD, red #C83D2D, orange #FF6633, yellow #FBD341 — 'colors to start from, and the set as whole should not necessarily be used to represent categories'. No more than 7 groups/colours. Political: DFL/D #0793AB, GOP/R #A1000F, IP #FF781F, Green #07AB20, Grassroots/Legal Marijuana #41AB07, LMN #286806, minor parties #7A7A7A.",
+    "sequential": [],
+    "diverging": [],
+    "highlight": "#801019",
+    "context": "#BCBCBC",
+    "positive": "#469B61",
+    "negative": "#C83D2D",
+    "background": "#FFFFFF",
+    "text": "#404040",
+    "textSecondary": "#7A7A7A",
+    "gridline": "#BCBCBC",
+    "axis": "#BCBCBC",
+    "notes": "Highcharts colorDark #676767 (axis titles, legend, tooltip text), colorLight #BCBCBC (general text/tick labels, x-axis line and ticks), colorLighter DEDEDE (y-axis line; written without '#' in source). Sequential examples are generated with Chroma.js from white to a hue in Lab/HCL (e.g. chroma.scale(['white', '#F55F29']).mode('lab')); diverging go to the 'opposite ordered hue'. Interface: MinnPost red #801019 (brand), link blue #0084A8, heading #282828, text #404040, gray #7A7A7A, light gray #ABABAB, lighter #CCCCCC, lightest #F8F8F8. Colour-blind check with Color Oracle."
+  },
+  "typography": {
+    "family": "Open Sans",
+    "fallback": "Helvetica, Arial, \"Lucida Grande\", sans-serif",
+    "title": {
+      "size": 20,
+      "weight": "bold",
+      "align": "left",
+      "case": "sentence",
+      "color": "#282828"
+    },
+    "subtitle": {
+      "size": 13.6,
+      "weight": "normal",
+      "style": "normal",
+      "color": "#404040"
+    },
+    "axisLabel": {
+      "size": 12,
+      "color": "#BCBCBC"
+    },
+    "axisTitle": {
+      "size": 12,
+      "weight": "bold",
+      "placement": "y title rotated, left (enabled by default, 'Units (un)' pattern); x title disabled by default"
+    },
+    "dataLabel": {
+      "size": null,
+      "weight": null
+    },
+    "source": {
+      "size": 13.6,
+      "style": "normal",
+      "color": "#ABABAB"
+    },
+    "notes": "Highcharts title disabled; chart title is an HTML .component-label (Montserrat bold, 1.25×16px=20px) above the chart, followed by a .caption (0.85em). Headings use Montserrat; body Open Sans. Legend items bold 14px #676767. Credits/footnotes .credit 0.85em #ABABAB (footnote with 1px #ABABAB top border)."
+  },
+  "structure": {
+    "gridlines": "Horizontal (y) gridlines only, dotted ('gridLineDashStyle: Dot'), light grey; no vertical grid except value-axis grid on horizontal bar charts.",
+    "axisLine": "x-axis line #BCBCBC with ticks; y-axis line colour #DEDEDE (Highcharts default width 0, so effectively none).",
+    "ticks": "x-axis tick marks #BCBCBC",
+    "zeroLine": "y-axis min: 0 by default",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "rotated, bold #676767 12px, margin 20 ('Units (un)'); turned off when caption explains units",
+    "unitPlacement": "In tick labels (e.g. '$40,000') or y-axis title 'Units (un)' with unit abbreviation in parentheses",
+    "frame": "none",
+    "background": "white",
+    "notes": "Charts use class .chart: width 100%, height 20em, margin-bottom 2em. No Highcharts credits."
+  },
+  "legend": {
+    "placement": "top, centred (Highcharts cannot left-align; source TODO says 'align legend left'), margin 30, item distance 20, no border",
+    "directLabels": "Not used; guide says leave the legend off if a caption can describe it",
+    "title": "no",
+    "swatchShape": "rounded rectangle for bars, marker symbol for scatter",
+    "notes": "Legend text bold 14px #676767."
+  },
+  "marks": {
+    "bars": "Highcharts default bar/column widths; minPointLength 3 so tiny values remain visible; no borders/rounding.",
+    "lines": "lineWidth 4 (5 on hover); markers disabled, shown on hover as white-filled circles with 2px series-colour outline.",
+    "areas": null,
+    "points": "Scatter marker radius 5 with 2px rgba(255,255,255,0.2) outline (opaque white on hover).",
+    "pies": null,
+    "notes": null
+  },
+  "labels": {
+    "dataLabels": "Not default; tooltip shows '<strong>Series</strong>: value' with value as integer with thousands separator.",
+    "numberFormat": "Comma thousands separator, default 2 decimals (formatters.number); currency '$' + 2 decimals; percent 1 decimal + '%'; changes prefixed '+'. Axis example '${value:,.0f}'. Highcharts k abbreviations (10k) appear by default.",
+    "dates": null,
+    "notes": null
+  },
+  "furniture": {
+    "title": "No in-chart title. HTML .component-label (bold Montserrat 20px) then .caption (small) above chart: 'Your awesome, concise caption goes here.'",
+    "source": ".credit/.footnote small light-grey text below (0.85em #ABABAB); no fixed 'Source:' pattern in chart lib.",
+    "logo": "none (Highcharts credits disabled)",
+    "other": "Responsive breakpoints 420/640/960/1200px; article width 640px, full width 960px."
+  },
+  "annotations": null,
+  "layout": "Chart container 100% width × 20em height; article column 640px.",
+  "interaction": "Highcharts tooltip: Open Sans 12px #676767, HTML, '<strong>Series name</strong>: value'. Lines thicken to 5px on hover and show markers.",
+  "accessibility": "Max ~7 colours; choose distinct colours in HCL/Lab; check colour-blindness with Color Oracle.",
+  "chartTypes": {
+    "preferred": [
+      "line",
+      "column",
+      "bar",
+      "scatter",
+      "maps (Leaflet/Mapbox)",
+      "data tables (DataTables)"
+    ],
+    "discouraged": [],
+    "notes": "Default option sets exist only for line, column, bar and scatter."
+  },
+  "distinctiveRules": [
+    {
+      "rule": "No Highcharts title or credits; title is an HTML component label (bold Montserrat) and a short caption above the chart.",
+      "source": "https://github.com/MinnPost/minnpost-styles/blob/master/js/highcharts.js",
+      "quote": "title: { enabled: false, text: null }, credits: { enabled: false }"
+    },
+    {
+      "rule": "Horizontal gridlines only, dotted light grey.",
+      "source": "https://github.com/MinnPost/minnpost-styles/blob/master/js/highcharts.js",
+      "quote": "yAxis: { ... gridLineDashStyle: 'Dot' }"
+    },
+    {
+      "rule": "All chart text Open Sans 12px in light grey #BCBCBC; axis titles and legend in bold dark grey #676767.",
+      "source": "https://github.com/MinnPost/minnpost-styles/blob/master/js/highcharts.js",
+      "quote": "styleGeneral = { fontSize: '12px', color: colorLight } ... styleLabel = { fontWeight: 'bold', color: colorDark }"
+    },
+    {
+      "rule": "Legend at top (centered), borderless, bold 14px labels, 30px margin to plot.",
+      "source": "https://github.com/MinnPost/minnpost-styles/blob/master/js/highcharts.js",
+      "quote": "legend: { margin: 30, verticalAlign: 'top', borderWidth: 0, itemDistance: 20, itemStyle: styleLabelLarge }"
+    },
+    {
+      "rule": "Lines are thick (4px) with no markers; markers appear on hover as white-filled circles.",
+      "source": "https://github.com/MinnPost/minnpost-styles/blob/master/js/highcharts.js",
+      "quote": "line: { lineWidth: 4, marker: { fillColor: '#FFFFFF', lineWidth: 2, enabled: false } }"
+    },
+    {
+      "rule": "Y axis always starts at 0 and has a rotated bold title like 'Units (un)'; x-axis title off.",
+      "source": "https://github.com/MinnPost/minnpost-styles/blob/master/js/highcharts.js",
+      "quote": "yAxis: { title: { enabled: true, text: 'Units (un)' }, min: 0 }"
+    },
+    {
+      "rule": "Default series colours are three blues: #0D57A0, #0793AB, #55CBDD.",
+      "source": "https://github.com/MinnPost/minnpost-styles/blob/master/js/highcharts.js",
+      "quote": "colors: ['#0D57A0', '#0793AB', '#55CBDD']"
+    },
+    {
+      "rule": "Bars/columns get a minimum visible length of 3px.",
+      "source": "https://github.com/MinnPost/minnpost-styles/blob/master/js/highcharts.js",
+      "quote": "minPointLength: 3"
+    },
+    {
+      "rule": "Leave axis labels and legend off when the caption can describe them.",
+      "source": "https://code.minnpost.com/minnpost-styles/#highcharts",
+      "quote": "If you can adequately describe your x-axis units and labels, leave them and the legend off."
+    },
+    {
+      "rule": "Use no more than 7 colours for groups; sequential scales go from white to a hue in Lab/HCL.",
+      "source": "https://code.minnpost.com/minnpost-styles/#colors",
+      "quote": "It is suggested to break things down to no more than 7 colors."
+    },
+    {
+      "rule": "Fixed political party colours: DFL/D teal-blue #0793AB, GOP/R dark red #A1000F, IP orange #FF781F, minor parties grey #7A7A7A.",
+      "source": "https://github.com/MinnPost/minnpost-styles/blob/master/styles/_variables.scss",
+      "quote": "(\"dfl\", #0793AB), (\"gop\", #A1000F), (\"ip\", #FF781F)"
+    },
+    {
+      "rule": "Tooltip content: bold series name, colon, integer value with thousands separators.",
+      "source": "https://github.com/MinnPost/minnpost-styles/blob/master/js/highcharts.js",
+      "quote": "'<strong>' + this.series.name + '</strong>: ' + Highcharts.numberFormat(this.y, 0)"
+    }
+  ],
+  "referenceImages": [
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/minnpost/chart-0.png",
+      "url": "https://code.minnpost.com/minnpost-styles/#highcharts",
+      "describes": "Live line-chart demo: single thick (~4px) Highcharts-blue line (demo override), no markers, no title or legend. Dotted light-grey horizontal gridlines only; y labels left in grey Open Sans with currency format '$10,000'...'$40,000', y starts at $0; thin grey x-axis line with tick marks, x labels 0–60. White background."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/minnpost/chart-2.png",
+      "url": "https://code.minnpost.com/minnpost-styles/#highcharts",
+      "describes": "Horizontal bar demo with two series (orange #FF6633-ish 'Example' and yellow #FBD341-ish 'Example 2', demo overrides). Legend centred at top with rounded-square swatches and bold dark-grey labels. Dotted vertical gridlines on value axis, thin grey category axis line with ticks; tick labels light grey (0k–30k); bold grey axis title 'Units (un)' centred below. Bars thin, flat, no rounding."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/minnpost/chart-3.png",
+      "url": "https://code.minnpost.com/minnpost-styles/#highcharts",
+      "describes": "Scatterplot demo: green circles (r≈5) with faint white outline and light-blue diamonds; legend top-centre with marker symbols and bold dark-grey labels. Dotted horizontal gridlines, solid grey x axis with ticks; rotated bold grey y title 'Units (un)' and bold x title below."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/minnpost/chart-1.png",
+      "url": "https://code.minnpost.com/minnpost-styles/#highcharts",
+      "describes": "Column demo: many thin green columns, y axis 0k–40k with dotted horizontal gridlines, rotated bold grey 'Units (un)' y title, light-grey tick labels, no legend/title."
+    }
+  ]
+}

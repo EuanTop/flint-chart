@@ -44,6 +44,10 @@
  * =============================================================================
  */
 
+import { applyTextCase, type TextCase } from './text-case';
+import { chooseXLabels, type LabelFitThresholds } from './band-label-choice';
+import { DEFAULT_LABEL_OVERFLOW, DEFAULT_SEQUENCE_OVERFLOW } from './axis-labels';
+import type { SequenceKind } from './label-sequence';
 import type {
     ChannelSemantics,
     ChartAssemblyInput,
@@ -54,7 +58,7 @@ import type {
     InstantiateContext,
 } from './types';
 import { resolveThemeSpec } from './theme/presets';
-import type { ThemeCompileDefaults } from './theme/types';
+import type { LabelFitStep, ThemeCompileDefaults, ThemeLabelFit } from './theme/types';
 import {
     computeAxisStep,
     computeBandLabelLayout,
@@ -180,13 +184,28 @@ export const DEFAULT_BASE_SIZE = { width: 400, height: 320 } as const;
 export const AXIS_LABEL_LIMIT = 180;
 
 /**
- * Names on a banded axis read straight: wrapped onto two lines, with the band widened
- * within the stretch budget to hold them, when that reads better than turning or cutting
+ * Names on a banded axis. Along x, every way the theme (or the chart) allows — flat, two lines,
+ * cut, turned, or on a sequence only the round values — is weighed at every size down to the floor
+ * and the cheapest taken ({@link chooseXLabels}). Down y, names never turn: they are wrapped onto
+ * two lines, with the band widened within the stretch budget, when that reads better than cutting
  * them. Updates the layout's step and label sizing in place; `skip` leaves a channel alone.
  */
 export function planBandLabels(
     context: Pick<InstantiateContext, 'layout' | 'canvasSize' | 'channelSemantics' | 'assembleOptions' | 'table'>,
-    options: { fontSize?: number; skip?: (channel: 'x' | 'y') => boolean } = {},
+    options: {
+        fontSize?: number; textCase?: TextCase; skip?: (channel: 'x' | 'y') => boolean;
+        measure?: (fontSize: number) => (text: string) => number;
+        /** The least size the names may shrink to (the theme's `type.minSize`). */
+        minFontSize?: number;
+        /** The path x names take when they do not stand flat and whole. */
+        overflow?: readonly LabelFitStep[];
+        /** The x names step through a sequence (times, dates, years, ranks): they may be thinned to round values. */
+        sequence?: SequenceKind;
+        /** No step may trim the names (the theme never truncates, or they are codes). */
+        noLimit?: boolean;
+        /** The theme's thresholds (`labels.fit`). */
+        fit?: ThemeLabelFit;
+    } = {},
 ): void {
     const { layout, canvasSize, channelSemantics } = context;
     const assembleOptions = context.assembleOptions ?? {};
@@ -198,7 +217,9 @@ export function planBandLabels(
         if (options.skip?.(channel)) continue;
         const labels = [...new Set(context.table.map((row) => row[semantics.field!])
             .filter((value) => value != null).map(String))];
-        if (!labels.length || labels.every((label) => label.trim() !== '' && Number.isFinite(Number(label)))) continue;
+        // Numbers in bands are left to the layout, unless they run as a sequence (years, ranks).
+        const numeric = labels.every((label) => label.trim() !== '' && Number.isFinite(Number(label)));
+        if (!labels.length || (numeric && !(channel === 'x' && options.sequence))) continue;
         const sizing = channel === 'x' ? layout.xLabel : layout.yLabel;
         const step = channel === 'x' ? layout.xStep : layout.yStep;
         const panels = channel === 'x' ? layout.facet?.columns ?? 1 : layout.facet?.rows ?? 1;
@@ -207,27 +228,95 @@ export function planBandLabels(
         const subplotSpan = channel === 'x' ? layout.subplotWidth : layout.subplotHeight;
         const maxSpan = (canvasSpan * caps[channel] - fixed) / panels - layout.effectiveFacetGap;
         const baseSpan = Math.min(subplotSpan, (canvasSpan - fixed) / panels - layout.effectiveFacetGap);
-        const fontSize = options.fontSize ?? sizing.fontSize;
-        const fit = computeBandLabelLayout({
-            labels, axis: channel, fontSize, step,
-            baseSpan, maxSpan, gutterLimit: Math.max(AXIS_LABEL_LIMIT, Math.min(canvasSize.width, layout.subplotWidth) / 4),
+        // Names along x are weighed from Flint's own size where no theme states one; the layout may have crowded them smaller already.
+        const stated = options.fontSize ?? (channel === 'x' ? Math.max(sizing.fontSize, BASE_TICK_FONT_SIZE) : sizing.fontSize);
+        // Measured and broken in the case they are drawn in; looked up by the value as written.
+        const shown = labels.map((label) => applyTextCase(label, options.textCase));
+        const fitAt = (fontSize: number, stretchToFit = false, compareBaseline = true) => computeBandLabelLayout({
+            labels: shown, axis: channel, fontSize, step,
+            baseSpan, maxSpan, gutterLimit: rowLabelLimit(options.fit, canvasSize.width, layout.subplotWidth),
             baselineLimit: sizing.labelLimit,
             elasticity: assembleOptions.elasticity ?? 0.5,
+            ...(options.measure ? { measure: options.measure(fontSize) } : {}),
+            ...(stretchToFit ? { stretchToFit } : {}),
+            ...(compareBaseline ? {} : { compareBaseline }),
         });
+
+        if (channel === 'x') {
+            const sequence = options.overflow ?? (options.sequence ? DEFAULT_SEQUENCE_OVERFLOW : DEFAULT_LABEL_OVERFLOW);
+            const floor = Math.min(stated, Math.max(options.minFontSize ?? 0, stated * 0.75));
+            const measure = options.measure ?? ((fontSize: number) => (text: string) => text.length * fontSize * APPROX_CHAR_WIDTH_RATIO);
+            const choice = chooseXLabels({
+                values: labels, shown, stated, floor, measure, step,
+                fillStep: Math.floor(baseSpan / labels.length), baseSpan,
+                wrapAt: (fontSize, stretch) => fitAt(fontSize, stretch, false),
+                steps: sequence,
+                ...(options.sequence ? { sequence: options.sequence } : {}),
+                noTrim: options.noLimit === true,
+                thresholds: labelFitThresholds(options.fit, layout.subplotHeight),
+            });
+            if (!choice) continue;
+            layout.xStep = choice.band;
+            const flat = choice.angle === 0;
+            Object.assign(sizing, {
+                fontSize: choice.fontSize,
+                labelAngle: choice.angle,
+                labelAlign: flat ? 'center' : 'right',
+                labelBaseline: flat ? 'top' : choice.angle === -90 ? 'middle' : 'top',
+                labelLimit: choice.limit !== undefined ? choice.limit + 2
+                    : flat ? Math.ceil(Math.max(choice.needed, Math.min(choice.needed * 1.15, choice.band - 4))) + 2
+                    // Turned names nothing may cut run whole.
+                    : options.noLimit ? 0 : sizing.labelLimit,
+                ...(choice.lines ? { labelValues: labels, labelLines: choice.lines, labelLineHeight: choice.lineHeight } : { labelValues: undefined, labelLines: undefined, labelLineHeight: undefined }),
+                ...(choice.fontSize < stated ? { fittedFontSize: choice.fontSize } : { fittedFontSize: undefined }),
+                ...(choice.step === 'fit' ? { overflow: undefined } : {
+                    overflow: {
+                        step: choice.step, trimmed: choice.trimmed, needed: choice.needed, band: choice.band,
+                        ...(choice.shown ? { shown: choice.shown } : {}),
+                    },
+                }),
+            });
+            continue;
+        }
+
+        const fit = fitAt(stated);
         if (!fit) continue;
-        if (channel === 'x') layout.xStep = fit.step;
-        else layout.yStep = fit.step;
+        layout.yStep = fit.step;
         Object.assign(sizing, {
-            fontSize,
+            fontSize: stated,
             labelAngle: 0,
-            labelAlign: channel === 'x' ? 'center' : 'right',
-            labelBaseline: channel === 'x' ? 'top' : 'middle',
+            labelAlign: 'right',
+            labelBaseline: 'middle',
             labelLimit: Math.ceil(fit.width) + 2,
             labelValues: labels,
             labelLines: fit.lines,
             labelLineHeight: fit.lineHeight,
         });
     }
+}
+
+/** Flint's own tick-label size, the stated size of names where no theme states one. */
+const BASE_TICK_FONT_SIZE = 10;
+
+/**
+ * The thresholds band names are set against: a theme's `labels.fit`, else the defaults — a cut
+ * keeps 4 characters, a turned name runs at most 40% of the plot's height, two straight names
+ * keep half an em between them and at least 6px.
+ */
+export function labelFitThresholds(fit: ThemeLabelFit | undefined, plotHeight: number): LabelFitThresholds {
+    const turned = fit?.turnedLimit ?? '40%';
+    const turnedLimit = typeof turned === 'number' ? turned
+        : Math.max(30, (Number.parseFloat(turned) / 100) * Math.max(1, plotHeight));
+    return { minChars: fit?.minChars ?? 4, turnedLimit, ...(fit?.gap !== undefined ? { gapEm: fit.gap } : {}) };
+}
+
+/** The widest a row name down y runs: a theme's `labels.fit.rowLimit` (px or a share of the chart's width), else a quarter of it, at least 180px. */
+export function rowLabelLimit(fit: ThemeLabelFit | undefined, canvasWidth: number, plotWidth: number): number {
+    const width = Math.min(canvasWidth, plotWidth || canvasWidth);
+    const stated = fit?.rowLimit;
+    if (typeof stated === 'number') return stated;
+    if (typeof stated === 'string') return (Number.parseFloat(stated) / 100) * canvasWidth;
+    return Math.max(AXIS_LABEL_LIMIT, width / 4);
 }
 
 /**
@@ -999,6 +1088,10 @@ export function computeLayout(
         yStepSize = defaultStepSize;
     }
 
+    // The step value labels need, which the plan has checked the canvas holds.
+    if (options.labelStep?.x && (xIsDiscrete || xContinuousAsDiscrete > 0)) xStepSize = Math.max(xStepSize, options.labelStep.x);
+    if (options.labelStep?.y && (yIsDiscrete || yContinuousAsDiscrete > 0)) yStepSize = Math.max(yStepSize, options.labelStep.y);
+
     // --- Banded continuous canvas size ---
     for (const axis of ['x', 'y'] as const) {
         const count = axis === 'x' ? xContinuousAsDiscrete : yContinuousAsDiscrete;
@@ -1254,24 +1347,24 @@ export function computeLayout(
                     };
                 } else {
                     // Even the stretch budget can't fit a wide-enough band →
-                    // angle the labels rather than let them run together.
+                    // stand the labels upright rather than let them run together.
                     xLabel = {
                         ...xLabel,
-                        labelAngle: -45,
+                        labelAngle: -90,
                         labelAlign: 'right',
-                        labelBaseline: 'top',
+                        labelBaseline: 'middle',
                     };
                 }
             } else if (numericLike && labelPx > xStepSize && xLabel.labelAngle === undefined) {
                 // Numeric labels that don't fit horizontally and weren't already
                 // rotated by step-based sizing (which only rotates at narrow
                 // steps). Without this, VL keeps them horizontal and the numbers
-                // overlap. Rotate to -45°.
+                // overlap. Stand them upright.
                 xLabel = {
                     ...xLabel,
-                    labelAngle: -45,
+                    labelAngle: -90,
                     labelAlign: 'right',
-                    labelBaseline: 'top',
+                    labelBaseline: 'middle',
                 };
             }
         }

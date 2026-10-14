@@ -1,0 +1,116 @@
+{
+  "id": "elastic",
+  "org": "Elastic (EUI + Elastic Charts)",
+  "urls": [
+    "https://eui.elastic.co/#/elastic-charts/creating-charts",
+    "https://github.com/elastic/elastic-charts/blob/main/packages/charts/src/utils/themes/light_theme.ts",
+    "https://github.com/elastic/elastic-charts/blob/main/packages/charts/src/utils/themes/borealis_colors.ts",
+    "https://github.com/elastic/elastic-charts/blob/main/packages/charts/src/utils/themes/base_colors.ts",
+    "https://github.com/elastic/elastic-charts/blob/main/packages/charts/src/utils/themes/theme_common.ts",
+    "https://github.com/elastic/elastic-charts/blob/main/packages/charts/src/common/default_theme_attributes.ts",
+    "https://github.com/elastic/eui/blob/main/packages/eui-theme-borealis/src/variables/colors/_colors_vis_light.ts",
+    "https://github.com/elastic/eui/blob/main/packages/eui-theme-borealis/src/variables/colors/_semantic_colors.ts",
+    "https://github.com/elastic/eui/blob/main/packages/eui-theme-borealis/src/variables/colors/_primitive_colors.ts",
+    "https://github.com/elastic/eui/blob/main/packages/website/docs/dataviz/index.mdx",
+    "https://github.com/elastic/eui/blob/main/packages/website/docs/dataviz/dashboard-good-practices.mdx",
+    "https://github.com/elastic/elastic-charts/tree/main/e2e/screenshots/all.test.ts-snapshots/baselines"
+  ],
+  "access": "full",
+  "accessNotes": "The EUI docs site is JS-rendered (old #/elastic-charts/creating-charts route is gone); its source MDX was read from the elastic/eui GitHub repo (packages/website/docs/dataviz: overview and dashboard good practices). Exact theme values come from the elastic-charts LIGHT_THEME source (current default, Borealis) and EUI Borealis vis-colour tokens. Reference images are elastic-charts visual-regression baselines (rendered in CI, so the font fell back to a Helvetica/Arial-like sans instead of Inter). sizing.mdx, theming.mdx and per-chart-type pages were not read in detail.",
+  "summary": "Elastic Charts is the dataviz system behind Kibana dashboards: dense, time-series-first product-UI charts that must look consistent with EUI. The default Borealis theme is light and cool: Inter font, 10px blue-grey tick labels, full horizontal AND vertical 1px gridlines in #E3E8F2, no tick marks, thin 1.5px lines, translucent (20%) area fills, a right-hand legend with circle swatches and values, and a paired 10-colour colour-blind-safe palette (teal, blue, pink, red, yellow each in strong + light).",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#16C5C0", "#A6EDEA", "#61A2FF", "#BFDBFF", "#EE72A6", "#FFC7DB", "#F6726A", "#FFC9C2", "#EAAE01", "#FCD883"],
+    "categoricalNotes": "Borealis euiPaletteColorBlind = euiColorVis0-9: accentSecondary60 #16C5C0, accentSecondary30 #A6EDEA, primary60 #61A2FF, primary30 #BFDBFF, accent60 #EE72A6, accent30 #FFC7DB, danger60 #F6726A, danger30 #FFC9C2, warning60 #EAAE01, warning30 #FCD883 - i.e. five hues each as a strong/light pair. defaultVizColor (single series) = #16C5C0. Text-safe variants (euiColorVisText0-9) exist for labels. 'Use a neutral color for generic elements and an accent one for the things that you are looking for.' For custom brands 'pick really few colors'.",
+    "sequential": ["#F1F6FF", "#A3CBFF", "#61A2FF"],
+    "diverging": ["#61A2FF", "#EAAE01"],
+    "highlight": "#16C5C0",
+    "context": "#CAD3E2",
+    "positive": "#24C292",
+    "negative": "#F6726A",
+    "background": "#FFFFFF",
+    "text": "#1D2A3E",
+    "textSecondary": "#516381",
+    "gridline": "#E3E8F2",
+    "axis": "#E3E8F2",
+    "notes": "Sequential = euiColorVisCool0-2 (primary10/40/60); warm = euiColorVisWarm0-2 danger10 #FFF3F1, danger40 #FFB5AD, danger60 #F6726A; diverging listed is euiColorVisComplementary0/1 (primary60 #61A2FF vs warning60 #EAAE01). Status: success60 #24C292, warning60 #EAAE01, risk60 #FC8544, danger60 #F6726A, neutral60 #37B8DC. Greys: euiColorVisGrey0-3 = blueGrey30 #CAD3E2, blueGrey60 #8E9FBC, blueGrey90 #5A6D8C, blueGrey130 #1D2A3E; euiColorVisBase0 #F6F9FC. Missing-data colour = red keyword. Dimmed (unhighlighted) series opacity 0.25. Crosshair line uses borderStrongPrimary #0B64DD dashed [4,4]; crosshair band fill rgba(23,80,186,0.04). Dark theme: background blueGrey140 #111C2C, gridlines blueGrey120 #2B394F, text #CAD3E2."
+  },
+  "typography": {
+    "family": "Inter",
+    "fallback": "Inter, BlinkMacSystemFont, Helvetica, Arial, sans-serif",
+    "title": { "size": null, "weight": null, "align": "left", "case": "sentence", "color": "#111C2C" },
+    "subtitle": { "size": null, "weight": null, "style": "normal", "color": null },
+    "axisLabel": { "size": 10, "color": "#516381" },
+    "axisTitle": { "size": 12, "weight": "bold", "placement": "y title rotated 90\u00b0 left of axis; x title centred below; 10px inner padding" },
+    "dataLabel": { "size": 10, "weight": "normal" },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "Axis title fill textParagraph #1D2A3E; tick labels textSubdued #516381 at 10px, no rotation by default, padding inner 10/outer 8, single line. Bar value labels 10px centred in the bar. Goal/gauge labels #343741 / #646a77. Panel axis titles 10px sans-serif. Chart titles are normally provided by the Kibana panel, not the chart."
+  },
+  "structure": {
+    "gridlines": "Both horizontal and vertical gridlines visible by default, solid 1px #E3E8F2 (borderBaseSubdued), opacity 1.",
+    "axisLine": "Axis lines visible, 1px #E3E8F2 (same light tone as gridlines).",
+    "ticks": "Tick lines hidden (tickLine.visible: false).",
+    "zeroLine": "No special zero line.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "rotated, bold, left of tick labels (e.g. 'System Load')",
+    "unitPlacement": "In tick label formatting (e.g. 30%, 60.00) and axis title.",
+    "frame": "No plot border; chart sits in a Kibana/EUI panel on dashboards (panel margins recommended).",
+    "background": "#FFFFFF (dark: #111C2C)",
+    "notes": "Time axis is two-level: fine time buckets (11:00, 11:05) on the first row with a context row below (date 'March 1, 2019'); time labels sit just right of their gridline, categorical labels are centred on their element. chartMargins and chartPaddings default to 0."
+  },
+  "legend": {
+    "placement": "right (vertical, 200px wide) by default; can be top/bottom (horizontal height 64px)",
+    "directLabels": "no",
+    "title": "no",
+    "swatchShape": "circle",
+    "notes": "Legend rows show swatch, series name and optional current/last value right-aligned. Labels max 1 line, width limit 250px. Legend can be removed when colours match adjacent metric charts."
+  },
+  "marks": {
+    "bars": "barsPadding 0.25 (bar gap = 25% of band); histogram padding 0.05; no border; flat corners.",
+    "lines": "strokeWidth 1.5 (2.5 when focused, 1 when dimmed); points 'auto' visibility with radius 3, white fill and series-colour 1.5px stroke, hidden when closer than 20px; no smoothing by default; fit lines dashed [5,5].",
+    "areas": "Fill opacity 0.2 under a 1.5px series-colour line; no points; fit area opacity 0.15.",
+    "points": "Bubble points radius 2, filled, no stroke.",
+    "pies": "Partition charts (pie/donut/treemap/sunburst/mosaic) supported; arcs separated by 1px stroke; label hierarchy reinforces name before value.",
+    "notes": "Unhighlighted series opacity 0.25 while another is hovered."
+  },
+  "labels": {
+    "dataLabels": "Optional bar value labels, 10px, centred, no text border.",
+    "numberFormat": "Formatter-driven; examples show 2-decimal ticks (60.00) and integer percents (30%).",
+    "dates": "Time axis 'HH:mm' with a second-level date row ('March 1, 2019'); timestamps auto-converted to human units.",
+    "notes": null
+  },
+  "furniture": {
+    "title": "Remove unnecessary or repetitive titles (e.g. on Metric charts); when needed, make titles self-explanatory so axis titles can be removed. Metric and Bullet charts include their own title/subtitle.",
+    "source": "none",
+    "logo": "none",
+    "other": "Dashboard panels separated by margins; rows group related charts."
+  },
+  "annotations": "Line and rect annotations supported (storybook 'annotations-lines'); style not specified in guidance read.",
+  "layout": "Prefer horizontal (wide) proportions for time series; avoid too narrow/short charts; scatterplots may be square. Important charts at the top of dashboards, increasing detail downward; large central chart as focal point; charts in rows; always use panel margins. Responsive: charts can switch to simpler models when too small (e.g. bullet to metric), with title truncation.",
+  "interaction": "Crosshair: vertical dashed [4,4] 1px #0B64DD line plus faint blue band over the hovered bucket; tooltip shows all series values; hovering a legend item highlights its series and dims others to 25% opacity; focused line stroke grows to 2.5px. Dark theme available.",
+  "accessibility": "Default palette is the colour-blind-safe euiPaletteColorBlind, 'tested for accessibility contrast'; text variants of vis colours for labels on backgrounds; dedicated 'accessibility features' page (texture fills supported via theme texture options).",
+  "chartTypes": {
+    "preferred": ["Time-series line", "Area", "Bar / stacked bar", "Heatmap", "Metric", "Bullet", "Partition (pie, donut, treemap, sunburst)"],
+    "discouraged": ["Area charts for very small numbers (use stacked bars)"],
+    "notes": "Most Kibana charts are time-based; pick the chart model by the feature it implies."
+  },
+  "distinctiveRules": [
+    { "rule": "Default categorical palette is 10 colours in strong/light pairs: #16C5C0, #A6EDEA, #61A2FF, #BFDBFF, #EE72A6, #FFC7DB, #F6726A, #FFC9C2, #EAAE01, #FCD883; single series uses #16C5C0.", "source": "https://github.com/elastic/elastic-charts/blob/main/packages/charts/src/utils/themes/borealis_colors.ts", "quote": "BOREALIS_COLORS_PALETTE ... defaultVizColor: '#16C5C0'" },
+    { "rule": "Both horizontal and vertical gridlines on by default, solid 1px #E3E8F2; axis lines same colour; no tick marks.", "source": "https://github.com/elastic/elastic-charts/blob/main/packages/charts/src/utils/themes/light_theme.ts", "quote": "gridLine: { horizontal: { visible: true, stroke: borderBaseSubdued ... }, vertical: { visible: true ...} }, tickLine: { visible: false }" },
+    { "rule": "Tick labels 10px Inter in blue-grey #516381; axis titles 12px in #1D2A3E (rendered bold), y title rotated.", "source": "https://github.com/elastic/elastic-charts/blob/main/packages/charts/src/utils/themes/light_theme.ts", "quote": "tickLabel: { fontSize: 10, fill: LIGHT_TEXT_COLORS.textSubdued }, axisTitle: { fontSize: 12, fill: textParagraph }" },
+    { "rule": "Lines are thin (1.5px) with hollow white-filled 3px-radius points shown only when points are >=20px apart.", "source": "https://github.com/elastic/elastic-charts/blob/main/packages/charts/src/utils/themes/light_theme.ts", "quote": "strokeWidth: 1.5 ... point: { visible: 'auto', fill: backgroundBasePlain, radius: 3 }, pointVisibilityMinDistance: 20" },
+    { "rule": "Area fills are 20% opacity of the series colour beneath a solid 1.5px line.", "source": "https://github.com/elastic/elastic-charts/blob/main/packages/charts/src/utils/themes/light_theme.ts", "quote": "areaSeriesStyle: { area: { opacity: 0.2 } }" },
+    { "rule": "Bars take 75% of the band (barsPadding 0.25); histograms nearly touch (padding 0.05).", "source": "https://github.com/elastic/elastic-charts/blob/main/packages/charts/src/utils/themes/light_theme.ts", "quote": "scales: { barsPadding: 0.25, histogramPadding: 0.05 }" },
+    { "rule": "Legend on the right, 200px wide, circle swatches, series name plus current value, one line per item.", "source": "https://github.com/elastic/elastic-charts/blob/main/packages/charts/src/utils/themes/light_theme.ts", "quote": "legend: { verticalWidth: 200 ... labelOptions: { maxLines: 1 } } (circles observed in baseline images)" },
+    { "rule": "Two-level time axis: time labels left-aligned just right of their gridline, with a second row giving the date context.", "source": "https://github.com/elastic/eui/blob/main/packages/website/docs/dataviz/index.mdx", "quote": "Labels that describe passage of time ... are always positioned right next to the gridlines ... Our axes are based on a two-levels organization" },
+    { "rule": "Categorical axis labels are centred on their element.", "source": "https://github.com/elastic/eui/blob/main/packages/website/docs/dataviz/index.mdx", "quote": "Categorical labels ... are always centered on the element" },
+    { "rule": "Hover dims non-highlighted series to 25% opacity; crosshair is a dashed [4,4] blue (#0B64DD) line with a faint band.", "source": "https://github.com/elastic/elastic-charts/blob/main/packages/charts/src/utils/themes/theme_common.ts", "quote": "unhighlighted: { opacity: 0.25 } ... crosshair line dash: [4, 4], stroke borderStrongPrimary" },
+    { "rule": "Zero chart margins/paddings: the plot fills the panel edge to edge.", "source": "https://github.com/elastic/elastic-charts/blob/main/packages/charts/src/utils/themes/theme_common.ts", "quote": "DEFAULT_CHART_MARGINS = { left: 0, right: 0, top: 0, bottom: 0 }" },
+    { "rule": "Use a neutral colour for generic elements and one accent colour for the thing being looked for.", "source": "https://github.com/elastic/eui/blob/main/packages/website/docs/dataviz/dashboard-good-practices.mdx", "quote": "Use a neutral color for generic elements and an accent one for the things that you are looking for." },
+    { "rule": "Drop redundant chart titles; when a title is used make it exhaustive so axis titles can be removed.", "source": "https://github.com/elastic/eui/blob/main/packages/website/docs/dataviz/dashboard-good-practices.mdx", "quote": "when title is needed make it self explanatory and exhaustive, this way you will be able to remove axis titles" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/elastic/area-stacked.png", "url": "https://raw.githubusercontent.com/elastic/elastic-charts/main/e2e/screenshots/all.test.ts-snapshots/baselines/area-chart/stacked-chrome-linux.png", "describes": "Stacked area time series on white: three series teal #16C5C0 (bottom), light teal #A6EDEA, blue #61A2FF (top), each with a 1.5px line and ~20% translucent fill. Light blue-grey solid gridlines in both directions; no ticks. Y labels '0.00'-'60.00' small grey left; rotated bold dark y title 'System Load'; x labels 11:00-11:55 left-aligned just right of each vertical gridline with 'March 1, 2019' on a second row; bold x title 'timestamp per 1 minute' centred below. Legend top-right: circle swatches, names (15m, 5m, 1m) and values (10.63 ...). No chart title." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/elastic/line-multiple-legend.png", "url": "https://raw.githubusercontent.com/elastic/elastic-charts/main/e2e/screenshots/all.test.ts-snapshots/baselines/line-chart/multiple-with-axis-and-legend-chrome-linux.png", "describes": "Multi-series line chart: thin unsmoothed lines teal #16C5C0, light teal #A6EDEA, blue #61A2FF, no point markers at this density. Full light grid (horizontal + vertical) in #E3E8F2; y ticks 0%-30% grey 10px; rotated bold 'System Load'; two-level time axis (11:00 ... 11:55 / March 1, 2019). Right legend with filled circle swatches, names 1m/5m/15m and right-aligned values (10%, 11%)." }
+  ]
+}

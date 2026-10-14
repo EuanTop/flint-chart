@@ -1,0 +1,102 @@
+{
+  "id": "uswds",
+  "org": "U.S. Web Design System (USWDS) — GSA / Technology Transformation Services",
+  "urls": [
+    "https://designsystem.digital.gov/components/data-visualizations/"
+  ],
+  "access": "full",
+  "accessNotes": "The guidance page is static and was read fully (web_fetch markdown plus raw HTML). The two example charts are inline Adobe Illustrator SVGs; their CSS (colours, stroke widths, dash patterns, font sizes) was read from the SVG source, and the rendered figure cards were screenshotted in a headless browser. USWDS data-viz guidance is 'guidance-only' with no component code and no dedicated chart palette, so colours below are those used in the official examples (they are standard USWDS system colours).",
+  "summary": "Government product/content design system whose data-visualisation guidance is accessibility-first rather than stylistic: plain-language heading and summary above the chart, a single colour for same-category bars, dash patterns and point markers to separate lines without colour, an sr-only data table, and a linked 'Source:' line. Example charts are simple, flat and sit in a white bordered, rounded card using USWDS primary blue #005EA2 and warm orange.",
+  "context": "government",
+  "colors": {
+    "categorical": ["#005EA2", "#FA9441"],
+    "categoricalNotes": "No official chart palette. Examples use primary blue #005EA2 and orange #FA9441 (orange line) with darker orange #C05600 markers. Guidance: 'Simplify color selection and don't reuse colors for different variables or within a particular variable'; for multi-variant bars 'use discrete, high contrast colors or textured fill'; same-category bars in one colour.",
+    "sequential": [],
+    "diverging": [],
+    "highlight": null,
+    "context": null,
+    "positive": null,
+    "negative": null,
+    "background": "#FFFFFF",
+    "text": "#1B1B1B",
+    "textSecondary": "#71767A",
+    "gridline": "#DFE1E2",
+    "axis": "#71767A",
+    "notes": "From example SVG CSS: axis lines stroke #71767A at 1px (non-scaling); gridlines #DFE1E2 1px; label text fill #1B1B1B; line series #005EA2 (5-6px, round caps) and #FA9441 (5px, dashed 4 1) with markers #005EA2 / #C05600 r=8 in a ~1020px viewBox. Card summary text uses USWDS 'text-base' grey. Must meet contrast requirements."
+  },
+  "typography": {
+    "family": "Public Sans (Public Sans Web)",
+    "fallback": "-apple-system, system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    "title": { "size": null, "weight": "bold (h4)", "align": "left", "case": "sentence", "color": "#1B1B1B" },
+    "subtitle": { "size": null, "weight": "regular (font-sans-2xs summary paragraph)", "style": "normal", "color": "#71767A" },
+    "axisLabel": { "size": null, "color": "#1B1B1B" },
+    "axisTitle": { "size": null, "weight": "regular", "placement": "omitted; measure named in legend ('Visits (in millions)') or summary" },
+    "dataLabel": { "size": null, "weight": null },
+    "source": { "size": null, "style": "regular, 'Source:' followed by a hyperlink to the original data", "color": "#1B1B1B" },
+    "notes": "Chart heading is an HTML h4 inside the card, not part of the SVG. Example SVG text sizes in viewBox units: axis labels 24-27, legend/category labels 25-26 (rendered roughly 12-14px). Bar example SVG declares MyriadPro-Regular (Illustrator export) but renders in the page sans-serif."
+  },
+  "structure": {
+    "gridlines": "Light grey (#DFE1E2) 1px lines along the value axis only: horizontal in the line chart, vertical in the horizontal bar chart.",
+    "axisLine": "Both axes drawn: thin 1px grey (#71767A) L-shaped axes (left + bottom).",
+    "ticks": "No tick marks.",
+    "zeroLine": "'Line charts origin should start at zero, unless clearly noted.'",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "omitted",
+    "unitPlacement": "In the legend label ('Visits (in millions)') and in the summary text.",
+    "frame": "Card container: 1px border, white background, rounded corners (radius-md), padding-2, max-width tablet; heading, summary, chart and source line all inside the card.",
+    "background": "white card on the page background",
+    "notes": null
+  },
+  "legend": {
+    "placement": "top, above the plot (line chart: spread across the full width; bar chart: left-aligned with plot area)",
+    "directLabels": null,
+    "title": "none",
+    "swatchShape": "line sample with marker (matching dash pattern) for lines; filled rectangle for bars",
+    "notes": "A legend is shown even for a single bar series to name the measure."
+  },
+  "marks": {
+    "bars": "Horizontal bars, single colour #005EA2, square corners, bar thickness roughly 2.5x the gap, sorted descending, category labels right-aligned (wrapping to two lines).",
+    "lines": "Thick lines (5-6px) with round caps and circular markers (r≈8) at each point; the second series is dashed (4 1) and uses a darker marker colour than its line to distinguish without colour.",
+    "areas": null,
+    "points": "Circle markers; triangles, squares or other simple shapes are acceptable.",
+    "pies": null,
+    "notes": "Stacked bars for multi-variant data only if communicating the sum matters; use textures/high-contrast colours."
+  },
+  "labels": {
+    "dataLabels": null,
+    "numberFormat": null,
+    "dates": "Abbreviated month with period and day ('Mar. 1').",
+    "notes": "Provide textual representation of axis values and labels (not embedded in an image)."
+  },
+  "furniture": {
+    "title": "Clear plain-language heading stating the point ('The five most-visited national parks of 2019'), followed by a summary paragraph that states the intended message and explains the measure.",
+    "source": "Below the chart: 'Source: ' + link to the original data (e.g. 'Source: National Park Service'); the sr-only table is aria-describedby the source line.",
+    "logo": "none",
+    "other": "Visually hidden (usa-sr-only) data table with caption; SVG hidden with aria-hidden=\"true\"."
+  },
+  "annotations": "Narrative goes in text: 'Clearly state the author's intended message as text'; provide trends or statistical summaries in plain text for screen readers.",
+  "layout": "Card max-width 'tablet'; chart SVG scales to card width.",
+  "interaction": "'Reduce interaction' - the message must not depend on hover or mouse use; choose charting tools with keyboard and screen-reader support.",
+  "accessibility": "Core of the guidance: equivalent access via sr-only data table (usa-sr-only) and aria-hidden SVG; plain-text summary; meet colour contrast; dash patterns, point styles and textures so colour isn't required; manual accessibility testing (Section 508).",
+  "chartTypes": {
+    "preferred": ["line", "bar"],
+    "discouraged": ["unfamiliar chart types for audiences of unknown data literacy", "charts with more than two or three concepts"],
+    "notes": "Prefer common visualization types; 'Don't try to do too much.'"
+  },
+  "distinctiveRules": [
+    { "rule": "Each chart lives in a white bordered card with rounded corners containing heading, summary paragraph, chart and source line.", "source": "https://designsystem.digital.gov/components/data-visualizations/", "quote": "<div class=\"border bg-white padding-2 ... radius-md ... maxw-tablet\"><h4>…</h4><p class=\"font-sans-2xs text-base\">…" },
+    { "rule": "A plain-language summary paragraph in grey sits between the heading and the chart and states the conclusion.", "source": "https://designsystem.digital.gov/components/data-visualizations/", "quote": "Clearly state the author's intended message as text." },
+    { "rule": "Source line below the chart: 'Source: ' followed by a hyperlink to the original data.", "source": "https://designsystem.digital.gov/components/data-visualizations/", "quote": "Original data linked. We linked back to the original source data" },
+    { "rule": "Multiple lines distinguished without colour: one solid, one dashed (4 1) with contrasting marker colour; circle markers at every data point.", "source": "https://designsystem.digital.gov/components/data-visualizations/", "quote": "One is a solid color, and the other uses both a dash pattern and a color contrast between the line and the indicators." },
+    { "rule": "Bars measuring the same variable share a single colour (#005EA2).", "source": "https://designsystem.digital.gov/components/data-visualizations/", "quote": "The bars are the same color because the data is categorically the same" },
+    { "rule": "Thin grey (#71767A) left and bottom axis lines, light grey (#DFE1E2) gridlines along the value axis only, no ticks.", "source": "https://designsystem.digital.gov/components/data-visualizations/", "quote": ".line-st0{stroke:#71767a} .line-st0-light{stroke:#dfe1e2}" },
+    { "rule": "Legend above the plot (no title), even for a single series, used to name the measure and unit.", "source": "https://designsystem.digital.gov/components/data-visualizations/", "quote": "Example bar chart legend: 'Visits (in millions)'" },
+    { "rule": "Value axis starts at zero unless clearly noted.", "source": "https://designsystem.digital.gov/components/data-visualizations/", "quote": "Line charts origin should start at zero, unless clearly noted." },
+    { "rule": "Every chart ships a visually hidden data table and hides the SVG from assistive tech.", "source": "https://designsystem.digital.gov/components/data-visualizations/", "quote": "Provide an screen-reader accessible data table ... using the class usa-sr-only ... hide the visualization using the attribute aria-hidden=\"true\"" },
+    { "rule": "Don't require hover/interaction to understand the message.", "source": "https://designsystem.digital.gov/components/data-visualizations/", "quote": "Your audience shouldn't be required to interact with a visualization to understand its message." }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/uswds/bar-chart-example.png", "url": "https://designsystem.digital.gov/components/data-visualizations/", "describes": "White card with thin dark border and rounded corners. Bold sans heading 'The five most-visited national parks of 2019' top-left, grey multi-line summary paragraph beneath. Legend above plot, left-aligned to plot area: blue square + 'Visits (in millions)'. Horizontal bars all #005EA2, sorted descending, square ends, thick bars with modest gaps; category labels right-aligned in two lines ('Grand Canyon / National Park'). Thin grey left axis and bottom axis, light grey vertical gridlines at 0-14 step 2, numeric labels below, no ticks. 'Source: National Park Service' (link, underlined, with external-link icon) at bottom-left of the card." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/uswds/line-chart-example.png", "url": "https://designsystem.digital.gov/components/data-visualizations/", "describes": "Line chart in the same card style: grey summary text above; legend at top with line samples (orange dashed with brown-orange dot 'Franklin D. Roosevelt' on the left, solid blue with blue dot 'Theodore Roosevelt' on the right). Orange #FA9441 dashed line with #C05600 circle markers; blue #005EA2 solid line with blue markers; markers at every day. Light grey horizontal gridlines at 25/50/75/100, grey left and bottom axis lines, y labels 0-100 left, x labels 'Mar. 1'...'Mar. 7'. 'Source: Google Trends' link below." }
+  ]
+}

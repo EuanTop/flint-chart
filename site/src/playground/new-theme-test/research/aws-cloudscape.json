@@ -1,0 +1,111 @@
+{
+  "id": "aws-cloudscape",
+  "org": "Amazon Web Services Cloudscape",
+  "urls": [
+    "https://cloudscape.design/patterns/general/data-vis/",
+    "https://cloudscape.design/foundation/visual-foundation/data-vis-colors/",
+    "https://cloudscape.design/components/line-chart/?tabId=usage",
+    "https://unpkg.com/@cloudscape-design/design-tokens/index-visual-refresh.json",
+    "https://github.com/cloudscape-design/chart-components/blob/main/src/internal/chart-styles.ts"
+  ],
+  "access": "partial",
+  "accessNotes": "The data-visualization pattern page and the data-vis colors foundation page were read in full (server-rendered HTML). Individual chart component pages (line chart, bar chart usage tabs) are client-rendered and could not be read; web_search summaries of them were judged unreliable and not used. Exact colours, fonts and sizes come from the official @cloudscape-design/design-tokens package (visual-refresh JSON) and the Highcharts style config in github.com/cloudscape-design/chart-components (src/internal/chart-styles.ts). Example images downloaded from the colours page.",
+  "summary": "Cloudscape is AWS's product design system for consoles and dashboards. Charts live inside rounded white container cards with a bold container header as the chart title; the y-axis title sits horizontally above the axis in bold, the legend is bottom-left, gridlines are faint horizontal rules and bars have small rounded tops. Colour comes from a 50-value chevron-ordered categorical palette of five hues (blue, pink, teal, purple, orange) plus dedicated status/severity and threshold palettes, with full dark-mode equivalents.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#688ae8", "#c33d69", "#2ea597", "#8456ce", "#e07941", "#3759ce", "#962249", "#096f64", "#6237a7", "#a84401"],
+    "categoricalNotes": "Generic categorical palette tokens color-charts-palette-categorical-1…50 (first 10 listed; the Highcharts implementation cycles the first 10). Five hues — blue, pink, teal, purple, orange — ordered by a rotating 'chevron' pattern so adjacent values contrast; always follow the order. 11–20 continue: #273ea5, #780d35, #03524a, #4a238b, #7e3103, #1b2b88, #ce567c, #003e38, #9469d6, #602400. Show at most 8 series for line/bar and 5 slices for pie/donut. Use one colour for a single series (don't colour each bar of one series differently). Status/severity palette (light): critical #7d2105, high #ba2e0f, medium #cc5f21, low #b2911c, positive #67a353, info #3184c2, neutral #8c8c94 — use only the values that fit.",
+    "sequential": ["#529ccb", "#3184c2", "#0273bb", "#0166ab", "#015b9d", "#015292", "#014a87", "#01437d", "#003c75", "#00366d"],
+    "diverging": [],
+    "highlight": null,
+    "context": "#8c8c94",
+    "positive": "#00802f",
+    "negative": "#db0000",
+    "background": "#ffffff",
+    "text": "#0f141a",
+    "textSecondary": "#424650",
+    "gridline": "#dedee3",
+    "axis": "#dedee3",
+    "notes": "No fixed sequential/diverging palette: 'build custom palettes' from 9 non-themeable scales of 10 values (300–1200) each; the sequential entry above is the color-charts-blue-1 scale (300→1200) given as an example of a scale. Guidance: darker = more important/larger; prefer multi-hue sequential over monochrome; never use adjacent steps of one scale together. Threshold line colours (light/dark): negative #db0000/#ff7a7a, positive #00802f/#2bb534, info #006ce0/#75cfff, neutral #656871/#a4a4ad. Grid, tick and axis lines all #dedee3 (dark #424650). Dark mode: container #161d26, body text #c6c6cd, categorical-1 becomes #486de8, -2 #e07f9d, -3 #018977, -4 #b088f5, -5 #c55305. All chart colours meet ≥3:1 contrast against the container background. Error-bar marker #131920 (dark #ffffff)."
+  },
+  "typography": {
+    "family": "Open Sans",
+    "fallback": "'Open Sans', 'Helvetica Neue', Roboto, Arial, sans-serif",
+    "title": { "size": 18, "weight": "bold", "align": "left", "case": "sentence", "color": "#0f141a" },
+    "subtitle": { "size": 14, "weight": "normal", "style": "normal", "color": "#424650" },
+    "axisLabel": { "size": 12, "color": "#424650" },
+    "axisTitle": { "size": 14, "weight": "bold (font-weight-heading-s)", "placement": "y: horizontal, above the top of the y axis, left-aligned; x: below axis" },
+    "dataLabel": { "size": 14, "weight": "bold (font-weight-heading-s)" },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "Chart title is the Cloudscape Container header (heading-m 18px in visual refresh; heading-s 16px). Axis labels font-size-body-s 12px in secondary text colour; axis titles and plot text font-size-body-m 14px. All text in sentence case; no exclamation points, ampersands, 'e.g.', 'etc.'; dates per Cloudscape timestamp guidelines (e.g. 'April 6', '19:00'). Compact number abbreviations on axes ('250k')."
+  },
+  "structure": {
+    "gridlines": "Horizontal value gridlines only, solid 1px #dedee3 (very light).",
+    "axisLine": "x axis line drawn 1px #dedee3; y axis line not drawn (lineWidth 0).",
+    "ticks": "Small tick marks under the x axis (same #dedee3); none on y.",
+    "zeroLine": "No special emphasis beyond the x-axis line.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "horizontal, bold, above the y axis (e.g. 'Percent (%)', 'Total')",
+    "unitPlacement": "In the y-axis title in parentheses, e.g. 'Percent (%)'",
+    "frame": "Chart sits inside a Cloudscape Container card: white, rounded corners (border-radius-container 16px), thin grey border/shadow, header at top-left.",
+    "background": "transparent plot on the container background (#ffffff light / #161d26 dark)",
+    "notes": "Place charts only on the default container background in both modes."
+  },
+  "legend": {
+    "placement": "bottom, left-aligned, horizontal",
+    "directLabels": null,
+    "title": "none in examples",
+    "swatchShape": "square for bars/pies; short rounded line segment for line series",
+    "notes": "Legend items are interactive (highlight/toggle series); inactive series drop to 0.3 opacity."
+  },
+  "marks": {
+    "bars": "Columns with 4px corner radius (top), 2px border in the container background colour (gives white gaps between adjacent/stacked bars), group padding 0.075.",
+    "lines": "Thin (~2px) lines, markers hidden by default (shown on hover, radius 3 circle), straight segments.",
+    "areas": "Fill opacity 0.4, markers hidden.",
+    "points": "Circle markers radius 3 when shown.",
+    "pies": "Pie and donut allowed for ≤5 data points, snapshot data only. Pie size 60% of plot, donut inner size 80% (thin ring) with a bold summary value and secondary-text unit in the centre (e.g. '100' / 'total units'). 2px white separators between segments; connector lines in neutral #656871.",
+    "notes": "Use a 2px divider to separate segments on stacked bar, pie and donut charts. Error bars in neutral threshold grey. Threshold lines dashed."
+  },
+  "labels": {
+    "dataLabels": "Pie/donut data labels 14px bold with neutral connector lines; cartesian charts generally unlabeled (values via tooltip/details popover).",
+    "numberFormat": "Abbreviated with lowercase k on axes (50k, 250k).",
+    "dates": "Follow Cloudscape timestamp guidelines; axis examples 'April 6', '19:00'/'19:30'.",
+    "notes": null
+  },
+  "furniture": {
+    "title": "Title is the container header text, bold, sentence case, describing the metric (e.g. 'CPU utilization', 'Configuration changes'); use titles, labels and legend to describe the chart's intention.",
+    "source": null,
+    "logo": "none",
+    "other": "Optional chart filter controls and additional header actions; charts are dashboard items in configurable/static dashboards; consistent sizing for charts of equal importance."
+  },
+  "annotations": "Thresholds are drawn as dashed horizontal lines coloured by meaning: positive green #00802f, negative red #db0000, info blue #006ce0, neutral grey #656871; dimmed plot lines at 0.4 opacity.",
+  "layout": "Charts fill their container; chart spacing [10,10,0,0]; vertical axis title block 24px with 4px margin. Use consistent sizes for charts of equal importance and minimise the number of charts per view.",
+  "interaction": "Hover/keyboard focus shows a details popover (series details with markers); non-hovered series fade to 0.3 opacity; keyboard navigation with a 2px focus outline, 4px rounded; cursor line in tick colour; legend toggles series; optional filter dropdown. Full keyboard support and ARIA labels required.",
+  "accessibility": "All chart colours meet minimum 3:1 contrast against the container background; don't rely on vision simulators alone; provide alternative formats (e.g. table) where possible; 2px segment dividers increase contrast between adjacent colours; keyboard navigation in logical order; ARIA labels.",
+  "chartTypes": {
+    "preferred": ["line (1–8 series)", "bar (1–8 series)", "mixed line and bar (1–4 series)", "area (2–8 series)", "pie/donut (1–5 points)", "scatter", "bubble"],
+    "discouraged": ["data visualisation as decoration", "y axes not starting at 0 for bar/line where it exaggerates change"],
+    "notes": "Criteria table maps data type (numeric/categorical) and time period (continuous/snapshot) to chart type."
+  },
+  "distinctiveRules": [
+    { "rule": "Every chart sits in a rounded white Container card whose bold header (≈18px) is the chart title, left-aligned.", "source": "https://cloudscape.design/foundation/visual-foundation/data-vis-colors/", "quote": "Place charts only on the default container background color for both light and dark mode." },
+    { "rule": "y-axis title is horizontal, bold, placed above the y axis at top-left and carries the unit, e.g. 'Percent (%)'.", "source": "https://cloudscape.design/foundation/visual-foundation/data-vis-colors/", "quote": "Example images: 'Percent (%)', 'Total', 'Number' above the axis" },
+    { "rule": "Legend is a single row at the bottom-left of the chart: square swatches for bars/pies, short line swatches for line series.", "source": "https://cloudscape.design/foundation/visual-foundation/data-vis-colors/", "quote": "Example images: legend 'S3 RDS EC2' under the plot, left-aligned" },
+    { "rule": "Categorical colours follow a fixed chevron order over five hues: blue #688ae8, pink #c33d69, teal #2ea597, purple #8456ce, orange #e07941, then darker blue #3759ce, …", "source": "https://cloudscape.design/foundation/visual-foundation/data-vis-colors/", "quote": "It uses 5 hues (blue, pink, teal, purple, and orange), and has been ordered to be visually distinguishable … Follow the order of the palette" },
+    { "rule": "Max 8 series for line or bar charts and max 5 data points for pie or donut charts.", "source": "https://cloudscape.design/foundation/visual-foundation/data-vis-colors/", "quote": "Consider displaying only up to 8 data series for a line chart or bar chart, and up to 5 data points for a pie chart or donut chart." },
+    { "rule": "A 2px divider in the background colour separates stacked-bar, pie and donut segments.", "source": "https://cloudscape.design/foundation/visual-foundation/data-vis-colors/", "quote": "Use a 2px divider to separate segments on stacked bar charts, pie charts, and donut charts" },
+    { "rule": "Only faint horizontal gridlines (#dedee3, 1px); no y-axis line; x-axis line and small x tick marks in the same grey.", "source": "https://github.com/cloudscape-design/chart-components/blob/main/src/internal/chart-styles.ts", "quote": "gridLineColor: colorChartsLineTick … yAxisOptions lineWidth: 0; xAxisOptions lineWidth: 1" },
+    { "rule": "Columns have 4px rounded corners and a 2px container-coloured border; group padding 0.075.", "source": "https://github.com/cloudscape-design/chart-components/blob/main/src/internal/chart-styles.ts", "quote": "columnSeries = { groupPadding: 0.075, borderRadius: 4, borderWidth: 2 }" },
+    { "rule": "Donuts are thin rings (inner size 80%) with a bold total and a secondary-text label in the centre.", "source": "https://github.com/cloudscape-design/chart-components/blob/main/src/internal/chart-styles.ts", "quote": "donutSeries = { ...pieSeries, innerSize: '80%' }; example '100 total units'" },
+    { "rule": "Status data uses the dedicated severity palette (critical #7d2105 → high #ba2e0f → medium #cc5f21 → low #b2911c; positive #67a353, info #3184c2, neutral #8c8c94) instead of the categorical palette.", "source": "https://cloudscape.design/foundation/visual-foundation/data-vis-colors/", "quote": "The color palette for data that represents status or severity, and made to complement the status-related components" },
+    { "rule": "Threshold lines are dashed and coloured by meaning (positive green #00802f, negative red #db0000, info blue #006ce0, neutral grey #656871).", "source": "https://cloudscape.design/foundation/visual-foundation/data-vis-colors/", "quote": "Use the following colors for threshold lines based on what the threshold represents." },
+    { "rule": "Axis labels 12px secondary grey #424650; axis titles 14px bold #0f141a; Open Sans.", "source": "https://github.com/cloudscape-design/chart-components/blob/main/src/internal/chart-styles.ts", "quote": "axisLabelsCss { color: colorTextBodySecondary, fontSize: fontSizeBodyS }; axisTitleCss { fontSize: fontSizeBodyM, fontWeight: fontWeightHeadingS }" },
+    { "rule": "Hover/focus dims inactive series to 30% opacity; line markers hidden until interaction.", "source": "https://github.com/cloudscape-design/chart-components/blob/main/src/internal/chart-styles.ts", "quote": "seriesOpacityInactive = 0.3; hiddenSeriesMarker = { enabled: false, radius: 3 }" },
+    { "rule": "Single-series bar charts use one colour for all bars; don't colour attributes of one series differently.", "source": "https://cloudscape.design/foundation/visual-foundation/data-vis-colors/", "quote": "for a bar chart that represents the total cost of a resource by month, do not use a different color for each month. Use one color instead." }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/aws-cloudscape/REF--data-vis-colors-categorical-palette-example-EXT-.png", "url": "https://cloudscape.design/__images/yvlrib0vb3vb/2DsoRFO6Chr64t2dzE3idM/36bc35171c8a8e48e0786a7650ad212f/-REF--data-vis-colors-categorical-palette-example-EXT-.png", "describes": "Two white rounded-corner cards with soft shadow. Left: 'Configuration changes' as a large bold black header top-left; below it bold horizontal y-axis title 'Total' above the axis; grouped column chart with three series (S3 blue #688ae8, RDS pink #c33d69, EC2 teal #2ea597), columns with small rounded tops and gaps between bars; faint grey horizontal gridlines at 0–250k (labels '50k', '250k' in grey Open Sans); grey x-axis line with small ticks; dates 'April 6'…'April 10'. Legend bottom-left with square swatches. Right: 'CPU utilization' header, 'Percent (%)' y title, five thin unmarked lines (blue, pink, teal, orange, purple) over 19:00–21:30, legend bottom-left with short line swatches. No source line or logo." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/aws-cloudscape/foundation--data-vis-colors--threshold--vr-light.png", "url": "https://cloudscape.design/__images/yvlrib0vb3vb/2TR7nmGWpaPqHdODqu4whk/030ef02510aff17d38d531f6958ceec6/foundation--data-vis-colors--threshold--vr-light.png", "describes": "Two bordered cards (thin grey border, 16px-ish radius). 'Average CPU utilization' with bold 'Percent (%)' horizontal y title, a single blue line and a dashed green positive threshold line across the plot. 'New findings' mixed chart: blue columns with rounded tops, a magenta line overlay, and a dashed dark-grey neutral threshold at ~450. Very light horizontal gridlines, no y-axis line, x tick marks." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/aws-cloudscape/foundation--data-vis-colors--status-severity--vr-light.png", "url": "https://cloudscape.design/__images/yvlrib0vb3vb/4WtbTdJnr0nr6xCwgKso1h/93ac5713d0301531e9a9d38b42bc7970/foundation--data-vis-colors--status-severity--vr-light.png", "describes": "Two cards. 'Resource overview' pie with status colours (Running green, Failed red, In-progress blue, Pending grey) separated by white 2px dividers, starting at 12 o'clock clockwise. 'Findings severity' donut ring in severity colours (Critical dark brown-red, High red, Medium orange, Low mustard, Undefined grey) with white gaps and centre text '100' bold over 'total units' in grey. Legends bottom-left with square swatches; bold headers top-left." }
+  ]
+}

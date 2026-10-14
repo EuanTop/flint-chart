@@ -142,7 +142,8 @@ describe('legend title and entry wrapping', () => {
             visit((view.scenegraph() as any).root);
             expect(arcs).toHaveLength(4);
             expect(legends).toHaveLength(1);
-            expect(arcs[0].outerRadius).toBe(90);
+            // The pie fills its 280px square, less a hairline for the slice outlines.
+            expect(arcs[0].outerRadius).toBe(136);
             expect(arcs[0].innerRadius).toBe(chartType === 'Donut Chart' ? 50 : 0);
             const gap = legends[0].x - Math.max(...arcs.map(arc => arc.x + arc.outerRadius));
             expect(gap).toBeGreaterThanOrEqual(12);

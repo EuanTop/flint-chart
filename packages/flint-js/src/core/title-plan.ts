@@ -1,6 +1,7 @@
 import type { AxisLabelPlan } from './axis-labels';
 import type { ChartStructure } from './structure';
 import type { DesignDecisions } from './theme/types';
+import { applyTextCase } from './text-case';
 import { tableTextMeasurer } from './text-width';
 import { canvasContentWidth, fitDeckText, fitHeadlineText, plotHeightAfter, textPx, titleMeasures } from './title-fit';
 import type { LayoutResult } from './types';
@@ -34,6 +35,8 @@ export interface TitlePlanInputs {
     themed: boolean;
     /** The width the views of a chart of several views span, which its title sits over in place of one plot. */
     viewsWidth?: number;
+    /** The width header pieces take beside the headline, at its start and end. */
+    beside?: { start: number; end: number };
 }
 
 /**
@@ -62,11 +65,37 @@ function printedAxisTitles(inputs: TitlePlanInputs): Record<'x' | 'y', string[]>
     return out;
 }
 
+/**
+ * Whether a headline or deck already names an axis title: its words appear in it, and so does its
+ * unit in brackets, as a word that starts with it (“Population (m)” in “Population, millions, 2023”;
+ * not “People (million)” in “People displaced across borders”).
+ */
+export function alreadyNamed(title: string, said: string, tickUnit?: string): boolean {
+    const unit = /\(([^)]*)\)\s*$/.exec(title)?.[1]?.trim().toLowerCase();
+    const bare = title.replace(/\s*\([^)]*\)\s*$/, '').trim().toLowerCase();
+    const text = said.toLowerCase();
+    if (!bare || !text.includes(bare)) return false;
+    // A unit the ruler prints on its ticks is named there.
+    if (unit && tickUnit && tickUnit.trim().toLowerCase() === unit) return true;
+    return !unit || text.split(/[^\p{L}\p{N}%$€£]+/u).some((word) => word.startsWith(unit));
+}
+
+/** The unit an axis prints on its ticks, if it prints one. */
+export function tickUnitOf(axis: { unit?: { text: string; where: string } } | undefined): string | undefined {
+    return axis?.unit && axis.unit.where !== 'never' ? axis.unit.text : undefined;
+}
+
 /** The deck the theme writes: the author's, then each axis title it keeps in the deck, named by axis when both are. */
 function deckText(inputs: TitlePlanInputs): string | undefined {
     const authored = inputs.title?.subtitle?.join(' ');
     if (!inputs.themed) return authored;
     const printed = printedAxisTitles(inputs);
+    for (const channel of ['x', 'y'] as const) {
+        const unlessNamed = inputs.design.axes[channel]?.title.unlessNamed;
+        if (!unlessNamed) continue;
+        const said = (unlessNamed === 'deck' ? [authored] : [inputs.title?.text, authored]).filter(Boolean).join(' ');
+        printed[channel] = printed[channel].filter((title) => !alreadyNamed(title, said, tickUnitOf(inputs.design.axes[channel])));
+    }
     const moved = (['x', 'y'] as const)
         .filter((channel) => inputs.design.axes[channel]?.title.placement === 'subtitle' && printed[channel].length > 0);
     if (!moved.length) return authored;
@@ -118,16 +147,20 @@ export function chartBlock(inputs: TitlePlanInputs, toCanvas = true): number | u
  */
 export function planTitle(inputs: TitlePlanInputs): TitlePlan | undefined {
     const { structure, design } = inputs;
-    const block = chartBlock(inputs);
-    if (!block) return undefined;
+    const whole = chartBlock(inputs);
+    if (!whole) return undefined;
+    // What sits beside the headline is not the headline's to use.
+    const block = Math.max(1, whole - (inputs.beside?.start ?? 0) - (inputs.beside?.end ?? 0));
     // Measured as the glyphs draw, in every environment: a title is drawn with real metrics even where
     // a chart is compiled without a canvas.
     const measure = titleMeasures(design.title, design.font, tableTextMeasurer);
-    const headlineText = inputs.title?.text ?? structure.title;
+    // Cased before it is fitted: an upper-case headline is wider, and is broken where it will be drawn.
+    const headlineText = applyTextCase(inputs.title?.text ?? structure.title ?? '', design.title.headline.textCase) || undefined;
     const headline = headlineText && headlineText.trim()
         ? fitHeadlineText(headlineText, block, design.title.headline.fontSize ?? 14, design.title.deck.fontSize ?? 11, measure.headline)
         : undefined;
-    const deck = deckText(inputs);
+    const deckRaw = deckText(inputs);
+    const deck = deckRaw ? applyTextCase(deckRaw, design.title.deck.textCase) : deckRaw;
     const deckFit = deck && deck.trim() ? fitDeckText(deck, block, design.title.deck.fontSize ?? 11, measure.deck) : undefined;
     return { block, ...(headline ? { headline } : {}), ...(deck !== undefined ? { deck } : {}), ...(deckFit ? { deckFit } : {}) };
 }

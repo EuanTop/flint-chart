@@ -69,6 +69,22 @@ export const chartSpecSchema = z
       .string()
       .optional()
       .describe('Deck: what is measured, of whom, when, and in what units. E.g. "US population by age and sex, 2020, millions".'),
+    label: z
+      .string()
+      .optional()
+      .describe('A short line above the headline: a figure label ("Figure 2") or a kicker. Only when the chart sits in a numbered sequence or under a section name.'),
+    source: z
+      .union([z.string(), z.object({ text: z.string(), href: z.string().optional() })])
+      .optional()
+      .describe(
+        'Optional. Where the data comes from, drawn as the chart\'s source line in the theme\'s style ("Source: …"). Give it only when the user names the source or asks for one, or the data states it; never invent one. A string, or { text, href } to link it.',
+      ),
+    chrome: z
+      .union([z.literal(false), z.object({ header: z.boolean().optional(), footer: z.boolean().optional(), logos: z.boolean().optional() })])
+      .optional()
+      .describe(
+        'Optional. Chrome is the house decoration the theme draws around the chart (header rules, tabs, wordmarks, logos, the footer rule and house credit), not the data or the chart\'s own title, label and source. Omit to follow the theme. false drops it all; or turn off parts: { logos: false } (every house logo), { header: false } (rules, tabs, wordmarks and logos above or beside the title), { footer: false } (the closing rule and the house credit; a given source still prints). Use only when the user asks to remove them.',
+      ),
     encodings: z
       .record(z.string(), z.any())
       .describe(
@@ -190,6 +206,9 @@ export type AssemblyInputArgs = {
     encodings: Record<string, unknown>;
     title?: string;
     subtitle?: string;
+    label?: string;
+    source?: string | { text: string; href?: string };
+    chrome?: false | { header?: boolean; footer?: boolean; logos?: boolean };
     baseSize?: { width: number; height: number };
     canvasSize?: { width: number; height: number };
     chartProperties?: Record<string, unknown>;

@@ -73,11 +73,15 @@ describe('Plotly band labels, as Vega-Lite lays them out', () => {
     expect(fig.layout.xaxis.ticktext.some((text: string) => text.includes('<br>'))).toBe(true);
   });
 
-  it('turns crowded names the way Vega-Lite does and cuts the longest', () => {
+  it('stands crowded names upright the way Vega-Lite does, cut only past the turned limit', () => {
     const rows = Array.from({ length: 60 }, (_, index) => ({ item: `Component assembly ${index}`, count: index }));
     const fig = assemblePlotly(input('Bar Chart', { x: { field: 'item' }, y: { field: 'count' } }, rows, { item: 'Category', count: 'Count' }));
-    expect(fig.layout.xaxis.tickangle).toBeLessThan(0);
-    expect(fig.layout.xaxis.ticktext.some((text: string) => text.endsWith('…'))).toBe(true);
+    expect(fig.layout.xaxis.tickangle).toBe(-90);
+    // Upright names may run 40% of the plot's height before they are cut: these run whole.
+    expect((fig.layout.xaxis.ticktext ?? []).some((text: string) => text.endsWith('…'))).toBe(false);
+    const longer = assemblePlotly(input('Bar Chart', { x: { field: 'item' }, y: { field: 'count' } },
+      rows.map((row) => ({ ...row, item: `${row.item} with a long descriptive suffix` })), { item: 'Category', count: 'Count' }));
+    expect(longer.layout.xaxis.ticktext.some((text: string) => text.endsWith('…'))).toBe(true);
   });
 });
 

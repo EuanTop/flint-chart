@@ -1,0 +1,110 @@
+{
+  "id": "ebay",
+  "org": "eBay (Playbook / Evo design system)",
+  "urls": [
+    "https://playbook.ebay.com/design-system/components/graphs",
+    "https://unpkg.com/@ebay/skin/dist/tokens/evo-light.css",
+    "https://unpkg.com/@ebay/skin/dist/tokens/evo-dark.css",
+    "https://unpkg.com/@ebay/skin/dist/tokens/evo-core.css"
+  ],
+  "access": "full",
+  "accessNotes": "The Playbook Graphs page (v2.0, Design tab) is server-rendered and was read in full, including all do/don't captions. Exact data-viz colour tokens come from eBay Skin's published token CSS (evo-light / evo-dark, resolved against evo-core). The separate 'Graphs: Accessibility' tab was not read.",
+  "summary": "eBay's graphs are seller-dashboard product UI: a white rounded card with a bold short title, optional tabs/filters/drop-down controls, faint horizontal gridlines, and a y-axis with $-abbreviated labels on the RIGHT. Colour is deliberately monochrome blue: primary blue for single series, navy + blue + a hatched light-blue for part-to-whole stacks, with teal only when more categories are needed, avoiding green/red except for trend indicators. Bars are narrow (12-24px) with tiny 2px outer corner radii.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#0968f6", "#002a69", "#d3effe", "#8edfe5", "#d7f4f6"],
+    "categoricalNotes": "'Chart' (bar/area/donut part-to-whole) tokens in order: primary blue-500 #0968f6, secondary blue-700 #002a69, tertiary background indigo-200 #d3effe with stroke blue-500 #0968f6 (rendered as a hatched/striped fill), quaternary background teal-300 #8edfe5 with stroke teal-600 #006f93, quinary background teal-200 #d7f4f6 with stroke teal-600. Line-graph tokens are a separate set: #0968f6 (blue-500), #271a68 (violet-700), #006f93 (teal-600), #de458e (pink-500), #a51359 (pink-600). 'Don't use colors intended for one chart type in another, such as applying line graph colors in an area chart.' Single data sets always use primary blue. Max 3 data sets by default, max 5 if the user turns on more. Colour ordering is 'defined based on number of data sets'.",
+    "sequential": [],
+    "diverging": [],
+    "highlight": "#0968f6",
+    "context": "#c7c7c7",
+    "positive": "#288034",
+    "negative": "#d50b0b",
+    "background": "#ffffff",
+    "text": "#191919",
+    "textSecondary": "#707070",
+    "gridline": "#e5e5e5",
+    "axis": "#191919",
+    "notes": "Light tokens: --color-data-viz-grid neutral-300 #e5e5e5; --color-data-viz-labels neutral-800 #191919; --color-data-viz-legend neutral-600 #707070; legend-inactive neutral-400 #c7c7c7; legend-hover #191919; trend-positive kiwi-600 #288034; trend-negative red-600 #d50b0b; tooltip shadows #00000026 / #0000002b. Dark mode tokens: grid neutral-400, labels neutral-500, legend neutral-300, line primary blue-400, secondary indigo-200, tertiary teal-400, pink-400, pink-300; chart primary blue-500, secondary blue-300, tertiary bg blue-600/stroke blue-400, quaternary bg teal-600/stroke teal-400, quinary bg teal-700/stroke teal-400. Part-to-whole uses 'shades of blue, and teal when needed ... avoiding the use of hues like green and red'. Page background behind cards is light grey (#f7f7f7-ish in images)."
+  },
+  "typography": {
+    "family": "Market Sans",
+    "fallback": null,
+    "title": { "size": null, "weight": "bold", "align": "left", "case": "sentence", "color": "#191919" },
+    "subtitle": { "size": null, "weight": "regular", "style": "normal", "color": null },
+    "axisLabel": { "size": null, "color": "#191919" },
+    "axisTitle": { "size": null, "weight": null, "placement": "omitted (units carried in tick labels, e.g. $60k)" },
+    "dataLabel": { "size": null, "weight": null },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "Sentence case and no ending punctuation for title, subtitle, primary metric, controls, axis labels and tooltips. Title aims for 1-2 words; subtitle 1-2 lines and must not restate the title. Optional large 'primary metric' number above the chart when one value is the main takeaway. Axis labels never angled - show every other label or wrap to 2 lines."
+  },
+  "structure": {
+    "gridlines": "Horizontal only, thin solid light grey (#e5e5e5) spanning the plot; no vertical gridlines.",
+    "axisLine": "No y-axis line; baseline at $0 drawn as a gridline (the anatomy calls it out as 'Baseline').",
+    "ticks": "none",
+    "zeroLine": "Y-axis starts at 0 ('Start the Y-axis at 0 for accurate proportions'); baseline is a labelled anatomy element.",
+    "yAxisPlacement": "right",
+    "yAxisTitle": "omitted",
+    "unitPlacement": "Currency symbol and k abbreviation on every tick ($0, $10k ... $60k).",
+    "frame": "White card with large rounded corners on a light-grey page; title top-left, controls (tabs, quick filters, drop-down) below or top-right.",
+    "background": "white card",
+    "notes": "Anatomy: 1 Title, 2 Tab set, 3 Scaffolding (gridlines), 4 X-axis, 5 Key, 6 Controls, 7 Y-axis, 8 Baseline. At least 16px between axis labels; mark significant time points (quarters, days of week)."
+  },
+  "legend": {
+    "placement": "bottom, left-aligned ('Key' under the graph)",
+    "directLabels": "no",
+    "title": "no",
+    "swatchShape": "small rounded square (hatched square for the patterned series)",
+    "notes": "Key order is the reverse of the tooltip order: the key lists segments bottom-up as they are built; tooltip lists top segment first. Legend text #707070; inactive #c7c7c7; hover #191919."
+  },
+  "marks": {
+    "bars": "Narrow vertical bars: 12-16px wide on small screens, up to 24px on large, with at least 8px padding between bars. 2px corner radius on outside corners of bar segments only; 'Don't increase corner radii'. Stacked segments separated by a thin white gap. Third stacked series drawn as a light-blue fill with diagonal blue hatching and blue outline.",
+    "lines": "Line graph palette separate from bars (blue, violet, teal, pink, dark pink).",
+    "areas": "Stacked area charts allowed for totals over time.",
+    "points": null,
+    "pies": "Donut chart only, for a single part-to-whole breakdown within a total; progress bar linear or circular.",
+    "notes": "Max 3 data sets by default (5 if user enables more)."
+  },
+  "labels": {
+    "dataLabels": "Not printed on bars; precise values via tooltip.",
+    "numberFormat": "Currency with $ and k abbreviation on axis ($300k); full currency with thousands separators in KPI cards ($2,683,141); percentages to 1 decimal with green up-triangle (\u25b2 69.6% vs prior period).",
+    "dates": "Short month (Oct, Nov) or 'Mon D' (Nov 18, Dec 3).",
+    "notes": "Tooltip title names the date/time of the data point."
+  },
+  "furniture": {
+    "title": "Required, short (1-2 words), names the data, bold, top-left of the card; optional subtitle adds missing context; optional primary metric number.",
+    "source": "none",
+    "logo": "none",
+    "other": "Controls: tabs (underlined active tab), quick filters, or pill drop-downs (e.g. 'Last 90 days'), left- or right-aligned."
+  },
+  "annotations": null,
+  "layout": "Responsive density: small screens keep bars 12-16px with >=8px padding (show fewer bars rather than going denser); medium/large screens either extend the time period (more bars) or keep the period and widen bars (to 24px), spacing and inset.",
+  "interaction": "Web: hover/click a time period opens a tooltip ABOVE the selected period and all other shapes fade to 30% opacity. Touch: tap shows tooltip, second tap dismisses; long-press then scrub left/right. Tooltips must sit above or below all key shapes even if overlapping title/controls - never left/right where fingers cover data. Tooltip includes value and label for every data set, ordered top segment first. Tooltip has a soft drop shadow.",
+  "accessibility": "All data-viz colours vetted for accessibility; hatched pattern on the tertiary series distinguishes it beyond colour; 'don't rely on the order alone to express the meaning of values'. Separate Accessibility tab not read.",
+  "chartTypes": {
+    "preferred": ["Stacked bar", "Side-by-side bar", "Stacked area", "Line graph", "Progress bar (linear/circular)", "Donut"],
+    "discouraged": ["Bars narrower than 12px / padding under 8px", "More than 3 data sets by default (5 max)", "New colour themes outside the system"],
+    "notes": "Line graphs preferred over bars for small changes and long periods."
+  },
+  "distinctiveRules": [
+    { "rule": "Y-axis labels sit on the RIGHT side of the plot with currency + k abbreviation on every tick ($0 ... $60k); no y-axis title.", "source": "https://playbook.ebay.com/design-system/components/graphs", "quote": "Observed in Anatomy image (callout 7 'Y-axis' at right) and dashboard example" },
+    { "rule": "Single data sets are always drawn in primary blue #0968f6.", "source": "https://playbook.ebay.com/design-system/components/graphs", "quote": "We use our primary blue when visualizing a single value, such as progress bars, or a single data set" },
+    { "rule": "Part-to-whole charts use shades of blue (then teal), never green/red: navy #002a69, blue #0968f6, hatched light blue #d3effe with #0968f6 stroke.", "source": "https://playbook.ebay.com/design-system/components/graphs", "quote": "We use shades of blue, and teal when needed, to represent part-to-whole relationships ... avoiding the use of hues like green and red" },
+    { "rule": "Bar segments get a 2px corner radius on outside corners only; larger radii are forbidden.", "source": "https://playbook.ebay.com/design-system/components/graphs", "quote": "Do use 2px corner radii on outside corners of bar chart segments." },
+    { "rule": "Bars are 12-24px wide with at least 8px between bars; show fewer bars rather than going denser.", "source": "https://playbook.ebay.com/design-system/components/graphs", "quote": "Do maintain between 12px and 24px wide bars with a minimum of 8px padding between them." },
+    { "rule": "Show at most 3 data sets by default (max 5 if the user opts in).", "source": "https://playbook.ebay.com/design-system/components/graphs", "quote": "Do show a max of 3 data sets per graph by default." },
+    { "rule": "Only horizontal gridlines in #e5e5e5; axis label text #191919; legend text #707070.", "source": "https://unpkg.com/@ebay/skin/dist/tokens/evo-light.css", "quote": "--color-data-viz-grid: neutral-300; --color-data-viz-labels: neutral-800; --color-data-viz-legend: neutral-600" },
+    { "rule": "Legend ('key') sits under the chart, left-aligned, ordered bottom-up (reverse of stack/tooltip order).", "source": "https://playbook.ebay.com/design-system/components/graphs", "quote": "The key under the graph should be in the opposite order since the key represents building the segments from the bottom up to the top." },
+    { "rule": "Title is required, bold, top-left, 1-2 words, sentence case, no ending punctuation.", "source": "https://playbook.ebay.com/design-system/components/graphs", "quote": "Required. Titles name the data being visualized ... Aim for 1-2 words" },
+    { "rule": "On hover the tooltip appears above the selected period and all other shapes fade to 30% opacity.", "source": "https://playbook.ebay.com/design-system/components/graphs", "quote": "This will open a tooltip above the selected time period and all other shapes on the graph fade to 30% opacity." },
+    { "rule": "Axis labels at least 16px apart and never angled; skip every other label or wrap to two lines.", "source": "https://playbook.ebay.com/design-system/components/graphs", "quote": "Don't place axis labels too closely together or angle the text." },
+    { "rule": "Line graphs use their own palette: blue #0968f6, violet #271a68, teal #006f93, pink #de458e, dark pink #a51359 - not interchangeable with bar/area colours.", "source": "https://unpkg.com/@ebay/skin/dist/tokens/evo-light.css", "quote": "--color-data-viz-line-chart-primary ... quinary" },
+    { "rule": "Chart sits in a white rounded card with optional tab set (underlined active tab) and pill drop-down controls (e.g. 'Last 90 days') top-right.", "source": "https://playbook.ebay.com/design-system/components/graphs", "quote": "Controls ... can be tabs, quick filters or drop-downs that are either left aligned or right aligned." },
+    { "rule": "Font is Market Sans.", "source": "https://unpkg.com/@ebay/skin/dist/tokens/evo-core.css", "quote": "--font-family-market-sans: \"Market Sans\"" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/ebay/anatomy.png", "url": "https://images.prismic.io/ebayevo/Zr1SNEaF0TcGI8e2_graphs_I5072-79168-5780-33163.png", "describes": "Anatomy diagram: white rounded card on light grey. 'Chart title' bold black top-left; pill drop-down 'Last 90 days' top-right; tab row (Tab 1 ... Tab 6) with bold underlined active 'Tab 5'. Stacked bar chart of 12 months (Oct-Sep): navy (#002a69) bottom segment, bright blue (#0968f6) middle, light-blue diagonal-hatched top segment with blue outline; thin white gaps between segments; narrow bars with tiny rounded outer corners. Thin light-grey horizontal gridlines only; y-axis labels $0-$60k on the RIGHT; x labels short months in grey below. Legend at bottom-left: small rounded squares (navy, blue, hatched) each followed by 'Label'." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/ebay/example1.png", "url": "https://images.prismic.io/ebayevo/Zr1SWUaF0TcGI8fS_graphs_I3058-30270-3626-50811.png", "describes": "Seller Hub 'Performance > Sales' page: four light-grey rounded KPI cards with uppercase small labels (TOTAL SALES), large bold numbers ($2,683,141), green up-triangle '69.6% vs prior period'. Below, bold section title 'Total sales' left with two pill drop-downs right ('Total sales', 'Last 90 days'). Dense daily stacked bar chart (navy base, blue middle, hatched light-blue top), faint horizontal gridlines, y labels $0/$100k/$200k/$300k on the right, date labels 'Nov 18 ... Dec 18' every third bar." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/ebay/stacked_bar.jpg", "url": "https://images.prismic.io/ebayevo/Zr1SNkaF0TcGI8e3_graphs_I3058-30261-3626-50802-4330-47322.png", "describes": "Stacked bar chart thumbnail: six narrow bars on light grey, navy bottom, bright blue middle, light-blue hatched top segment with a blue outline; white separators between segments; ~2px rounded outer corners; no axes." }
+  ]
+}

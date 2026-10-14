@@ -1,0 +1,114 @@
+{
+  "id": "baltimore-storymaps",
+  "org": "City of Baltimore (CitiStat / Baltimore City Data Fellows Project) — Data Viz Style Guide on ArcGIS StoryMaps",
+  "urls": [
+    "https://storymaps.arcgis.com/stories/d19f7d4d2a9b49c7b8f68730e3cda1e6",
+    "https://www.arcgis.com/sharing/rest/content/items/d19f7d4d2a9b49c7b8f68730e3cda1e6/data?f=json",
+    "https://docs.google.com/document/d/e/2PACX-1vTFWJE5Uh3WA-hFVf6jZLn43HcBDK2Ax1vHmRy_y3q6_nY0YWyPHY6vC0NKsCrc-rnyEQw-9wCF3O0l/pub",
+    "https://docs.google.com/spreadsheets/d/e/2PACX-1vTMF_NMIOnQz_IKGW5a4xbFBMG94rhUSRhrg0n7Am6mCZ0Wggl-Nz_Goh1gzOO_xgnrN7sDkOblc62_/pub?output=csv",
+    "https://gka.github.io/palettes/#/9|s|1c1c1c|ffffe0,ff005e,93003a|1|1",
+    "https://gka.github.io/palettes/#/9|s|512700,a16d00,f8bb39|ffffe0,ff005e,93003a|1|1",
+    "https://gka.github.io/palettes/#/9|s|247a96,e3a520|ffffe0,ff005e,93003a|1|1",
+    "https://gka.github.io/palettes/#/9|d|e3a520|405681|1|1"
+  ],
+  "access": "full",
+  "accessNotes": "The StoryMap is JS-rendered, but its full content (all text nodes, image captions/alt text, embeds) was read from the ArcGIS item data JSON; images were downloaded from the item's resources endpoint. The embedded typography Google Doc ('Style Guide Fonts') and the 'City of Baltimore Data Viz Colors' Google Sheet were read directly (sheet via CSV export). Note: the StoryMap embed preview describes the header as 'Montserrat, All Caps' while the live Google Doc now says 'Roboto' — both recorded. The gka.github.io palette links only give endpoint colours, not computed steps.",
+  "summary": "A municipal (government) style guide for City of Baltimore analysts building Power BI/Tableau-style dashboards, reports and slides. The look is clean and Tufte-influenced: thin light Montserrat/Roboto titles top-left, black text, mostly a single desaturated brand colour per chart (navy, teal, mustard) with grey for de-emphasis, faint dotted horizontal gridlines, sorted horizontal bars with value labels, and right-aligned grey source lines. It ships a named local-flavour palette (Old Bay, Ravens Purple, Crab Mustard, Harbor Blue…).",
+  "context": "government",
+  "colors": {
+    "categorical": ["#BD891A", "#E3A520", "#FDB825", "#FFCF48", "#BD631A", "#E37820", "#FF973B", "#1B5B70", "#247A96", "#00838C", "#4199B3", "#66B8C9", "#344669", "#405681", "#59688F", "#524669", "#654F82", "#8774AD", "#706B56", "#8A846A", "#B8AF8D", "#627066", "#788A7E", "#BAD6C4", "#7D2F2A", "#B0423C", "#2C4379", "#3E5EAB", "#78612B", "#C49F47"],
+    "categoricalNotes": "Listed in the order of the official 'City of Baltimore Data Viz Colors' sheet, which groups hue families dark→light: mustard/yellow (Crab Mustard #BD891A, Golden Grass #E3A520, City Yellow #FDB825, Salt Box Yellow #FFCF48), orange (Old Bay #BD631A, Zest #E37820, Neon Carrot #FF973B), blue/teal (Aquarium Blue #1B5B70, Jelly Bean #247A96, City Blue #00838C, Harbor Blue #4199B3, City Teal #66B8C9), slate (Eastern Shore #344669, East Bay #405681, Bay Blue #59688F), purple (Dark Raven #524669, Ravens Purple #654F82, Light Raven #8774AD), olive (Cylburn Peat #706B56, Olive Haze #8A846A, Cobblestone #B8AF8D), sage (Dark Sage #627066, Sage #788A7E, Light Sage #BAD6C4), red (Engine Red #7D2F2A, Red #B0423C), blue (Navy #2C4379, Blue #3E5EAB), sand (Dirt #78612B, Sand #C49F47). It is NOT an ordered categorical sequence — 'use these as a starting point for building your own color scales'. Fewer colours are better; start in grayscale and highlight only important information; use meaningful colours (green for grass, brown for coffee, colour-blind-safe red-orange for 'overdue'). Avoid colours associated with skin tones or gender.",
+    "sequential": ["#512700", "#a16d00", "#f8bb39"],
+    "diverging": ["#e3a520", "#405681"],
+    "highlight": "#E37820",
+    "context": "#C0C0C0",
+    "positive": "#2BB673",
+    "negative": "#E35700",
+    "background": "#F0F0F0",
+    "text": "#000000",
+    "textSecondary": "#5F5F5F",
+    "gridline": "#E2E2E2",
+    "axis": null,
+    "notes": "Sequential/diverging values are the endpoint colours of the guide's linked gka.github.io palettes (9 steps each): grayscale from #1c1c1c; monochromatic #512700→#a16d00→#f8bb39 (brown→gold); two-colour sequential #247a96→#e3a520; two-colour divergent #e3a520 ↔ #405681. Sheet neutrals: Background #F0F0F0, Light Background #F3F3F3, Background Accent #E2E2E2, Text #000000, Light Text #5F5F5F, Line White #FFFFFF, Light Gray Accent #C0C0C0. Pro/Con pairs: Pro #04666B, #06888F, #2BB673; Con #B84800, #E35700, #F15A29. 'Money or Grass' #256340, #328757. 'highlight' (Zest) and 'gridline' (Background Accent) are reasonable sheet picks, not explicitly designated roles. Problematic pairings to avoid: red–green scales; blue/purple/dark pink together; bright yellow on white. Data points should be '85% gray, grayscale, or color'; titles, axis titles and labels black. Prefer desaturated over fully saturated colours."
+  },
+  "typography": {
+    "family": "Roboto",
+    "fallback": "Arial (system font for web-published visualisations); Montserrat for titles in examples; Roboto Condensed for axis/legend labels",
+    "title": { "size": 24, "weight": "regular, medium for emphasis", "align": "left", "case": "upper (dashboard header title: 'All Caps' per StoryMap embed); chart titles title-case in examples", "color": "#000000" },
+    "subtitle": { "size": 12, "weight": "regular", "style": "normal", "color": "#000000" },
+    "axisLabel": { "size": 9, "color": "#000000" },
+    "axisTitle": { "size": 10, "weight": "medium", "placement": "centred; y title rotated in examples" },
+    "dataLabel": { "size": 9, "weight": "regular" },
+    "source": { "size": 11, "style": "'Source:' label in medium weight, text regular, right-aligned", "color": "#605E5C" },
+    "notes": "Sizes are in pt (Power BI / doc units): header title 24pt; explanatory text or chart title 12pt (Montserrat/Roboto regular, left-aligned, black); axis & legend titles 10pt Roboto medium centred; axis & legend labels 9pt Roboto Condensed regular (axes right-aligned, legend left-aligned); callout/annotation 11pt Roboto regular left-aligned; data labels 9pt Roboto regular aligned to point or bar end; source 11pt right-aligned #605E5C. On the web use system fonts such as Arial because Roboto/Montserrat may not be installed; Roboto OK for exported images. Hierarchy: title largest and darkest, then axis titles, then data labels."
+  },
+  "structure": {
+    "gridlines": "Faint dotted light-grey gridlines along the value axis only (horizontal for column/line charts, vertical for horizontal bars).",
+    "axisLine": "No axis lines in examples.",
+    "ticks": "none",
+    "zeroLine": "Bar charts must start at zero; a grey background may mark the negative zone of a bar chart.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "rotated, centred (examples: 'Min and Max', 'Count', 'Neighborhood')",
+    "unitPlacement": "in axis titles (e.g. 'Number of Notices') and abbreviated ticks (0K, 50K, 100K)",
+    "frame": "none; dashboards on a 3–4 column grid with consistent spacing",
+    "background": "white in examples; sheet background #F0F0F0 / #F3F3F3 for dashboards",
+    "notes": "Line charts: choose y min/max so the 'fever line' fills about two-thirds of the range; use zero baseline if that lands near zero."
+  },
+  "legend": {
+    "placement": "top-left under the title (Power BI style, small circle markers) or top-right list for line charts",
+    "directLabels": "Preferred for static line charts: 'label the lines on the right side'.",
+    "title": "Shown in bold small text when used (e.g. 'Car Make')",
+    "swatchShape": "circle (Power BI) / short line for line series",
+    "notes": null
+  },
+  "marks": {
+    "bars": "Bar width ≈ twice the gap between bars; all bars in one colour and shade (or highlight one or two purposefully); no shadows or 3D; lighter shade for projections/estimates; prefer horizontal bars over rotated labels, sorted highest to lowest.",
+    "lines": "Max five 'fever lines' (no spaghetti); solid lines, distinct colours; label lines at right end for static charts.",
+    "areas": null,
+    "points": "Scatter: one group per chart, add a dotted regression line and p-value annotation; trim outliers with axis max.",
+    "pies": "Discouraged — tree maps preferred over pie and donut charts.",
+    "notes": "Treemaps: largest block top-left, decreasing left→right, 6–10 categories, percentage labels inside blocks, sequential purple→teal colouring in example. Tables: numbers right-aligned, text left-aligned, thin gridlines every 3–5 rows, no zebra striping, shading to highlight, inline charts for the main column."
+  },
+  "labels": {
+    "dataLabels": "Value labels at the end of horizontal bars, small grey/black 9pt; inside the bar end in white bold when the bar fills the space (e.g. top bar '993').",
+    "numberFormat": "Thousands separator (1,000); abbreviated K on axes (50K, 100K).",
+    "dates": "Years as plain numbers (2010, 2012…).",
+    "notes": "Use people-first language and full labels ('Black residents' not 'Black'); alternatives to 'Other' such as 'Another gender'. Avoid 45°/90° rotated axis labels."
+  },
+  "furniture": {
+    "title": "Title top-left; explanatory text directly under the title in the top-left. Title largest/darkest element.",
+    "source": "Source line 'Source: www.openbaltimore.gov' 11pt, 'Source:' in medium weight, right-aligned, grey #605E5C.",
+    "logo": null,
+    "other": "Dashboard template: title top-left, explanatory text beneath, charts/scorecards on a 3- or 4-column grid read top-left to bottom-right."
+  },
+  "annotations": "Annotations summarise the main takeaway; limit them on static charts (more allowed if interactive). Example: explanatory paragraph in 11pt Roboto placed to the right of the chart, plus a dashed grey reference line (5.0 mg/l threshold).",
+  "layout": "Consistent spacing between dashboard elements; 3–4 column grid; Western reading order (top-left first); larger/darker elements read first; static map for simple story, interactive only to needed detail.",
+  "interaction": null,
+  "accessibility": "Section 508 compliance; ~7% of men are red-green colour-blind so avoid red-green scales; avoid low-contrast pairings (yellow on white, blue/purple/pink); test palettes with Color Palette Helper (gka) and real users; annotations help vision-impaired readers; usability testing before launch.",
+  "chartTypes": {
+    "preferred": ["line", "bar (vertical for time series)", "horizontal bar (sorted)", "100% stacked bar", "treemap", "scatter with regression line", "choropleth / point maps", "tables"],
+    "discouraged": ["pie", "donut", "3D/shadowed bars", "spaghetti line charts (>5 lines)", "multi-coloured single-series bars"],
+    "notes": "Use a bar chart if unsure whether a treemap fits; use tables only for lookup or mixed units."
+  },
+  "distinctiveRules": [
+    { "rule": "All bars in a single colour and shade; highlight at most one or two bars purposefully.", "source": "https://storymaps.arcgis.com/stories/d19f7d4d2a9b49c7b8f68730e3cda1e6", "quote": "All the bars in a single chart should be the same color and shade since they measure the same variable." },
+    { "rule": "Bar width is about twice the gap between bars.", "source": "https://storymaps.arcgis.com/stories/d19f7d4d2a9b49c7b8f68730e3cda1e6", "quote": "The width of the bars should be about twice the width of the space between the bars." },
+    { "rule": "Never rotate axis labels 45°/90°; switch to horizontal bars sorted highest to lowest instead.", "source": "https://storymaps.arcgis.com/stories/d19f7d4d2a9b49c7b8f68730e3cda1e6", "quote": "Avoid axes labels that are turned on a 45 or 90 degree angle and choose a horizontal bar instead." },
+    { "rule": "Title and explanatory text sit top-left; header title 24pt, chart title 12pt, both left-aligned black.", "source": "https://docs.google.com/document/d/e/2PACX-1vTFWJE5Uh3WA-hFVf6jZLn43HcBDK2Ax1vHmRy_y3q6_nY0YWyPHY6vC0NKsCrc-rnyEQw-9wCF3O0l/pub", "quote": "Header Title … 24pt, left-aligned, #000000 … Chart Title Roboto, regular, 12pt, left-aligned" },
+    { "rule": "Source line is right-aligned, 11pt, grey #605E5C, 'Source:' in medium weight followed by the URL in regular.", "source": "https://docs.google.com/document/d/e/2PACX-1vTFWJE5Uh3WA-hFVf6jZLn43HcBDK2Ax1vHmRy_y3q6_nY0YWyPHY6vC0NKsCrc-rnyEQw-9wCF3O0l/pub", "quote": "Source: www.openbaltimore.gov — Roboto, medium title and regular for text, 11pt, right-aligned, #605E5C" },
+    { "rule": "Axis and legend labels in 9pt Roboto Condensed; axis/legend titles 10pt Roboto medium, centred; data labels 9pt at bar/point end.", "source": "https://docs.google.com/document/d/e/2PACX-1vTFWJE5Uh3WA-hFVf6jZLn43HcBDK2Ax1vHmRy_y3q6_nY0YWyPHY6vC0NKsCrc-rnyEQw-9wCF3O0l/pub", "quote": "Axis and Legend Labels Roboto Condensed, regular, 9pt … Data Label … 9pt, left or right-aligned to point or end" },
+    { "rule": "Text (titles, axis titles, labels) is black; data marks are 85% grey, greyscale or colour.", "source": "https://storymaps.arcgis.com/stories/d19f7d4d2a9b49c7b8f68730e3cda1e6", "quote": "Titles, axes titles, and labels should be black and data points should be 85% gray, grayscale, or color." },
+    { "rule": "Start in greyscale and add colour only to highlight; fewer, desaturated colours drawn from the named Baltimore palette (e.g. Jelly Bean #247A96, Golden Grass #E3A520, East Bay #405681).", "source": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTMF_NMIOnQz_IKGW5a4xbFBMG94rhUSRhrg0n7Am6mCZ0Wggl-Nz_Goh1gzOO_xgnrN7sDkOblc62_/pub?output=csv", "quote": "Start by using grayscale and only highlight important information with color" },
+    { "rule": "No more than five lines on a line chart; label lines directly at the right end on static charts.", "source": "https://storymaps.arcgis.com/stories/d19f7d4d2a9b49c7b8f68730e3cda1e6", "quote": "avoid making 'spaghetti' plots with more than five fever lines … Better yet would be to label the lines on the right side" },
+    { "rule": "Line chart y range chosen so the line fills about two-thirds of the plot height; bar charts always start at zero.", "source": "https://storymaps.arcgis.com/stories/d19f7d4d2a9b49c7b8f68730e3cda1e6", "quote": "Choose minimum and maximum values for the y axis so that the fever line takes up about two-thirds of the entire range." },
+    { "rule": "Projections/estimates drawn as lighter-shaded bars; negative zone of a bar chart shaded with a grey background.", "source": "https://storymaps.arcgis.com/stories/d19f7d4d2a9b49c7b8f68730e3cda1e6", "quote": "A lighter-shaded bar can be used to distinguish projections and estimates … A gray background can be used to identify the negative zone" },
+    { "rule": "Treemaps preferred to pie/donut: largest block top-left, 6–10 categories, percentages inside blocks.", "source": "https://storymaps.arcgis.com/stories/d19f7d4d2a9b49c7b8f68730e3cda1e6", "quote": "Tree maps are preferred over pie and donut charts. … Place the largest block of the tree map at the top left." },
+    { "rule": "Gridlines are faint dotted light-grey lines on the value axis only; no axis lines or ticks.", "source": "https://www.arcgis.com/sharing/rest/content/items/d19f7d4d2a9b49c7b8f68730e3cda1e6/resources/OMo3DXJQkXoZeRtNe25HI.jpeg", "quote": "(observed in all 'good' example images)" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/baltimore-storymaps/OMo3DXJQkXoZeRtNe25HI.jpeg", "url": "https://www.arcgis.com/sharing/rest/content/items/d19f7d4d2a9b49c7b8f68730e3cda1e6/resources/OMo3DXJQkXoZeRtNe25HI.jpeg", "describes": "'Good' horizontal bar chart: title 'Neighborhoods with the Most Vacant Building Notices' top-left in thin light Montserrat-like sans, black. Ten bars sorted descending, all one dark navy, thick bars with small gaps. Category labels in UPPERCASE grey-teal sans right-aligned against the bars; long label truncated with '…'. Value labels in small grey just past each bar end; the longest bar's label '993' sits inside the bar end in bold white. Faint dotted vertical gridlines at 0–1,000 (thousands comma), no axis lines. Rotated y title 'Neighborhood', x title 'Number of Notices' centred below. No legend. (Green check mark is the guide's 'good' indicator, not part of the chart.)" },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/baltimore-storymaps/Tn_KBuOXiyWVNQs_13qhf.png", "url": "https://www.arcgis.com/sharing/rest/content/items/d19f7d4d2a9b49c7b8f68730e3cda1e6/resources/Tn_KBuOXiyWVNQs_13qhf.png", "describes": "Bad vs good line chart, 'Parking Citations by Car Make' (thin Montserrat title top-left). Bad: ten grey/blue/orange solid and dashed lines (spaghetti), long legend. Good: four solid ~2px lines — bright red (Honda), navy (Ford), light blue (BMW), black (Mercedes); legend top-right with bold 'Car Make' title and short line swatches; faint dotted horizontal gridlines; y ticks '0K, 50K, 100K, 150K'; rotated 'Count' y title; 'Year' x title; no axis lines." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/baltimore-storymaps/Xswcibd7LDl8fbFZKUe1y.jpeg", "url": "https://www.arcgis.com/sharing/rest/content/items/d19f7d4d2a9b49c7b8f68730e3cda1e6/resources/Xswcibd7LDl8fbFZKUe1y.jpeg", "describes": "Annotated grouped column chart 'Dissolved Oxygen Linwood Ave Station' (thin Montserrat title top-left). Legend directly under title, left: small circles 'Min' light teal-blue and 'Max' dark teal (close to Aquarium Blue). Paired columns per year 2004–2017, small gap between pairs. Faint dotted horizontal gridlines at 0/5/10/15, a heavier dashed grey reference line at 5. Rotated y title 'Min and Max', x title 'Year'. Right of the chart, an explanatory annotation paragraph in ~11pt Roboto black, left-aligned, ending with the takeaway sentence." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/baltimore-storymaps/5K8CwbY6_gnvqOkO5b1IY.png", "url": "https://www.arcgis.com/sharing/rest/content/items/d19f7d4d2a9b49c7b8f68730e3cda1e6/resources/5K8CwbY6_gnvqOkO5b1IY.png", "describes": "Typographic hierarchy bad vs good: left uses tiny equal-size grey title and two near-identical greys for Min/Max; right uses a larger Montserrat title, legend below title with light-teal vs dark-teal circles, smaller axis titles and labels — illustrating title largest/darkest, then axis titles, then labels." }
+  ]
+}

@@ -170,7 +170,6 @@ export const swiss: ThemePreset = {
         labels: {
             truncation: 'never',
             flush: true,
-            angle: 'auto',
         },
         legend: {
             show: 'always',

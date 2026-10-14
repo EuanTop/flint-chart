@@ -1,0 +1,240 @@
+{
+  "id": "redhat-patternfly",
+  "org": "Red Hat (PatternFly design system, @patternfly/react-charts)",
+  "urls": [
+    "https://www.patternfly.org/charts/about/",
+    "https://www.patternfly.org/charts/colors-for-charts/",
+    "https://github.com/patternfly/patternfly-org/blob/main/packages/documentation-site/patternfly-docs/content/components/charts/about/charts-guidelines.md",
+    "https://github.com/patternfly/patternfly-org/blob/main/packages/documentation-site/patternfly-docs/content/components/charts/about/charts.md",
+    "https://github.com/patternfly/patternfly-org/blob/main/packages/documentation-site/patternfly-docs/content/components/charts/colors-for-charts/colors-for-charts.md",
+    "https://github.com/patternfly/patternfly-org/blob/main/packages/documentation-site/patternfly-docs/content/components/charts/bar-chart/bar-chart.md",
+    "https://github.com/patternfly/patternfly-org/blob/main/packages/documentation-site/patternfly-docs/content/components/charts/donut-chart/donut-chart.md",
+    "https://github.com/patternfly/patternfly-react/blob/main/packages/react-charts/src/victory/components/ChartTheme/themes/base-theme.ts",
+    "https://github.com/patternfly/patternfly-react/blob/main/packages/react-charts/src/victory/components/ChartTheme/themes/colors/multi-unordered-theme.ts",
+    "https://cdn.jsdelivr.net/npm/@patternfly/patternfly/patternfly-charts.css",
+    "https://cdn.jsdelivr.net/npm/@patternfly/patternfly/patternfly-base.css"
+  ],
+  "access": "full",
+  "accessNotes": "The URLs /charts/about/ and /charts/colors-for-charts/ now return 404 because the site moved charts under /components/charts/. I read the same pages from their markdown source in patternfly/patternfly-org on GitHub. Exact values come from the chart tokens in patternfly-charts.css and patternfly-base.css (PatternFly v6, via jsDelivr), with var() chains resolved to hex, cross-checked against the Victory base theme in patternfly-react. Example images are from the docs repo's img folders.",
+  "summary": "PatternFly is Red Hat's open-source design system for enterprise product UIs (OpenShift, console dashboards). Its charts are React components built on Victory (some on ECharts) and themed by design tokens. The look is restrained: Red Hat Text type, thin light-grey #e0e0e0 axes and ticks with 12px dark-grey tick labels, thin flat bars, 2px lines, and 30% opacity area fills. Colour comes from hue families (blue, green, teal, purple, yellow, orange, red-orange, black), each with 5 shades applied in a base → lightest → darkest order. Charts usually live in cards, with the card header serving as the chart title. Tooltips are dark flyouts with light text.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": [
+      "#0066cc",
+      "#dca614",
+      "#63993d",
+      "#5e40be",
+      "#ca6c0f",
+      "#37a3a3",
+      "#c7c7c7",
+      "#92c5f9",
+      "#96640f",
+      "#afdc8f",
+      "#21134d",
+      "#f8ae54"
+    ],
+    "categoricalNotes": "This is the default 'multi-color-unordered' ColorScale 100–1200 (it continues to 3500). The 'multi-color-ordered' scale begins #0066cc, #63993d, #37a3a3, #dca614, #ca6c0f, #92c5f9, #204d00, #9ad8d8. Guidance: with 7 or fewer variables, give each variable a family's base colour (300). With more than 7, use the multichromatic order across all colours. Grouped or nested variables get one colour family per group, auto-ordered blue, green, teal, purple, yellow, orange, red-orange, black, cycling after that. Within a family the order is base 300 → lightest 100 → darkest 500 → 200 → 400. Blue means success. Red-orange means failure and is used only for failure. Other families are neutral or categorical.",
+    "sequential": [
+      "#92c5f9",
+      "#4394e5",
+      "#0066cc",
+      "#004d99",
+      "#003366"
+    ],
+    "diverging": [],
+    "highlight": "#0066cc",
+    "context": "#c7c7c7",
+    "positive": "#0066cc",
+    "negative": "#f0561d",
+    "background": "#ffffff",
+    "text": "#1f1f1f",
+    "textSecondary": "#383838",
+    "gridline": "#e0e0e0",
+    "axis": "#e0e0e0",
+    "notes": "Families, shades 100→500: blue #92c5f9 #4394e5 #0066cc #004d99 #003366; green #afdc8f #87bb62 #63993d #3d7317 #204d00; teal #9ad8d8 #63bdbd #37a3a3 #147878 #004d4d; purple #b6a6e9 #876fd4 #5e40be #3d2785 #21134d; yellow #ffe072 #ffcc17 #dca614 #b98412 #96640f; orange #f8ae54 #f5921b #ca6c0f #9e4a06 #732e00; red-orange #f89b78 #f4784a #f0561d #b1380b #731f00; black (greys) #f2f2f2 #e0e0e0 #c7c7c7 #a3a3a3 #707070. Donut thresholds use greys #e0e0e0, #c7c7c7, #a3a3a3, warning #dca614 and danger #b1380b. Red-orange and green together may fail accessibility, so add a pattern to the de-emphasised section. Dark and high-contrast themes exist through patternfly-charts.css. An SVG rule sets mix-blend-mode: multiply on clipped groups."
+  },
+  "typography": {
+    "family": "Red Hat Text",
+    "fallback": "\"Red Hat Text\", \"RedHatText\", \"Noto Sans Arabic\", \"Noto Sans Hebrew\", \"Noto Sans JP\", \"Noto Sans KR\", \"Noto Sans Malayalam\", \"Noto Sans SC\", \"Noto Sans TC\", \"Noto Sans Thai\", Helvetica, Arial, sans-serif",
+    "title": {
+      "size": null,
+      "weight": null,
+      "align": "left",
+      "case": "sentence",
+      "color": "#1f1f1f"
+    },
+    "subtitle": {
+      "size": null,
+      "weight": null,
+      "style": null,
+      "color": null
+    },
+    "axisLabel": {
+      "size": 12,
+      "color": "#383838"
+    },
+    "axisTitle": {
+      "size": null,
+      "weight": null,
+      "placement": "Rotated y-axis title on the left, x-axis title centred below, outside the tick labels (axis-label padding 40)."
+    },
+    "dataLabel": {
+      "size": null,
+      "weight": null
+    },
+    "source": {
+      "size": null,
+      "style": null,
+      "color": null
+    },
+    "notes": "Guide: 'The text for axis labels and scale values should be 12px font in standard text color'; legend text 14px in standard text colour. Chart font-size tokens: xs 12, sm 14, lg 18, 2xl 22 (the donut centre value is large, with the subtitle beneath in grey). Default label fill #1f1f1f; tick labels #383838. Label padding 10, margin 8. Title, subtitle and axis-title sizes are not stated; the chart font-size tokens (12/14/18/22) are what is available."
+  },
+  "structure": {
+    "gridlines": "Off by default (Victory ChartAxis showGrid=false). When enabled, gridlines are 1px solid #e0e0e0. The card sparkline example shows a dashed grey threshold line.",
+    "axisLine": "Both axes drawn as 1px #e0e0e0 lines (the light grey L-frame in the bar example).",
+    "ticks": "Yes: 'We recommend using tick marks to clearly mark scale values on the y-axis.' Tick size 5, width 1, #e0e0e0.",
+    "zeroLine": null,
+    "yAxisPlacement": "left",
+    "yAxisTitle": "rotated, centred along the axis, outside the tick labels",
+    "unitPlacement": "In the axis title or the donut subtitle ('of 100 GBps').",
+    "frame": "Charts usually sit in a PatternFly Card: white background, subtle shadow, card padding. The chart title moves into the card header.",
+    "background": "transparent chart on a white card",
+    "notes": "Default layout 450×300 with padding 50. 'All scale values should be equally distributed across the axis and the axis label should fall outside the scale values, centered with the axis line.'"
+  },
+  "legend": {
+    "placement": "Either left-aligned to the right of the chart, or centred below the chart. Token default: position right, horizontal orientation, gutter 20, margin 16.",
+    "directLabels": "Not recommended by default; values appear in tooltips.",
+    "title": "Optional legend title above the items (title orientation top).",
+    "swatchShape": "square (legend data type square)",
+    "notes": "Use a legend whenever a chart has more than one variable, and whenever axis names cannot be shown. A legend is required for donuts, and each item should report its current value. Interactive legends: hovering an item lowers the opacity of all other items and series; clicking hides the series and swaps its swatch for an eye-slash icon."
+  },
+  "marks": {
+    "bars": "Thin flat bars: default barWidth 10, data padding 8, no stroke, square corners. In the vertical bar example bars are about 30% of the category band, leaving wide gaps. 'All bars should be the same width, and the spacing between them should be equal'. Stacked segments get a 1px stroke.",
+    "lines": "2px solid, round caps and joins. No points by default; the area example shows points.",
+    "areas": "Fill at 30% opacity of the series colour with a 2px stroke on top.",
+    "points": "Scatter size 3, active size 5.",
+    "pies": "Donuts are preferred for part-to-whole: no more than 6 categories (2–5 ideal), 3px padding between segments, and a large centre label with the total (format '[total] [label]', e.g. '100 Pets'). Donut utilisation shows percentage against a grey track, optionally with threshold rings. Pie charts are allowed but bar charts are preferred 'in most cases'.",
+    "notes": "Patterns (stripes and lines) de-emphasise one portion so solid portions stand out, e.g. pattern the 'success' slices so 'failure' stands out. Never pattern every section. Bullet charts and brush-and-zoom are supported."
+  },
+  "labels": {
+    "dataLabels": "Values shown in tooltips on hover ('Bugs: 25'). The donut centre shows the total or percentage.",
+    "numberFormat": "Donut totals are rounded to two decimal places or fewer, and the total plus label is limited to about 14 characters (e.g. '100 Issues').",
+    "dates": null,
+    "notes": null
+  },
+  "furniture": {
+    "title": "Titles are left-aligned above the chart. When the chart is in a card, the title becomes the card header instead.",
+    "source": null,
+    "logo": null,
+    "other": "Card pattern: a KPI block (large number '64%', label 'CPU Usage', grey secondary '5.4 of 5.9 GB') beside a sparkline in a white card with a soft drop shadow on a light-grey page."
+  },
+  "annotations": "Threshold lines (e.g. dashed grey), donut threshold rings in greys, warning yellow and danger red-orange. Brush-and-zoom shows the magnified window above the full chart.",
+  "layout": "Default chart 450×300 px, padding 50. Charts embed in cards and dashboards, with sparklines for compact trend display.",
+  "interaction": "Tooltips appear on hover over bars, segments and points: a dark flyout (#1f1f1f), light text (#e0e0e0), corner radius 6, padding 8, a 10px pointer, and the series name and value. Voronoi containers give nearest-point tooltips on line and area charts. Interactive legends do hover-to-highlight and click-to-hide. Brush and zoom are available.",
+  "accessibility": "A legend is required on donuts. Add patterns where red-orange and green combinations fail contrast. Charts accept ariaTitle/ariaDesc props (Victory). Dark and high-contrast themes are provided.",
+  "chartTypes": {
+    "preferred": [
+      "bar (vertical/horizontal)",
+      "stacked bar",
+      "line",
+      "area",
+      "sparkline",
+      "donut",
+      "donut utilization",
+      "donut utilization with threshold",
+      "bullet",
+      "pie",
+      "scatter",
+      "box plot"
+    ],
+    "discouraged": [
+      "pie/donut where a bar chart would do",
+      "donuts with more than 6 categories"
+    ],
+    "notes": "Chooser: time (area, line, sparkline), part-to-whole (donut, donut utilisation, pie), magnitude (bar, stacked bar, bullet). 'We recommend using bar charts over donut or pie charts in most cases.'"
+  },
+  "distinctiveRules": [
+    {
+      "rule": "Axis lines, ticks and gridlines are all a light grey #e0e0e0 at 1px. Tick labels are 12px #383838 in Red Hat Text.",
+      "source": "https://cdn.jsdelivr.net/npm/@patternfly/patternfly/patternfly-charts.css",
+      "quote": "--pf-v6-chart-axis--axis--stroke--Color: #e0e0e0; --pf-v6-chart-axis--tick-label--Fill: #383838; axis labels and scale values should be 12px font"
+    },
+    {
+      "rule": "Gridlines are off by default; tick marks are recommended on the y-axis.",
+      "source": "https://github.com/patternfly/patternfly-org/blob/main/packages/documentation-site/patternfly-docs/content/components/charts/about/charts-guidelines.md",
+      "quote": "We recommend using tick marks to clearly mark scale values on the y-axis."
+    },
+    {
+      "rule": "Bars are thin (barWidth 10, about 30% of the band) with wide equal gaps and square corners.",
+      "source": "https://github.com/patternfly/patternfly-react/blob/main/packages/react-charts/src/victory/components/ChartTheme/themes/base-theme.ts",
+      "quote": "barWidth: chart_bar_Width.value (10); bar data padding 8"
+    },
+    {
+      "rule": "Colour order within a family: base (300) → lightest (100) → darkest (500) → second-lightest (200) → second-darkest (400).",
+      "source": "https://github.com/patternfly/patternfly-org/blob/main/packages/documentation-site/patternfly-docs/content/components/charts/colors-for-charts/colors-for-charts.md",
+      "quote": "The chart palette begins with the base hue, then uses the lightest, darkest, second lightest, and second darkest hues."
+    },
+    {
+      "rule": "Grouped series take one hue family per group in the order blue, green, teal, purple, yellow, orange, red-orange, black.",
+      "source": "https://github.com/patternfly/patternfly-org/blob/main/packages/documentation-site/patternfly-docs/content/components/charts/colors-for-charts/colors-for-charts.md",
+      "quote": "your chart will automatically arrange the order of colors as follows: blue, green, teal, purple, yellow, orange, red orange, and then black."
+    },
+    {
+      "rule": "Blue means success and red-orange means failure. Red-orange is never used for anything else.",
+      "source": "https://github.com/patternfly/patternfly-org/blob/main/packages/documentation-site/patternfly-docs/content/components/charts/colors-for-charts/colors-for-charts.md",
+      "quote": "Blue: Use to show success. Red-orange: Use to show failure. Do not use this family unless you're communicating failure."
+    },
+    {
+      "rule": "Use a hatch pattern on exactly one portion type to de-emphasise it, e.g. success, so that failure stands out.",
+      "source": "https://github.com/patternfly/patternfly-org/blob/main/packages/documentation-site/patternfly-docs/content/components/charts/colors-for-charts/colors-for-charts.md",
+      "quote": "only use patterns for a single chart portion or type of portion... Do not use patterns for every section of a chart."
+    },
+    {
+      "rule": "The title is left-aligned above the chart, or moves into the card header when the chart sits in a card.",
+      "source": "https://github.com/patternfly/patternfly-org/blob/main/packages/documentation-site/patternfly-docs/content/components/charts/about/charts-guidelines.md",
+      "quote": "If a chart lives in a card, the title of that chart will be placed on the header of that card instead of the chart."
+    },
+    {
+      "rule": "The legend is 14px with square swatches, placed either left-aligned to the right of the chart or centred below it.",
+      "source": "https://github.com/patternfly/patternfly-org/blob/main/packages/documentation-site/patternfly-docs/content/components/charts/about/charts-guidelines.md",
+      "quote": "The text on the legend should be 14px size... placed left-aligned to the right of the chart or centered below the chart."
+    },
+    {
+      "rule": "Donut segments are separated by 3px padding, show the total in a big centre label ('100 Pets'), have at most 6 categories, and always come with a legend that reports each value.",
+      "source": "https://github.com/patternfly/patternfly-org/blob/main/packages/documentation-site/patternfly-docs/content/components/charts/donut-chart/donut-chart.md",
+      "quote": "Always provide 3px of padding between segments... Do not try to represent more than six categories"
+    },
+    {
+      "rule": "Tooltips are dark flyouts (#1f1f1f) with light text (#e0e0e0), corner radius 6 and a 10px pointer, in the form 'Name: value'.",
+      "source": "https://cdn.jsdelivr.net/npm/@patternfly/patternfly/patternfly-charts.css",
+      "quote": "--pf-v6-chart-tooltip--flyoutStyle--Fill: #1f1f1f; --pf-v6-chart-tooltip--Fill: #e0e0e0; corner-radius 6"
+    },
+    {
+      "rule": "Areas are filled at 30% opacity with a 2px line on top. Lines are 2px with round caps.",
+      "source": "https://cdn.jsdelivr.net/npm/@patternfly/patternfly/patternfly-charts.css",
+      "quote": "--pf-v6-chart-area--Opacity: 30%; --pf-v6-chart-area--stroke--Width: 2; line--data--stroke--Width: 2"
+    },
+    {
+      "rule": "Interactive legend: hovering an item dims all other items and series; clicking hides the series and replaces its swatch with an eye-slash icon.",
+      "source": "https://github.com/patternfly/patternfly-org/blob/main/packages/documentation-site/patternfly-docs/content/components/charts/about/charts-guidelines.md",
+      "quote": "When a user clicks on a legend label, it becomes disabled and the color swatch is replaced with an eye-slashed icon."
+    }
+  ],
+  "referenceImages": [
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/redhat-patternfly/pf-vertical-bar.png",
+      "url": "https://github.com/patternfly/patternfly-org/blob/main/packages/documentation-site/patternfly-docs/content/components/charts/bar-chart/img/vertical-bar-chart.png",
+      "describes": "Vertical bar chart of Sales by Product (RHEL, EAP, OpenShift, Fuse, AMQ, CloudForms). Six thin solid blue (#0066cc) bars, each about 30% of its band, with square tops. Light grey 1px y-axis and x-axis lines form an L, with short grey tick marks on both axes and no gridlines. Y values 0–100 every 10 in dark grey Red Hat Text. Rotated 'Sales' y-axis title on the far left, 'Product' x-axis title centred below. No chart title or legend; white background."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/redhat-patternfly/pf-chart-on-a-card.png",
+      "url": "https://github.com/patternfly/patternfly-org/blob/main/packages/documentation-site/patternfly-docs/content/components/charts/about/img/chart-on-a-card.png",
+      "describes": "A white card with a soft drop shadow on a light-grey page. Left: a large '64%' in dark text, 'CPU Usage' beneath, then grey secondary text '5.4 of 5.9 GB'. Right: a sparkline area chart with a thin blue (#0066cc) line, light-blue translucent fill, a thin light-grey frame, one faint solid horizontal gridline and one dashed grey threshold line. No axes labels."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/redhat-patternfly/pf-chart-legend.png",
+      "url": "https://github.com/patternfly/patternfly-org/blob/main/packages/documentation-site/patternfly-docs/content/components/charts/about/img/chart-legend.png",
+      "describes": "Chart-type chooser in Red Hat Display/Text. 'Time': an area chart (blue line with point markers and translucent light-blue fill), a two-line chart (dark blue and light blue), and a sparkline with a black tooltip flyout with white text and a downward pointer. 'Part-to-whole': donuts in dark teal/light teal with a big centre number '100' over grey 'Pets', donut utilisation '22% of 100 GBps' on a light grey track, a threshold variant, and a teal pie. 'Magnitude': grouped and stacked bars in purple shades (dark #21134d-like, base #5e40be, light #b6a6e9) and a bullet chart with a grey range, purple bar and red target line. Sections are separated by thin grey rules."
+    }
+  ]
+}

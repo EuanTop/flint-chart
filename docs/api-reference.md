@@ -42,6 +42,7 @@ interface SemanticAnnotation {
   intrinsicDomain?: [number, number];  // e.g. Rating [1, 5]
   unit?: string;                        // e.g. USD, °C
   sortOrder?: string[];                 // custom ordinal order
+  colors?: Record<string, string>;      // colours bound to values, e.g. { DFL: "#0793AB" }
 }
 ```
 
@@ -118,6 +119,8 @@ interface ChartAssemblyInput {
     chartType: string;
     title?: string;                                    // headline
     subtitle?: string;                                 // deck: what is measured, of whom, when, in what units
+    label?: string;                                    // a figure label or kicker above the headline ("Figure 2")
+    source?: string | { text: string; href?: string };  // optional: where the data comes from, drawn as the source line
     encodings: Record<string, ChartEncoding | string>;  // string = field shorthand
     baseSize?: { width: number; height: number };      // target layout size, default 400×320
     canvasSize?: { width: number; height: number };    // optional hard ceiling on stretch
@@ -183,10 +186,13 @@ lists the presets a template supports by declaration. See [Using interactions](/
 | `chartType` | Template name — must match a backend registry entry (`"Bar Chart"`, `"Heatmap"`, …) |
 | `title` | The chart headline. Themes that prefer omitting axis titles append required measure names and declared units to the subtitle instead. The compiler does not interpret headline or subtitle prose to infer whether an axis title is redundant. |
 | `subtitle` | The deck — what is measured, of whom, when, in what units. |
+| `label` | A short line above the headline: a figure label (“Figure 2”) or a kicker, set in the theme's `type.kicker`. |
+| `source` | Optional. Where the data comes from (“UN World Population Prospects 2024”, or `{ text, href }` to link it), drawn at the foot as the theme's `source` says: “Source: …” in `type.footnote` by default. Give it only when the source is known; a chart without one draws no footer. |
+| `chrome` | Optional. Leave it out to draw what the theme specifies. `false` drops the theme's header pieces, footer and logos; `{ header?, footer?, logos? }` with `false` drops one kind: `header` is the furniture around the title, `footer` the footer rule and source credit, `logos` every image piece and a credit's image (the credit keeps its words). The chart's own `label` and `source` text are not affected. |
 | `encodings` | Channel → encoding map |
 | `baseSize` | **Target** layout size in pixels (default 400×320): the size the chart aims for with typical data. Dense data may stretch past it, up to the ceiling. |
 | `canvasSize` | **Hard ceiling:** the maximum size the chart may ever reach, including faceted grids. If omitted, the ceiling is `baseSize × options.maxStretch` (default 1.5×). Per-dimension caps are `βx = canvasSize.width / baseSize.width`, `βy = canvasSize.height / baseSize.height` (each ≥ 1). The base is clamped to the ceiling, so a `canvasSize` on its own acts as a fixed box the chart fills and shrinks to fit without overflowing. |
-| `chartProperties` | Template-specific toggles (e.g. `orient`, `opacity`) |
+| `chartProperties` | Template-specific toggles (e.g. `orient`, `opacity`), and cross-cutting ones such as `labelOverflow` — the path x category names that do not fit their band take (default `["wrap", "rotate90"]`; on a run of times, dates, years or ranks `["wrap", "skip", "rotate90"]`, where `skip` prints only round values; any step may trim) |
 
 > **base vs. canvas, in one line:** `baseSize` is what the chart *aims for*;
 > `canvasSize` is what it *may never exceed*. Use `canvasSize` for a fixed slot,

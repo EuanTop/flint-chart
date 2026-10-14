@@ -469,6 +469,7 @@ export const kpiCardDef: ChartTemplateDef = {
 
             // Big number
             layers.push(withInteractionTextLabel({
+                __textRole: 'display',
                 data: { values: [t.record] },
                 mark: {
                     type: 'text',

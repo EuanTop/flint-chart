@@ -1,0 +1,111 @@
+{
+  "id": "twilio-paste",
+  "org": "Twilio — Paste design system",
+  "urls": [
+    "https://paste.twilio.design/foundations/data-visualization",
+    "https://github.com/twilio-labs/paste/blob/main/packages/paste-website/src/pages/foundations/data-visualization/index.mdx",
+    "https://github.com/twilio-labs/paste/blob/main/packages/paste-website/src/pages/foundations/data-visualization/for-engineers/chart-types.mdx",
+    "https://github.com/twilio-labs/paste/blob/main/packages/paste-libraries/data-visualization/src/usePasteHighchartsTheme.tsx",
+    "https://github.com/twilio-labs/paste/blob/main/packages/paste-libraries/data-visualization/src/transformers/baseFormatter.ts",
+    "https://github.com/twilio-labs/paste/blob/main/packages/paste-libraries/data-visualization/src/transformers/columnChart.ts",
+    "https://github.com/twilio-labs/paste/blob/main/packages/paste-design-tokens/tokens/global/data-visualization.yml",
+    "https://github.com/twilio-labs/paste/blob/main/packages/paste-design-tokens/tokens/themes/dark/global/data-visualization.yml",
+    "https://github.com/twilio-labs/paste/blob/main/packages/paste-design-tokens/tokens/aliases/color-palette.yml",
+    "https://github.com/twilio-labs/paste/blob/main/packages/paste-design-tokens/tokens/global/text-color.yml"
+  ],
+  "access": "full",
+  "accessNotes": "paste.twilio.design/foundations/data-visualization now redirects to the GitHub repo README, so the page's MDX source in the twilio-labs/paste monorepo was read instead (same content), plus the Highcharts theme hook, chart transformers and design-token YAML (resolved to hex via color-palette.yml). Example images taken from the website's asset folder in the repo. The guide's 'Chart anatomy' and 'Chart guidelines' sections are placeholders ('More detail will be provided soon!'), so structure rules come from the Highcharts theme code.",
+  "summary": "Product-UI design system for Twilio Console/SendGrid/Flex. Data visualisation is delivered as a Paste Highcharts theme (usePasteHighchartsTheme / ChartProvider): Inter typeface, a strict 10-colour categorical sequence of deep navy, greens, blues, slate greys, purples and reds tuned for 3:1 contrast on the body background, white divider lines between touching colours, distinct marker shapes per series, and dark inverse tooltips with 8px radius.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#001489", "#0E7C3A", "#0D3A1F", "#008CFF", "#394762", "#A67FE3", "#6D2ED1", "#8891AA", "#750C0C", "#EC5B5B"],
+    "categoricalNotes": "color-data-visualization-1..10 = palette blue-80, green-70, green-90, blue-50, gray-80, purple-40, purple-60, gray-50, red-80, red-50. 'The colors of this palette should be applied in sequence strictly as described ... You can start anywhere in the sequence, but be sure to follow the remaining order (i.e. You can start with 5 ... 6, 7, 8, 9, 10, 1, 2, 3, 4).' 3:1 contrast against color-background-body and >2:1 between neighbours. Dark theme sequence: #0263E0, #C8AFF0, #606B85, #66B3FF, #0E7C3A, #FA9950, #C35323, #F6B1B1, #8C5BD8, #E8B407. No sequential or diverging palette yet ('we don't yet have this type of color palette available').",
+    "sequential": [],
+    "diverging": [],
+    "highlight": null,
+    "context": null,
+    "positive": null,
+    "negative": null,
+    "background": "#FFFFFF",
+    "text": "#121C2D",
+    "textSecondary": "#606B85",
+    "gridline": null,
+    "axis": "#121C2D",
+    "notes": "Highcharts theme: chart background color-background-body (#FFFFFF; dark theme gray-110 #0F1621); title/legend/axis labels color-text #121C2D; subtitle color-text-weak #606B85; credits color-text-weaker #8B93AA; x-axis line and tick colour color-text (#121C2D); legend item hover color-text-weak. Tooltip background color-background-body-inverse #121C2D, border color-border-inverse #8891AA, text color-text-inverse #FFFFFF. Gridline colour not overridden (Highcharts default); example images show light grey dashed horizontal gridlines and a grey-blue axis line (approximately border-weak #CACDD8, not stated). Example pages sit on a light grey (#F4F4F6-ish) page with white chart cards."
+  },
+  "typography": {
+    "family": "Inter",
+    "fallback": "'Inter var experimental', 'Inter var', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen-Sans, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif",
+    "title": { "size": 16, "weight": "700", "align": null, "case": null, "color": "#121C2D" },
+    "subtitle": { "size": 12, "weight": "400", "style": "normal", "color": "#606B85" },
+    "axisLabel": { "size": 10, "color": "#121C2D" },
+    "axisTitle": { "size": 14, "weight": "600", "placement": "Highcharts default (y rotated left, x below); can be hidden via yAxisTitle.hide / xAxisTitle.hide" },
+    "dataLabel": { "size": null, "weight": null },
+    "source": { "size": null, "style": "Highcharts credits (disabled by default) in color-text-weaker", "color": "#8B93AA" },
+    "notes": "Title fontWeightBold + fontSize40 (16px); subtitle fontSize20 (12px); legend items fontSize10 (10px); axis labels fontWeightMedium (500) fontSize10 (10px); axis titles fontWeightSemibold (600) fontSize30 (14px); tooltip fontSize30 (14px). Title and subtitle hidden together when title.hide is set."
+  },
+  "structure": {
+    "gridlines": "Not overridden in the theme (Highcharts default horizontal y gridlines); guide images show light grey dashed horizontal gridlines.",
+    "axisLine": "x-axis line in color-text; y-axis line Highcharts default (none). Guide images show a thin grey-blue L-shaped axis (left and bottom).",
+    "ticks": "x tick colour color-text (Highcharts default tick settings).",
+    "zeroLine": null,
+    "yAxisPlacement": "left",
+    "yAxisTitle": "rotated (Highcharts default), optional",
+    "unitPlacement": null,
+    "frame": "Charts appear as white cards on a light grey page in guide images.",
+    "background": "color-background-body (#FFFFFF light; #0F1621 dark)",
+    "notes": "Zoom (x/y/xy) with shift-key panning on time-based axes; reset-zoom button styled with Paste font; animation on by default."
+  },
+  "legend": {
+    "placement": "Highcharts default (bottom, centred); shown by default (showLegend = true)",
+    "directLabels": null,
+    "title": "optional, styled color-text",
+    "swatchShape": "Highcharts default (line+marker for line series, circle/rect for others)",
+    "notes": "Legend item 10px Inter, hover colour color-text-weak."
+  },
+  "marks": {
+    "bars": "Column chart border radius 2; series borderColor transparent; supports grouped, stacked-normal and stacked-percent with optional data and stack labels.",
+    "lines": "Medium-weight lines (~3px in guide images) with a different marker shape per series (circle, diamond, square, triangle); stickyTracking false.",
+    "areas": "Supported (with zoom/pan on time axes).",
+    "points": "Markers in distinct shapes to avoid colour-only encoding.",
+    "pies": "Allowed; slices separated by white divider lines; colours in the strict palette sequence.",
+    "notes": null
+  },
+  "labels": {
+    "dataLabels": "Optional (showDataLabels) on columns, including stack totals.",
+    "numberFormat": null,
+    "dates": "datetime axis type for time series.",
+    "notes": "Custom tooltip pointFormatter supported (HTML)."
+  },
+  "furniture": {
+    "title": "Optional title (bold 16px) and subtitle (12px weak text) via Highcharts.",
+    "source": "Credits disabled by default; when enabled use color-text-weaker.",
+    "logo": "none",
+    "other": "Exporting module optional."
+  },
+  "annotations": null,
+  "layout": "Charts fill their container; guide examples shown as white cards on a light grey page.",
+  "interaction": "Tooltip: dark inverse background #121C2D, 1px border #8891AA, 8px radius, 12px padding, white 14px Inter text. Highcharts Accessibility module required (keyboard navigation, screen reader). Zoom with drag, pan with shift; reset-zoom button. Legend hover dims to color-text-weak.",
+  "accessibility": "Palette 3:1 against background, >2:1 between neighbours; because neighbours fall short of WCAG non-text contrast, use white divider lines between touching colours and use marker shapes in addition to colour. Always include the Highcharts Accessibility module (WCAG 2.1, keyboard and screen reader support).",
+  "chartTypes": {
+    "preferred": ["line", "area", "column (grouped, stacked, percent-stacked)", "pie"],
+    "discouraged": [],
+    "notes": "Paste ChartProvider/BaseChart currently support line, area and column; other Highcharts types via usePasteHighchartsTheme."
+  },
+  "distinctiveRules": [
+    { "rule": "Strict 10-colour categorical sequence starting with deep navy #001489 then green #0E7C3A, dark green #0D3A1F, bright blue #008CFF, slate #394762, lilac #A67FE3, purple #6D2ED1, grey #8891AA, maroon #750C0C, coral #EC5B5B; may start anywhere but must continue in order (wrapping).", "source": "https://github.com/twilio-labs/paste/blob/main/packages/paste-website/src/pages/foundations/data-visualization/index.mdx", "quote": "You can start anywhere in the sequence, but be sure to follow the remaining order" },
+    { "rule": "White divider lines separate touching colours (pie slices, stacks).", "source": "https://github.com/twilio-labs/paste/blob/main/packages/paste-website/src/pages/foundations/data-visualization/index.mdx", "quote": "we recommend using a divider line to separate any touching colors" },
+    { "rule": "Each line series uses a different marker shape (circle, diamond, square, triangle) in addition to colour.", "source": "https://github.com/twilio-labs/paste/blob/main/packages/paste-website/src/pages/foundations/data-visualization/index.mdx", "quote": "Shapes can also be used in combination with color-coded data points." },
+    { "rule": "Tooltip is a dark inverse card: #121C2D background, 1px #8891AA border, 8px radius, 12px padding, white 14px Inter text.", "source": "https://github.com/twilio-labs/paste/blob/main/packages/paste-libraries/data-visualization/src/usePasteHighchartsTheme.tsx", "quote": "tooltip: { backgroundColor: colorBackgroundBodyInverse, borderColor: colorBorderInverse, borderRadius: borderRadius30, padding: 12 }" },
+    { "rule": "Typography in Inter: title bold 16px, subtitle 12px weak grey, axis labels medium 10px, axis titles semibold 14px, legend 10px.", "source": "https://github.com/twilio-labs/paste/blob/main/packages/paste-libraries/data-visualization/src/usePasteHighchartsTheme.tsx", "quote": "font: fontWeightBold fontSize40 fontFamilyText ... fontWeightMedium fontSize10" },
+    { "rule": "All chart text in near-black #121C2D except subtitle (#606B85) and credits (#8B93AA); x-axis line and ticks also #121C2D.", "source": "https://github.com/twilio-labs/paste/blob/main/packages/paste-libraries/data-visualization/src/usePasteHighchartsTheme.tsx", "quote": "xAxis: { lineColor: context.textColors.colorText, tickColor: context.textColors.colorText }" },
+    { "rule": "Columns have a 2px corner radius and no border.", "source": "https://github.com/twilio-labs/paste/blob/main/packages/paste-libraries/data-visualization/src/transformers/columnChart.ts", "quote": "borderRadius: 2 ... series: { borderColor: \"transparent\" }" },
+    { "rule": "Dark mode swaps to a separate lighter sequence (#0263E0, #C8AFF0, #606B85, #66B3FF, #0E7C3A, #FA9950, #C35323, #F6B1B1, #8C5BD8, #E8B407) on #0F1621.", "source": "https://github.com/twilio-labs/paste/blob/main/packages/paste-design-tokens/tokens/themes/dark/global/data-visualization.yml", "quote": "color-data-visualization-1: {!palette-blue-60} ..." },
+    { "rule": "Accessibility module always on: keyboard navigation and screen-reader descriptions.", "source": "https://github.com/twilio-labs/paste/blob/main/packages/paste-libraries/data-visualization/src/transformers/baseFormatter.ts", "quote": "accessibility: { enabled: true }" },
+    { "rule": "Light grey dashed horizontal gridlines with a thin grey L-shaped axis frame on white chart cards (as shown in guide imagery).", "source": "https://github.com/twilio-labs/paste/blob/main/packages/paste-website/src/assets/images/foundations/data-visualization/line-chart.png", "quote": "Observed in line-chart.png" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/twilio-paste/line-chart.png", "url": "https://github.com/twilio-labs/paste/blob/main/packages/paste-website/src/assets/images/foundations/data-visualization/line-chart.png", "describes": "Three small line charts on white cards over a light grey page, each showing four series from different points in the palette sequence (e.g. bright blue, lilac, purple, slate; or navy, dark green, coral, green). Lines ~3px with distinct filled markers per series (diamond, square, circle, triangle). Light grey dashed horizontal gridlines; thin grey-blue left and bottom axis lines; no labels, titles or legends (palette illustration)." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/twilio-paste/pie-chart.png", "url": "https://github.com/twilio-labs/paste/blob/main/packages/paste-website/src/assets/images/foundations/data-visualization/pie-chart.png", "describes": "Three pies on light grey, each using consecutive palette colours (navy #001489 dominant with bright blue, dark green, green; slate with lilac, purple, grey; green with navy, coral, maroon). Thin white divider lines between every slice and around the edge; no labels." }
+  ]
+}

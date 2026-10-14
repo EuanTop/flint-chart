@@ -1,9 +1,10 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { compile } from 'vega-lite';
-import { parse, View } from 'vega';
+import { parse, View, textMetrics } from 'vega';
+import { tableTextMeasurer } from '../src/core/text-width';
 import { assembleVegaLite } from '../src';
 import { computeBandLabelLayout, fitTwoLineLabels } from '../src/core/decisions';
 import { genLollipopTests } from '../src/test-data/specialized-tests';
@@ -56,7 +57,7 @@ function assertNonOverlapping(grades: string[], step: number | undefined, labelA
   const maxLen = Math.max(...grades.map((g) => g.length));
   const labelPx = maxLen * fontSize * APPROX_CHAR_WIDTH_RATIO;
   const horizontalFits = labelAngle === 0 && step !== undefined && step >= labelPx;
-  const angled = labelAngle === -45;
+  const angled = labelAngle === -90;
   expect(horizontalFits || angled).toBe(true);
 }
 
@@ -70,11 +71,12 @@ describe('boxplot categorical x-axis label fitting', () => {
     assertNonOverlapping(grades, step, labelAngle, fontSize);
   });
 
-  it('angles labels when the stretch budget cannot fit a wide-enough band', () => {
+  it('stands labels upright when the stretch budget cannot fit a wide-enough band', () => {
     const grades = ['regular_', 'midgrade', 'premium_', 'superpr_'];
     // Tiny canvas → tight per-band budget that cannot grow to ~56px.
     const { step, labelAngle, fontSize } = xAxisLayout(makeBoxplotInput(grades, 60));
-    expect(labelAngle).toBe(-45);
+    // A turn, when needed, is upright: −45° only where a theme asks for it.
+    expect(labelAngle).toBe(-90);
     assertNonOverlapping(grades, step, labelAngle, fontSize);
   });
 
@@ -154,9 +156,21 @@ describe('word-wrapped categorical axis labels', () => {
     const size = spec._theme.decisions.dataLabels.text.fontSize;
     if (width < 300) expect(size).toBeLessThan(10);
     else expect(size).toBeGreaterThan(10);
+    // McKinsey never truncates: where two whole lines cannot stand flat, the names stand upright, whole.
+    if (!horizontal && axis.labelAngle === -90) {
+      expect(width).toBeLessThan(300);
+      expect(axis.labelLimit ?? 0).toBe(0);
+      return;
+    }
     expect(axis.labelExpr).toBeDefined();
-    expect(axis.labelFontSize).toBe(size);
-    expect(axis.labelLineHeight).toBe(Math.ceil(size * 1.2));
+    // Names that do not fit flat at the theme's size may shrink toward its floor rather than turn.
+    const drawn = axis.labelFontSize;
+    if (horizontal) expect(drawn).toBe(size);
+    else {
+      expect(drawn).toBeLessThanOrEqual(size);
+      expect(drawn).toBeGreaterThanOrEqual(size * 0.75);
+    }
+    expect(axis.labelLineHeight).toBe(Math.ceil(drawn * 1.2));
     const view = new View(parse(compile(spec).spec), { renderer: 'none' });
     try {
       await view.runAsync();
@@ -167,7 +181,7 @@ describe('word-wrapped categorical axis labels', () => {
       };
       visit((view.scenegraph() as any).root);
       expect(labels).toHaveLength(categories.length);
-      expect(labels.every(item => item.fontSize === size)).toBe(true);
+      expect(labels.every(item => item.fontSize === drawn)).toBe(true);
       expect(labels.some(item => Array.isArray(item.text) && item.text.length === 2)).toBe(true);
       if (horizontal) {
         const ordered = labels.sort((first, second) => first.bounds.y1 - second.bounds.y1);
@@ -329,6 +343,21 @@ describe('word-wrapped categorical axis labels', () => {
 });
 
 describe('faceted labels across themes', () => {
+  // Without a canvas Vega guesses every character at 0.8 em, far wider than any face draws it.
+  // Measure as a browser does (the width table Flint lays labels out with), so a check for
+  // overlapping names tests the layout, not the guess.
+  const estimate = textMetrics.width;
+  beforeAll(() => {
+    textMetrics.width = (item: any, text?: any) => {
+      const measure = tableTextMeasurer(item.fontSize ?? 11, item.font ?? 'sans-serif', item.fontWeight ?? 'normal', 'normal');
+      const value = text ?? item.text ?? '';
+      // A wrapped label is as wide as its widest line; each line is cut at the label's limit, as Vega cuts it.
+      const width = Math.max(0, ...(Array.isArray(value) ? value : [value]).map((line: unknown) => measure(String(line))));
+      return item.limit > 0 ? Math.min(width, item.limit) : width;
+    };
+  });
+  afterAll(() => { textMetrics.width = estimate; });
+
   const original = genLollipopTests()[3].data as Array<{ Item: string; Revenue: number; Region: string; Tier: string }>;
   const variants = [
     { id: 'original', long: false, wrapped: false, width: 480, horizontal: false },

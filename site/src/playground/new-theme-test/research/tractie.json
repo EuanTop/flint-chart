@@ -1,0 +1,109 @@
+{
+  "id": "tractie",
+  "org": "NS (Nederlandse Spoorwegen / Dutch Railways) — Tractie Design System",
+  "urls": [
+    "https://tractie.ns.nl/2e23992f3/p/6056d7-data-visualisation",
+    "https://tractie.ns.nl/2e23992f3/p/669cde-colors/b/976f3d",
+    "https://tractie.ns.nl/2e23992f3/p/669cde-colors/b/30d435",
+    "https://tractie-storybook.ns.nl/iframe.html?viewMode=docs&id=changelog-styles--docs"
+  ],
+  "access": "full",
+  "accessNotes": "The zeroheight page is JS-rendered (web_fetch failed with a transport error; curl returned only the app shell), so it was rendered in a headless browser and the article text and all 14 example images were extracted. The guide only names palette tokens ({color.palette.blue.600} etc.); exact hex values were read from the CSS custom properties (--tractie-color-chart-category-1 ...) shipped by the public Tractie Storybook (@tractie/styles), for both :root (light) and [data-color-scheme=\"dark\"]. Typography tokens (Roboto) also read from Storybook CSS. The @tractie/tokens npm package could not be reached from this environment.",
+  "summary": "Product-UI design system for NS internal employee applications (dashboards, tools). Charts are calm and functional: Roboto, a dark-blue first series (#0C44A1), a fixed 8-colour categorical order tuned for 3:1 contrast in light and dark mode, light grey gridlines, a grey baseline, small rounded bar ends, white gaps between adjacent colours and legend below the chart. Tractie provides guidelines and a Figma bar-chart reference but no coded chart components.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#0C44A1", "#33A0C4", "#B69016", "#BE2771", "#A880EF", "#236D86", "#6A5618", "#EA66AA"],
+    "categoricalNotes": "Tokens color.chart.category-1..8 = palette blue.600, teal.400, yellow.700, pink.600, purple.400, teal.600, yellow.900, pink.400 (light). 'Don't reorder these colors, since they are in an optimized sequence for contrast and accessibility.' Limit categories to 5 ('Be aware that having more then 5 categories could make a chart more difficult to read'). Start with a single colour - use color.chart.category-1 for single-colour charts; only use categorical colours when they add meaning. Dark mode values: #9AC5F1, #2B87A6, #FED652, #F6A2CF, #885DD0, #8DD9EC, #FFF2C8, #D53483.",
+    "sequential": [],
+    "diverging": [],
+    "highlight": "#0C44A1",
+    "context": "#919197",
+    "positive": "#3E9D7B",
+    "negative": "#CE092D",
+    "background": "#FFFFFF",
+    "text": "#252528",
+    "textSecondary": "#00010D8C",
+    "gridline": "#060F2E1C",
+    "axis": "#00021B3B",
+    "notes": "Semantic chart tokens (light / dark): color.chart.neutral #919197 / #75767C ('Use to tone down elements'); color.chart.success #3E9D7B / #47BD99; color.chart.warning #F05C00 / #FF9544; color.chart.error #CE092D / #EB0F38. Categorical palette avoids semantic red/green/orange to prevent confusion. Unfilled remainder of a part (e.g. donut track) uses color.background.accent.gray.subtle #060F2E1C (dark #FFFFFF29) - 'does not pass 3:1 contrast ratio. Do not use it for communicating data.' Guide says use border tokens for axes and content tokens for text: gridline/axis hexes above are the border.default (#060F2E1C, alpha) and border.emphasis (#00021B3B) tokens - which border token maps to grid vs baseline is an inference from the anatomy image (light grey grid, darker grey baseline). Text: content.default #252528, content.subtle #00010D8C (axis labels appear mid-grey). Dark mode: background.default #0D0E10, elevated-1 #191A1C, elevated-2 #252528, content.default #C4C5CB, border.default #FFFFFF29. All categorical and semantic colours pass 3:1 against all elevation backgrounds in light and dark mode. Focus/interactive blue #0062D1."
+  },
+  "typography": {
+    "family": "Roboto",
+    "fallback": "sans-serif",
+    "title": { "size": 20, "weight": "500 (medium)", "align": "left", "case": "sentence", "color": "#0A3680" },
+    "subtitle": { "size": null, "weight": null, "style": null, "color": null },
+    "axisLabel": { "size": 14, "color": "#00010D8C" },
+    "axisTitle": { "size": 14, "weight": "400", "placement": "y title rotated 90° next to the y labels; x title centred below the x labels (both optional)" },
+    "dataLabel": { "size": null, "weight": null },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "Type tokens: family 'Roboto, sans-serif'; sizes xs .75rem, s .875rem, m 1rem, l clamp(1-1.125rem), xl clamp(1.125-1.25rem), xxl clamp(1.25-1.5rem); weights 400/500/700; leading 1, 1.25, 1.5. Title/axis sizes above are estimates read from the anatomy image (title rendered in dark navy, similar to content.emphasis #0A3680; axis labels in subtle grey) - not stated numerically in the guide. Chart title is optional and 'Describes the chart in a short sentence' (example 'X per maand')."
+  },
+  "structure": {
+    "gridlines": "Light grey solid lines along the value axis only (horizontal for column charts, vertical for horizontal bar charts).",
+    "axisLine": "Baseline (zero line) drawn as a slightly darker grey line; no separate value-axis line.",
+    "ticks": "No tick marks.",
+    "zeroLine": "'Baseline: The zero-point on the axis from which bars grow' - darker grey than gridlines. Most charts start Y at zero; non-zero baselines acceptable mainly for line charts showing shape of change.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "optional; rotated, beside the y-axis labels",
+    "unitPlacement": "In axis labels ('Explains what data is being shown on each axis and in what units'), e.g. 0% 25% 50% 75%.",
+    "frame": "None within the chart; charts sit on product surfaces (elevated backgrounds).",
+    "background": "Inherits UI background: #FFFFFF light (elevated-1/2 also #FFF), #0D0E10/#191A1C/#252528 dark.",
+    "notes": "Use consistent, clear and simple intervals."
+  },
+  "legend": {
+    "placement": "bottom, left-aligned under the plot",
+    "directLabels": "Recommended as an extra cue alongside shapes/line patterns ('use other visual indicators like shapes, line patterns or direct labels').",
+    "title": "none",
+    "swatchShape": "rounded square",
+    "notes": "'Do not include a legend for single-category charts. Be aware that legends may not be accessible for users with color blindness. Tooltips should be provided as an additional cue.'"
+  },
+  "marks": {
+    "bars": "Bar width 16px with at least 8px spacing between bars; never below 16px width / 8px spacing. Grouped bars: 12px width, 2px between bars within a group, at least 16px between groups. Outer end of bars slightly rounded (small radius); stacked segments separated by a thin white gap. Use horizontal bars when bars exceed available width or labels are long.",
+    "lines": "Medium-weight lines (~2-3px) with a distinct marker shape per series (circle, diamond, square, triangle) so colour is not the only cue.",
+    "areas": "Suggested as an alternative to increase data density instead of thinner bars.",
+    "points": null,
+    "pies": "Donut/ring gauges shown for single percentages: thick ring in category-1 with the remainder in accent.gray.subtle, rounded ends and a gap between segments, big bold value and label centred.",
+    "notes": "Separate adjacent colours with a border or gap - chart colours don't pass 3:1 against each other."
+  },
+  "labels": {
+    "dataLabels": null,
+    "numberFormat": "Percent axis labels without decimals (0%, 25%, 50%, 75%).",
+    "dates": "Abbreviated month names on the category axis (Jan, Feb, Mar).",
+    "notes": "Product UI is Dutch-language (example title 'X per maand')."
+  },
+  "furniture": {
+    "title": "Optional chart title describing the chart in a short sentence, above the plot, left-aligned.",
+    "source": null,
+    "logo": null,
+    "other": "Axis titles optional."
+  },
+  "annotations": "Highlight an interesting data point by toning down less important data with color.chart.neutral (#919197).",
+  "layout": "Bar density rules fix bar width/spacing in px (16/8, grouped 12/2/16), so chart width scales with bar count; switch to horizontal or area chart rather than shrinking bars.",
+  "interaction": "Tooltips should be provided as an additional cue alongside the legend. Focus/interactive tokens: border.focus #0062D1 (dark #5D9FEA). Tractie supplies no coded chart components - teams style their own library with Tractie tokens.",
+  "accessibility": "All categorical and semantic colours pass 3:1 against all elevation backgrounds in light and dark mode; separate colours by a border or gap; never rely on colour alone - use shapes, line patterns or direct labels ('you have to be able to understand a data visualisation even when it's in black and white'); semantic colours always need a secondary cue (icon/label).",
+  "chartTypes": {
+    "preferred": ["bar/column (single, stacked, grouped)", "horizontal bar", "line", "area", "donut/progress ring"],
+    "discouraged": ["more than 5 categories", "bars thinner than 16px", "multiple category colours without meaning", "non-zero baselines that exaggerate differences"],
+    "notes": "Figma Bar Chart component provided as reference."
+  },
+  "distinctiveRules": [
+    { "rule": "Fixed categorical order: #0C44A1 dark blue, #33A0C4 teal, #B69016 ochre, #BE2771 magenta-pink, #A880EF lilac, #236D86 dark teal, #6A5618 olive-brown, #EA66AA pink; never reorder.", "source": "https://tractie.ns.nl/2e23992f3/p/6056d7-data-visualisation", "quote": "Don't reorder these colors, since they are in an optimized sequence for contrast and accessibility." },
+    { "rule": "Single-series charts use only color.chart.category-1 (#0C44A1); no rainbow bars.", "source": "https://tractie.ns.nl/2e23992f3/p/6056d7-data-visualisation", "quote": "Use color.chart.category-1 for single color charts." },
+    { "rule": "Separate adjacent colours (stacked segments, donut segments) with a white gap/border.", "source": "https://tractie.ns.nl/2e23992f3/p/6056d7-data-visualisation", "quote": "Separate chart colors by a border or gap." },
+    { "rule": "Bar width 16px with ≥8px spacing; grouped bars 12px wide, 2px inside groups, ≥16px between groups.", "source": "https://tractie.ns.nl/2e23992f3/p/6056d7-data-visualisation", "quote": "Set bar width to 16px, with at least 8px of spacing between bars." },
+    { "rule": "Legend below the chart, left-aligned, with rounded-square swatches; no legend for single-category charts; tooltips as additional cue.", "source": "https://tractie.ns.nl/2e23992f3/p/6056d7-data-visualisation", "quote": "Do not include a legend for single-category charts ... Tooltips should be provided as an additional cue." },
+    { "rule": "Line series each get a distinct marker shape (circle, diamond, square, triangle) so charts read in black and white.", "source": "https://tractie.ns.nl/2e23992f3/p/6056d7-data-visualisation", "quote": "Make sure to use other visual indicators like shapes, line patterns or direct labels." },
+    { "rule": "Highlight by greying out: non-focus data in color.chart.neutral #919197.", "source": "https://tractie.ns.nl/2e23992f3/p/6056d7-data-visualisation", "quote": "Highlight an interesting data point by toning down less important data in a chart with color.chart.neutral." },
+    { "rule": "Semantic chart colours reserved for meaning: success #3E9D7B, warning #F05C00, error #CE092D; kept out of the categorical palette.", "source": "https://tractie.ns.nl/2e23992f3/p/6056d7-data-visualisation", "quote": "We avoid those colors within the categorical chart colors to prevent confusion." },
+    { "rule": "Full dark-mode palette swap via tokens (category-1 becomes #9AC5F1, background #0D0E10), every chart colour keeping ≥3:1 contrast on all elevations.", "source": "https://tractie-storybook.ns.nl/iframe.html?viewMode=docs&id=changelog-styles--docs", "quote": "These colors also pass 3:1 color contrast ratios on all elevated backgrounds in light and dark mode." },
+    { "rule": "Light grey gridlines along the value axis only, a darker grey zero baseline, no tick marks; grey Roboto axis labels.", "source": "https://tractie.ns.nl/2e23992f3/p/6056d7-data-visualisation", "quote": "Anatomy: Grid lines ... Baseline: The zero-point on the axis from which bars grow." },
+    { "rule": "Bars have slightly rounded outer ends (top of the stack only).", "source": "https://tractie.ns.nl/2e23992f3/p/6056d7-data-visualisation", "quote": "Observed in the stacked column and horizontal bar example images" },
+    { "rule": "Unfilled remainder of a progress/donut uses accent.gray.subtle and must never encode data.", "source": "https://tractie.ns.nl/2e23992f3/p/6056d7-data-visualisation", "quote": "Use color.accent.gray.subtle when part of a graph is not filled ... Do not use it for communicating data." }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/tractie/img1.png", "url": "https://tractie.ns.nl/2e23992f3/p/6056d7-data-visualisation", "describes": "Anatomy diagram on a very light grey canvas: chart title 'X per maand' top-left in medium-weight dark navy Roboto (~20px). Stacked column chart with dark blue (#0C44A1) bottom segments and teal (#33A0C4) tops separated by a thin white line; tops slightly rounded. Light grey horizontal gridlines at 1-4; slightly darker grey baseline at 0; y labels grey on the left; rotated 'Y title' beside them; month labels (Jan-Mar) below and 'X title' centred under them. No ticks or axis lines. Legend below the chart, left-aligned, with rounded-square swatches and 'Label' text." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/tractie/img13.png", "url": "https://tractie.ns.nl/2e23992f3/p/6056d7-data-visualisation", "describes": "Line chart on white, four series each with a distinct filled marker: dark blue circles, teal diamonds, ochre squares, magenta triangles; lines ~2-3px. Light grey horizontal gridlines at 25%/50%/75%, grey baseline at 0%; y labels grey percentages left; month labels Jan-Jun below; no legend, no ticks." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/tractie/img11.png", "url": "https://tractie.ns.nl/2e23992f3/p/6056d7-data-visualisation", "describes": "Horizontal stacked bar chart: four bars (Jan-Apr) with dark blue, teal and ochre segments separated by white gaps, outer right end slightly rounded. Light grey vertical gridlines at 0-4, darker grey vertical baseline at 0; grey category labels right-aligned left of the baseline; grey value labels below; generous spacing between bars." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/tractie/img9.png", "url": "https://tractie.ns.nl/2e23992f3/p/6056d7-data-visualisation", "describes": "Progress donut: thick dark blue ring for 75% with rounded ends and small gaps, remainder in very light grey (color.background.accent.gray.subtle); centre shows bold '75%' and 'Coverage' in Roboto; a token callout above." }
+  ]
+}

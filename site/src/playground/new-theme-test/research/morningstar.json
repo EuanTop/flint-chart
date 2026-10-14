@@ -1,0 +1,236 @@
+{
+  "id": "morningstar",
+  "org": "Morningstar Design System – Charts / Chart Elements",
+  "urls": [
+    "https://designsystem.morningstar.com/charts/chart-elements-status/",
+    "https://designsystem.morningstar.com/charts/color/",
+    "https://design.morningstar.com/systems/data-visualization",
+    "https://design.morningstar.com/systems/data-visualization/guidelines/color-palettes",
+    "https://designsystem.morningstar.com/chart-elements-docs/color-vue3/2.0.5/index.html?tab=tokens",
+    "https://designsystem.morningstar.com/chart-elements-docs/guidelines-vue3/2.0.5/index.html",
+    "https://designsystem.morningstar.com/chart-elements-docs/x-axis-vue3/2.0.5/build.js",
+    "https://designsystem.morningstar.com/chart-elements-docs/y-axis-vue3/2.0.5/build.js",
+    "https://designsystem.morningstar.com/chart-elements-docs/legend-vue3/2.0.5/build.js",
+    "https://design.morningstar.com/systems/data-visualization/common-charts/bar-vertical",
+    "https://design.morningstar.com/systems/data-visualization/common-charts/line",
+    "https://design.morningstar.com/systems/data-visualization/common-charts/donut",
+    "https://design.morningstar.com/systems/data-visualization/guidelines/accessibility"
+  ],
+  "access": "partial",
+  "accessNotes": "The legacy designsystem.morningstar.com/charts/* pages embed chart docs via iframes (chart-docs/<page>/2.0.1/) that now return S3 AccessDenied; the site redirects to the new design.morningstar.com 'Data Visualization' system, whose element pages are client-rendered. Read: colour tokens table (rendered chart-elements-docs/color-vue3/2.0.5 iframe in a browser), CSS embedded in the x-axis/y-axis/legend/guidelines Vue 3 build.js bundles, and server-rendered common-chart pages (bar vertical, line, donut, accessibility). Grid, layout, hover-flag and x/y-axis guideline prose were not accessible (403/JS-only); structure inferred from official anatomy images.",
+  "summary": "Financial product-UI chart system (Vue 'Chart Elements') with strong semantic colour meanings (asset classes, performance, sectors, valuation). Distinctive Swiss-like look in the light-weight MorningstarIntrinsic typeface: y-axis tick labels hang right-aligned beneath short black rule segments in a separate label column, dotted light-grey gridlines, black top and bottom rules, legend in a right-hand column under a rule, 3px white gaps between adjacent plots.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": [
+      "#2364B9",
+      "#B2013C",
+      "#F5C72C",
+      "#125B2F",
+      "#72A1E0",
+      "#6B4EA1",
+      "#F47206",
+      "#075F65",
+      "#039649",
+      "#E42513"
+    ],
+    "categoricalNotes": "'Generic' palette: 'Always use the generic colors in their provided order, which has been tested across different color weaknesses.' Use semantic palettes when the data has meaning: Asset Allocation — Equity #2364B9, Fixed Income #F47206, Alternative #B2013C, Cash #039649, Other #F5C72C, Not Classified #ECEBEA; Super Sectors — Cyclical #F47206, Sensitive #2364B9, Defensive #039649 (sub-sectors inherit); Valuation — Under #00A8E1, Fair #E5E5E5, Over #EF7622; Correlation — positive #2364B9, negative #F47206; ESG rating #2364B9. Accessibility guide: if you need more than four or five colours, simplify into multiple charts.",
+    "sequential": [],
+    "diverging": [
+      "#F47206",
+      "#ECEBEA",
+      "#2364B9"
+    ],
+    "highlight": "#2364B9",
+    "context": "#ECEBEA",
+    "positive": "#039649",
+    "negative": "#E42513",
+    "background": "#FFFFFF",
+    "text": "#1A1918",
+    "textSecondary": "#7F7D7A",
+    "gridline": null,
+    "axis": "#1A1918",
+    "notes": "Performance: positive #039649, neutral #ECEBEA, negative #E42513. Diverging listed is the Correlation pair with neutral grey (not an official ramp). Text colours tested to ≥4.5:1 on white. Guideline/crosshair lines stroke #7F7D7A 1px dash 1,1. Gridlines in anatomy images are light grey dotted (exact token not accessible)."
+  },
+  "typography": {
+    "family": "MorningstarIntrinsic",
+    "fallback": "HelveticaNeue, \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+    "title": {
+      "size": null,
+      "weight": null,
+      "align": "left",
+      "case": "sentence",
+      "color": "#1A1918"
+    },
+    "subtitle": {
+      "size": null,
+      "weight": null,
+      "style": null,
+      "color": null
+    },
+    "axisLabel": {
+      "size": 14,
+      "color": "#1A1918"
+    },
+    "axisTitle": {
+      "size": 14,
+      "weight": "300",
+      "placement": "y title rotated (vertical-lr, reading bottom-to-top) at bottom-left of the label column; x title left-aligned below the first tick label; both grey #7F7D7A"
+    },
+    "dataLabel": {
+      "size": 14,
+      "weight": "300"
+    },
+    "source": {
+      "size": null,
+      "style": null,
+      "color": null
+    },
+    "notes": "All chart element text 14px / 18px line-height, weight 300 (light). Legend group heading weight 500; stacked legend value 16px/21px. Y-axis unit label (.mce-axis-y__unit) 14px #7F7D7A, displayed as a block. Numbers with thousands separators."
+  },
+  "structure": {
+    "gridlines": "Horizontal only, light grey dotted lines across the plot (anatomy images); vertical none.",
+    "axisLine": "Solid dark x-axis baseline across the plot; matching solid black rule along the top of the plot, the y-label column and the legend column.",
+    "ticks": "Y ticks drawn as short solid lines (1px #7F7D7A border-top in CSS; dark in images) spanning the label column at each tick value, with the label right-aligned just below the line. No x tick marks.",
+    "zeroLine": "Bars/histograms need zero baseline; lines need not ('Focusing on the data is more important than showing the zero point').",
+    "yAxisPlacement": "left, in a separate column detached from the plot by a gap",
+    "yAxisTitle": "rotated, small grey, bottom-aligned at left edge of y-label column (e.g. 'Percent of GDP (%)', 'Price $')",
+    "unitPlacement": "In the axis title (e.g. '(%)', '$') or a separate y-axis unit element",
+    "frame": "No box; plot, y-label column and legend column each bounded by top and bottom black rules.",
+    "background": "white",
+    "notes": "Built-in 3px gaps between adjacent plots (stacked bars, donut segments, adjacent bars). Benchmark marks are thick black horizontal bars over/near each bar."
+  },
+  "legend": {
+    "placement": "right, in its own column aligned to the plot top under a black rule (vertical list); horizontal variant available with 12px item spacing",
+    "directLabels": "Line legends can show series name with latest value ('S&P 500 Return $5,374.80')",
+    "title": "optional group heading weight 500",
+    "swatchShape": "square for bars; short line segment for lines; ring (hollow circle) for donut",
+    "notes": "Items 14px light #1A1918, 6px vertical spacing, key 4px before label."
+  },
+  "marks": {
+    "bars": "Flat fills, no rounding, separated by small white gaps (3px); categories may be sorted greatest→least; horizontal grey bands to align bars with labels when values are positive and negative. Benchmark shown as thick black bar segments.",
+    "lines": "~2px straight line segments, no markers, never smoothed ('Don’t smooth out lines, since doing so may be misleading'). Don't show too many series.",
+    "areas": null,
+    "points": null,
+    "pies": "Donut (thick ring, ~45% inner radius) built clockwise from the top in descending order starting with the largest; few segments, combine small ones into 'Other'; include annotations; white gaps between segments; no negative values.",
+    "notes": "All plots support pattern fills."
+  },
+  "labels": {
+    "dataLabels": "Static annotations (e.g. values above bars) can replace hover flags; must meet 4.5:1 contrast.",
+    "numberFormat": "Thousands separators (6,000; $5,374.80)",
+    "dates": "Years on time axis (2020…2025)",
+    "notes": null
+  },
+  "furniture": {
+    "title": "Product teams supply title/written description; a chart summary can be shown as on-screen text introducing the chart.",
+    "source": null,
+    "logo": null,
+    "other": "Benchmark elements, hover flags, pointers, crosshair guidelines are separate components."
+  },
+  "annotations": "Guidelines/crosshairs: 1px #7F7D7A dotted (dasharray 1,1). Static text annotations encouraged for accessibility.",
+  "layout": "Chart = y-label column | plot | legend column, all sharing top/bottom rules; responsive design guidance exists (not read).",
+  "interaction": "Hover flags (tooltips) and interactive legends are components; crosshair guidelines; screen zoom support; keyboard/screen-reader descriptions provided by product teams.",
+  "accessibility": "Text ≥4.5:1 on white; 3px gaps between adjacent plots; pattern-fill support; table alternative for ≤20–30 rows, written description otherwise; don't rely on colour; simplify when >4–5 colours needed.",
+  "chartTypes": {
+    "preferred": [
+      "bar vertical/horizontal (incl. grouped, stacked, benchmark)",
+      "line / time-series line",
+      "area",
+      "donut",
+      "histogram",
+      "scatter (benchmark, weighted)",
+      "box plot",
+      "treemap",
+      "waterfall"
+    ],
+    "discouraged": [
+      "smoothed lines",
+      "donut with negative values or many small segments",
+      "vertical bars with long labels"
+    ],
+    "notes": null
+  },
+  "distinctiveRules": [
+    {
+      "rule": "Y-axis tick labels sit in a separate left column, right-aligned directly beneath a short horizontal rule at each tick value (label hangs below the line).",
+      "source": "https://designsystem.morningstar.com/chart-elements-docs/y-axis-vue3/2.0.5/build.js",
+      "quote": ".mce-axis-y__tick{...border-top:1px solid #7f7d7a;color:#1a1918;padding-top:calc(8px*.25);text-align:right;width:100%}"
+    },
+    {
+      "rule": "All chart text is MorningstarIntrinsic 14px weight 300 (light), #1A1918; axis titles/units in grey #7F7D7A.",
+      "source": "https://designsystem.morningstar.com/chart-elements-docs/x-axis-vue3/2.0.5/build.js",
+      "quote": ".mce-axis-x__label{...font-size:14px;font-weight:300;line-height:18px;color:#7f7d7a}"
+    },
+    {
+      "rule": "Y-axis title is rotated vertical text placed at the bottom of the y-label column; x-axis title left-aligned under the first category.",
+      "source": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/morningstar/barvertical-anatomy.png",
+      "quote": "Anatomy image: 'Percent of GDP (%)' rotated bottom-left; 'Sectors' under 'Technology'"
+    },
+    {
+      "rule": "Horizontal dotted light-grey gridlines; solid dark rules at plot top and baseline; no vertical gridlines.",
+      "source": "https://design.morningstar.com/systems/data-visualization/common-charts/line",
+      "quote": "Gridlines help read values accurately (anatomy shows dotted horizontals)"
+    },
+    {
+      "rule": "Legend in a right-hand column starting under a top rule, vertical list; line-chart legend shows series name and current value.",
+      "source": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/morningstar/time-series-line-anatomy.png",
+      "quote": "'S&P 500 Return $5,374.80' under short blue line key"
+    },
+    {
+      "rule": "Generic categorical colours must be used in fixed order: #2364B9, #B2013C, #F5C72C, #125B2F, #72A1E0, #6B4EA1, #F47206, #075F65, #039649, #E42513.",
+      "source": "https://designsystem.morningstar.com/chart-elements-docs/color-vue3/2.0.5/index.html?tab=tokens",
+      "quote": "Always use the generic colors in their provided order"
+    },
+    {
+      "rule": "Semantic colours: Equity blue #2364B9, Fixed Income orange #F47206, Alternative crimson #B2013C, Cash green #039649, Other yellow #F5C72C, Not classified grey #ECEBEA; performance +#039649 / −#E42513.",
+      "source": "https://designsystem.morningstar.com/chart-elements-docs/color-vue3/2.0.5/index.html?tab=tokens",
+      "quote": "Asset Allocation ... Performance ... Positive #039649 ... Negative #E42513"
+    },
+    {
+      "rule": "3px white gaps between all adjacent plots (stacked segments, adjacent bars, donut slices).",
+      "source": "https://design.morningstar.com/systems/data-visualization/guidelines/accessibility",
+      "quote": "Chart Elements include built in 3px gaps between all adjacent plots"
+    },
+    {
+      "rule": "Donuts start at 12 o'clock and run clockwise in descending order, largest first; merge small segments into 'Other'.",
+      "source": "https://design.morningstar.com/systems/data-visualization/common-charts/donut",
+      "quote": "Build clockwise from the top, in descending order starting with the largest category."
+    },
+    {
+      "rule": "Lines are never smoothed; zero baseline optional for lines but required for bars.",
+      "source": "https://design.morningstar.com/systems/data-visualization/common-charts/line",
+      "quote": "Don’t smooth out lines ... you don’t always need to include a zero baseline"
+    },
+    {
+      "rule": "Crosshair/guideline lines are 1px #7F7D7A dotted (dash 1,1).",
+      "source": "https://designsystem.morningstar.com/chart-elements-docs/guidelines-vue3/2.0.5/index.html",
+      "quote": ".mce-guidelines .mce-guideline{stroke:#7f7d7a;stroke-width:1;stroke-dasharray:1,1}"
+    },
+    {
+      "rule": "Donut legend uses hollow ring markers; bar legend square swatches; line legend short line segments.",
+      "source": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/morningstar/donut-anatomy.png",
+      "quote": "Donut anatomy legend rings: Equities, Fixed Income, Real Estate, Cash, Commodities, Private Equity"
+    },
+    {
+      "rule": "Use horizontal grey bands to align bars with labels when plotting positive and negative values; sort bars greatest→least when appropriate.",
+      "source": "https://design.morningstar.com/systems/data-visualization/common-charts/bar-vertical",
+      "quote": "Use horizontal gray bands to align bars with their corresponding y-axis labels"
+    }
+  ],
+  "referenceImages": [
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/morningstar/barvertical-anatomy.png",
+      "url": "https://images.contentstack.io/v3/assets/blt4a13d97fa8f8f539/blt7f7a3c75393d59c5/69b9b8b0dafe751d98906095/barvertical-anatomy.png",
+      "describes": "Vertical bar anatomy (numbered callouts are doc annotations). Six flat Morningstar-blue (#2364B9) bars separated by thin white gaps, black thick benchmark dashes per category. Separate y-label column on the left: each value (0–100) right-aligned beneath a short solid black horizontal rule; rotated grey 'Percent of GDP (%)' at bottom-left. Plot bounded by solid black top rule and baseline; light grey dotted horizontal gridlines at 20/40/60/80. Condensed light sans (MorningstarIntrinsic) category labels below, grey 'Sectors' axis title left-aligned under the first label. Legend column right with top rule: blue square + 'Percent of U.S. GDP'. No title, no source."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/morningstar/time-series-line-anatomy.png",
+      "url": "https://images.contentstack.io/v3/assets/blt4a13d97fa8f8f539/bltc6bf2b6ec7674b11/69b9b9fa2a26b8982e71b210/time-series-line-anatomy.png",
+      "describes": "Time-series line: single ~2px blue unsmoothed line, no markers. Same y-label column with values 0–6,000 hanging under short black rules, rotated grey 'Price $'. Dotted grey horizontal gridlines, black top rule and baseline; year labels 2020–2025 left-aligned at ticks, grey 'Year' below. Right legend column: short blue line key, 'S&P 500 Return' and '$5,374.80' value."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/morningstar/donut-anatomy.png",
+      "url": "https://images.contentstack.io/v3/assets/blt4a13d97fa8f8f539/blt81ecf103b7eeb764/6a3c456c365993958fa3a7d4/donut-anatomy.png",
+      "describes": "Thick donut with white gaps between segments, starting at 12 o'clock clockwise largest-first: blue Equities, orange Fixed Income, crimson Real Estate, green Cash, yellow Commodities, light grey Private Equity. Legend column to the right under a top rule with hollow ring markers and light condensed labels."
+    }
+  ]
+}

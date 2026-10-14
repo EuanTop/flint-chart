@@ -78,11 +78,11 @@ export function plApplyBandLabels(
         const banded = ax.type === 'category' && Array.isArray(ax.categoryarray) && ax.categoryarray.length > 0;
         const fontSize = sizing.fontSize ?? 10;
         let angle = sizing.labelAngle;
-        // Names the layout set straight but that overrun their band turn, then stand on end.
+        // Names the layout set straight but that overrun their band stand on end.
         if (match[1] === 'x' && banded && !angle && !sizing.labelLines && layout.xStep > 0) {
             const widest = Math.max(...ax.categoryarray.map((name: unknown) =>
                 Math.min(String(name).length * fontSize * GLYPH, limit)));
-            if (widest + 4 > layout.xStep) angle = layout.xStep >= fontSize * 1.2 / Math.SQRT1_2 + 2 ? -45 : -90;
+            if (widest + 4 > layout.xStep) angle = -90;
         }
         if (match[1] === 'x' && (banded || angle != null)) ax.tickangle = angle ?? 0;
         if (!banded || ax.tickvals != null) continue;

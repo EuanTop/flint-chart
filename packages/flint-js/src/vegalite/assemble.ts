@@ -74,8 +74,10 @@ import { templateStatesAxisLabels, vlApplyLayoutToSpec, vlApplyTooltips, vlFinal
 import { normalizeChartProperties } from '../core/normalize-properties';
 import { resolveChartDefaults, resolveCompileDefaults, resolveGeometry, resolveValueLabelChoice } from '../core/theme/ground';
 import { resolveThemeSpec } from '../core/theme/presets';
-import { realizeThemeVegaLite, realizeValueLabelsVegaLite, vegaLiteBuiltFacts } from './theme';
-import { vlWriteKeyLayout } from './key-layout';
+import { withChrome } from '../core/theme/chrome';
+import { applyHeaderFurniture, applySourceLine, realizeThemeVegaLite, realizeValueLabelsVegaLite, vegaLiteBuiltFacts } from './theme';
+import { applyChartValueColors } from './value-colors';
+import { vlCaseKeyLabels, vlWriteKeyLayout } from './key-layout';
 import { familyMeasure, rendererTextMeasurer } from '../core/text-width';
 import { themeBodyFamily } from '../core/theme/ground';
 import { chartDisplayNames, encodingTitle, TIGHT_X_MARKS, titleText, type BuiltFacts, type ChartStructure } from '../core/structure';
@@ -185,11 +187,12 @@ export function indexAxisOf(
 }
 
 /** The plot's stated size — the view's continuous size, and the plot view's width and height — as one string. */
-function plotSizeFields(spec: any, title?: TitlePlan, ruleRoom = 0): string {
+function plotSizeFields(spec: any, title?: TitlePlan, ruleRoom = 0, headerRoom = 0): string {
     const height = (value: unknown) => {
         if (typeof value !== 'number') return value;
         const titled = heightAfterTitle(value, title);
-        return ruleRoom ? plotHeightAfter(titled, ruleRoom) : titled;
+        const closed = ruleRoom ? plotHeightAfter(titled, ruleRoom) : titled;
+        return headerRoom ? plotHeightAfter(closed, headerRoom) : closed;
     };
     // A theme may wrap the plot in a concatenation with its rules; the plot is its first view that is not one.
     let plot = spec;
@@ -231,7 +234,8 @@ function prepareVegaLite(input: ChartAssemblyInput): VegaLitePreparation {
     const chartType = input.chart_spec.chartType;
     const semanticTypes = input.semantic_types ?? {};
     // `theme_spec` may name a house Flint ships rather than spell one out.
-    const themeSpec = resolveThemeSpec(input.theme_spec);
+    // A chart may turn off part of its house's chrome (a logo, the header, the footer).
+    const themeSpec = withChrome(resolveThemeSpec(input.theme_spec), input.chart_spec.chrome);
     // A house may prefer a size, a stretch budget, a facet gap. Those settle
     // before anything is measured, and in a fixed order: the chart spec first,
     // the theme's presets under it, flint's own defaults under that.
@@ -308,6 +312,8 @@ function vegaLitePlanContext(input: ChartAssemblyInput, prepared: VegaLitePrepar
         chartType,
         size: { baseSize, canvasSize: sizeCeiling },
         title: authoredTitle(input),
+        ...(input.chart_spec.label?.trim() ? { label: input.chart_spec.label.trim() } : {}),
+        ...(sourceOf(input.chart_spec.source) ? { source: sourceOf(input.chart_spec.source) } : {}),
         fieldDisplayNames: input.field_display_names,
         theme: themeSpec,
         profile: VEGA_LITE_LAYOUT,
@@ -544,7 +550,7 @@ function emitVegaLite(input: ChartAssemblyInput, prepared: VegaLitePreparation, 
     // fits, so it must see the finished spec. Only realization is gated on a
     // named house, so an untheme'd chart gets its numbers without also getting
     // a house's ink, type and furniture.
-    const plannedPlotSize = plotSizeFields(vgObj, plan.title, plan.rules?.room);
+    const plannedPlotSize = plotSizeFields(vgObj, plan.title, plan.rules?.room, (plan.header ? plan.header.edge + plan.header.line : 0) + (plan.source?.room ?? 0));
     // Some templates write their own text on the marks. Where they do, the
     // label layer stands down (it will not print a second number beside the
     // template's), so the toggle would be a control that changes nothing.
@@ -562,7 +568,12 @@ function emitVegaLite(input: ChartAssemblyInput, prepared: VegaLitePreparation, 
         };
     } else {
         realizeValueLabelsVegaLite(vgObj, design, values, plan.title, plan.valueLabels);
+        applyChartValueColors(vgObj, channelSemantics, values);
     }
+    // The header — a figure label, a rule on the canvas edge, a logo beside the headline — is the
+    // chart's as much as the theme's: drawn with or without one.
+    applyHeaderFurniture(vgObj, plan.header);
+    applySourceLine(vgObj, plan.source);
     const liveLabels = design.dataLabels.liveSignal;
     if (liveLabels) {
         vgObj.params = [...(vgObj.params ?? []), {
@@ -587,6 +598,7 @@ function emitVegaLite(input: ChartAssemblyInput, prepared: VegaLitePreparation, 
     chartTemplate.postProcess?.(vgObj, instantiateContext);
     vlFinalizeTemporalAxes(vgObj, instantiateContext);
     vlWriteKeyLayout(vgObj, plan.legend, plan.plot, plan.layout, VEGA_LITE_LAYOUT.measureText!);
+    vlCaseKeyLabels(vgObj, plan.legend);
     const plotAsPlanned = plotSizeFields(vgObj) === plannedPlotSize;
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -1374,4 +1386,11 @@ function restructureFacets(
         delete vgObj.layer;
         delete vgObj.encoding;
     }
+}
+
+/** The chart's source, trimmed; a blank one is none. */
+function sourceOf(source: string | { text: string; href?: string } | undefined): string | { text: string; href?: string } | undefined {
+    if (typeof source === 'string') return source.trim() || undefined;
+    if (source && typeof source.text === 'string' && source.text.trim()) return { text: source.text.trim(), ...(source.href ? { href: source.href } : {}) };
+    return undefined;
 }

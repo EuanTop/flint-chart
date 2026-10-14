@@ -1,0 +1,258 @@
+{
+  "id": "michelin",
+  "org": "Michelin Design System (data visualization)",
+  "urls": [
+    "https://designsystem.michelin.com/data-visualization/introduction",
+    "https://designsystem.michelin.com/data-visualization/how-to-start-your-data-visualization",
+    "https://designsystem.michelin.com/data-visualization/design-guidelines",
+    "https://designsystem.michelin.com/data-visualization/charts",
+    "https://designsystem.michelin.com/data-visualization/charts/component-overview",
+    "https://designsystem.michelin.com/data-visualization/charts/library",
+    "https://designsystem.michelin.com/data-visualization/maps",
+    "https://designsystem.michelin.com/data-visualization/design-guidelines/__data.json",
+    "https://designsystem.michelin.com/data-visualization/charts/component-overview/__data.json",
+    "https://www.npmjs.com/package/@michelin/theme (v12.1.0, style/_data-viz-colors.scss)",
+    "https://www.npmjs.com/package/@michelin/charts (v12.1.0, fesm2022/michelin-charts.mjs)"
+  ],
+  "access": "partial",
+  "accessNotes": "The SvelteKit pages render a 'content blocked - only accessible with your Michelin credentials' login wall, but the public __data.json payloads for each route contain the page rich-text (design guidelines, bar/line/donut/bubble component guidance) and image upload paths, which were read. Exact palette hexes, fonts and Chart.js defaults come from the public npm packages @michelin/theme 12.1.0 (_data-viz-colors.scss, _typography.scss) and @michelin/charts 12.1.0 (Angular wrapper around Chart.js 4).",
+  "summary": "Enterprise product-UI design system for Angular dashboards. Charts are Chart.js 4 rendered via @michelin/charts in Noto Sans, with semi-transparent fills (60% for bars/pies), faint 10%-black gridlines, point-style legends, and cards on a light-grey dashboard background. Guidance is pragmatic do/don't: sorted bars from 0, horizontal bars instead of rotated labels, max ~5 lines, donuts with ≤3 categories and direct labels.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": [
+      "#074650",
+      "#009292",
+      "#fe6db6",
+      "#fe5bda",
+      "#480091",
+      "#be6aff",
+      "#b50afe",
+      "#6db6ff"
+    ],
+    "categoricalNotes": "Default palette token set is 'categorical-accent' in mode 'color-blind-safe' (--mic-data-viz-categorical-accent-color-blind-safe-01..08). Alternative modes: michelin-full-colors (#27509b,#d6533c,#1d666f,#7d7300,#982750,#3d7dcd,#e83c42,#4f3704,#77279b,#387dcd), michelin-opt-1, michelin-opt-2 (#004dfc,#722798,...), michelin-dark-mode-opt (#fce500,#d6533c,#7d7300,#004dfc,#e83c42,#3b7dcd), bloom, default, high-contrast, paired (ColorBrewer Paired 12). When no CSS palette var is resolved the chart lib falls back to legacy defaults rgb(39,80,155) #27509b blue, rgb(253,234,51) yellow, rgb(69,185,165) teal, rgb(255,145,0) orange, rgb(64,170,250) light blue, rgb(127,0,224) purple; dark fallback swaps first to rgb(153,206,246) and last to rgb(193,150,240). Pastel palettes (first-palette-recommended: #aae3e2,#c9f4aa,#d9acf5,#fcc2fc,#faf7f0,#fedeff,#ada2ff,#ffc1b6) exist. Guide: 'Do not use colors in addition to those proposed in the design system'; 'use one color per data'.",
+    "sequential": [
+      "#fff5eb",
+      "#fee6ce",
+      "#fdd0a2",
+      "#fdae6b",
+      "#fd8d3c",
+      "#f16913",
+      "#d94801",
+      "#a63603",
+      "#7f2704"
+    ],
+    "diverging": [
+      "#67001f",
+      "#b2182b",
+      "#d6604d",
+      "#f4a582",
+      "#fddbc7",
+      "#f7f7f7",
+      "#d1e5f0",
+      "#92c5de",
+      "#4393c3",
+      "#2166ac",
+      "#053061"
+    ],
+    "highlight": "#27509b",
+    "context": null,
+    "positive": null,
+    "negative": null,
+    "background": null,
+    "text": "#000000",
+    "textSecondary": null,
+    "gridline": "rgba(0,0,0,0.1)",
+    "axis": null,
+    "notes": "Sequential default 'oranges' (ColorBrewer Oranges); also 'storm' blues (#b3c7f7,#64b3f3,#009ceb,#0086e5,#0070e0,#0050eb,#0641c8,#0b31a5,#092b85). Diverging default 'rdbu' (ColorBrewer RdBu 11); also 'temperature' (#262a76..#8e1f20) and 'divergent' red-green (#b73a3a..#026545). Fills are drawn with alpha: bars/pies/polar background 0.6 (hover 0.8) with opaque border; line area fill 0.4, opaque line; pie slice borders white. Dark mode: font white, gridlines rgba(255,255,255,0.2), tooltip border rgba(255,255,255,0.3). Do/don't images use a dark charcoal (~#333) for the emphasised bar/slice and mid-greys for others (grey highlight scheme). 'Use colors with high level of contrast to stand out alerts or important information.'"
+  },
+  "typography": {
+    "family": "Noto Sans",
+    "fallback": "sans-serif",
+    "title": {
+      "size": null,
+      "weight": "bold",
+      "align": "left",
+      "case": "sentence",
+      "color": "#000000"
+    },
+    "subtitle": {
+      "size": null,
+      "weight": "normal",
+      "style": "normal",
+      "color": null
+    },
+    "axisLabel": {
+      "size": null,
+      "color": "#000000"
+    },
+    "axisTitle": {
+      "size": null,
+      "weight": null,
+      "placement": null
+    },
+    "dataLabel": {
+      "size": null,
+      "weight": null
+    },
+    "source": {
+      "size": null,
+      "style": null,
+      "color": null
+    },
+    "notes": "Chart.js title, legend, tick and point-label fonts all forced to family 'Noto Sans'; colour black (white in dark mode) unless ticksColor overridden. Headings in the brand use 'Michelin Unit Titling'. Guide: use at most 2 fonts and 2–3 font sizes; title and subtitle at different sizes; avoid rotating text. Theme body sizes 12–18px, headings 20–36px."
+  },
+  "structure": {
+    "gridlines": "Chart.js grid on both scales set to rgba(0,0,0,0.1) (dark: rgba(255,255,255,0.2)); reference images show only faint horizontal gridlines.",
+    "axisLine": "Chart.js default (thin); example images show no prominent axis lines.",
+    "ticks": "Chart.js defaults",
+    "zeroLine": "Bar charts must start at 0 baseline ('Truncation leads to misrepresentation').",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "omitted in examples; measure stated in subtitle ('per month')",
+    "unitPlacement": "abbreviated in tick labels (5k, 10k, 20k) and unit in subtitle",
+    "frame": "Charts placed in individual cards on a light grey dashboard background.",
+    "background": "white card on 'unified' light-grey page background",
+    "notes": "Line charts: 'Use adaptive y-axis scale' (need not start at 0); 'Avoid confusing dual-axis'. Canvas max-height 600px."
+  },
+  "legend": {
+    "placement": "top (Chart.js default) – shown above the plot in the anatomy image, left-aligned under the subtitle",
+    "directLabels": "Preferred for donuts: 'Labeling directly on the chart is super helpful'; legend attached with category AND value.",
+    "title": "not shown",
+    "swatchShape": "circle (usePointStyle true, boxWidth 6); line charts use dataset borderColor",
+    "notes": "Legend hidden unless the legend input is set. 'A chart should always include a title and a legend.' Bubble charts must include a bubble size reference legend."
+  },
+  "marks": {
+    "bars": "Equal-width bars, fill at 60% alpha with 1px opaque border of same hue; example shows slightly rounded top corners. Order bars (largest left for vertical, top for horizontal); max 10 bars; horizontal when labels long.",
+    "lines": "Opaque line, area under line 40% alpha if filled; points filled with series colour and white border, hover point white with coloured border. 'Avoid using smoothed line' (although the anatomy image shows a smoothed curve). 'Avoid to represent more than 5 lines.'",
+    "areas": "background alpha 0.4",
+    "points": "series colour fill, #fff border",
+    "pies": "Donut/pie discouraged ('In most cases, a bar chart is a much better option'); fewer than 3 categories, group extra into 'Others', order slices, no labels on top of slices (callout labels outside 'A - 32%'), avoid thin donuts. Slice fill 60% alpha with white borders.",
+    "notes": "Bubble: area proportional to third variable."
+  },
+  "labels": {
+    "dataLabels": "Use only if audience needs them; donut labels outside with leader lines in format 'Category - NN%'.",
+    "numberFormat": "k abbreviation on axis ticks (5k, 20k) in examples; percent in donut labels",
+    "dates": "Short month names (Jan, Feb, Mar) in examples",
+    "notes": "Horizontal axis labels parallel to axis; avoid rotated text; clearly indicate where each axis starts."
+  },
+  "furniture": {
+    "title": "Always include a title; title must be 'descriptive and qualitative'; bold title with smaller subtitle stating the measure (e.g. 'Evolution of requests' / 'per month').",
+    "source": "'Look for the source of your data' – no prescribed source line format.",
+    "logo": null,
+    "other": "Charts in dashboard cards."
+  },
+  "annotations": "Highlight a single item (dark charcoal) against greys so 'users understand that category A is the one to get their attention on'; reference line in grey in bar example.",
+  "layout": "Dashboard: light grey background with one card per visual; use layout to create hierarchy; cards aligned to the column grid. Chart host flex:1, max-height 600px.",
+  "interaction": "Chart.js tooltips: background rgba(0,0,0,0.8), border rgba(0,0,0,0.1) (dark: rgba(255,255,255,0.3)), title/body text black (white in dark mode) as set by the lib. Hover: bars go to 80% alpha; line points turn white with coloured border. Optional zoom/pan via chartjs-plugin-zoom; chartClick/chartHover outputs. Dark mode via colorMode.",
+  "accessibility": "Default categorical palette is a colour-blind-safe set; 'high-contrast' mode available. 'Keep accessibility in mind and do use contrasting shades.' Add a physical element in addition to colour for states.",
+  "chartTypes": {
+    "preferred": [
+      "bar (sorted, horizontal for long labels)",
+      "line (time series)",
+      "bubble",
+      "treemap",
+      "map (Leaflet via @michelin/maps)"
+    ],
+    "discouraged": [
+      "pie/donut (≤3 categories only)",
+      "dual-axis",
+      "smoothed lines",
+      "more than 5 lines",
+      "more than 10 bars"
+    ],
+    "notes": "Component library supports bar, line, pie, donut, polar area, radar, bubble, scatter, mixed."
+  },
+  "distinctiveRules": [
+    {
+      "rule": "All chart text (title, ticks, legend, point labels) is Noto Sans in pure black (white in dark mode).",
+      "source": "https://www.npmjs.com/package/@michelin/charts (v12.1.0, fesm2022/michelin-charts.mjs)",
+      "quote": "const fontColor = isDark ? 'white' : 'black'; const font = { family: 'Noto Sans' }"
+    },
+    {
+      "rule": "Gridlines on every cartesian scale are rgba(0,0,0,0.1) (dark mode rgba(255,255,255,0.2)).",
+      "source": "https://www.npmjs.com/package/@michelin/charts (v12.1.0, fesm2022/michelin-charts.mjs)",
+      "quote": "const gridColor = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'"
+    },
+    {
+      "rule": "Bar, pie and polar fills are the series colour at 60% opacity with a fully opaque 1px border; hover raises fill to 80%.",
+      "source": "https://www.npmjs.com/package/@michelin/charts (v12.1.0, fesm2022/michelin-charts.mjs)",
+      "quote": "RGBA_ALPHA_BAR_BG = 0.6; RGBA_ALPHA_BAR_HOVER_BG = 0.8; borderWidth: 1"
+    },
+    {
+      "rule": "Pie/donut slices are separated by white borders; line points have white borders.",
+      "source": "https://www.npmjs.com/package/@michelin/charts (v12.1.0, fesm2022/michelin-charts.mjs)",
+      "quote": "borderColor: colors.map(() => '#fff'); pointBorderColor: '#fff'"
+    },
+    {
+      "rule": "Legend uses small circular point-style swatches (boxWidth 6) and is hidden unless explicitly enabled.",
+      "source": "https://www.npmjs.com/package/@michelin/charts (v12.1.0, fesm2022/michelin-charts.mjs)",
+      "quote": "usePointStyle: true, boxWidth: 6 ... if (this.legend === undefined) options.plugins.legend = { display: false }"
+    },
+    {
+      "rule": "Tooltips are dark translucent boxes rgba(0,0,0,0.8) with a faint border.",
+      "source": "https://www.npmjs.com/package/@michelin/charts (v12.1.0, fesm2022/michelin-charts.mjs)",
+      "quote": "options.plugins.tooltip.backgroundColor = 'rgba(0, 0, 0, 0.8)'"
+    },
+    {
+      "rule": "Default categorical palette is the 8-colour colour-blind-safe set starting dark teal #074650, teal #009292, pink #fe6db6.",
+      "source": "https://www.npmjs.com/package/@michelin/theme (v12.1.0, style/_data-viz-colors.scss)",
+      "quote": "categorical-accent: color-blind-safe 01: #074650, 02: #009292, 03: #fe6db6 ..."
+    },
+    {
+      "rule": "Bar charts always start at a 0 baseline and are sorted, largest on top (horizontal) or left (vertical); max 10 bars.",
+      "source": "https://designsystem.michelin.com/data-visualization/charts/component-overview",
+      "quote": "Always start a bar chart at 0 baseline ... place the largest values on top ... shouldn’t have more than 10 bars"
+    },
+    {
+      "rule": "Use horizontal bars instead of rotating category labels; avoid rotated text generally.",
+      "source": "https://designsystem.michelin.com/data-visualization/charts/component-overview",
+      "quote": "Use a horizontal bar chart instead of rotating labels."
+    },
+    {
+      "rule": "Line charts: adaptive (non-zero) y-scale allowed, no smoothing, no dual axes, at most 5 lines.",
+      "source": "https://designsystem.michelin.com/data-visualization/charts/component-overview",
+      "quote": "Use adaptive y-axis scale ... Avoid using smoothed line. Avoid confusing dual-axis ... Avoid to represent more than 5 lines."
+    },
+    {
+      "rule": "Donuts limited to fewer than 3 categories plus 'Others', ordered, thick ring, labels outside with leader lines as 'Category - NN%', never on top of slices.",
+      "source": "https://designsystem.michelin.com/data-visualization/charts/component-overview",
+      "quote": "Limit the number of slices ... (less than 3 category of data). Don’t label on top of slices. Thin donut charts are impossible to read."
+    },
+    {
+      "rule": "Emphasise one category in dark charcoal and render the rest in mid/light greys.",
+      "source": "https://designsystem.michelin.com/data-visualization/charts/component-overview",
+      "quote": "Users understand that category A is the one to get their attention on."
+    },
+    {
+      "rule": "Dashboards use a unified light-grey background with each chart in its own white card.",
+      "source": "https://designsystem.michelin.com/data-visualization/design-guidelines",
+      "quote": "We recommend to apply a light grey background. Then you can create cards for each of the visuals"
+    },
+    {
+      "rule": "Every chart has a bold descriptive title plus a smaller subtitle stating the measure/unit, top-left, and a legend.",
+      "source": "https://designsystem.michelin.com/data-visualization/design-guidelines",
+      "quote": "A chart should always include a title and a legend ... Use title and subtitle with different size of font"
+    },
+    {
+      "rule": "At most 2 fonts and 2–3 font sizes per report/chart.",
+      "source": "https://designsystem.michelin.com/data-visualization/design-guidelines",
+      "quote": "Use at maximum 2 differents fonts ... Use 2–3 font sizes"
+    }
+  ],
+  "referenceImages": [
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/michelin/clnx69qt000426sf5e5h773j0-anatomy-line.full.png",
+      "url": "https://designsystem.michelin.com/uploads/attachments/clnx69qt000426sf5e5h773j0-anatomy-line.full.png",
+      "describes": "Line chart anatomy. Large bold black sans title 'Evolution of requests' top-left, small grey subtitle 'per month' beneath. Legend row under subtitle, left-aligned, with circular swatches: light blue-grey 'Planned' and dark Michelin blue 'Completed', small grey text. Two smoothed lines (dark blue #27509b-like and lighter desaturated blue), ~2px, no markers. Y axis left with grey tick labels 0, 5k, 10k, 15k, 20k; very faint light-grey horizontal gridlines only; no axis lines; x labels Jan–Jul in small grey. No y-axis title, no source, no logo, white background."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/michelin/clnx5tqvm000q6sf5gsucdccm-bar-do-1.full.png",
+      "url": "https://designsystem.michelin.com/uploads/attachments/clnx5tqvm000q6sf5gsucdccm-bar-do-1.full.png",
+      "describes": "'Do' example (green check + green bar header) for starting bars at 0. Vertical bar chart on a very light grey/off-white panel: four wide bars A–D in dark charcoal (#333) with slightly rounded top corners, gaps ~25% of bar width. Y axis 0–500 with light grey tick labels and very faint horizontal gridlines, no axis lines. A thin grey horizontal reference line crosses at ~360. Small grey category labels below bars. No title/legend."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/michelin/clnx6h5oq00616sf53fxx44wj-donut-do-1.full.png",
+      "url": "https://designsystem.michelin.com/uploads/attachments/clnx6h5oq00616sf53fxx44wj-donut-do-1.full.png",
+      "describes": "'Do' donut example: thick donut (inner radius ~50%) starting at 12 o'clock, largest slice 'A - 32%' in dark charcoal clockwise first, then B, C, Others, D in mid-grey shades separated by thin white borders. Labels outside the ring in boxed callouts ('A - 32%' black text with black box border; others grey text with grey boxes) connected by thin leader lines. White panel, no legend."
+    }
+  ]
+}

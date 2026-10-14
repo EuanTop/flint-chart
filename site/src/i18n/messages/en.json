@@ -24,20 +24,30 @@
   },
   "themeLab": {
     "title": "Theme Lab",
-    "lead": "Experiment and refine your theme. Turn your design into a reusable spec and share it with everyone.",
+    "lead": "A theme in Flint is a ThemeSpec: one formal JSON spec that defines how the Flint compiler customizes the appearance of all charts under this theme. You can easily create your own theme with an agent from a brand guide or a website, then tweak and preview it here. We have some example themes below for reference.",
     "steps": {
-      "generate": "Copy the prompt to your agent with reference materials, such as websites, slide decks, or brand guidelines, to generate a theme.",
-      "preview": "Tweak and preview it in the playground below.",
-      "shareReady": "Ready to share?",
-      "shareLink": "Share your design",
-      "shareSuffix": "."
+      "shareTitle": "Share",
+      "previewTitle": "Tweak",
+      "generateTitle": "Generate",
+      "generate": "Copy the prompt to your agent, with your references — a website, a slide deck, brand guidelines.",
+      "preview": "Paste the ThemeSpec into the editor, or start from any theme, and watch every chart update.",
+      "shareReady": "Happy with it?",
+      "shareLink": "Share your design"
     },
-    "docsPointer": "See <docsLink>Doc: Using themes</docsLink> for guidance.",
-    "copyPrompt": "Copy prompt",
+    "viewPrompt": "See the prompt",
+    "hidePrompt": "Hide the prompt",
+    "housesCredit": "Many style-guide themes are adapted from <site>datavizstyleguide.com</site>, thank you!",
+    "copyPromptCta": "Copy prompt",
     "copied": "Copied",
     "prompt": "Help me create a custom ThemeSpec for Flint Chart.\n\nBefore you begin, read and follow the Flint ThemeSpec authoring skill:\nhttps://raw.githubusercontent.com/microsoft/flint-chart/main/agent-skills/flint-theme-author/SKILL.md\n\nIf the raw URL is unavailable, open the GitHub page instead:\nhttps://github.com/microsoft/flint-chart/blob/main/agent-skills/flint-theme-author/SKILL.md\n\nUse the reference materials I provide, ask only for important missing design decisions, and follow the skill's schema, semantic boundaries, accessibility guidance, output contract, and validation checklist. Return one complete ThemeSpec JSON object that I can paste directly into Flint Theme Lab.",
-    "demoAria": "Demo themes",
-    "inspiration": "Need inspiration?",
+    "housesAria": "Theme presets and style-guide houses",
+    "about": {
+      "google-material": "Clean product UI: a purple-led Material palette, light gridlines, roomy type and soft rounded marks.",
+      "microsoft-fluent": "Fluent’s calm enterprise look: a blue-first palette, Segoe type, quiet axes and compact legends for dashboards.",
+      "peoples-daily": "An editorial newspaper style: a red masthead rule, serif headlines, restrained inks and source lines at the foot."
+    },
+    "customDraft": "Your draft",
+    "playTitle": "Try it",
     "demos": {
       "google-material": "Google Material",
       "microsoft-fluent": "Microsoft Fluent",
@@ -244,6 +254,10 @@
       "availability": "Theme specifications currently apply to Vega-Lite output."
     },
     "generalization": "The compiler applies the theme’s layout behavior, semantic presentation, and visual identity across chart types, data shapes, and canvas sizes.",
+    "housesLabel": "Style-guide houses",
+    "presetsLabel": "Presets",
+    "defaultAbout": "Flint’s own defaults: what a chart looks like with no theme at all.",
+    "housesCredit": "Many style-guide themes are adapted from <site>datavizstyleguide.com</site>, thank you!",
     "docsPointer": "Documentation: Visual Themes",
     "themeLabCta": "Feeling Creative? Create a new theme in the lab!",
     "flintDefault": "Flint default",

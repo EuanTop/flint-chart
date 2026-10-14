@@ -14,21 +14,30 @@
  * Runs LAST, after `vlApplyLayoutToSpec`, which builds `spec.config` wholesale.
  */
 
-import type { DesignDecisions, ReportDeparture, ThemeReport } from '../core/theme/types.js';
+import type { DesignDecisions, ReportDeparture, ResolvedText, ThemeReport } from '../core/theme/types.js';
+import type { HeaderPlan } from '../core/header-plan.js';
+import type { SourcePlan } from '../core/source-plan.js';
+import { RULE_GAP } from '../core/rule-plan.js';
+import { niceDomain, niceTicks } from '../core/ruler.js';
+import { compactExpr, compactPrint, type CompactPrint, type CompactRule } from '../core/number-compact.js';
+import { discreteDomain } from './value-colors';
+import { applyTextCase, caseLabelExpr, textCaseExpr } from '../core/text-case.js';
 import { format as formatNumber } from 'd3-format';
-import { contrastingInk, parseColor, luminance, mixHex, toHex } from '../core/theme/presence.js';
+import { contrastingInk, contrastRatio, parseColor, luminance, mixHex, readableTextInk, toHex } from '../core/theme/presence.js';
 import type { AxisLabelPlan } from '../core/axis-labels.js';
 import { bandsHoldSeveral, KEY_CHANNELS, statedStacking, type BuiltFacts, type Stacking } from '../core/structure.js';
 import { canvasContentWidth, fitDeckText, fitHeadlineText, plotHeightAfter, textPx, titleMeasures } from '../core/title-fit.js';
 import { tableTextMeasurer } from '../core/text-width.js';
-import type { TitlePlan } from '../core/title-plan.js';
+import { alreadyNamed, tickUnitOf, type TitlePlan } from '../core/title-plan.js';
 import { OWNED_AXIS_KEYS } from './owned-axis-keys.js';
 import { CONTINUOUS_BAR_STEP_FILL, coverageSizedMarks } from './templates/utils.js';
 import { LOCAL_DODGE_LANE_FILL } from './templates/bar.js';
-import { CANVAS_FURNITURE_KEY, readCanvasFurniture, type CanvasFurnitureItem } from './canvas-furniture.js';
+import { CANVAS_FURNITURE_KEY, CANVAS_PATTERNS_KEY, readCanvasFurniture, type CanvasFurnitureItem, type CanvasPattern } from './canvas-furniture.js';
 import { withInteractionDecorative, withInteractionLegendLabel, withInteractionTextLabel } from './interaction-provenance.js';
 import { facetDropsTicks, gridOvershoot } from '../core/furniture-reserve';
 import type { ValueLabelPlan } from '../core/value-label-plan';
+import { LABEL_SIDE, measureValueLabels } from '../core/value-label-measure';
+import { groupPadding } from '../core/group-gaps';
 import { pointOutlineWidth, type LayoutPlan } from '../core/plan';
 import type { FurniturePlan } from '../core/furniture-plan';
 import type { SeriesEndLayout } from '../core/series-end';
@@ -357,6 +366,7 @@ export function realizeThemeVegaLite(
     applySurface(spec, config, d);
     applyTypography(config, d);
     applyAxes(spec, config, d, table, say, axisLabels, furniture?.yTitle);
+    clearAxisCorner(spec, config, table);
     moveAxisTitlesToSubtitle(spec, d, title?.deck);
     applyZeroRule(spec, d, table);
     applyMarks(spec, d, table, say, points, pointSize);
@@ -364,16 +374,27 @@ export function realizeThemeVegaLite(
     harmonizeLinePoints(spec, d, table, say);
     applyConnectors(spec, d);
     applyRedundantChannels(spec, d, say);
-    if (legend?.demoted) say('legend.placement', 'series-end-not-drawn', legend.demoted);
+    if (legend?.demoted) say('legend.placement', legend.demotedFrom === 'inside' ? 'legend-inside-covered' : 'series-end-not-drawn', legend.demoted);
     const seriesEndLayout = legend?.seriesEnd;
     if (legend) applyLegend(spec, config, d, table, say, legend);
     applyFacetChrome(spec, config, d);
     applyPanelTitles(spec, d);
     const valueLayer = applyDataLabels(spec, d, table, say, valueLabels);
+    applyArcRules(spec, d, table);
     applySeriesEndLabels(spec, d, valueLayer, table, say, seriesEndLayout, legend?.secondaryEdge, legend?.ownNames);
     applyPointEmphasis(spec, d, say);
     applyPrintedUnits(spec, d);
     applyStatistics(spec, d, table);
+    applyVisibleInks(spec, d, say);
+    applySeriesOutlines(spec, d);
+    applyReadableSeriesText(spec, d, say);
+    applyTextures(spec, d);
+    applyGradientFills(spec, d, table, say);
+    applyTypeCase(spec, config, d, table, say);
+    applyDisplayType(spec, d);
+    applyMinorGrid(spec, config, d, table, say);
+    // Last among the layers, so it shares the scale every other layer finished with.
+    applyBaseline(spec, d, table);
     fitTitle(spec, d, table, say, title);
     const wrapped = applyFurniture(spec, d, rules);
 
@@ -418,6 +439,14 @@ function applySurface(spec: any, config: any, d: DesignDecisions): void {
     if (spec.padding == null) spec.padding = d.layout.padding;
 }
 
+/**
+ * A stated weight worth writing where the renderer's default is normal: anything but 400, which
+ * Vega-Lite draws anyway (writing it only adds an attribute).
+ */
+function heavierThanNormal(weight: ResolvedText['fontWeight']): boolean {
+    return weight != null && weight !== 400 && weight !== 'normal';
+}
+
 function applyTypography(config: any, d: DesignDecisions): void {
     if (d.font) config.font = d.font;
 
@@ -435,6 +464,7 @@ function applyTypography(config: any, d: DesignDecisions): void {
         offset: d.title.offset,
         subtitleFont: deck.font,
         subtitleFontSize: deck.fontSize,
+        ...(heavierThanNormal(deck.fontWeight) ? { subtitleFontWeight: deck.fontWeight } : {}),
         ...(deck.fontStyle ? { subtitleFontStyle: deck.fontStyle } : {}),
         subtitleColor: deck.color,
         subtitlePadding: d.title.deckPadding,
@@ -442,7 +472,8 @@ function applyTypography(config: any, d: DesignDecisions): void {
     // A start-anchored headline belongs at the edge of the *graphic*, not at
     // the left edge of the plotting rectangle — otherwise the width of the
     // category labels decides where the title starts.
-    if (d.title.anchor !== 'middle') config.title.frame = 'bounds';
+    // `plot` starts the title at the plot's own edge (Vega's `group` frame), so it lines up with the x axis.
+    if (d.title.anchor !== 'middle') config.title.frame = d.title.frame === 'plot' ? 'group' : 'bounds';
 }
 
 // ---------------------------------------------------------------------------
@@ -505,11 +536,59 @@ function fitTitle(spec: any, d: DesignDecisions, table: any[], say: ReportDepart
     applyDeckFit(spec, block, typeof deck === 'string' && deck.trim() ? fitDeckText(deck, block, d.title.deck.fontSize ?? 11, measure.deck) : undefined, say);
 }
 
+/**
+ * Where the x ruler centres its end labels, the first one hangs left of the plot, under the y labels;
+ * the lowest y label, centred on the plot's foot, hangs half a line below it. The x labels drop
+ * just far enough that the two cannot touch, so neither leaves its tick.
+ */
+function clearAxisCorner(spec: any, config: any, table: any[]): void {
+    const read = (axis: any, channel: 'X' | 'Y', key: string) =>
+        axis?.[key] ?? config[`axis${channel}`]?.[key] ?? config.axis?.[key];
+    walk(spec, (node) => {
+        const x = node.encoding?.x;
+        const y = node.encoding?.y;
+        if (!x?.field || !y?.field || x.axis === null || y.axis === null) return;
+        if (!['temporal', 'quantitative'].includes(x.type) || !['temporal', 'quantitative'].includes(y.type)) return;
+        if (read(x.axis, 'X', 'labelFlush') !== false || read(x.axis, 'X', 'labels') === false || read(y.axis, 'Y', 'labels') === false) return;
+        if ((read(x.axis, 'X', 'orient') ?? 'bottom') !== 'bottom' || (read(y.axis, 'Y', 'orient') ?? 'left') !== 'left') return;
+        if ((read(x.axis, 'X', 'labelAngle') ?? 0) !== 0 || read(y.axis, 'Y', 'labelFlush')) return;
+        // Only a first label on the plot's left edge hangs under the y labels.
+        if (!firstTickAtStart(x, table)) return;
+        const overhang = (read(y.axis, 'Y', 'labelFontSize') ?? 10) / 2;
+        const ticks = read(x.axis, 'X', 'ticks') === false ? 0 : Math.max(0, read(x.axis, 'X', 'tickSize') ?? 5);
+        const padding = read(x.axis, 'X', 'labelPadding') ?? 2;
+        const needed = Math.ceil(overhang + 2 - ticks);
+        if (padding < needed) x.axis = { ...(x.axis ?? {}), labelPadding: needed };
+    });
+}
+
+/** Whether an x ruler's first stated tick is the first value the data holds, so its label sits on the plot's edge. */
+function firstTickAtStart(x: any, table: any[]): boolean {
+    const values = x.axis?.values;
+    if (!Array.isArray(values) || !values.length || !Array.isArray(table)) return false;
+    const time = (value: unknown): number => {
+        if (typeof value === 'number') return x.type === 'temporal' && Math.abs(value) < 10000 ? Date.UTC(value, 0, 1) : value;
+        if (typeof value === 'string') return x.type === 'temporal' ? Date.parse(value) : Number(value);
+        if (value instanceof Date) return +value;
+        return NaN;
+    };
+    let start = Infinity;
+    for (const row of table) {
+        const value = time(row?.[x.field]);
+        if (Number.isFinite(value)) start = Math.min(start, value);
+    }
+    const first = Math.min(...values.map(time).filter(Number.isFinite));
+    // Within half a day: a date written without a zone may be read in local time.
+    return Number.isFinite(start) && Number.isFinite(first) && Math.abs(first - start) <= (x.type === 'temporal' ? 43200000 : 0);
+}
+
 function moveAxisTitlesToSubtitle(
     spec: any, decisions: DesignDecisions, plannedDeck?: string,
 ): void {
     if (spec.title === null) return;
     const titles = new Map<string, Set<string>>();
+    const head = spec.title && typeof spec.title === 'object' && !Array.isArray(spec.title) ? spec.title : { text: spec.title };
+    const said = (deckOnly: boolean) => [deckOnly ? [] : head.text, head.subtitle].flat(2).filter((t: unknown) => typeof t === 'string').join(' ');
     for (const channel of ['x', 'y'] as const) {
         if (decisions.axes[channel]?.title.placement !== 'subtitle') continue;
         walk(spec, node => {
@@ -518,9 +597,11 @@ function moveAxisTitlesToSubtitle(
             const title = encoding.axis?.title ?? titleOf(encoding);
             const text = Array.isArray(title) ? title.join(' ') : title;
             if (typeof text !== 'string' || !text.trim()) return;
+            encoding.axis = { ...encoding.axis, title: null };
+            const unlessNamed = decisions.axes[channel]?.title.unlessNamed;
+            if (unlessNamed && alreadyNamed(text, said(unlessNamed === 'deck'), tickUnitOf(decisions.axes[channel]))) return;
             if (!titles.has(channel)) titles.set(channel, new Set());
             titles.get(channel)!.add(text);
-            encoding.axis = { ...encoding.axis, title: null };
         });
     }
     if (!titles.size) return;
@@ -582,7 +663,9 @@ function takeFromPlotHeight(spec: any, px: number): void {
     if (view && typeof view.continuousHeight === 'number') {
         view.continuousHeight = plotHeightAfter(view.continuousHeight, px);
     }
+    // The plot gives the height, never the rules a theme set around it: those keep their own.
     walk(spec, (node) => {
+        if (node.__themeSynthetic) return;
         if (typeof node.height === 'number') node.height = plotHeightAfter(node.height, px);
     });
 }
@@ -639,6 +722,8 @@ function applyAxes(
             tickWidth: axis.ticks.width,
             tickSize: axis.ticks.size,
             labelFont: axis.label.font,
+            ...(heavierThanNormal(axis.label.fontWeight) ? { labelFontWeight: axis.label.fontWeight } : {}),
+            ...(axis.label.fontStyle ? { labelFontStyle: axis.label.fontStyle } : {}),
             labelColor: axis.label.color,
             labelPadding: axis.label.padding,
             // Flush end labels sit inside the axis; a diagonal end label anchored there runs over its neighbour.
@@ -647,6 +732,7 @@ function applyAxes(
             titleFontSize: axis.title.fontSize,
             titleColor: axis.title.color,
             titleFontWeight: axis.title.fontWeight ?? 'normal',
+            ...(axis.title.fontStyle ? { titleFontStyle: axis.title.fontStyle } : {}),
             ...(axis.title.gap != null ? { titlePadding: axis.title.gap } : {}),
         };
         if (axis.grid.show && twoPositionLineAxis(spec, channel, table)) {
@@ -683,12 +769,26 @@ function applyAxes(
                 `the axis is crowded — the layout fitted its labels at ${axisLabels![channel].fontSize}px and the house's ${crowdedFrom}px would not stand in the band`);
         }
 
+        const overflowFit = axisLabels?.[channel].overflowFit;
+        if (overflowFit) {
+            const how: Record<string, string> = {
+                fit: 'set on one line in wider bands',
+                wrap: 'broken over two lines',
+                skip: `thinned to round values (${(overflowFit.shown ?? []).slice(0, 3).join(', ')}${(overflowFit.shown?.length ?? 0) > 3 ? ' …' : ''})`,
+                rotate45: 'turned −45°',
+                rotate90: 'stood upright',
+            };
+            say(`axes.${channel}.label.overflow`, 'labels-overflow',
+                `the widest name needs ~${Math.round(overflowFit.needed)}px in a ${Math.round(overflowFit.band)}px band — the names are ${how[overflowFit.step] ?? overflowFit.step}${overflowFit.trimmed ? ', trimmed' : ''} (overflow step \`${overflowFit.step}${overflowFit.trimmed ? ' + trim' : ''}\`)`);
+        }
+
         config[key] = { ...existing, ...themed };
 
         // Encoding-level axis objects outrank config, so anything a template
         // left behind in the keys this file owns has to go.
         let saidGutter = false;
         let saidUnit = false;
+        let saidCompact = false;
         const defaultOrient = channel === 'x' ? 'bottom' : 'left';
         // One flat title per side: a left and a right ruler caption their own
         // values and never land on each other.
@@ -851,6 +951,17 @@ function applyAxes(
                 enc.scale = { ...(enc.scale ?? {}), nice: axis.tickCount };
             }
 
+            // A house that cuts its grid across the marks (white rules over the bars) draws the axis in
+            // front (GR2). Vega-Lite reads `zindex` from the axis itself, not from its config.
+            if (axis.gridFront && axis.grid.show) enc.axis = { ...(enc.axis ?? {}), zindex: 1 };
+
+            // A measure the house compacts prints its ticks in one unit, chosen from the ticks.
+            if (axis.compact && enc.type === 'quantitative' && !enc.bin && axis.label.show !== false
+                && !NONLINEAR_SCALES.has(enc.scale?.type) && !compactAxis(enc, axis.compact, table) && !saidCompact) {
+                say(`axes.${channel}.compact`, 'compact-not-applied', 'the ruler’s labels are written by an expression the compaction cannot read, so they stay as they are');
+                saidCompact = true;
+            }
+
             // The unit has to be written somewhere. A house that drops axis
             // titles has taken away the usual place, so it says where else —
             // on every tick, or once at the end of the ruler.
@@ -999,6 +1110,168 @@ function applyZeroRule(spec: any, d: DesignDecisions, table: any[]): void {
             appendLayer(body, rule);
         }
     }
+}
+
+/**
+ * The rule the marks stand on (`structure.baseline`), along the one measure axis: at zero where
+ * zero is inside the domain, else along the axis's floor — wherever the chart put it, since
+ * whether the axis starts at zero is the chart's decision, not the theme's. It is not drawn
+ * where another rule is already there: the house's own zero rule where the data crosses zero,
+ * or the index axis's line along the floor in the same ink and at least the same weight. At zero it
+ * takes a styled zero rule's ink, weight and dash. Only
+ * marks that stand on a base take one — bars, areas, lines — not points, a strip, a scatter, a
+ * range or a ranking.
+ */
+function applyBaseline(spec: any, d: DesignDecisions, table: any[]): void {
+    const base = d.baseline;
+    if (!base?.show) return;
+    const measures = (['x', 'y'] as const).filter((ch) => d.axes[ch] && !d.axes[ch]!.indexing);
+    if (measures.length !== 1) return;
+    const channel = measures[0];
+    const index = channel === 'x' ? 'y' : 'x';
+    for (const body of plotBodies(spec)) {
+        const layers: any[] = body.layer ?? [body];
+        const holder = layers.find((l) => l.encoding?.[channel]?.field) ?? body;
+        const enc = holder.encoding?.[channel] ?? body.encoding?.[channel];
+        if (!enc?.field || enc.type !== 'quantitative' || enc.bin || enc.axis === null) continue;
+        // The chart's own first mark decides, not a fitted line laid over a scatter.
+        const first = markTypeOf(layers.find((l) => !l.__themeSynthetic && l.mark)?.mark) ?? '';
+        // A mark spanning two values (a range, a dumbbell's bar) or a ranking read top-down stands on nothing.
+        const indexField = (holder.encoding?.[index] ?? body.encoding?.[index])?.field;
+        // A line grouped by its own category runs along the measure: a dumbbell's connector.
+        const connector = layers.some((l) => markTypeOf(l.mark) === 'line' && indexField && l.encoding?.detail?.field === indexField);
+        // A reversed scale is a ranking read top-down (a bump chart's lines) — but bars on one still
+        // stand on zero: the left half of a pyramid, whose spine is its baseline.
+        const ranked = enc.scale?.reverse === true && first !== 'bar';
+        const ranged = connector || layers.some((l) => l.encoding?.[`${channel}2`] && !l.__themeSynthetic) || ranked;
+        const stands = ['bar', 'area', 'line', 'trail'].includes(first) && !ranged;
+        if (!stands) continue;
+        let min = Infinity;
+        let max = -Infinity;
+        for (const row of table ?? []) {
+            const v = Number(row?.[enc.field]);
+            if (!Number.isFinite(v)) continue;
+            if (v < min) min = v;
+            if (v > max) max = v;
+        }
+        if (!Number.isFinite(min)) continue;
+        const scale = enc.scale ?? {};
+        const log = NONLINEAR_SCALES.has(scale.type);
+        const zero = scale.zero !== false && !log;
+        const domain = Array.isArray(scale.domain) && scale.domain.length === 2 && scale.domain.every((v: unknown) => typeof v === 'number')
+            ? scale.domain as [number, number] : undefined;
+        const lo = domain?.[0] ?? scale.domainMin ?? (zero ? Math.min(0, min) : min);
+        const hi = domain?.[1] ?? scale.domainMax ?? (zero ? Math.max(0, max) : max);
+        const atZero = !log && lo <= 0 && hi >= 0;
+        const atFloor = !atZero || lo === 0;
+        // The house's own zero rule is that line where the data crosses zero.
+        if (atZero && min < 0 && max > 0 && d.axes[channel]?.zeroRule?.show) continue;
+        // The index axis's line already runs along the floor.
+        const line = d.axes[index]?.domain;
+        const floorSide = channel === 'y' ? 'bottom' : 'left';
+        if (atFloor && line?.show && d.axes[index]?.orient === floorSide && line.color === base.color && line.width >= base.width) continue;
+        // At zero, a zero rule the house styled is the stronger statement: the line takes its ink,
+        // weight and dash (GR2), whether or not the data reaches below it.
+        const zeroStyle = d.axes[channel]?.zeroRule;
+        const ink = atZero && zeroStyle?.show ? zeroStyle : base;
+        appendLayer(body, {
+            __themeSynthetic: true,
+            data: { values: [{}] },
+            mark: { type: 'rule', color: ink.color, strokeWidth: ink.width, ...(ink.dash ? { strokeDash: ink.dash } : {}) },
+            // The rule shares the panel's scale as stated: a layer without it would merge an explicit
+            // domain with its own and let Vega-Lite widen the ruler (a pyramid's 30 became 35).
+            encoding: atZero
+                ? { [channel]: { datum: 0, type: 'quantitative', ...(enc.scale ? { scale: { ...enc.scale } } : {}) } }
+                : { [channel]: channel === 'y' ? { value: 'height' } : { value: 0 } },
+        });
+    }
+}
+
+/**
+ * Fainter lines between the labelled gridlines (`structure.grid.minor`, G2), on a continuous axis
+ * whose grid the house draws. The labelled lines are the axis's stated values; where it states
+ * none they are computed as Vega would (the scale's domain made nice, one tick about every 40px)
+ * and written down, so the minor lines fall between the lines actually drawn. A log, padded or
+ * banded scale is left alone and reported. The lines are a rule layer under the marks, or over
+ * them where the grid is in front.
+ */
+function applyMinorGrid(spec: any, config: any, d: DesignDecisions, table: any[], say: ReportDeparture): void {
+    for (const channel of ['x', 'y'] as const) {
+        const minor = d.axes[channel]?.minorGrid;
+        if (!minor?.show) continue;
+        const front = Boolean(d.axes[channel]?.gridFront);
+        let refused: string | undefined;
+        for (const body of plotBodies(spec)) {
+            const layers: any[] = body.layer ?? [body];
+            const holder = layers.find((l) => l.encoding?.[channel]?.field && !l.__themeSynthetic) ?? body;
+            const enc = holder.encoding?.[channel];
+            if (!enc?.field || enc.axis === null || enc.bin || !['quantitative', 'temporal'].includes(enc.type)) continue;
+            const axisConfig = { ...config.axis, ...config[channel === 'x' ? 'axisX' : 'axisY'], ...enc.axis };
+            if (axisConfig.grid === false) continue;
+            const majors = majorGridValues(spec, body, enc, channel, table, axisConfig);
+            if (!majors) { refused = enc.type === 'temporal' ? 'a time axis states no tick values to divide' : 'its scale is log, padded or pinned in a way Flint cannot follow'; continue; }
+            const lines: number[] = [];
+            for (let i = 1; i < majors.length; i++) {
+                const step = (majors[i] - majors[i - 1]) / minor.divisions;
+                for (let k = 1; k < minor.divisions; k++) lines.push(majors[i - 1] + step * k);
+            }
+            if (!lines.length) continue;
+            // It shares the scale and the axis, and carries the axis's own title so Vega-Lite's merge of
+            // the layers' axes keeps it (a null here would win and drop it).
+            const title = enc.axis && 'title' in enc.axis ? enc.axis.title : enc.title !== undefined ? enc.title : titleOf(enc) ?? null;
+            const layer = {
+                __themeSynthetic: true,
+                data: { values: lines.map((v) => ({ __minor: v })) },
+                mark: { type: 'rule', color: minor.color, strokeWidth: minor.width, aria: false, ...(minor.dash ? { strokeDash: minor.dash } : {}) },
+                encoding: { [channel]: { field: '__minor', type: enc.type, title, ...(enc.scale ? { scale: enc.scale } : {}) } },
+            };
+            appendLayer(body, layer);
+            // Vega-Lite draws layers in order and drops a mark's z-index: under the marks, the layer goes first.
+            if (!front) {
+                let target = body;
+                while (target.facet && target.spec) target = target.spec;
+                if (Array.isArray(target.layer) && target.layer[target.layer.length - 1] === layer) target.layer.unshift(target.layer.pop());
+            }
+        }
+        if (refused) say(`structure.grid.minor`, 'minor-grid-not-drawn', `the minor grid on ${channel} is not drawn — ${refused}`);
+    }
+}
+
+/** The values an axis draws its labelled gridlines at, written onto the axis where it stated none. */
+function majorGridValues(spec: any, body: any, enc: any, channel: 'x' | 'y', table: any[], axisConfig: any): number[] | undefined {
+    const stated = enc.axis?.values;
+    if (Array.isArray(stated) && stated.length) {
+        const values = stated.map((v: unknown) => typeof v === 'number' ? v : typeof v === 'string' ? Date.parse(v)
+            : v && typeof v === 'object' && 'year' in (v as any) ? Date.UTC((v as any).year, ((v as any).month ?? 1) - 1, (v as any).date ?? 1) : NaN);
+        return values.every(Number.isFinite) ? [...values].sort((a, b) => a - b) : undefined;
+    }
+    const scale = enc.scale ?? {};
+    if (enc.type !== 'quantitative' || NONLINEAR_SCALES.has(scale.type) || scale.padding || scale.domainMid !== undefined || scale.domainRaw) return undefined;
+    let lo: number;
+    let hi: number;
+    if (Array.isArray(scale.domain) && scale.domain.length === 2 && scale.domain.every((v: unknown) => typeof v === 'number')) {
+        [lo, hi] = scale.domain;
+    } else {
+        let min = Infinity;
+        let max = -Infinity;
+        for (const row of table ?? []) {
+            const v = Number(row?.[enc.field]);
+            if (Number.isFinite(v)) { min = Math.min(min, v); max = Math.max(max, v); }
+        }
+        if (!Number.isFinite(min) || enc.stack || enc.aggregate) return undefined;
+        const zero = scale.zero !== false && scale.domainMin === undefined;
+        lo = scale.domainMin ?? (zero ? Math.min(0, min) : min);
+        hi = scale.domainMax ?? (zero ? Math.max(0, max) : max);
+        if (scale.nice !== false) [lo, hi] = niceDomain(lo, hi, typeof scale.nice === 'number' ? scale.nice : 10);
+    }
+    const size = channel === 'x' ? (body.width ?? spec.width) : (body.height ?? spec.height);
+    const span = typeof size === 'number' ? size
+        : (channel === 'x' ? spec.config?.view?.continuousWidth : spec.config?.view?.continuousHeight) ?? (channel === 'x' ? 400 : 300);
+    const count = axisConfig.tickCount ?? Math.ceil(span / 40);
+    const values = niceTicks(lo, hi, count);
+    if (values.length < 2) return undefined;
+    enc.axis = { ...(enc.axis ?? {}), values };
+    return values;
 }
 
 /**
@@ -1170,6 +1443,40 @@ function tagWithUnit(
     return `${at} ? ${tagged} : ${label}`;
 }
 
+/** A value as a label prints it: compacted where the house compacts, else in its format. */
+function printedNumber(value: string, format: string | undefined, compact?: CompactPrint): string {
+    if (compact) return compactExpr(value, compact);
+    return format ? `format(${value}, ${JSON.stringify(format)})` : `${value} + ''`;
+}
+
+/**
+ * A ruler's ticks in one compact unit, chosen from the ticks the axis states (else the scale's
+ * domain and the data). The number in the label expression is replaced, so a currency sign or
+ * a unit written around it stays. False where the expression is not one it can read.
+ */
+function compactAxis(enc: any, rule: CompactRule, table: any[]): boolean {
+    const numeric = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+    const ticks = Array.isArray(enc.axis?.values) && enc.axis.values.every(numeric) ? enc.axis.values as number[] : undefined;
+    const span = ticks ?? [
+        ...(Array.isArray(enc.scale?.domain) ? enc.scale.domain.filter(numeric) : []),
+        ...(Array.isArray(table) ? table.map((row) => row?.[enc.field]).filter(numeric) : []),
+    ];
+    // The house's stated precision is for labels; ticks keep the digits that tell them apart.
+    const print = compactPrint(span, { ...rule, decimals: undefined }, ticks ? 'exact' : 'significant');
+    if (!print) return true;
+    const expr = compactExpr('datum.value', print);
+    const existing: string | undefined = enc.axis?.labelExpr;
+    let next: string;
+    if (!existing) next = expr;
+    else if (/format\(datum\.value,\s*(?:"[^"]*"|'[^']*')\)/.test(existing)) next = existing.replace(/format\(datum\.value,\s*(?:"[^"]*"|'[^']*')\)/g, expr);
+    else if (existing.includes('datum.label')) next = existing.replace(/datum\.label/g, expr);
+    else return false;
+    const { format: _format, ...axis } = enc.axis ?? {};
+    void _format;
+    enc.axis = { ...axis, labelExpr: next };
+    return true;
+}
+
 /** The field a unit-bearing label reads from. */
 const UNIT_LABEL_FIELD = '__flintValueWithUnit';
 
@@ -1180,11 +1487,11 @@ const UNIT_LABEL_FIELD = '__flintValueWithUnit';
  * expression on a `text` channel. So the label is computed once for the whole
  * plot body and the text layer simply reads the new field.
  */
-function printWithUnit(body: any, node: any, field: string, format: string | undefined, unit: string): void {
+function printWithUnit(body: any, node: any, field: string, format: string | undefined, unit: string | undefined, compact?: CompactPrint): void {
     const value = `datum[${JSON.stringify(field)}]`;
-    const shown = format ? `format(${value}, ${JSON.stringify(format)})` : `${value} + ''`;
-    const quoted = JSON.stringify(/^[A-Za-z]/.test(unit) ? ` ${unit}` : unit);
-    const calculate = PREFIX_UNITS.has(unit) ? `${quoted} + ${shown}` : `${shown} + ${quoted}`;
+    const shown = printedNumber(value, format, compact);
+    const quoted = unit ? JSON.stringify(/^[A-Za-z]/.test(unit) ? ` ${unit}` : unit) : undefined;
+    const calculate = !quoted ? shown : PREFIX_UNITS.has(unit!) ? `${quoted} + ${shown}` : `${shown} + ${quoted}`;
     const transform = (body.transform ??= []);
     if (!transform.some((t: any) => t.as === UNIT_LABEL_FIELD)) transform.push({ calculate, as: UNIT_LABEL_FIELD });
     node.encoding.text = { field: UNIT_LABEL_FIELD, type: 'nominal' };
@@ -1374,6 +1681,21 @@ function applyMarks(
     if (m.strokeCap) { config.line.strokeCap = m.strokeCap; config.rule = { ...(config.rule ?? {}), strokeCap: m.strokeCap }; }
     if (m.strokeJoin) config.line.strokeJoin = m.strokeJoin;    if (m.interpolate) config.line.interpolate = m.interpolate;
     if (m.fillOpacity != null) config.area = { ...(config.area ?? {}), fillOpacity: m.fillOpacity };
+    // A bar's own opacity (M2): the fill only, so an outline in the series ink stays crisp.
+    if (m.barOpacity != null) config.bar = { ...(config.bar ?? {}), fillOpacity: m.barOpacity };
+    // An area's edge (M1): a line along its top in its own ink — Vega-Lite's own line overlay, which
+    // follows a stack's bands and its colour encoding. Not on a wash (a synthetic layer), a violin's
+    // sideways density (a distribution's outline is not a series' top), or an area whose template
+    // draws its own line.
+    if (m.areaEdge) {
+        const width = m.areaEdge.width;
+        walk(spec, (node) => {
+            if (markTypeOf(node.mark) !== 'area' || node.__themeSynthetic) return;
+            const mark = normalizeMark(node.mark);
+            if (mark.line !== undefined || mark.orient === 'horizontal') return;
+            node.mark = { ...mark, line: { strokeWidth: width, ...(m.strokeCap ? { strokeCap: m.strokeCap } : {}), ...(m.strokeJoin ? { strokeJoin: m.strokeJoin } : {}) } };
+        });
+    }
     if (m.cornerRadius != null) {
         // Round only the value end of a bar so the baseline stays a clean edge
         // and a stack still reads as one column; `cornerRadiusEnd` rounds the
@@ -1388,7 +1710,8 @@ function applyMarks(
         // border eats a thin bar whole — so it is drawn per bar below, only on
         // bars wide enough to hold it. Grid cells (heatmaps) are a field, not
         // shapes to cut out, and are held apart by a tile gap, not an outline.
-        config.arc = { ...(config.arc ?? {}), stroke: m.outline.color, strokeWidth: m.outline.width };
+        // An outline in each mark's own ink is a bar rule; wedges keep their slice gap.
+        if (!m.outline.series) config.arc = { ...(config.arc ?? {}), stroke: m.outline.color, strokeWidth: m.outline.width };
         // An outlined shape has corners of its own, and the join is a property
         // of the stroke, not of lines. Left to the renderer's mitre, the two
         // radial edges of a thin wedge run past each other into a spike at the
@@ -1412,11 +1735,16 @@ function applyMarks(
             // A vertex confirms a path's position; the primary size is the size
             // of a dot that *is* the reading. Houses that separate them say so.
             size: m.point.vertexSize ?? m.point.size ?? 24,
-            ...(m.outline
-                ? { stroke: m.outline.color, strokeWidth: m.outline.width }
-                : m.point.haloColor
-                    ? { stroke: m.point.haloColor, strokeWidth: m.point.haloWidth ?? 1 }
-                    : {}),
+            ...(m.point.ink ? { color: m.point.ink } : {}),
+            // A hollow dot *is* its ring: the ring takes the dot's ink. A halo or an outline in the
+            // page's colour would be the only stroke left, and the dot would vanish.
+            ...(m.point.filled === false
+                ? { strokeWidth: m.point.haloWidth ?? m.outline?.width ?? 1.5 }
+                : m.outline
+                    ? { stroke: m.outline.color, strokeWidth: m.outline.width }
+                    : m.point.haloColor
+                        ? { stroke: m.point.haloColor, strokeWidth: m.point.haloWidth ?? 1 }
+                        : {}),
         };        // A point on a line marks a reading. A fitted line has no readings —
         // it is sampled wherever the fit needs sampling, which for a straight
         // one is the two ends — so a point at each vertex claims two
@@ -1447,7 +1775,23 @@ function applyMarks(
             if (mark.point !== undefined) return;
             const enc = mergedEncoding(node, spec.encoding);
             const readings = maxReadingsPerSeries(enc, table);
-            if (readings > MAX_DOTTED_READINGS) {
+            const density = m.point!.density;
+            // A sparse house draws dots only where readings stand well apart (M5).
+            if (density === 'sparse') {
+                const spacing = readingSpacing(view.width, readings);
+                if (spacing != null && spacing < SPARSE_DOT_SPACING) {
+                    node.mark = { ...mark, point: false };
+                    if (!saidCrowd) {
+                        say('marks.point', 'dots-stand-down',
+                            `readings ${Math.round(spacing)}px apart are closer than the ${SPARSE_DOT_SPACING}px the house's sparse dots ask for, so the line is drawn bare`);
+                        saidCrowd = true;
+                    }
+                    return;
+                }
+            }
+            // A house that dots every reading keeps them past the countable dozen (M5); they still
+            // shrink, or stand down, where they cannot sit apart.
+            if (density !== 'all' && readings > MAX_DOTTED_READINGS) {
                 node.mark = { ...mark, point: false };
                 if (!saidCrowd) {
                     say('marks.point', 'dots-stand-down',
@@ -1507,11 +1851,13 @@ function applyMarks(
             const mark = normalizeMark(node.mark);
             if (!mark.point) return;
             const point = typeof mark.point === 'object' ? mark.point : {};
+            const hollow = (point.filled ?? dot.filled) === false;
             mark.point = {
                 ...point,
                 ...(point.filled == null ? { filled: dot.filled !== false } : {}),
                 ...(dot.size != null ? { size: dot.size } : {}),
-                stroke: m.outline?.color ?? dot.haloColor,
+                // A hollow dot is its ring: a stroke in the page's colour would leave nothing to see.
+                ...(hollow ? {} : { stroke: m.outline?.color ?? dot.haloColor }),
                 strokeWidth: m.outline?.width ?? dot.haloWidth ?? 1,
             };
             node.mark = mark;
@@ -1523,9 +1869,11 @@ function applyMarks(
             if (fittedDots.has(node)) return;
             const mark = normalizeMark(node.mark);
             if (!mark.point) return;
+            const point = typeof mark.point === 'object' ? mark.point : {};
+            const hollow = (point.filled ?? m.point?.filled) === false;
             mark.point = {
-                ...(typeof mark.point === 'object' ? mark.point : {}),
-                stroke: m.outline!.color,
+                ...point,
+                ...(hollow ? {} : { stroke: m.outline!.color }),
                 strokeWidth: m.outline!.width,
             };
             node.mark = mark;
@@ -1588,7 +1936,7 @@ function applyMarks(
     // misses every layered chart.
     const paddingInner = clamp(1 - m.bandFraction, 0, 0.9);
     let saidCells = false;
-    const paddedBandFields = new Set<string>();
+    const paddedBandFields = new Map<string, number>();
     const bandWalk = (node: any, inherited: any): void => {
         if (!node || typeof node !== 'object') return;
         const enc = mergedEncoding(node, inherited);
@@ -1625,35 +1973,44 @@ function applyMarks(
                     node.mark = { ...normalizeMark(node.mark), size: resized };
                 }
             } else {
-                for (const channel of discrete) {
-                    const target = node.encoding?.[channel] ?? inherited?.[channel];
-                    if (!target) continue;
-                    target.scale = { ...(target.scale ?? {}), paddingInner };
-                    if (typeof target.field === 'string') paddedBandFields.add(target.field);
-                }
                 // Dodged bars carry a second band inside each group — the
-                // offset. A house gap that only narrows the group leaves the
-                // lanes touching, so the offset has to take the same fill.
+                // offset. The group and its lanes are spaced by the house's
+                // group rule (G1): the space between groups on the category
+                // band, the gap between bars on the offset band.
                 const offset = enc.xOffset ?? enc.yOffset;
                 const offsetCh = enc.xOffset?.field ? 'xOffset' : enc.yOffset?.field ? 'yOffset' : undefined;
                 const offsetDiscrete = !!offsetCh && (offset?.type === 'nominal' || offset?.type === 'ordinal');
                 const offsetLocal = !!offsetCh && offset?.type === 'quantitative';
                 const sizedMark = typeof (node.mark as any)?.size === 'number' && mark !== 'boxplot';
+                const groupAxis = offsetCh === 'xOffset' ? 'x' : offsetCh === 'yOffset' ? 'y' : undefined;
+                const grouped = (offsetDiscrete || offsetLocal) && mark !== 'boxplot' && groupAxis && discrete.includes(groupAxis)
+                    ? groupPadding(m.group, m.bandFraction, laneCount(node, enc, table), bandStep(spec, node, enc, groupAxis, table))
+                    : undefined;
+                for (const channel of discrete) {
+                    const target = node.encoding?.[channel] ?? inherited?.[channel];
+                    if (!target) continue;
+                    const padding = grouped && channel === groupAxis ? grouped.inner : paddingInner;
+                    target.scale = { ...(target.scale ?? {}), paddingInner: padding };
+                    if (typeof target.field === 'string') paddedBandFields.set(target.field, padding);
+                }
                 if (offsetDiscrete && mark !== 'boxplot') {
                     // Native dodge: the lanes are a band scale of their own, so
                     // the gap lives on the offset scale, not on any pixel size.
+                    const lane = grouped?.lane ?? groupPadding(m.group, m.bandFraction, laneCount(node, enc, table)).lane;
                     const offTarget = node.encoding?.[offsetCh!] ?? inherited?.[offsetCh!];
                     if (offTarget) {
-                        offTarget.scale = { ...(offTarget.scale ?? {}), paddingInner };
+                        offTarget.scale = { ...(offTarget.scale ?? {}), paddingInner: lane, paddingOuter: 0 };
                     }
-                } else if (sizedMark && offsetLocal) {
-                    // Local dodge: the template pinned each lane to
-                    // LOCAL_DODGE_LANE_FILL of its pitch. Re-scale to the house's
-                    // fill — recomputing from the band step would spread one
-                    // bar across the whole band and overlap the lanes.
-                    const current = (node.mark as any).size as number;
-                    const resized = Math.max(1, Math.round(current * m.bandFraction / LOCAL_DODGE_LANE_FILL));
-                    if (resized !== current) {
+                } else if (sizedMark && offsetLocal && grouped) {
+                    // Local dodge: lanes are a pitch apart within the group's
+                    // band; each bar is that pitch less the gap.
+                    const step = groupAxis ? bandStep(spec, node, enc, groupAxis, table) : undefined;
+                    const lanes = laneCount(node, enc, table);
+                    const pitch = step ? (step * (1 - grouped.inner)) / lanes : undefined;
+                    const resized = pitch
+                        ? Math.max(1, Math.round(pitch * (1 - grouped.lane)))
+                        : Math.max(1, Math.round(((node.mark as any).size as number) * m.bandFraction / LOCAL_DODGE_LANE_FILL));
+                    if (resized !== (node.mark as any).size) {
                         node.mark = { ...normalizeMark(node.mark), size: resized };
                     }
                 } else if (sizedMark && discrete[0]) {
@@ -1686,7 +2043,7 @@ function applyMarks(
         if (node.facet?.spec) bandWalk(node.facet.spec, enc);
     };
     bandWalk(spec, undefined);
-    centerBandDividers(spec, paddedBandFields, paddingInner);
+    centerBandDividers(spec, paddedBandFields);
 
     if (m.separator?.show) {
         const plotW = spec.config?.view?.continuousWidth ?? spec._width ?? 300;
@@ -1747,6 +2104,8 @@ function applyMarks(
         if (sawStroke && bandCh) liftBandAxis(spec, bandCh);
     }
 
+    if (m.barMinLength) applyBarMinLength(spec, m.barMinLength, table, plotWidth, plotHeight);
+
     if (m.tile) applyTileGap(spec, m.tile);
 
     if (m.slice) applySliceGap(spec, m.slice, table, say);
@@ -1763,7 +2122,10 @@ function applyMarks(
             const enc = node.encoding ?? {};
             if (isGridCell(node, enc)) return;
             const mark = normalizeMark(node.mark);
-            if (mark.stroke) return;
+            // An outline in the series ink is the house's own edge, so it takes the place of a
+            // separator's stroke; any other outline leaves a stroked bar as it is.
+            if (mark.stroke && !m.outline!.series) return;
+            if (enc.stroke) return;
             const barW = estimateBarExtent(node, enc, table, plotWidth, plotHeight);
             if (barW < 2 * m.outline!.width) {
                 if (!saidThinOutline) {
@@ -1771,6 +2133,14 @@ function applyMarks(
                         `bars are ${barW.toFixed(1)}px — too thin to hold a ${m.outline!.width}px outline, which would paint over them; left unbordered`);
                     saidThinOutline = true;
                 }
+                return;
+            }
+            if (m.outline!.series) {
+                // Drawn once the series inks are final (applySeriesOutlines); here only marked.
+                const { stroke: _stroke, ...rest } = mark;
+                void _stroke;
+                node.mark = { ...rest, strokeWidth: m.outline!.width };
+                node.__seriesOutline = true;
                 return;
             }
             node.mark = { ...mark, stroke: m.outline!.color, strokeWidth: m.outline!.width };
@@ -1915,7 +2285,9 @@ function harmonizeLinePoints(
         if (!mark.point) return;
 
         const point = typeof mark.point === 'object' ? { ...mark.point } : {};
-        if (mark.color && point.color == null && point.fill == null) {
+        if (d.marks.point?.ink && point.fill == null) {
+            point.color = d.marks.point.ink;
+        } else if (mark.color && point.color == null && point.fill == null) {
             point.color = mark.color;
         }
 
@@ -2279,6 +2651,9 @@ function paintRoleMarks(spec: any, d: DesignDecisions): void {
 /** How many dots one line can carry before they stop being countable. */
 const MAX_DOTTED_READINGS = 12;
 
+/** The least room between readings, px, for a house's `sparse` dots. */
+const SPARSE_DOT_SPACING = 20;
+
 /**
  * The share of the gap between two readings a dot may occupy.
  *
@@ -2560,9 +2935,8 @@ function bandStep(spec: any, node: any, enc: any, channel: 'x' | 'y', table: any
  * Half of it puts the rule in the middle, where it belongs — equidistant from
  * the two groups it separates, which is the whole claim a divider makes.
  */
-function centerBandDividers(spec: any, paddedFields: Set<string>, paddingInner: number): void {
-    if (paddingInner <= 0 || paddedFields.size === 0) return;
-    const centered = 1 + paddingInner / (2 * (1 - paddingInner));
+function centerBandDividers(spec: any, paddedFields: Map<string, number>): void {
+    if (paddedFields.size === 0) return;
     walk(spec, (node: any) => {
         if (markTypeOf(node.mark) !== 'rule') return;
         for (const channel of ['x', 'y'] as const) {
@@ -2571,8 +2945,9 @@ function centerBandDividers(spec: any, paddedFields: Set<string>, paddingInner: 
             // anchored at both ends on purpose — a waterfall's connector reaches
             // from one bar's edge to the next and must keep touching them.
             if (!e || node.encoding?.[`${channel}2`]) continue;
-            if (e.bandPosition !== 1 || !paddedFields.has(e.field)) continue;
-            e.bandPosition = centered;
+            const padding = paddedFields.get(e.field);
+            if (e.bandPosition !== 1 || !padding || padding <= 0) continue;
+            e.bandPosition = 1 + padding / (2 * (1 - padding));
         }
     });
 }
@@ -2766,11 +3141,19 @@ function statusRange(
     return { domain, range: range as string[], roles };
 }
 
+/** One ink per value: its bound ink, else the next of the palette (which never holds a bound ink). */
+function boundPalette(values: unknown[], s: DesignDecisions['series']): string[] {
+    let next = 0;
+    return values.map((v) => s.byValue?.[String(v).trim().toLowerCase()]
+        ?? s.categorical[next++] ?? s.overflow ?? s.categorical[(next - 1) % Math.max(1, s.categorical.length)] ?? s.single);
+}
+
 function applySeriesInk(spec: any, d: DesignDecisions, table: any[], say: ReportDeparture, legend?: LegendPlan): void {
     const s = d.series;
     let sawColorField = false;
     let saidCollapse = false;
     let saidExhausted = false;
+    let saidUnbound = false;
     // Merging the overflow tail into one summed slice rewrites the data feeding
     // this node. Safe for a lone arc view; inside a layer/facet/concat the
     // sibling layers (a value-label text mark, say) still read the full rows,
@@ -2786,6 +3169,7 @@ function applySeriesInk(spec: any, d: DesignDecisions, table: any[], say: Report
         return out.length ? out : [s.single];
     };
 
+    let saidSequentialDomain = false;
     walk(spec, (node) => {
         for (const channel of ['color', 'fill', 'stroke'] as const) {
             const enc = node.encoding?.[channel];
@@ -2836,7 +3220,19 @@ function applySeriesInk(spec: any, d: DesignDecisions, table: any[], say: Report
                 const range = isContinuousColor(enc)
                     ? s.range
                     : s.range.map((c) => reToneNeutral(c, surface));
+                // The chart read the field as diverging and made its domain symmetric about the pivot;
+                // on a one-way ramp that half-empty domain paints the data in the dark half only, so the
+                // ramp spans the data's own range instead.
+                const symmetric = s.mode === 'sequential' && isContinuousColor(enc) && enc.scale?.domainMid !== undefined;
                 setColorRange(enc, range, quantize ? { type: 'quantize' } : undefined);
+                if (symmetric) {
+                    delete enc.scale.domain;
+                    if (!saidSequentialDomain) {
+                        say('ink.series.sequential', 'diverging-read-sequential',
+                            'the field is signed, but the house reads it on its sequential ramp, so the ramp spans the data rather than a domain balanced about the midpoint');
+                        saidSequentialDomain = true;
+                    }
+                }
                 continue;
             }
             // Categorical: an ordered set consumed by index, with the overflow
@@ -2871,10 +3267,17 @@ function applySeriesInk(spec: any, d: DesignDecisions, table: any[], say: Report
                     // a bar N bars) — only which colour-key each row shows is
                     // remapped, so the legend dedupes to top-K plus one Others.
                     addColorKeyTransform(node, field, topK, othersLabel, keyField);
+                    // The template's data order (M3) was by the original field; the wedges now run
+                    // in the key's order, kept first and Others last.
+                    const keyOrdered = node.encoding?.order?.field === '__flintArcOrder';
+                    if (keyOrdered) {
+                        node.transform = (node.transform ?? []).filter((t: any) => t?.as !== '__flintArcOrder');
+                        delete node.encoding.order;
+                    }
                     enc.field = keyField;
                     enc.type = 'nominal';
                     const domain = [...topK, othersLabel];
-                    const range = [...s.categorical.slice(0, k), s.overflow!];
+                    const range = [...(s.byValue ? boundPalette(topK, s) : s.categorical.slice(0, k)), s.overflow!];
                     setColorRange(enc, range, { domain });
                     if (enc.legend !== null) {
                         // The K+1 domain is short enough to list in full; drop
@@ -2902,6 +3305,10 @@ function applySeriesInk(spec: any, d: DesignDecisions, table: any[], say: Report
                         addTailAggregate(node, thetaField, keyField);
                         merged = true;
                     }
+                    if (keyOrdered && isPartToWholeMark(node)) {
+                        node.transform = [...(node.transform ?? []), { calculate: `indexof(${JSON.stringify([...topK.map(String), othersLabel])}, toString(datum[${JSON.stringify(keyField)}]))`, as: '__flintArcOrder' }];
+                        node.encoding.order = { field: '__flintArcOrder', type: 'quantitative', sort: 'ascending' };
+                    }
                     if (!saidExhausted) {
                         say('ink.series.categorical', 'colours-folded',
                             merged
@@ -2911,6 +3318,19 @@ function applySeriesInk(spec: any, d: DesignDecisions, table: any[], say: Report
                     }
                     continue;
                 }
+            }
+            // Values with a bound ink keep it wherever they fall; the rest take the palette in order.
+            // The domain is written out in the order Vega-Lite would give it, so the key reads the same.
+            const rows = Array.isArray(node.data?.values) ? node.data.values : Array.isArray(spec.data?.values) ? spec.data.values : table;
+            const domain = s.byValue && !isContinuousColor(enc) ? discreteDomain(enc, rows) : undefined;
+            if (domain && domain.some((v) => s.byValue![String(v).trim().toLowerCase()])) {
+                setColorRange(enc, boundPalette(domain, s), { domain });
+                continue;
+            }
+            if (s.byValue && !domain && !saidUnbound) {
+                say('ink.series.byValue', 'value-ink-not-applied',
+                    `the order of \`${enc.field}\` is set by another channel, so its values cannot be matched to the house's bound inks — the palette is used by position`);
+                saidUnbound = true;
             }
             setColorRange(enc, palette(need));
         }
@@ -3024,8 +3444,28 @@ function applySeriesInk(spec: any, d: DesignDecisions, table: any[], say: Report
             node.mark = { ...normalizeMark(node.mark), color: toned };
             return;
         }
+        if (s.signedStatus && (mark === 'bar' || mark === 'rect') && s.status?.negative) {
+            const measure = d.bound.measureChannels.map((ch) => node.encoding?.[ch]).find((enc) => enc?.field && !enc.aggregate && enc.type === 'quantitative');
+            if (measure) {
+                node.encoding = {
+                    ...node.encoding,
+                    color: {
+                        condition: { test: `datum[${JSON.stringify(measure.field)}] < 0`, value: s.status.negative },
+                        value: s.status.positive ?? s.single,
+                    },
+                };
+                return;
+            }
+        }
         node.mark = { ...normalizeMark(node.mark), color: s.single };
     });
+
+    // A line's vertex dots that the house added are drawn from `config.line.point`, which carries
+    // no colour: with the line's ink set on the mark alone, they fall back to the renderer's default
+    // blue. With no colour field every line is the one series, so its dots take the same ink.
+    if (!sawColorField && spec.config?.line?.point && spec.config.line.point.color == null) {
+        spec.config.line.point = { ...spec.config.line.point, color: s.single };
+    }
 
     if (!sawColorField && s.mode === 'categorical' && paintPanelSeries(spec, palette)) return;
 
@@ -3092,7 +3532,13 @@ function applyRedundantChannels(spec: any, d: DesignDecisions, say: ReportDepart
         if (!mark || node.__themeSynthetic) return;
         const series = node.encoding?.color ?? node.encoding?.stroke;
         if (!series?.field) return;
-        const key = { field: series.field, type: series.type ?? 'nominal' };
+        // The dashes and shapes follow the colours' order (M3): the same sort, and the same domain
+        // where the colour scale states one, so series 1 is solid and filled whatever its name.
+        const key = {
+            field: series.field, type: series.type ?? 'nominal',
+            ...(series.sort !== undefined ? { sort: series.sort } : {}),
+            ...(Array.isArray(series.scale?.domain) ? { scale: { domain: series.scale.domain } } : {}),
+        };
 
         if (r.shape && (mark === 'point' || mark === 'circle' || mark === 'square')) {
             if (!node.encoding.shape) node.encoding.shape = { ...key };
@@ -3159,6 +3605,8 @@ function applyLegend(
             orient: !l.orient || l.orient === 'none' ? 'right' : l.orient,
             labelFont: l.label.font,
             labelFontSize: l.label.fontSize,
+            ...(heavierThanNormal(l.label.fontWeight) ? { labelFontWeight: l.label.fontWeight } : {}),
+            ...(l.label.fontStyle ? { labelFontStyle: l.label.fontStyle } : {}),
             labelColor: l.label.color,
             titleFont: l.label.font,
             titleFontSize: l.label.fontSize,
@@ -3175,6 +3623,8 @@ function applyLegend(
         direction: l.direction,
         labelFont: l.label.font,
         labelFontSize: l.label.fontSize,
+        ...(heavierThanNormal(l.label.fontWeight) ? { labelFontWeight: l.label.fontWeight } : {}),
+        ...(l.label.fontStyle ? { labelFontStyle: l.label.fontStyle } : {}),
         labelColor: l.label.color,
         titleFont: l.label.font,
         titleFontSize: l.label.fontSize,
@@ -3269,6 +3719,7 @@ function applyFacetChrome(spec: any, config: any, d: DesignDecisions): void {
         labelFontSize: f.header.fontSize,
         labelColor: f.header.color,
         labelFontWeight: f.header.fontWeight ?? 'normal',
+        ...(f.header.fontStyle ? { labelFontStyle: f.header.fontStyle } : {}),
         ...(f.header.show ? {} : { labels: false }),
         ...(f.header.fieldTitle ? {} : { title: null }),
     };
@@ -3381,6 +3832,7 @@ function applyPanelTitles(spec: any, d: DesignDecisions): void {
                     font: f.header.font,
                     fontSize: f.header.fontSize,
                     fontWeight: f.header.fontWeight ?? 'normal',
+                    ...(f.header.fontStyle ? { fontStyle: f.header.fontStyle } : {}),
                     color: ink ?? f.header.color,
                 };
             }
@@ -3540,7 +3992,8 @@ function labelOneBody(
     const stackedSegments = planned.form === 'segments';
 
     const horizontal = measureChannel === 'x';
-    const outside = d.dataLabels.placement !== 'atMark';
+    // The plan decides: a house's `atMark` can still print every label past the bar (`allOutside`).
+    let outside = !planned.inside;
     const t = d.dataLabels.text;
     const onMarkBody = planned.body;
 
@@ -3551,7 +4004,7 @@ function labelOneBody(
         ...(t.fontWeight ? { fontWeight: t.fontWeight } : {}),
         ...(t.fontStyle ? { fontStyle: t.fontStyle } : {}),
     };
-    const inside = planned.inside;
+    let inside = planned.inside;
     // A reversed scale turns the mark round: the end of the bar is on the side
     // the axis started from, so "outside" is the other way.
     const reversed = measure.scale?.reverse === true;
@@ -3600,6 +4053,26 @@ function labelOneBody(
                 dy: pick(w ? gap : -gap, w ? -gap : gap),
             };
     };
+    // Where an inside label sits along its bar (L4): at the end, the base, or the middle. Only a
+    // bar's own value has a base and a middle; an aggregated measure keeps the end.
+    const anchor: 'end' | 'start' | 'middle' = inside && planned.form === 'ends' && onMarkBody && !measure.aggregate
+        ? d.dataLabels.anchor : 'end';
+    const anchorGeometry = (at: 'start' | 'middle'): any => {
+        if (at === 'middle') return horizontal ? { align: 'center', dx: 0 } : { baseline: 'middle', dy: 0 };
+        const gap = 5 + radius;
+        // From the base the label reads toward the value end: rightward (upward) for a value above
+        // zero, the other way below it, and mirrored on a reversed scale.
+        const forward = reversed ? -1 : 1;
+        if (!hasNegative) {
+            return horizontal
+                ? { align: forward > 0 ? 'left' : 'right', dx: forward * gap }
+                : { baseline: forward > 0 ? 'bottom' : 'top', dy: -forward * gap };
+        }
+        const down = `datum[${JSON.stringify(measure.field)}] < 0`;
+        return horizontal
+            ? { align: { expr: `${down} ? '${forward > 0 ? 'right' : 'left'}' : '${forward > 0 ? 'left' : 'right'}'` }, dx: { expr: `${down} ? ${-forward * gap} : ${forward * gap}` } }
+            : { baseline: { expr: `${down} ? '${forward > 0 ? 'top' : 'bottom'}' : '${forward > 0 ? 'bottom' : 'top'}'` }, dy: { expr: `${down} ? ${forward * gap} : ${-forward * gap}` } };
+    };
     if (cells) {
         // A cell has no outside: the grid is continuous, and a number beside a
         // cell belongs to no cell in particular.
@@ -3634,14 +4107,37 @@ function labelOneBody(
         // clear of the arc, so the gap is generous. An arc that states its
         // own radius is left alone.
         const radialOutsideGap = 22;
+        const printed = measureValueLabels(
+            table.map((row) => row?.[measure.field]).filter((v): v is number => typeof v === 'number' && Number.isFinite(v)),
+            { format: d.dataLabels.format, compact: d.dataLabels.compact, unit: d.dataLabels.unit, text: t },
+        );
+        // A donut's labels sit in the middle of its ring, which has to be as thick as the widest
+        // label is wide (a label at three o'clock lies across the ring). A thinner ring sends them
+        // outside it, onto the plot, in the plot's ink (L5).
+        const hole = normalizeMark(arc?.mark)?.innerRadius;
+        let ringMiddle: number | undefined;
+        if (r !== undefined && inside && typeof hole === 'number' && hole > 0 && hole < r) {
+            const ring = r - hole;
+            if (ring >= printed.widest + 2 * LABEL_SIDE) ringMiddle = (r + hole) / 2;
+            else {
+                inside = false;
+                outside = true;
+                say('dataLabels.placement', 'value-labels-placement-changed',
+                    `the ring is ${Math.round(ring)}px thick and the widest label ${Math.round(printed.widest)}px wide — the labels move outside the ring`);
+                // An arc that states its radius keeps it unless the labels outside would leave the plot.
+                const halfMin = typeof w === 'number' && typeof h === 'number' ? Math.min(w, h) / 2 : undefined;
+                const reach = r + radialOutsideGap + printed.widest / 2 + 4;
+                if (arc && halfMin !== undefined && reach > halfMin && typeof declared === 'number') {
+                    const scale = Math.max(0.5, (halfMin - (radialOutsideGap + printed.widest / 2 + 4)) / r);
+                    const norm = normalizeMark(arc.mark) ?? { type: 'arc' };
+                    arc.mark = { ...norm, outerRadius: Math.round(r * scale), innerRadius: Math.round(hole * scale) };
+                    r *= scale;
+                }
+            }
+        }
         if (r !== undefined && !inside && typeof declared !== 'number'
             && typeof w === 'number' && typeof h === 'number' && arc) {
-            const labelChars = table.reduce((m, row) => {
-                const v = row?.[measure.field];
-                if (typeof v !== 'number' || !Number.isFinite(v)) return m;
-                return Math.max(m, Math.round(Math.abs(v)).toLocaleString('en-US').length);
-            }, 1);
-            const estHalfWidth = (labelChars * (t.fontSize ?? 10) * 0.62) / 2;
+            const estHalfWidth = printed.widest / 2;
             const halfMin = Math.min(w, h) / 2;
             const arcOuter = Math.max(halfMin * 0.5, halfMin - (estHalfWidth + radialOutsideGap + 4));
             if (arcOuter < r) {
@@ -3651,7 +4147,7 @@ function labelOneBody(
             }
         }
         if (r) {
-            const labelRadius = inside ? r * 0.72 : r + radialOutsideGap;
+            const labelRadius = inside ? ringMiddle ?? r * 0.72 : r + radialOutsideGap;
             Object.assign(markDef, { radius: labelRadius });
             // The slice's share of the circle is its value over the total; swung
             // out to the label radius that share becomes an arc of
@@ -3683,6 +4179,7 @@ function labelOneBody(
         Object.assign(markDef, { align: 'center', baseline: 'middle' });
     } else {
         Object.assign(markDef, geometry(inside));
+        if (anchor !== 'end') Object.assign(markDef, anchorGeometry(anchor));
     }
     if (d.dataLabels.placement === 'column' && !cells) {
         say('dataLabels.placement', 'value-labels-placement-changed', '`column` approximated as `outsideMark` — Vega-Lite has no label gutter');
@@ -3696,8 +4193,10 @@ function labelOneBody(
             ...(d.dataLabels.format ? { format: d.dataLabels.format } : {}),
         },
     };
-    if (d.dataLabels.unit) {
-        printWithUnit(body, { encoding: labelEncoding }, measure.field, d.dataLabels.format, d.dataLabels.unit);
+    // A compacted label is a string computed per row: an aggregated one keeps its format.
+    const compact = measure.aggregate ? undefined : d.dataLabels.compact;
+    if (d.dataLabels.unit || compact) {
+        printWithUnit(body, { encoding: labelEncoding }, measure.field, d.dataLabels.format, d.dataLabels.unit, compact);
     }
     // `facet`, `row` and `column` split the data; Vega-Lite refuses them inside
     // a layer and `appendLayer` promotes them to a real facet operator that
@@ -3705,6 +4204,18 @@ function labelOneBody(
     // second, conflicting split — so they are left to the operator.
     for (const ch of ['x', 'y', 'xOffset', 'yOffset', 'detail', 'theta', 'radius'] as const) {
         if (enc[ch]) labelEncoding[ch] = stripAxis(enc[ch]);
+    }
+    // A label anchored at the base or the middle of its bar is placed at 0 or half its value, on the
+    // bar's own scale.
+    const valueAt = { ...labelEncoding[measureChannel] };
+    const anchorTransform = anchor === 'end' ? undefined : {
+        calculate: anchor === 'start' ? '0' : `datum[${JSON.stringify(measure.field)}] / 2`,
+        as: '__flintLabelAt',
+    };
+    // Vega-Lite merges the field titles of layers sharing an axis; the label names the bar's quantity.
+    if (anchorTransform) {
+        const own = enc[measureChannel];
+        labelEncoding[measureChannel] = { field: '__flintLabelAt', type: 'quantitative', title: own && 'title' in own ? own.title : measure.field };
     }
     // Vega-Lite stacks `theta` for arcs but not for text, so a copied angle
     // would measure from zero instead of from the start of the slice.
@@ -3818,7 +4329,7 @@ function labelOneBody(
             field: enc.color.field,
             type: enc.color.type ?? 'nominal',
             ...(enc.color.sort !== undefined ? { sort: enc.color.sort } : {}),
-            scale: { range: (fillRange as string[]).map((fill) => readableOn(fill, d.text.inverse, d.text.primary)) },
+            scale: { range: (fillRange as string[]).map((fill) => readableOn(fill, d.text.inverse, d.text.primary, d.dataLabels.minContrast)) },
             legend: null,
         }
         : undefined;
@@ -3841,7 +4352,7 @@ function labelOneBody(
         labelEncoding.color = perCategoryInk;
     } else if (d.dataLabels.inkMode === 'contrastWithMark' && !outside && onMarkBody) {
         const seriesInk = d.series.mode === 'single' ? d.series.single : d.series.categorical[0] ?? d.series.single;
-        markDef.color = readableOn(seriesInk, d.text.inverse, d.text.primary);
+        markDef.color = readableOn(seriesInk, d.text.inverse, d.text.primary, d.dataLabels.minContrast);
     } else if (d.dataLabels.inkMode === 'contrastWithMark') {
         // The label is floating over the surface, not sitting on the mark, so
         // the thing it has to be readable against is the surface.
@@ -3875,6 +4386,7 @@ function labelOneBody(
     // Under a live layout, labels the plan does not print leave the data rather than
     // the view; all of them leave together, so no stack is cut.
     const labelTransforms = [
+        ...(anchorTransform ? [anchorTransform] : []),
         ...(stackOrderTransform ? [stackOrderTransform] : []),
         ...(stackedTransform ?? []),
         ...(live ? [{ filter: `${live}.labels.show` }] : []),
@@ -3920,8 +4432,22 @@ function labelOneBody(
             // Vega-Lite derives the stacking order from the colour field. The
             // label overrides that colour with its own ink, which would leave
             // it stacking by value instead, so the order is stated outright
-            // and both layers read the same one.
-            shared.order = { field: colour.field, type: colour.type ?? 'nominal', sort: 'ascending' };
+            // and both layers read the same one. An arc that already orders its wedges (data order,
+            // or a value sort) keeps that order, and the labels follow it.
+            const own = arc?.encoding?.order ?? shared.order;
+            if (own) {
+                shared.order = own;
+                if (arc?.encoding) delete arc.encoding.order;
+                const field = own.field;
+                const derives = (t: any) => typeof field === 'string' && t?.as === field;
+                if (arc && arc !== host && (arc.transform ?? []).some(derives)) {
+                    host.transform = [...(host.transform ?? []), ...arc.transform.filter(derives)];
+                    arc.transform = arc.transform.filter((t: any) => !derives(t));
+                    if (arc.transform.length === 0) delete arc.transform;
+                }
+            } else {
+                shared.order = { field: colour.field, type: colour.type ?? 'nominal', sort: 'ascending' };
+            }
         }
         host.encoding = shared;
         delete labelEncoding.theta;
@@ -3938,15 +4464,23 @@ function labelOneBody(
         const seriesInk = d.series.mode === 'single' ? d.series.single : d.series.categorical[0] ?? d.series.single;
         return readableOn(seriesInk, d.text.inverse, d.text.primary);
     };
+    // A label moved past its bar's end sits on the plot, not on the bar: it takes the label ink where
+    // that reads on the plot (a house's white inside ink does not), and drops the per-series ink.
+    const plotSurface = d.surface.plot ?? d.surface.canvas;
+    const onPlot = (ink: string) => (contrastRatio(ink, plotSurface) >= 3 ? ink : readableOn(plotSurface, d.text.inverse, d.text.primary));
     const split = (threshold: number, comparison: '<' | '>', message: string) => {
         const v = `abs(datum[${JSON.stringify(measure.field)}])`;
         const flipped = !inside;
-        layer.transform = [{ filter: `${v} ${comparison === '<' ? '>=' : '<='} ${threshold}` }];
+        layer.transform = [...(anchorTransform ? [anchorTransform] : []), { filter: `${v} ${comparison === '<' ? '>=' : '<='} ${threshold}` }];
+        const { color: insideInk, ...rest } = labelEncoding;
+        const keepsSeriesInk = d.dataLabels.inkMode === 'matchSeries' && insideInk?.field;
+        const movedEncoding = { ...rest, ...(keepsSeriesInk ? { color: insideInk } : {}), [measureChannel]: valueAt };
+        const movedInk = flipped ? flipInk(true) : onPlot(flipInk(false) ?? d.text.primary);
         const other: any = withInteractionTextLabel({
             __themeSynthetic: true,
             transform: [{ filter: `${v} ${comparison} ${threshold}` }],
-            mark: { ...markDef, ...geometry(flipped), color: flipInk(flipped) },
-            encoding: labelEncoding,
+            mark: { ...markDef, ...geometry(flipped), ...(keepsSeriesInk ? {} : { color: movedInk }) },
+            encoding: movedEncoding,
         }, { presentation: flipped ? 'on-mark' : 'independent' });
         if (other.mark.color === undefined) delete other.mark.color;
         appendLayer(body, other);
@@ -3957,9 +4491,16 @@ function labelOneBody(
     // stack, a different quantity. Segments too short for their number drop it
     // instead, which the keep test above already arranges.
     if (!radial && !cells && !stackedSegments && onMarkBody) {
-        if (inside && d.dataLabels.insideMinValue != null) {
-            split(d.dataLabels.insideMinValue, '<', 'marks shorter than their own label print it outside instead');
-            growPadding(spec, horizontal ? 'right' : 'top', (t.fontSize ?? 10) * 2);
+        // The plan measured each label against the drawn axis; without its fit, grounding's estimate.
+        const minValue = planned.insideFit ? planned.insideFit.minValue : d.dataLabels.insideMinValue;
+        if (inside && minValue != null) {
+            split(minValue, '<', 'marks shorter than their own label print it outside instead');
+            // What the moved labels run past the plot's edge, measured by the plan; without its fit,
+            // two lines of text.
+            const over = planned.insideFit ? planned.insideFit.overflow : { end: (t.fontSize ?? 10) * 2 };
+            const flip = (side: 'left' | 'right' | 'top' | 'bottom') => (reversed ? ({ left: 'right', right: 'left', top: 'bottom', bottom: 'top' } as const)[side] : side);
+            if (over?.end) growPadding(spec, flip(horizontal ? 'right' : 'top'), over.end);
+            if (over?.start) growPadding(spec, flip(horizontal ? 'left' : 'bottom'), over.start);
         }
     }
 
@@ -3976,7 +4517,9 @@ function labelOneBody(
             if (onMarkBody) {
                 const inset = (planned.inset ?? 0) + radius;
                 const host = body.spec?.layer ? body.spec : body;
-                const plotWidth = host.width ?? spec.width;
+                // The plot's planned width; with none stated, the continuous width the plan wrote.
+                const stated = host.width ?? spec.width;
+                const plotWidth = typeof stated === 'number' ? stated : stated == null ? spec.config?.view?.continuousWidth : undefined;
                 const encodings = [host, ...(host.layer ?? [])]
                     .map(node => node.encoding?.x).filter(encoding => encoding?.field === measure.field);
                 if (typeof plotWidth === 'number' && plotWidth > inset * (hasNegative ? 2 : 1)
@@ -3992,7 +4535,7 @@ function labelOneBody(
                     reserved = true;
                 }
             }
-            if (!reserved) growPadding(spec, reversed ? 'left' : 'right', (t.fontSize ?? 10) * 3);
+            if (!reserved) growPadding(spec, reversed ? 'left' : 'right', planned.inset ?? (t.fontSize ?? 10) * 3);
         } else if (onMarkBody) {
             if (planned.headroom) addMeasureHeadroom(body, measureChannel, measure.field, planned.headroom);
         }
@@ -4045,22 +4588,560 @@ function appendLayer(body: any, layer: any): void {
     body.spec = inner;
 }
 
-function readableOn(background: string, light: string, dark: string): string {
+function readableOn(background: string, light: string, dark: string, min = 3): string {
     // `light` and `dark` are the theme's two ink candidates. Which one reads on
     // a surface is a fact about their contrast with it, not about which the
     // theme calls primary — a dark house's "primary" ink is itself light, so a
     // fixed light/dark mapping inverts on it. Pick whichever candidate sits
     // furthest from the background in luminance; fall back to the first when a
     // colour will not parse.
+    // Contrast is a ratio of luminances, not a difference: on a mid-tone orange the white sits at
+    // 3:1 and the black at 7:1, though their luminance gaps say the opposite. The ink the house
+    // has always drawn (the larger luminance gap) stands wherever it still reads at 3:1; only a
+    // label that fails takes whichever ink contrasts more.
     const bg = parseColor(background);
     if (!bg) return light;
-    const bgLum = luminance(bg);
     const lightC = parseColor(light);
     const darkC = parseColor(dark);
     if (!lightC || !darkC) return luminance(bg) < 0.5 ? light : dark;
-    const lightGap = Math.abs(luminance(lightC) - bgLum);
-    const darkGap = Math.abs(luminance(darkC) - bgLum);
-    return lightGap >= darkGap ? light : dark;
+    const bgLum = luminance(bg);
+    const usual = Math.abs(luminance(lightC) - bgLum) >= Math.abs(luminance(darkC) - bgLum) ? light : dark;
+    if (contrastRatio(usual, background) >= min) return usual;
+    return contrastRatio(light, background) >= contrastRatio(dark, background) ? light : dark;
+}
+
+const FILLED_MARKS = new Set(['bar', 'rect', 'arc', 'area', 'point', 'circle', 'square']);
+
+/**
+ * A series ink too faint to see against the plot (grounding's `visibility`): a line drawn in it
+ * takes a darker shade of its hue; a filled mark keeps the house colour and gains a 1px edge in a
+ * darker shade. A mark the house already strokes (separators, outlines) is left as drawn.
+ */
+/** `rgba()` of a colour at an alpha. */
+function rgba(colour: string, alpha: number): string {
+    const c = parseColor(colour);
+    if (!c) return colour;
+    return `rgba(${Math.round(c.r)}, ${Math.round(c.g)}, ${Math.round(c.b)}, ${Number(alpha.toFixed(3))})`;
+}
+
+/** A linear gradient from `ink` at `top` alpha (the value end) to clear (the baseline). */
+function fadeGradient(ink: string, top: number, measure: 'x' | 'y'): any {
+    const [x1, y1, x2, y2] = measure === 'y' ? [0, 0, 0, 1] : [1, 0, 0, 0];
+    return { gradient: 'linear', x1, y1, x2, y2, stops: [{ offset: 0, color: rgba(ink, top) }, { offset: 1, color: rgba(ink, 0) }] };
+}
+
+/** The axis a filled mark measures along: the quantitative one, `y` when both are. */
+function measureAxis(enc: any): 'x' | 'y' | undefined {
+    if (enc?.y?.type === 'quantitative' && !(enc?.x?.type === 'quantitative' && enc?.y?.type !== 'quantitative')) return 'y';
+    if (enc?.x?.type === 'quantitative') return 'x';
+    return undefined;
+}
+
+/**
+ * A fill per series: one gradient when the mark has one ink, else a gradient per value of the
+ * colour field, matched by a condition — a colour scale cannot carry gradients.
+ */
+function seriesFill(colour: any, ink: string, rows: any[], paint: (ink: string) => any): any | undefined {
+    if (!colour?.field) return { value: paint(ink) };
+    const domain = discreteDomain(colour, rows);
+    const range: string[] | undefined = Array.isArray(colour.scale?.range) ? colour.scale.range : undefined;
+    if (!domain?.length || !range?.length) return undefined;
+    const field = JSON.stringify(colour.field);
+    return {
+        condition: domain.map((v, i) => ({ test: `datum[${field}] === ${JSON.stringify(v)}`, value: paint(range[i % range.length]) })),
+        value: paint(range[0]),
+    };
+}
+
+/**
+ * Gradient fills a house asks for (R12): areas that fade to their baseline, and a wash under each
+ * line in its own ink. A stack keeps solid bands — each sits on the next, and a fade would melt one
+ * into the other. A wash goes only under a line that reads a quantity along its axis in order — not
+ * a path drawn in an order of its own (connected scatter, radar), and not a line drawn over bars,
+ * dots or an area, where it is a trend, an edge or a second measure.
+ */
+function applyGradientFills(spec: any, d: DesignDecisions, table: any[], say: ReportDeparture): void {
+    const g = d.marks.gradient;
+    if (!g) return;
+    const rowsOf = (node: any) => (Array.isArray(node.data?.values) ? node.data.values : Array.isArray(spec.data?.values) ? spec.data.values : table);
+    const inkOf = (node: any) => {
+        const mark = normalizeMark(node.mark);
+        return (typeof mark.color === 'string' && mark.color) || (typeof mark.fill === 'string' && mark.fill)
+            || (typeof node.encoding?.color?.value === 'string' && node.encoding.color.value) || d.series.single;
+    };
+    const colourOf = (enc: any) => (enc?.color?.field ? enc.color : enc?.fill?.field ? enc.fill : enc?.stroke?.field ? enc.stroke : undefined);
+
+    if (g.area === 'fade') {
+        let saidStacked = false;
+        walk(spec, (node) => {
+            if (node.__themeSynthetic || markTypeOf(node.mark) !== 'area') return;
+            const enc = node.encoding ?? {};
+            const measure = measureAxis(enc);
+            if (!measure) return;
+            const colour = colourOf(enc);
+            const stack = enc[measure]?.stack;
+            if (colour && stack !== null && stack !== false) {
+                if (!saidStacked) say('geometry.area.fill', 'area-fade-not-applied', 'the areas are stacked — each band sits on the next, so they keep a solid fill');
+                saidStacked = true;
+                return;
+            }
+            const top = d.marks.fillOpacity ?? 0.7;
+            const fill = seriesFill(colour, inkOf(node), rowsOf(node), (ink) => fadeGradient(ink, top, measure));
+            if (!fill) return;
+            node.encoding = { ...enc, fill };
+            node.mark = { ...normalizeMark(node.mark), fillOpacity: 1 };
+        });
+    }
+
+    const wash = g.lineWash;
+    if (!wash) return;
+    const FILLED = new Set(['area', 'bar', 'rect', 'point', 'circle', 'square', 'arc']);
+    const washable = (node: any, siblings: any[]) => {
+        if (node.__themeSynthetic || markTypeOf(node.mark) !== 'line') return false;
+        const enc = node.encoding ?? {};
+        const mark = normalizeMark(node.mark);
+        if (enc.order || enc.theta || enc.radius || String(mark.interpolate ?? '').includes('closed')) return false;
+        if (measureAxis(enc) !== 'y' || !enc.x?.field || enc.y?.scale?.reverse) return false;
+        return !siblings.some((s) => s !== node && !s.__themeSynthetic && FILLED.has(markTypeOf(s.mark) ?? ''));
+    };
+    const washOf = (line: any) => {
+        const enc = line.encoding;
+        const lineMark = normalizeMark(line.mark);
+        const colour = colourOf(enc);
+        // No colour channel of its own: the wash would share the line's colour scale, and with it the
+        // key. It groups by series through \`detail\` and paints each series by a condition.
+        const encoding: any = { x: enc.x, y: { ...enc.y, stack: null }, tooltip: null };
+        const details = [...(Array.isArray(enc.detail) ? enc.detail : enc.detail ? [enc.detail] : []),
+            ...(colour ? [{ field: colour.field, type: colour.type ?? 'nominal' }] : [])];
+        if (details.length) encoding.detail = details.length === 1 ? details[0] : details;
+        const paint = wash.style === 'tint'
+            ? (ink: string) => rgba(ink, wash.opacity)
+            : (ink: string) => fadeGradient(ink, wash.opacity, 'y');
+        const fill = seriesFill(colour, inkOf(line), rowsOf(line), paint);
+        if (!fill) return undefined;
+        encoding.fill = fill;
+        const mark: any = { type: 'area', interactive: false, line: false, point: false, strokeWidth: 0, fillOpacity: 1 };
+        if (lineMark.interpolate) mark.interpolate = lineMark.interpolate;
+        const node: any = { __themeSynthetic: true, __themeRole: 'line-wash', mark, encoding };
+        if (line.data) node.data = line.data;
+        if (line.transform) node.transform = line.transform;
+        return node;
+    };
+    let washed = 0;
+    const visit = (node: any): void => {
+        if (!node || typeof node !== 'object') return;
+        if (Array.isArray(node.layer)) {
+            for (let i = 0; i < node.layer.length; i++) {
+                const child = node.layer[i];
+                if (washable(child, node.layer)) {
+                    const w = washOf(child);
+                    if (w) { node.layer.splice(i, 0, w); i++; washed++; }
+                } else visit(child);
+            }
+            return;
+        }
+        for (const key of ['vconcat', 'hconcat', 'concat'] as const) for (const child of node[key] ?? []) visit(child);
+        if (node.spec) { visit(node.spec); return; }
+        if (washable(node, [node])) {
+            const w = washOf(node);
+            if (!w) return;
+            appendLayer(node, w);
+            const layers = node.layer ?? node.spec?.layer;
+            if (Array.isArray(layers)) layers.unshift(layers.pop());
+            washed++;
+        }
+    };
+    visit(spec);
+    if (washed) say('geometry.line.wash', 'line-washed', `each line carries a ${wash.style} of its own ink down to the baseline`);
+}
+
+/**
+ * The case each role asks for (T3), on the text Flint writes and the labels the renderer draws.
+ * Titles were cased where they were planned and fitted; the strings left on the spec (a headline
+ * that fitted on one line, an author's deck) are cased here. Axis and header labels are cased by an
+ * expression over the label, title case looking each value up.
+ */
+function applyTypeCase(spec: any, config: any, d: DesignDecisions, table: any[], say: ReportDeparture): void {
+    const head = d.title.headline.textCase;
+    const deck = d.title.deck.textCase;
+    const caseText = (text: unknown, textCase: typeof head): unknown => (Array.isArray(text)
+        ? text.map((line) => (typeof line === 'string' ? applyTextCase(line, textCase) : line))
+        : typeof text === 'string' ? applyTextCase(text, textCase) : text);
+    if (typeof spec.title === 'string' && head) spec.title = caseText(spec.title, head);
+    else if (spec.title && typeof spec.title === 'object') {
+        if (head) spec.title.text = caseText(spec.title.text, head);
+        if (deck && spec.title.subtitle !== undefined) spec.title.subtitle = caseText(spec.title.subtitle, deck);
+    }
+
+    const valuesOf = (field: string) => [...new Set(table.map((row) => row?.[field]).filter((v) => v != null).map(String))];
+    walk(spec, (node) => {
+        for (const channel of ['x', 'y'] as const) {
+            const enc = node.encoding?.[channel];
+            const textCase = d.axes[channel]?.label.textCase;
+            if (!textCase || !enc?.field || enc.axis === null || enc.type === 'quantitative') continue;
+            // The layout's own expression (wrapped or thinned names) sits in the axis config, which this outranks.
+            const labelExpr = caseLabelExpr(enc.axis?.labelExpr ?? config[`axis${channel.toUpperCase()}`]?.labelExpr, textCase, valuesOf(enc.field));
+            if (labelExpr) enc.axis = { ...(enc.axis ?? {}), labelExpr };
+        }
+    });
+    const header = d.facets.header.textCase;
+    if (header && config.header) config.header.labelExpr = textCaseExpr('datum.label', header);
+    if (d.dataLabels.text.textCase) {
+        say('type.valueLabel.case', 'case-not-applied', 'value labels print numbers, which have no case — the role’s case is not used');
+    }
+}
+
+/**
+ * The display role (T4) on the text a template marks as a display figure — a KPI's big number: the
+ * house's family, weight, slope and ink. Its size stays the one the template fitted to the tile.
+ */
+function applyDisplayType(spec: any, d: DesignDecisions): void {
+    const t = d.display;
+    if (!t) return;
+    walk(spec, (node) => {
+        if (node.__textRole !== 'display' || markTypeOf(node.mark) !== 'text') return;
+        const mark = normalizeMark(node.mark);
+        if (t.font) mark.font = t.font;
+        if (t.fontWeight != null) mark.fontWeight = t.fontWeight;
+        if (t.fontStyle) mark.fontStyle = t.fontStyle;
+        if (t.color) { mark.fill = t.color; delete mark.color; }
+        node.mark = mark;
+    });
+}
+
+const TEXTURED_MARKS = new Set(['bar', 'arc', 'area']);
+
+/** A short stable hash, for pattern ids drawn from their content. */
+function shortHash(text: string): string {
+    let h = 5381;
+    for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
+    return (h >>> 0).toString(36);
+}
+
+/**
+ * The texture channel (R13): a pattern fill on every filled mark of a series, so series differ in
+ * mono print and for a reader who cannot tell the inks apart. Series take the house's patterns in
+ * palette order (`solid` leaves a flat fill), in lines a darker shade of its ink (or white), outlined in
+ * that shade. The colour scale's own order is kept: the fill scale lists a pattern for each ink, in
+ * the same place. The patterns travel with the chart and are written into the SVG's defs.
+ */
+function applyTextures(spec: any, d: DesignDecisions): void {
+    const t = d.marks.redundant.texture;
+    if (!t || !t.patterns.length) return;
+    const patterns = new Map<string, CanvasPattern>();
+    const darker = (ink: string) => mixHex(ink, '#000000', 0.38, ink);
+    const patternFor = (ink: string, index: number): string => {
+        const kind = t.patterns[index % t.patterns.length];
+        if (kind === 'solid') return ink;
+        const line = t.ink === 'white' ? 'rgba(255,255,255,0.75)' : darker(ink);
+        const id = `flint-tex-${shortHash(`${kind}|${ink}|${line}|${t.spacing}`)}`;
+        patterns.set(id, { id, kind, background: ink, line, spacing: t.spacing });
+        return `url(#${id})`;
+    };
+    // A stroke the house draws in another ink (a separator, a slice gap in the surface colour) is
+    // kept; the ink outline becomes the darker shade of each series.
+    const outline = d.marks.outline?.color?.toLowerCase();
+    const keepsStroke = (stroke: unknown) => typeof stroke === 'string' && stroke.toLowerCase() !== outline;
+    walk(spec, (node) => {
+        // A colour shared by layers (a pie's wedges and their labels) moves into each layer that
+        // has none, so a filled layer can take the patterns and the others keep the inks.
+        const shared = node.encoding?.color;
+        if (!Array.isArray(node.layer) || !shared?.field) return;
+        const lacks = (c: any) => !c.encoding?.color && !c.encoding?.fill;
+        if (!node.layer.some((c: any) => lacks(c) && TEXTURED_MARKS.has(markTypeOf(c.mark) ?? '') && !c.__themeSynthetic)) return;
+        for (const child of node.layer) if (lacks(child)) child.encoding = { ...(child.encoding ?? {}), color: shared };
+        const { color: _shared, ...rest } = node.encoding;
+        void _shared;
+        node.encoding = rest;
+    });
+    walk(spec, (node) => {
+        const mark = markTypeOf(node.mark);
+        if (!mark || node.__themeSynthetic || !TEXTURED_MARKS.has(mark)) return;
+        const enc = node.encoding ?? {};
+        const colour = enc.color?.field ? enc.color : enc.fill?.field ? enc.fill : undefined;
+        if (colour) {
+            const range = colour.scale?.range;
+            if (colour.type === 'quantitative' || colour.type === 'temporal' || !Array.isArray(range) || !range.every((c: unknown) => typeof c === 'string')) return;
+            const fill = { ...colour, scale: { ...colour.scale, range: range.map((ink: string, i: number) => patternFor(ink, i)) } };
+            const { color: _color, ...rest } = enc;
+            void _color;
+            const m = normalizeMark(node.mark);
+            if (keepsStroke(m.stroke) || enc.stroke) {
+                node.encoding = { ...rest, fill };
+                return;
+            }
+            const stroke = { ...colour, scale: { ...colour.scale, range: range.map((ink: string) => darker(ink)) } };
+            node.encoding = { ...rest, fill, stroke };
+            const { stroke: _outline, ...unstroked } = m;
+            void _outline;
+            node.mark = { ...unstroked, strokeWidth: m.strokeWidth ?? 1 };
+            return;
+        }
+        // One ink: a mark whose colour is not a field. A colour the mark sets by condition (signed
+        // bars by status) is a choice per bar, and is left as it is.
+        if (enc.color || enc.fill) return;
+        const m = normalizeMark(node.mark);
+        const ink = typeof m.fill === 'string' ? m.fill : typeof m.color === 'string' ? m.color : d.series.single;
+        if (!ink || ink.startsWith('url(') || t.patterns[0] === 'solid') return;
+        node.mark = { ...m, fill: patternFor(ink, 0), stroke: keepsStroke(m.stroke) ? m.stroke : darker(ink), strokeWidth: m.strokeWidth ?? 1 };
+    });
+    if (patterns.size) spec.usermeta = { ...(spec.usermeta ?? {}), [CANVAS_PATTERNS_KEY]: [...patterns.values()] };
+}
+
+/**
+ * The house's wedge rules (M4): the order wedges run in (the data's, or largest first), where the
+ * first starts, and the hole as a share of the radius. The order is stated wherever the arc's
+ * colour is (the arc, or the parent its labels share it with), so the wedges, their labels and
+ * the key all read it; a chart that sorts its own slices keeps its sort.
+ */
+function applyArcRules(spec: any, d: DesignDecisions, table: any[]): void {
+    const rules = d.marks.arc;
+    if (!rules) return;
+    const visit = (node: any) => {
+        if (!node || typeof node !== 'object') return;
+        const layers: any[] = node.layer ?? [];
+        const arc = markTypeOf(node.mark) === 'arc' ? node : layers.find((l) => markTypeOf(l.mark) === 'arc');
+        if (arc) {
+            const host = arc.encoding?.color?.field ? arc : node.encoding?.color?.field ? node : arc;
+            const colour = host.encoding?.color;
+            const theta = arc.encoding?.theta ?? node.encoding?.theta;
+            const owned = host.encoding?.order ?? arc.encoding?.order;
+            // A chart that sorts its own slices keeps its sort; the template's data order is not a sort.
+            const sortsItself = owned?.type === 'quantitative' && owned.field !== '__flintArcOrder';
+            if (rules.order && colour?.field && !sortsItself) {
+                const field = colour.field as string;
+                let names: string[];
+                if (rules.order === 'largestFirst' && theta?.field) {
+                    const totals = new Map<string, number>();
+                    for (const row of table) {
+                        const k = String(row?.[field]);
+                        const v = row?.[theta.field];
+                        if (typeof v === 'number') totals.set(k, (totals.get(k) ?? 0) + Math.abs(v));
+                    }
+                    names = [...totals.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k);
+                } else {
+                    names = Array.isArray(colour.scale?.domain) ? colour.scale.domain.map(String)
+                        : [...new Set(table.map((row) => String(row?.[field])))];
+                }
+                const index = `indexof(${JSON.stringify(names)}, toString(datum[${JSON.stringify(field)}]))`;
+                const target = host === arc ? arc : node;
+                // The template already runs the wedges in this order (M3): nothing to rewrite.
+                const same = [arc, node].some((n) => (n.transform ?? []).some((t: any) => t?.as === '__flintArcOrder' && t.calculate === index));
+                if (!same) {
+                    for (const n of [arc, node]) if (n.transform) n.transform = n.transform.filter((t: any) => t?.as !== '__flintArcOrder');
+                    target.transform = [...(target.transform ?? []), { calculate: index, as: '__flintArcOrder' }];
+                    target.encoding = { ...target.encoding, order: { field: '__flintArcOrder', type: 'quantitative', sort: 'ascending' } };
+                    if (host !== arc && arc.encoding?.order) delete arc.encoding.order;
+                    // The key follows the wedges.
+                    if (rules.order === 'largestFirst') host.encoding.color = { ...colour, scale: { ...(colour.scale ?? {}), domain: names } };
+                }
+            }
+            if (typeof rules.startAngle === 'number' && rules.startAngle !== 0) {
+                const start = (rules.startAngle * Math.PI) / 180;
+                for (const n of [arc, ...layers.filter((l) => l !== arc && markTypeOf(l.mark) === 'text')]) {
+                    if (markTypeOf(n.mark) !== 'arc' && !n.encoding?.theta && !node.encoding?.theta) continue;
+                    const mark = normalizeMark(n.mark);
+                    n.mark = { ...mark, theta: undefined };
+                    delete n.mark.theta;
+                    const scaleHost = n.encoding?.theta ? n : node;
+                    if (scaleHost.encoding?.theta) {
+                        scaleHost.encoding.theta = { ...scaleHost.encoding.theta, scale: { ...(scaleHost.encoding.theta.scale ?? {}), range: [start, start + 2 * Math.PI] } };
+                    }
+                }
+            }
+            if (typeof rules.hole === 'number') {
+                const mark = normalizeMark(arc.mark);
+                const outer = typeof mark.outerRadius === 'number' ? mark.outerRadius : undefined;
+                if (outer) arc.mark = { ...mark, innerRadius: rules.hole > 0 ? Math.round(outer * rules.hole) : 0 };
+            }
+        }
+        for (const key of ['layer', 'vconcat', 'hconcat', 'concat']) if (Array.isArray(node[key]) && !arc) node[key].forEach(visit);
+        if (node.spec) visit(node.spec);
+    };
+    visit(spec);
+}
+
+/**
+ * A bar too short to see (M6): a non-zero value whose bar is under the house's least length gets a
+ * stub that long at the baseline, drawn as a second bar layer from zero with a pixel offset — the
+ * value's own bar stays where it is, so a stacked or labelled chart is unchanged. A simple bar
+ * only: a stack's segments sit on one another, and a stub would lie across its neighbour.
+ */
+function applyBarMinLength(spec: any, min: number, table: any[], plotWidth: number, plotHeight: number): void {
+    for (const body of plotBodies(spec)) {
+        const units = body.layer ?? [body];
+        const added: any[] = [];
+        for (const node of units) {
+            if (markTypeOf(node.mark) !== 'bar' || node.__themeSynthetic || isLiteralMark(node)) continue;
+            const enc = mergedEncoding(node, body.layer ? body.encoding : undefined);
+            const measure = enc.y?.type === 'quantitative' ? 'y' : enc.x?.type === 'quantitative' ? 'x' : undefined;
+            if (!measure || enc[`${measure}2`] || !enc[measure]?.field || enc[measure].aggregate) continue;
+            if (enc[measure].stack != null && enc[measure].stack !== false) continue;
+            if (enc.color?.field && !enc.xOffset && !enc.yOffset) continue;
+            const field = enc[measure].field as string;
+            // The span the bars are drawn over: the stated domain, else the data's extent from zero.
+            const scale = enc[measure].scale ?? {};
+            const values = table.map((row) => row?.[field]).filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+            const lo = scale.domainMin ?? Math.min(0, ...values);
+            const hi = scale.domainMax ?? Math.max(0, ...values);
+            const length = measure === 'y' ? plotHeight : plotWidth;
+            if (!(hi > lo) || !(length > 0)) continue;
+            const threshold = (min / length) * (hi - lo);
+            if (!values.some((v) => v !== 0 && Math.abs(v) < threshold)) continue;
+            const v = `datum[${JSON.stringify(field)}]`;
+            const offset = measure === 'y' ? `${v} < 0 ? ${min} : ${-min}` : `${v} < 0 ? ${-min} : ${min}`;
+            const { [measure]: _m, ...others } = node.encoding ?? {};
+            void _m;
+            added.push({
+                __themeSynthetic: true,
+                transform: [{ filter: `${v} != 0 && abs(${v}) < ${threshold}` }, { calculate: '0', as: '__flintStubZero' }],
+                mark: { ...normalizeMark(node.mark), [`${measure}2Offset`]: { expr: offset }, cornerRadiusEnd: 0 },
+                encoding: {
+                    ...others,
+                    [measure]: { field: '__flintStubZero', type: 'quantitative' },
+                    [`${measure}2`]: { field: '__flintStubZero' },
+                },
+            });
+        }
+        for (const layer of added) appendLayer(body, layer);
+    }
+}
+
+/**
+ * An outline in each bar's own series ink (M2), drawn once the inks are final: a bar coloured by a
+ * field takes a stroke scale mirroring its colour scale (no key of its own); a bar in one ink takes
+ * that ink. A layered bar reads the colour its parent states.
+ */
+function applySeriesOutlines(spec: any, d: DesignDecisions): void {
+    if (!d.marks.outline?.series) return;
+    const visit = (node: any, from: any) => {
+        if (!node || typeof node !== 'object') return;
+        const seen = mergedEncoding(node, from);
+        if (node.__seriesOutline) {
+            delete node.__seriesOutline;
+            const colour = seen.color?.field ? seen.color : undefined;
+            const range = colour?.scale?.range;
+            if (colour && Array.isArray(range) && range.every((c: unknown) => typeof c === 'string' && !c.startsWith('url('))) {
+                node.encoding = {
+                    ...(node.encoding ?? {}),
+                    stroke: {
+                        field: colour.field, type: colour.type ?? 'nominal',
+                        ...(colour.sort !== undefined ? { sort: colour.sort } : {}),
+                        scale: { ...(colour.scale.domain ? { domain: colour.scale.domain } : {}), range },
+                        legend: null,
+                    },
+                };
+            } else if (!colour && !seen.fill && !seen.stroke) {
+                const mark = normalizeMark(node.mark);
+                const ink = typeof mark.color === 'string' ? mark.color : typeof mark.fill === 'string' && !mark.fill.startsWith('url(') ? mark.fill : d.series.single;
+                if (ink) node.mark = { ...mark, stroke: ink };
+            }
+        }
+        for (const key of ['layer', 'vconcat', 'hconcat', 'concat']) if (Array.isArray(node[key])) node[key].forEach((c: any) => visit(c, seen));
+        if (node.spec) visit(node.spec, seen);
+    };
+    visit(spec, undefined);
+}
+
+function applyVisibleInks(spec: any, d: DesignDecisions, say: ReportDeparture): void {
+    const v = d.series.visibility;
+    if (!v) return;
+    const strokeOf = (c: unknown) => (typeof c === 'string' ? v.stroke[c.toLowerCase()] : undefined);
+    const outlineOf = (c: unknown) => (typeof c === 'string' ? v.outline[c.toLowerCase()] : undefined);
+    const darkened = new Set<string>();
+    const edged = new Set<string>();
+    walk(spec, (node) => {
+        const type = markTypeOf(node.mark);
+        if (!type || node.__themeSynthetic || node.__themeRole) return;
+        const mark = normalizeMark(node.mark);
+        const enc = node.encoding?.color;
+        const range: unknown = enc?.scale?.range;
+        if (LINE_MARKS.has(type)) {
+            if (enc?.field && Array.isArray(range)) {
+                const next = range.map((c) => strokeOf(c) ?? c);
+                if (next.some((c, i) => c !== range[i])) {
+                    range.forEach((c, i) => { if (next[i] !== c) darkened.add(String(c)); });
+                    node.encoding = { ...node.encoding, color: { ...enc, scale: { ...enc.scale, range: next } } };
+                }
+            } else if (!enc && strokeOf(mark.color)) {
+                darkened.add(mark.color);
+                node.mark = { ...mark, color: strokeOf(mark.color) };
+            }
+            return;
+        }
+        if (!FILLED_MARKS.has(type)) return;
+        if (mark.stroke != null || node.encoding?.stroke || mark.filled === false) return;
+        if (enc?.field && Array.isArray(range)) {
+            if (!range.some((c) => outlineOf(c))) return;
+            range.forEach((c) => { if (outlineOf(c)) edged.add(String(c)); });
+            node.encoding = {
+                ...node.encoding,
+                stroke: {
+                    field: enc.field,
+                    type: enc.type ?? 'nominal',
+                    ...(enc.sort !== undefined ? { sort: enc.sort } : {}),
+                    scale: { ...(enc.scale.domain ? { domain: enc.scale.domain } : {}), range: range.map((c) => outlineOf(c) ?? c) },
+                    legend: null,
+                },
+            };
+            node.mark = { ...mark, strokeWidth: mark.strokeWidth ?? 1 };
+        } else if (!enc && outlineOf(mark.color)) {
+            edged.add(mark.color);
+            node.mark = { ...mark, stroke: outlineOf(mark.color), strokeWidth: mark.strokeWidth ?? 1 };
+        }
+    });
+    if (darkened.size) {
+        say('ink.series.minContrast', 'faint-ink-darkened',
+            `lines in ${[...darkened].join(', ')} were too faint against the plot and are drawn in a darker shade of the same hue`);
+    }
+    if (edged.size) {
+        say('ink.series.minContrast', 'faint-ink-edged',
+            `filled marks in ${[...edged].join(', ')} were too faint against the plot and gain a 1px edge in a darker shade`);
+    }
+}
+
+/**
+ * Text written in a series' own colour — a name at a line's end, a value matched to its series —
+ * must still read against the plot. Each series ink that fails 3:1 there takes the house's text
+ * variant for it, or the same hue darkened until it reads. The text layer gets its own colour
+ * scale, so the marks keep the house's inks. Only ranges made of the house's series inks are
+ * touched: per-mark label inks (white or black chosen against each fill) are already decided.
+ */
+function applyReadableSeriesText(spec: any, d: DesignDecisions, say: ReportDeparture): void {
+    const surface = d.surface.plot ?? d.surface.canvas;
+    const series = d.series;
+    const own = new Set([...series.categorical, series.single, ...(series.overflow ? [series.overflow] : []),
+        ...Object.values(series.visibility?.stroke ?? {}), ...Object.values(series.byValue ?? {})].map((c) => c.toLowerCase()));
+    const variants = new Map<string, string>();
+    series.categorical.forEach((ink, i) => {
+        const text = series.categoricalText?.[i];
+        if (text) variants.set(ink.toLowerCase(), text);
+    });
+    const changed = new Map<string, string>();
+    const visit = (node: any, parent: any) => {
+        if (!node || typeof node !== 'object') return;
+        for (const key of ['layer', 'vconcat', 'hconcat', 'concat'] as const) {
+            if (Array.isArray(node[key])) for (const child of node[key]) visit(child, node);
+        }
+        if (node.spec) visit(node.spec, node);
+        if (!node.__themeSynthetic || markTypeOf(node.mark) !== 'text') return;
+        const enc = node.encoding?.color;
+        const range: unknown = enc?.scale?.range;
+        if (!enc?.field || !Array.isArray(range) || !range.length) return;
+        if (!range.every((c) => typeof c === 'string' && own.has(c.toLowerCase()))) return;
+        const next = (range as string[]).map((ink) => variants.get(ink.toLowerCase()) ?? readableTextInk(ink, surface, 3));
+        if (next.every((ink, i) => ink === range[i])) return;
+        next.forEach((ink, i) => { if (ink !== range[i]) changed.set(range[i] as string, ink); });
+        node.encoding = { ...node.encoding, color: { ...enc, scale: { ...enc.scale, range: next } } };
+        if (parent && Array.isArray(parent.layer) && parent.layer.includes(node)) {
+            parent.resolve = { ...(parent.resolve ?? {}), scale: { ...(parent.resolve?.scale ?? {}), color: 'independent' } };
+        }
+    };
+    visit(spec, undefined);
+    if (changed.size) {
+        say('ink.series.categoricalText', 'text-ink-darkened',
+            `series inks too light to read as text on ${surface} were written in a darker shade of the same hue: ${[...changed].map(([a, b]) => `${a} → ${b}`).join(', ')}`);
+    }
 }
 
 function growPadding(spec: any, side: 'left' | 'right' | 'top' | 'bottom', amount: number): void {
@@ -4229,9 +5310,8 @@ function applySeriesEndLabels(
     const transform: any[] = [...rank, { filter: 'datum.__seriesEndRank === 1' }];
     let textField = seriesField;
     if (merged) {
-        const fmt = d.dataLabels.format;
         const v = `datum[${JSON.stringify(value.field)}]`;
-        const shown = fmt ? `format(${v}, ${JSON.stringify(fmt)})` : `${v} + ''`;
+        const shown = printedNumber(v, d.dataLabels.format, d.dataLabels.compact);
         transform.push({
             calculate: `datum[${JSON.stringify(seriesField)}] + ' ' + ${shown}`,
             as: '__seriesEndLabel',
@@ -4251,6 +5331,10 @@ function applySeriesEndLabels(
         transform.push({ calculate: adjusted, as: '__seriesEndLabelValue' });
         labelValue = { ...value, field: '__seriesEndLabelValue' };
     }
+    if (t.textCase) {
+        const names = [...new Set(table.map((row) => row?.[textField]).filter((v) => v != null).map(String))];
+        transform.push({ calculate: textCaseExpr(`toString(datum[${JSON.stringify(textField)}])`, t.textCase, names), as: '__seriesEndName' });
+    }
 
     const labelLayer: any = withInteractionLegendLabel({
         __themeSynthetic: true,
@@ -4269,7 +5353,7 @@ function applySeriesEndLabels(
         encoding: {
             [domainChannel]: stripAxis(domain),
             [valueChannel]: layout ? { ...stripAxis(labelValue), title: null } : stripAxis(labelValue),
-            text: { field: textField, type: 'nominal' },
+            text: { field: t.textCase ? '__seriesEndName' : textField, type: 'nominal' },
             ...(colourEnc?.field ? { color: { ...colourEnc, legend: null } } : {}),
         },
     }, { channel: 'color', field: seriesField });
@@ -4402,9 +5486,8 @@ function bandEndLabels(
     const belongs = (inside: boolean) =>
         `indexof(${outsideList}, datum[${JSON.stringify(seriesField)}] + '') ${inside ? '<' : '>='} 0`;
 
-    const fmt = d.dataLabels.format;
     const v = `datum[${JSON.stringify(value.field)}]`;
-    const shown = fmt ? `format(${v}, ${JSON.stringify(fmt)})` : `${v} + ''`;
+    const shown = printedNumber(v, d.dataLabels.format, d.dataLabels.compact);
     // A normalized stack redraws every band as a share of its column, and the
     // axis is read in per cent. The field still holds what it always held —
     // 9,420 TWh of coal — so printing it beside the name puts a number on the
@@ -4686,15 +5769,26 @@ function applyPointEmphasis(spec: any, d: DesignDecisions, say: ReportDeparture)
     appendLayer(body, {
         __themeSynthetic: true,
         transform,
-        mark: {
-            type: 'point',
-            filled: true,
-            size: policy.size,
-            ...(d.marks.point?.haloColor
-                ? { stroke: d.marks.point.haloColor, strokeWidth: d.marks.point.haloWidth ?? 1 }
-                : {}),
-            ...(colourEnc ? {} : { color: d.series.single }),
-        },
+        // A house that draws its dots hollow draws its end markers hollow too (M5): a ring in the
+        // series ink round the surface, the house's outline width.
+        mark: d.marks.point?.filled === false
+            ? {
+                type: 'point',
+                filled: false,
+                size: policy.size,
+                fill: d.surface.plot ?? d.surface.canvas,
+                strokeWidth: Math.max(1, d.marks.outline?.width ?? d.marks.point?.haloWidth ?? 2),
+                ...(colourEnc ? {} : { color: d.series.single }),
+            }
+            : {
+                type: 'point',
+                filled: true,
+                size: policy.size,
+                ...(d.marks.point?.haloColor
+                    ? { stroke: d.marks.point.haloColor, strokeWidth: d.marks.point.haloWidth ?? 1 }
+                    : {}),
+                ...(colourEnc ? {} : { color: d.series.single }),
+            },
         encoding: {
             [domainChannel]: stripAxis(domain),
             [valueChannel]: stripAxis(value),
@@ -4716,7 +5810,9 @@ function applyPointEmphasis(spec: any, d: DesignDecisions, say: ReportDeparture)
     const t = d.dataLabels.text;
     appendLayer(body, {
         __themeSynthetic: true,
-        ...(policy.labels === 'endpoints' ? { transform } : {}),
+        ...(policy.labels === 'endpoints' || d.dataLabels.compact
+            ? { transform: [...(policy.labels === 'endpoints' ? transform : []), ...(d.dataLabels.compact ? [{ calculate: printedNumber(`datum[${JSON.stringify(value.field)}]`, undefined, d.dataLabels.compact), as: COMPACT_LABEL_FIELD }] : [])] }
+            : {}),
         mark: {
             type: 'text',
             align: domainChannel === 'x' ? 'center' : 'left',
@@ -4726,19 +5822,25 @@ function applyPointEmphasis(spec: any, d: DesignDecisions, say: ReportDeparture)
             font: t.font,
             fontSize: t.fontSize,
             ...(t.fontWeight ? { fontWeight: t.fontWeight } : {}),
+            ...(t.fontStyle ? { fontStyle: t.fontStyle } : {}),
             fill: t.color,
         },
         encoding: {
             [domainChannel]: stripAxis(domain),
             [valueChannel]: stripAxis(value),
-            text: {
-                field: value.field,
-                type: 'quantitative',
-                ...(d.dataLabels.format ? { format: d.dataLabels.format } : {}),
-            },
+            text: d.dataLabels.compact
+                ? { field: COMPACT_LABEL_FIELD, type: 'nominal' }
+                : {
+                    field: value.field,
+                    type: 'quantitative',
+                    ...(d.dataLabels.format ? { format: d.dataLabels.format } : {}),
+                },
         },
     });
 }
+
+/** The field a compacted point label reads from. */
+const COMPACT_LABEL_FIELD = '__flintCompactLabel';
 
 // ---------------------------------------------------------------------------
 // Statistics
@@ -4830,40 +5932,38 @@ function applyStatistics(spec: any, d: DesignDecisions, table: any[]): void {
 // ---------------------------------------------------------------------------
 
 function applyFurniture(spec: any, d: DesignDecisions, planned: LayoutPlan['rules']): boolean {
-    if (!d.furniture.length) return false;
+    // Header furniture — on the canvas edge, above and beside the headline — is planned with the
+    // title and drawn on the canvas (applyHeaderFurniture). What is left here are the rules that
+    // *close a block*: they wrap the plot in a concatenation and run the block's width.
+    if (!d.furniture.length || !planned || 'refused' in planned) return false;
+    const handled = false;
 
-    // Two kinds of furniture with different homes. A masthead tab is *branding*
-    // anchored to the graphic frame: it draws onto the rendered canvas at
-    // graphic-left, flush with the title, and does not care what the plot is or
-    // how wide its axis gutter runs (see canvas-furniture.ts). A header/footer
-    // rule *closes a block*: it wraps the plot in a concatenation and runs the
-    // block's width.
-    const canvas = d.furniture.filter((f) => f.kind === 'mastheadTab');
-    const rules = d.furniture.filter((f) => f.kind !== 'mastheadTab');
-
-    // Canvas furniture is drawn after render, so — unlike a block rule — it
-    // applies to every chart, including the concats, radials and faceted tables
-    // a rule cannot wrap.
-    let handled = false;
-    if (canvas.length) handled = applyCanvasFurniture(spec, canvas, d) || handled;
-
-    if (!rules.length || !planned || 'refused' in planned) return handled;
-
-    // The plan sized each rule to the block it closes and took their room from the plot.
+    // The plan sized each rule to the block it closes and took their room from the plot. A rule at
+    // the foot is drawn on the canvas, `RULE_GAP` under everything the renderer laid out and across
+    // the width the title spans: a concatenated rule lines up with the plot's origin, not the labels
+    // beside it.
     const before: any[] = [];
-    const after: any[] = [];
-    for (const item of planned.rules) {
-        const rect = {
-            __themeSynthetic: true,
-            mark: { type: 'rect', color: item.color ?? d.text.primary },
-            width: item.width,
-            height: item.height,
-            data: { values: [{}] },
-        };
-        (item.edge === 'top' ? before : after).push(rect);
-    }
     takeFromPlotHeight(spec, planned.room);
-    if (!before.length && !after.length) return handled;
+    for (const item of planned.rules) {
+        if (item.edge === 'top') {
+            before.push({
+                __themeSynthetic: true,
+                mark: { type: 'rect', color: item.color ?? d.text.primary },
+                width: item.width,
+                height: item.height,
+                data: { values: [{}] },
+            });
+            continue;
+        }
+        const base = normalizePadding(spec.padding);
+        growPadding(spec, 'bottom', item.height + RULE_GAP);
+        const rule: CanvasFurnitureItem = {
+            kind: 'rule', left: base.left, bottom: base.bottom, height: item.height, color: item.color ?? d.text.primary,
+            ...(item.stated ? { width: item.width } : { right: base.right }),
+        };
+        spec.usermeta = { ...(spec.usermeta ?? {}), [CANVAS_FURNITURE_KEY]: [...readCanvasFurniture(spec), rule] };
+    }
+    if (!before.length) return handled;
 
     const inner: any = { ...spec };
     for (const key of ['$schema', 'background', 'padding', 'title', 'config', 'autosize', 'usermeta']) delete inner[key];
@@ -4887,7 +5987,7 @@ function applyFurniture(spec: any, d: DesignDecisions, planned: LayoutPlan['rule
         ...(spec.usermeta ? { usermeta: spec.usermeta } : {}),
         ...(spec.title ? { title: spec.title } : {}),
         spacing: 6,
-        vconcat: [...before, inner, ...after],
+        vconcat: [...before, inner],
         ...(keyed.size
             ? { resolve: { legend: Object.fromEntries([...keyed].map((c) => [c, 'independent'])) } }
             : {}),
@@ -4905,38 +6005,93 @@ function normalizePadding(p: any): { left: number; right: number; top: number; b
 }
 
 /**
- * Canvas-anchored branding (the Economist red tab). Records where each piece
- * draws — graphic-left, flush with the title's own margin — and reserves a
- * strip of top padding so the tab opens the graphic above the headline rather
- * than colliding with it. The renderer draws the recorded rects onto the SVG;
- * Vega-Lite carries the record through compile in `usermeta`.
+ * Draw the header the plan laid out (see core/header-plan.ts). The edge band and the line above the
+ * headline take their height from the plot — the canvas the caller asked for holds — and push the
+ * title down by growing the top margin; a piece beside the headline's start moves the title over.
+ * Pieces are placed against the canvas's own edges (or the content's, inside the margin), and drawn
+ * on the canvas after render, where Vega-Lite cannot reach.
  */
-function applyCanvasFurniture(
-    spec: any,
-    items: DesignDecisions['furniture'],
-    d: DesignDecisions,
-): boolean {
+export function applyHeaderFurniture(spec: any, header: HeaderPlan | undefined): void {
+    if (!header?.pieces.length) return;
     const base = normalizePadding(spec.padding);
-    const marginLeft = base.left; // the same left margin the title anchors to
-    const topBefore = base.top;
-    const gapBelow = 8;
-    const built: CanvasFurnitureItem[] = [];
-    let band = 0;
-    for (const item of items) {
-        const width = item.width ?? 40;
-        const height = item.height ?? 2;
-        built.push({ kind: item.kind, x: marginLeft, y: topBefore, width, height, color: item.color ?? d.text.primary });
-        band = Math.max(band, height);
+    const room = header.edge + header.line;
+    if (room) {
+        takeFromPlotHeight(spec, room);
+        growPadding(spec, 'top', room);
     }
-    if (!built.length) return false;
-    growPadding(spec, 'top', band + gapBelow);
-    const prev = readCanvasFurniture(spec);
-    spec.usermeta = { ...(spec.usermeta ?? {}), [CANVAS_FURNITURE_KEY]: [...prev, ...built] };
-    return true;
+    if (header.beside.start && spec.title) {
+        spec.title = typeof spec.title === 'string' ? { text: spec.title, dx: header.beside.start } : { ...spec.title, dx: header.beside.start };
+    }
+    const zoneTop = { canvasTop: 0, aboveTitle: header.edge + base.top, besideTitle: room + base.top };
+    const built: CanvasFurnitureItem[] = header.pieces.map((p) => {
+        const start = p.frame === 'canvas' ? 0 : base.left;
+        const end = p.frame === 'canvas' ? 0 : base.right;
+        const across = p.align === 'span' ? { left: start, right: end }
+            : p.align === 'middle' ? { left: start, right: end, center: true }
+                : p.align === 'start' ? { left: start + p.offset } : { right: end + p.offset };
+        return {
+            kind: p.kind, ...across, y: zoneTop[p.zone] + p.dy, height: p.height,
+            ...(p.align !== 'span' && p.width != null && p.kind !== 'text' ? { width: p.width } : {}),
+            ...(p.align === 'middle' && p.kind !== 'text' && p.width != null ? { width: p.width } : {}),
+            ...(p.color ? { color: p.color } : {}),
+            ...(p.text !== undefined ? { text: p.text, fontSize: p.fontSize, ...(p.font ? { font: p.font } : {}), ...(p.fontWeight != null ? { fontWeight: p.fontWeight } : {}), ...(p.fontStyle ? { fontStyle: p.fontStyle } : {}) } : {}),
+            ...(p.src ? { src: p.src, ...(p.alt ? { alt: p.alt } : {}) } : {}),
+            ...(p.href ? { href: p.href } : {}),
+        };
+    });
+    spec.usermeta = { ...(spec.usermeta ?? {}), [CANVAS_FURNITURE_KEY]: [...readCanvasFurniture(spec), ...built] };
 }
 
 function clamp(v: number, lo: number, hi: number): number {
     return Math.max(lo, Math.min(hi, v));
+}
+
+/**
+ * Draw the source line the plan laid out (see core/source-plan.ts) at the canvas's foot: its room
+ * comes out of the plot and grows the bottom margin, and its lines, lead-in, credit and rule are
+ * placed against the canvas's bottom edge (or the content's, inside the margin), drawn after render.
+ */
+export function applySourceLine(spec: any, plan: SourcePlan | undefined): void {
+    if (!plan?.lines.length) return;
+    const base = normalizePadding(spec.padding);
+    takeFromPlotHeight(spec, plan.room);
+    growPadding(spec, 'bottom', plan.room);
+    const start = plan.frame === 'canvas' ? 0 : base.left;
+    const end = plan.frame === 'canvas' ? 0 : base.right;
+    // The source line is the last thing at the foot: furniture already seated there (a closing
+    // rule) moves up over it.
+    const placed = readCanvasFurniture(spec).filter((item) => item.bottom !== undefined);
+    const foot = placed.length ? Math.min(base.bottom, ...placed.map((item) => item.bottom!)) : base.bottom;
+    for (const item of placed) item.bottom! += plan.room;
+    const items: CanvasFurnitureItem[] = [];
+    if (plan.rule) {
+        items.push({
+            kind: 'rule', left: start, right: end, bottom: foot + plan.rule.bottom, height: plan.rule.width, color: plan.rule.color,
+            ...(plan.rule.dash ? { dash: plan.rule.dash } : {}),
+        });
+    }
+    for (const line of plan.lines) {
+        for (const run of line.runs) {
+            items.push({
+                kind: 'text', text: run.text, bottom: foot + line.bottom + (plan.lineHeight - plan.fontSize) / 2, height: plan.fontSize,
+                ...(line.align === 'start' ? { left: start + run.offset } : { right: end + run.offset }),
+                fontSize: plan.fontSize,
+                ...(plan.font ? { font: plan.font } : {}),
+                ...(run.fontWeight != null ? { fontWeight: run.fontWeight } : {}),
+                ...(run.fontStyle ? { fontStyle: run.fontStyle } : {}),
+                ...(plan.color ? { color: plan.color } : {}),
+                ...(line.href ? { href: line.href } : {}),
+            });
+        }
+    }
+    if (plan.creditImage) {
+        const img = plan.creditImage;
+        items.push({
+            kind: 'image', src: img.src, alt: img.alt, width: img.width, height: img.height, bottom: foot + img.bottom,
+            ...(img.align === 'start' ? { left: start } : { right: end }),
+        });
+    }
+    spec.usermeta = { ...(spec.usermeta ?? {}), [CANVAS_FURNITURE_KEY]: [...readCanvasFurniture(spec), ...items] };
 }
 
 /**
