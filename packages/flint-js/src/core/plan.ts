@@ -1,5 +1,5 @@
 import type { ChartAnalysis } from './analyze';
-import type { AssembleOptions, ChannelSemantics, ChartEncoding, ChartWarning, LayoutDeclaration, LayoutResult, OverflowResult, PlotPlanContext } from './types';
+import type { AssembleOptions, ChannelSemantics, ChartEncoding, ChartWarning, LayoutDeclaration, LayoutResult, OverflowResult, PlanStage, PlotPlanContext } from './types';
 import type { DesignDecisions, LabelFitStep, ThemeReport, ThemeSpec } from './theme/types';
 import { computeChannelBudgets, computeLayout, deriveStretchCaps, planBandLabels, resolveFacetColumnsOption } from './compute-layout';
 import { fontWeightOf, groundTheme, headlineText, resolveBandFraction, resolvedGroupSpacing, resolveThemeFontSize, resolveValueLabelChoice, themeBodyFamily } from './theme/ground';
@@ -114,6 +114,19 @@ export interface LayoutPlan {
     viewports: OverflowResult['viewports'];
     warnings: ChartWarning[];
     report: ThemeReport[];
+    /** Why each part of the plan is as it is: the rules it passed through, in order, and what they read. */
+    reasons: PlanReason[];
+}
+
+/** Why one part of the plan is as it is. */
+export interface PlanReason {
+    part: 'canvas' | 'rows' | 'facets' | 'step' | 'plot' | 'labels' | 'title' | 'legend' | 'rules' | 'values' | 'reserve';
+    /** The axis or dimension the part belongs to, where it has one. */
+    channel?: 'x' | 'y' | 'width' | 'height';
+    /** What was decided, with the numbers in. */
+    decision: string;
+    /** The rules the value passed through, in order. */
+    chain: PlanStage[];
 }
 
 const LENGTH_MARKS = new Set(['bar', 'area', 'rect']);
@@ -642,6 +655,22 @@ export function planLayout(analysis: PlanAnalysis, context: PlanContext): Layout
     effectiveOptions.maxStretchY = caps.maxStretchY;
     effectiveOptions.facetColumns = resolveFacetColumnsOption(authoredProperties);
 
+    const reasons: PlanReason[] = [];
+    const ceiling = size.canvasSize;
+    const r1 = (value: number) => Math.round(value * 10) / 10;
+    reasons.push({
+        part: 'canvas',
+        decision: `${size.baseSize.width} × ${size.baseSize.height} base${ceiling ? `, ${ceiling.width} × ${ceiling.height} ceiling` : ''}`,
+        chain: [
+            { rule: 'base size', value: `${size.baseSize.width} × ${size.baseSize.height}`, note: 'the size the chart is planned toward: the spec\'s, else the theme\'s, clamped to the ceiling' },
+            ceiling
+                ? { rule: 'canvas ceiling', value: `${ceiling.width} × ${ceiling.height}`, read: { stretchCapX: r1(caps.maxStretchX), stretchCapY: r1(caps.maxStretchY) }, note: 'the plot may stretch past the base only up to the ceiling: the caps are ceiling over base' }
+                : { rule: 'no ceiling', value: `stretch cap ${r1(caps.maxStretchX)}`, note: 'the plot may stretch past the base up to the default cap' },
+            { rule: 'fixed allowance', value: `${effectiveOptions.facetFixedPadding?.width ?? 0} + ${effectiveOptions.facetGap ?? 0} wide, ${effectiveOptions.facetFixedPadding?.height ?? 0} + ${effectiveOptions.facetGap ?? 0} tall`, read: { ...(effectiveOptions.facetFixedPadding ?? {}), gap: effectiveOptions.facetGap }, note: 'a constant kept out of the stretch budget for labels and titles; never measured' },
+            ...(houseBandStep && !cellGrid ? [{ rule: 'house band', value: effectiveOptions.defaultBandSize ?? houseBandStep, read: { bandStepFit: effectiveOptions.bandStepFit ?? 0 }, note: 'the theme says how much room one category gets' } satisfies PlanStage] : []),
+        ],
+    });
+
     // ═══════════════════════════════════════════════════════════════════════
     // STEP 0b: filterOverflow (VL-free)
     // ═══════════════════════════════════════════════════════════════════════
@@ -668,7 +697,21 @@ export function planLayout(analysis: PlanAnalysis, context: PlanContext): Layout
         budgets, allMarkTypes,
     );
 
-    let prepared: PreparedPlan = { analysis, context, declaration, options: effectiveOptions, facetGrid: budgets.facetGrid, overflow: overflowResult, report };
+    for (const truncation of overflowResult.truncations) {
+        reasons.push({
+            part: 'rows',
+            decision: `${truncation.keptValues.length} of ${truncation.keptValues.length + truncation.omittedCount} ${truncation.field} values kept`,
+            chain: [{ rule: 'overflow', value: `${truncation.keptValues.length} kept, ${truncation.omittedCount} cut`, read: { channel: truncation.channel, minStep: effectiveOptions.minStep ?? 8 }, note: 'more values than the stretched span can give a readable step each: the rest are cut, and a banded axis adds a placeholder band that names them' }],
+        });
+    }
+    if (budgets.facetGrid) {
+        reasons.push({
+            part: 'facets',
+            decision: `${budgets.facetGrid.columns} × ${budgets.facetGrid.rows} panels`,
+            chain: [{ rule: 'facet grid', value: `${budgets.facetGrid.columns} × ${budgets.facetGrid.rows}`, read: { columns: budgets.facetGrid.columns, rows: budgets.facetGrid.rows, asked: effectiveOptions.facetColumns }, note: 'wrapped so each panel keeps a readable width within the stretch budget' }],
+        });
+    }
+    let prepared: PreparedPlan = { analysis, context, declaration, options: effectiveOptions, facetGrid: budgets.facetGrid, overflow: overflowResult, report, reasons };
     const pinned = context.pins?.reserve;
     let first = planAroundPlot(prepared, pinned ?? NO_RESERVE);
     // Panels are laid out once more for the gap the plan draws between them, which it then keeps.
@@ -699,9 +742,14 @@ export function planLayout(analysis: PlanAnalysis, context: PlanContext): Layout
         first.report.push({ stage: 'realize', path: 'dataLabels', code: 'value-labels-band-full',
             message: 'widening the bands into the canvas\'s spare room was not enough for the labels — the bands are kept, and the labels withheld' });
     }
-    if (pinned) return { ...first, reserve: pinned };
+    const reserveReason = (chain: PlanStage[], decision: string): PlanReason => ({ part: 'reserve', decision, chain });
     const along = { width: first.layout.xStepFitted === true, height: first.layout.yStepFitted === true };
-    if (!along.width && !along.height) return first;
+    if (pinned) {
+        return { ...first, reserve: pinned, reasons: [...first.reasons, reserveReason([{ rule: 'pinned', value: `${Math.round(pinned.width)} × ${Math.round(pinned.height)}`, note: 'the room kept for the furniture is held from the plan the chart was opened with' }], 'held')] };
+    }
+    if (!along.width && !along.height) {
+        return { ...first, reasons: [...first.reasons, reserveReason([{ rule: 'no fitted step', value: 'skipped', read: { bandStepFit: first.options.bandStepFit ?? 0 }, note: 'the furniture is measured only where a banded axis fitted its step to the room: a sparse axis, whose span per band exceeds the house band, under a theme that fits bands; no axis did' }], 'skipped')] };
+    }
     const reserve = measureReserve({
         along,
         structure: first.structure,
@@ -721,7 +769,16 @@ export function planLayout(analysis: PlanAnalysis, context: PlanContext): Layout
         spacing: profile.spacing,
         measure: profile.measureText ?? tableTextMeasurer,
     });
-    return { ...planAroundPlot(prepared, reserve), reserve };
+    const second = planAroundPlot(prepared, reserve);
+    return {
+        ...second,
+        reserve,
+        reasons: [...second.reasons, reserveReason([
+            { rule: 'fitted step', value: along.width && along.height ? 'both axes' : along.width ? 'x' : 'y', note: 'a banded axis fitted its step to the room, so the room is measured' },
+            { rule: 'measured', value: `${Math.round(reserve.width)} wide, ${Math.round(reserve.height)} tall`, read: Object.fromEntries(Object.entries(reserve.parts).map(([part, px]) => [part, Math.round(px)])), note: `the furniture beside and above or below the plot, as the text measures${reserve.unmeasured?.length ? `; not measured: ${reserve.unmeasured.join(', ')}` : ''}` },
+            { rule: 'laid out again', value: `${Math.round(second.plot.width)} × ${Math.round(second.plot.height)}`, note: 'the plot is planned once more into the canvas less that room, capped at 40% of it; one pass' },
+        ], `${Math.round(reserve.width)} × ${Math.round(reserve.height)} kept`)],
+    };
 }
 
 /**
@@ -784,6 +841,7 @@ interface PreparedPlan {
     facetGrid: ReturnType<typeof computeChannelBudgets>['facetGrid'];
     overflow: ReturnType<typeof filterOverflow>;
     report: ThemeReport[];
+    reasons: PlanReason[];
     /** The gap between facet panels the plan laid them out for and draws. */
     facetSpacing?: FurniturePlan['facets']['spacing'];
     /** The band step and plot before the bands widened for their value labels. */
@@ -797,6 +855,7 @@ interface PreparedPlan {
 function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): LayoutPlan {
     const { analysis, context, declaration, overflow: overflowResult, facetGrid: facetGridResult } = prepared;
     const report = [...prepared.report];
+    const reasons = [...prepared.reasons];
     const { channelSemantics, data, convertedData, encodings, template, templateMarkType } = analysis;
     const { chartProperties, options, size, theme, profile } = context;
     const measureText = profile.measureText ?? tableTextMeasurer;
@@ -883,6 +942,28 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
 
     const composite = Boolean(template.composite || layoutResult.facet);
 
+    const trace = layoutResult.trace;
+    const px = (value: number) => Math.round(value);
+    for (const channel of ['x', 'y'] as const) {
+        const count = channel === 'x' ? layoutResult.xNominalCount : layoutResult.yNominalCount;
+        const banded = count > 0 || (channel === 'x' ? layoutResult.xContinuousAsDiscrete : layoutResult.yContinuousAsDiscrete) > 0;
+        const step = channel === 'x' ? layoutResult.xStep : layoutResult.yStep;
+        if (!banded) continue;
+        reasons.push({ part: 'step', channel, decision: `${step % 1 ? step.toFixed(1) : step} px per band`, chain: trace?.[channel === 'x' ? 'xStep' : 'yStep'] ?? [] });
+    }
+    for (const dimension of ['width', 'height'] as const) {
+        const channel = dimension === 'width' ? 'x' : 'y';
+        const value = plot[dimension];
+        const count = channel === 'x' ? layoutResult.xNominalCount : layoutResult.yNominalCount;
+        const own = Boolean(template.planPlot);
+        const chain: PlanStage[] = own
+            ? [{ rule: 'template plot', value: px(value), note: 'the template sizes its own plot from the room and the rows' }]
+            : count > 0
+                ? [{ rule: 'bands × step', value: px(value), read: { bands: count + (layoutResult.truncations.some((t) => t.channel === channel) ? 1 : 0), step: Math.round((channel === 'x' ? layoutResult.xStep : layoutResult.yStep) * 10) / 10, unit: channel === 'x' ? layoutResult.xStepUnit ?? 'item' : layoutResult.yStepUnit ?? 'item' }, note: 'a banded axis spans its step times its bands, plus one for a placeholder where rows were cut; the canvas does not size it' }]
+                : trace?.[dimension] ?? [];
+        reasons.push({ part: 'plot', channel: dimension, decision: `${px(value)} px`, chain });
+    }
+
     const typeOf = (channel: 'x' | 'y') => declaration.resolvedTypes?.[channel] ?? channelSemantics[channel]?.type;
     const drawn = skeletonChannels(template.template);
     const present = { x: Boolean(channelSemantics.x) || drawn.has('x'), y: Boolean(channelSemantics.y) || drawn.has('y') };
@@ -955,6 +1036,39 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
         const pin = { ...declaration.axisLabels?.[channel], ...context.pins?.axisLabels?.[channel] };
         if (Object.keys(pin).length) axisLabels[channel] = pinAxisLabels(axisLabels[channel], pin);
     }
+    for (const channel of ['x', 'y'] as const) {
+        if (!present[channel]) continue;
+        const sizing = channel === 'x' ? layoutResult.xLabel : layoutResult.yLabel;
+        const label = axisLabels[channel];
+        const resolvedType = declaration.resolvedTypes?.[channel];
+        const bandedAxis = (channel === 'x' ? layoutResult.xNominalCount : layoutResult.yNominalCount) > 0 || resolvedType === 'nominal' || resolvedType === 'ordinal';
+        const chain: PlanStage[] = [
+            { rule: 'fitted to the band', value: `${sizing.fontSize}px${sizing.labelAngle ? `, ${sizing.labelAngle}°` : ''}`, read: { step: Math.round((channel === 'x' ? layoutResult.xStep : layoutResult.yStep) * 10) / 10, limit: sizing.labelLimit }, note: 'the size ladder descends as bands tighten, and both axes share the smaller size; narrow bands turn their names' },
+        ];
+        if (axisLabelFontSize !== undefined) {
+            chain.push({ rule: 'theme size', value: `${label.fontSize}px`, read: { asked: axisLabelFontSize, crowdedFrom: label.crowdedFrom }, note: label.crowdedFrom ? 'the theme\'s size would crowd the bands, so the fitted size holds' : 'the theme\'s size holds' });
+        }
+        const fit = channel === 'x' ? sizing.overflow : undefined;
+        if (channel === 'x' && bandedAxis && fit) {
+            // The names did not stand flat and whole: the overflow path chose the cheapest step.
+            chain.push({
+                rule: 'overflow step',
+                value: `${fit.step}${fit.trimmed ? ' + trim' : ''}`,
+                read: { needed: Math.round(fit.needed), band: Math.round(fit.band), ...(fit.shown ? { shown: fit.shown.length } : {}) },
+                note: fit.step === 'wrap' ? 'the names break onto two lines to fit their band'
+                    : fit.step === 'skip' ? 'a sequence that explains itself keeps only its round values, flat'
+                        : `the names turn ${fit.step === 'rotate45' ? '−45°' : 'upright'}: the cheapest step the path allows${fit.trimmed ? ', each trimmed to its limit' : ''}`,
+            });
+        } else if (channel === 'x' && bandedAxis) {
+            chain.push({ rule: 'overflow step', value: 'none', note: 'the names stand flat and whole in their band' });
+        } else if (channel === 'x') {
+            chain.push({ rule: 'angle', value: '0°', note: 'a continuous axis spaces its ticks by the ruler, so its labels never turn' });
+        } else if (label.angle !== undefined) {
+            chain.push({ rule: 'angle', value: `${label.angle}°`, note: 'as the pin asks' });
+        }
+        if (context.pins?.axisLabels?.[channel]) chain.push({ rule: 'pinned', value: `${label.fontSize}px, ${label.angle ?? 0}°`, read: { ...context.pins.axisLabels[channel] }, note: 'held at the pinned values, however crowded' });
+        reasons.push({ part: 'labels', channel, decision: `${label.fontSize}px${label.angle ? `, turned ${label.angle}°` : ', straight'}`, chain });
+    }
     const titles = axisTitles(structure, {
         encodings, channelSemantics, displayNames: chartDisplayNames(context.fieldDisplayNames, analysis.staticSeries ?? undefined), spellField: profile.spellField,
     });
@@ -996,6 +1110,15 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
         valueLabels = headroom ? { ...rest, headroom } : rest;
         const extent = domains.y?.extent;
         if (extent && headroom) domains.y = { ...domains.y!, extent: [headroom.min ?? extent[0], headroom.max ?? extent[1]] };
+    }
+    if (valueLabels) {
+        reasons.push('refused' in valueLabels
+            ? { part: 'values', decision: 'none', chain: [{ rule: 'value labels', value: 'refused', read: { asked: design.dataLabels.show, placement: design.dataLabels.placement }, note: valueLabels.refused }] }
+            : { part: 'values', decision: `${valueLabels.form}${valueLabels.inside ? ', inside' : ''}`, chain: [
+                { rule: 'theme asks', value: String(design.dataLabels.show), read: { placement: design.dataLabels.placement }, note: 'the theme prints values where they fit' },
+                { rule: 'form', value: valueLabels.form, read: { channel: valueLabels.channel, field: valueLabels.field, inside: valueLabels.inside, body: valueLabels.body }, note: 'in each cell, along each slice, mid-segment, or at each mark\'s end, as the mark allows' },
+                ...(valueLabels.inset || valueLabels.headroom ? [{ rule: 'room past the ends', value: valueLabels.inset ? `${valueLabels.inset} px inset` : `headroom ${JSON.stringify(valueLabels.headroom)}`, note: 'labels past bar ends keep room on the value scale so they stay in the plot' } satisfies PlanStage] : []),
+            ] });
     }
     const bandSpans: LayoutPlan['bandSpans'] = {};
     for (const channel of ['x', 'y'] as const) {
@@ -1094,6 +1217,45 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
         ...(furniture.yTitle ? { flatYTitleLift: furniture.yTitle.lift } : {}),
         ...(extent ? { viewsWidth: extent.width } : {}),
     });
+    reasons.push({
+        part: 'legend',
+        decision: legend.keys.length ? `${legend.placement}${legend.orient ? `, ${legend.orient}` : ''}` : 'no key',
+        chain: [
+            { rule: 'theme placement', value: design.legend.placement, read: { show: design.legend.show, fallbacks: design.legend.fallbacks?.join(' › ') }, note: !design.legend.show ? 'the theme shows no key' : !legend.keys.length ? 'nothing to key: no channel names a series' : 'the house\'s ranked placements; the first the chart can draw' },
+            ...(legend.demoted ? [{ rule: 'demoted', value: legend.placement, note: legend.demoted } satisfies PlanStage] : []),
+            ...(legend.layout?.notes ?? []).map((note) => ({ rule: note.code, value: 'gave way', note: note.message }) satisfies PlanStage),
+            ...(legend.layout?.footprint ?? []).map((foot) => ({ rule: 'footprint', value: `${px(foot.width)} × ${px(foot.height)} at ${foot.orient}`, read: { plotWidth: px(legend.layout!.plot.width), plotHeight: px(legend.layout!.plot.height) }, note: 'the keys laid out at their edge, measured; not taken from the canvas' }) satisfies PlanStage),
+        ],
+    });
+    if (theme) {
+        const asked = design.furniture.filter((item) => item.kind === 'headerRule' || item.kind === 'footerRule');
+        reasons.push({
+            part: 'rules',
+            decision: ruled ? `${ruled.rules.length} rule${ruled.rules.length === 1 ? '' : 's'}, ${px(ruled.room)} px${plotGives ? ' from the plot' : ''}` : 'none',
+            chain: !asked.length
+                ? [{ rule: 'theme furniture', value: 'none', note: 'the theme closes the chart with no rule' }]
+                : rules && 'refused' in rules
+                    ? [{ rule: 'theme furniture', value: `${asked.length} asked` }, { rule: rules.refused, value: 'none', note: rules.message }]
+                    : [
+                        { rule: 'theme furniture', value: `${asked.length} asked`, read: { edges: asked.map((item) => ((item.anchor ?? 'topLeft').startsWith('top') ? 'top' : 'bottom')).join(', ') } },
+                        { rule: 'block', value: px(ruled?.rules[0]?.width ?? 0), read: { plot: px(extent?.width ?? plot.width) }, note: 'a rule runs the width of the block the title spans: the plot widened a little for its axes, plus the category labels beside it' },
+                        { rule: 'room', value: px(ruled?.room ?? 0), read: { fromPlot: plotGives }, note: plotGives ? 'each rule and its gap are taken out of the plot\'s height' : 'a banded y counts its height in bands, so the rules add to it instead' },
+                    ],
+        });
+    }
+    if (titlePlan) {
+        const h = titlePlan.headline;
+        reasons.push({
+            part: 'title',
+            decision: `${px(titlePlan.block)} px block${h?.lines ? `, ${h.lines.length} headline lines` : h?.fontSize ? `, headline ${h.fontSize}px` : ''}${titlePlan.deckFit ? `, ${titlePlan.deckFit.lines.length} deck lines` : ''}`,
+            chain: [
+                { rule: 'block', value: px(titlePlan.block), read: { plot: px(extent?.width ?? plot.width), canvas: px(size.baseSize.width) }, note: 'the plot widened a little for its axes, plus the category labels beside it, and never narrower than the canvas less the theme\'s padding' },
+                { rule: 'headline', value: h?.lines ? `${h.lines.length} lines` : h?.fontSize ? `set down to ${h.fontSize}px` : 'one line', read: { size: design.title.headline.fontSize, taken: h?.lines ? h.taken : 0 }, note: h?.lines ? 'too wide for the block at the smaller size too, so it breaks over balanced lines and the extra lines come out of the plot' : h?.fontSize ? 'too wide at the theme\'s size, so it is set one size down, which fits' : 'fits the block at the theme\'s size' },
+                ...(titlePlan.deck !== undefined ? [{ rule: 'deck', value: titlePlan.deckFit ? `${titlePlan.deckFit.lines.length} lines` : 'one line', read: { size: design.title.deck.fontSize, taken: titlePlan.deckFit?.taken ?? 0 }, note: 'the author\'s subtitle, then the axis titles the theme moves into the deck' } satisfies PlanStage] : []),
+                ...(context.pins?.title ? [{ rule: 'pinned', value: 'held', note: 'the title fit is kept from the plan the chart was opened with' } satisfies PlanStage] : []),
+            ],
+        });
+    }
     const keyTitles: Partial<Record<string, string>> = {};
     for (const key of legend.keys) {
         const encoding = encodings[key.channel];
@@ -1158,6 +1320,7 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
         viewports: overflowResult.viewports,
         warnings: overflowResult.warnings,
         report,
+        reasons,
     };
 }
 
