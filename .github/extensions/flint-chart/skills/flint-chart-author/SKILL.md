@@ -559,7 +559,7 @@ derived). Values are clamped to the ranges shown.
 | Histogram | `binCount` | 5–50 (10) | Number of bins |
 | Density Plot / Ridgeline / Marginal Plot | `bandwidth` | 0.05–2 (0=auto) | Kernel bandwidth |
 | Ridgeline | `overlap` | 0.5–4 (1.8) | How many baselines up the tallest ridge reaches |
-| Ridgeline | `order` | `mean`, `reverse` (unset = as given; numeric series lowest at the front) | Highest mean on top, or reversed |
+| Ridgeline | `order` | `mean`, `reverse` (unset = as given; a quantitative series lowest at the front) | Highest mean on top, or reversed |
 | Ridgeline | `tailCut` | 0–0.2 (0) | Trim each ridge to where its density is at least this share of its peak |
 | Ridgeline | `colorBy` | `x` (unset = by series) | Fill each ridge with a ramp along x |
 | Ridgeline | `perspective` | boolean (false) | Stand the ridges on a floor seen in perspective: presets `skew` 0.2, `tilt` 2.5, `overlap` 6 unless set |

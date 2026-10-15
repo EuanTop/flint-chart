@@ -35,7 +35,7 @@ import { rangeAreaChartDef, interpolateConfigProperty } from './range-area';
  * `markAt: [x, …]` marks each ridge's value at those x, labels it, and joins the marks at one x
  * across the ridges with a dashed line.
  *
- * Series named by numbers stand as a y axis would: the lowest at the front. A quantitative
+ * A quantitative series stands as a y axis would: the lowest at the front. A quantitative
  * colour keeps its continuous scale and shows it as a gradient legend.
  */
 
@@ -73,11 +73,6 @@ function toNumber(v: unknown): number {
 /** Whether an encoding names categories rather than measures. */
 function discrete(encoding: { type?: string } | undefined): boolean {
     return encoding?.type === 'nominal' || encoding?.type === 'ordinal';
-}
-
-/** Whether the series are named by numbers, which then stand in numeric order. */
-function numericNames(names: string[]): boolean {
-    return names.length > 0 && names.every((name) => name.trim() !== '' && Number.isFinite(Number(name)));
 }
 
 /** The x values `markAt` names, as numbers; a single value stands for a list of one. */
@@ -145,6 +140,8 @@ interface RidgeInputs {
     tailCut: number;
     byMean: boolean;
     reverse: boolean;
+    /** A quantitative series stands in numeric order. */
+    quantitativeSeries: boolean;
     /** The value a ridge's full height stands for, where set; else the tallest peak. */
     valueMax: number;
 }
@@ -175,7 +172,8 @@ function ridgeInputs(encodings: Record<string, any>, properties: Record<string, 
         tailCut: Math.min(0.5, positive('tailCut')),
         byMean: properties?.order === 'mean',
         reverse: properties?.order === 'reverse',
-        valueMax: positive('valueMax'),
+        quantitativeSeries: series?.type === 'quantitative',
+        valueMax: skew > 0 || tilt > 0 ? positive('valueMax') : 0,
     };
 }
 
@@ -211,7 +209,7 @@ interface RidgeLayout {
  * baseline and top on the working scale, trimmed to its tails where asked.
  */
 function layoutRidges(table: any[], inputs: RidgeInputs): RidgeLayout {
-    const { xField, yField, seriesField, order, overlap, skew, tilt, bandwidth, tailCut, byMean, reverse, valueMax } = inputs;
+    const { xField, yField, seriesField, order, overlap, skew, tilt, bandwidth, tailCut, byMean, reverse, valueMax, quantitativeSeries } = inputs;
     const groups = new Map<string, any[]>();
     for (const row of table) {
         const key = seriesField ? String(row[seriesField]) : '';
@@ -223,7 +221,7 @@ function layoutRidges(table: any[], inputs: RidgeInputs): RidgeLayout {
     if (order) {
         const rank = new Map(order.map((name, index) => [name, index]));
         names.sort((a, b) => (rank.get(a) ?? order.length) - (rank.get(b) ?? order.length));
-    } else if (numericNames(names)) {
+    } else if (quantitativeSeries) {
         // The first ridge stands at the top (the back), so the highest number goes first.
         names.sort((a, b) => Number(b) - Number(a));
     }
@@ -337,7 +335,7 @@ export const ridgelinePlotDef: ChartTemplateDef = {
         // A quantitative colour keeps its scale, and its gradient is the chart's one key.
         const graded = series?.field && series.type === 'quantitative' && ctx.chartProperties?.colorBy !== 'x';
         const structure: ChartStructure = {
-            marks: [...(skewed ? ['rule', 'area', 'text'] : ['area']), ...(marked ? ['line', 'point', 'text'] : []), ...(graded ? ['point'] : [])],
+            marks: [...(skewed ? ['rule', 'area', 'text'] : ['area']), ...(marked ? ['rule', 'point', 'text'] : []), ...(graded ? ['point'] : [])],
             ...(x?.field
                 ? { x: skewed
                     ? { type: 'quantitative', fields: [], derived: 'skewed', baseline: 'data', ownScale: true, rounded: true }
@@ -423,6 +421,10 @@ export const ridgelinePlotDef: ChartTemplateDef = {
                     labelExpr: `${JSON.stringify(ridges.map((ridge) => ridge.name).reverse())}[round(datum.value)]`,
                     ticks: false,
                     domain: false,
+                    // The names are the ridges' only key, so none is thinned out: Vega drops every
+                    // other value while there are more than a house's tickCount.
+                    tickCount: ridges.length,
+                    labelOverlap: false,
                     ...(perspective ? { grid: false, title: null, labels: false } : {}),
                 },
             },
@@ -451,15 +453,17 @@ export const ridgelinePlotDef: ChartTemplateDef = {
         else if (perspective) mark.opacity = 1;
 
         const layers: any[] = [];
-        if (ctx.chartProperties?.colorBy === 'x' && seriesField) {
-            // One layer per ridge, each filled with the ramp over its own span; the series colour
-            // scale stays declared, unused, so the chart keeps its key to the series.
+        const ramp = ctx.chartProperties?.colorBy === 'x';
+        if (seriesField && (ramp || perspective)) {
+            // One layer per ridge, back to front, so each ridge's top line goes under the ridges
+            // in front of it. A ramp fills each ridge over its own span; the series colour scale
+            // stays declared, unused, so the chart keeps its key to the series.
             const { color: _color, ...uncoloured } = encoding;
             for (const ridge of ridges) {
                 layers.push({
-                    transform: [{ filter: { field: seriesField, equal: ridge.name } }],
-                    mark: { ...mark, color: rampFill(ridge, extent) },
-                    encoding: uncoloured,
+                    transform: [{ filter: { field: seriesField, equal: ridge.rows[0]?.[seriesField] ?? ridge.name } }],
+                    mark: ramp ? { ...mark, color: rampFill(ridge, extent) } : mark,
+                    encoding: ramp ? uncoloured : encoding,
                 });
             }
         } else {
@@ -588,8 +592,9 @@ export const ridgelinePlotDef: ChartTemplateDef = {
         const marks = markPositions(config);
         if (marks.length) {
             // Each ridge's value at every marked x: a dot on its curve with the value beside it,
-            // and a dashed line through the dots at one x, front to back, to show the trend
-            // across the series. They go over the ridges, so no ridge hides them.
+            // and dashed segments joining the dots at one x, front to back, to show the trend
+            // across the series. They go over the ridges, so no ridge hides them. The segments are
+            // rules, not a line, so a house's dots for a line's ends stay off them.
             const [lo, hi] = extent;
             const range = hi - lo || 1;
             const xKey = perspective ? RIDGE_X : xField;
@@ -598,25 +603,32 @@ export const ridgelinePlotDef: ChartTemplateDef = {
                 const value = valueAt(ridge.curve, at);
                 if (value === undefined) return [];
                 const base = ridge.baseline + tilt * ((at - lo) / range);
-                return [{ [xKey]: perspective ? at + ridge.shift : at, [RIDGE_TOP]: base + value * scale, __mark: index, __depth: ridge.baseline, label: format(value) }];
+                // A label near the right end of x reads to the left of its dot, inside the plot.
+                const end = (hi - at) / range < 0.1;
+                return [{ [xKey]: perspective ? at + ridge.shift : at, [RIDGE_TOP]: base + value * scale, __mark: index, __depth: ridge.baseline, __end: end, label: format(value) }];
             }));
+            const segments = points.flatMap((point, index) => {
+                const next = points[index + 1];
+                return next && next.__mark === point.__mark ? [{ ...point, __x2: next[xKey], __y2: next[RIDGE_TOP] }] : [];
+            });
             const at = { x: { field: xKey, type: encoding.x.type }, y: { field: RIDGE_TOP, type: 'quantitative' } };
+            const label = (end: boolean) => ({
+                data: { values: points.filter((point) => point.__end === end) },
+                mark: { type: 'text', align: end ? 'right' : 'left', baseline: 'bottom', dx: end ? -4 : 4, dy: -3, fontSize: 10 },
+                encoding: { ...at, text: { field: 'label', type: 'nominal' } },
+            });
             layers.push(
                 {
-                    data: { values: points },
-                    mark: { type: 'line', strokeDash: [4, 3], strokeWidth: 1, opacity: 0.8 },
-                    encoding: { ...at, detail: { field: '__mark', type: 'nominal' }, order: { field: '__depth', type: 'quantitative' } },
+                    data: { values: segments },
+                    mark: { type: 'rule', strokeDash: [4, 3], strokeWidth: 1, opacity: 0.8 },
+                    encoding: { ...at, x2: { field: '__x2' }, y2: { field: '__y2' } },
                 },
                 {
                     data: { values: points },
                     mark: { type: 'point', filled: true, size: 36, opacity: 1 },
                     encoding: at,
                 },
-                {
-                    data: { values: points },
-                    mark: { type: 'text', align: 'left', baseline: 'bottom', dx: 4, dy: -3, fontSize: 10 },
-                    encoding: { ...at, text: { field: 'label', type: 'nominal' } },
-                },
+                ...[false, true].map(label).filter((layer) => layer.data.values.length),
             );
         }
         if (layers.length === 1) {

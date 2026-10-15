@@ -106,7 +106,7 @@ const PARAM_DESCRIPTIONS: Record<string, string> = {
     binCount: 'Maximum bin cap; Auto lets the backend choose.',
     bandwidth: 'Kernel-density bandwidth (0 = auto).',
     overlap: 'How many baselines up the tallest ridge reaches; above 1 the ridges overlap.',
-    order: 'Which order the ridges stand in: as given (numeric series lowest at the front), by their mean with the highest on top, or reversed.',
+    order: 'Which order the ridges stand in: as given (a quantitative series lowest at the front), by their mean with the highest on top, or reversed.',
     tailCut: 'Trim each ridge to where its density is at least this share of its own peak (0 = full extent).',
     colorBy: 'Fill each ridge by its series, or with a ramp along the x axis.',
     perspective: 'Stand the ridges on a floor seen in perspective, presetting skew 0.2, tilt 2.5 and overlap 6 where they are unset.',

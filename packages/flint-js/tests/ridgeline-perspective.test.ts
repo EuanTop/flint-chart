@@ -9,7 +9,7 @@ import type { ChartAssemblyInput } from '../src/core/types';
 
 /**
  * The Ridgeline Plot's perspective additions: the value axis, the marked values joined across the
- * ridges, a quantitative colour's gradient legend, the opacity set in perspective, numeric series
+ * ridges, a quantitative colour's gradient legend, the opacity set in perspective, quantitative series
  * order, and the depth axis title.
  */
 
@@ -43,12 +43,13 @@ const keyLayer = (spec: any) => layersOf(spec).find((layer) => layer.mark?.type 
 describe('Ridgeline Plot in perspective', () => {
     const marked = { perspective: true, valueMax: 1, markAt: [3, 7, 14] };
 
-    it('marks each ridge at every marked x, joined by a dashed line', () => {
+    it('marks each ridge at every marked x, joined by dashed segments', () => {
         const spec: any = assembleVegaLite(input(marked));
-        const line = layersOf(spec).find((layer) => layer.mark?.type === 'line');
+        const join = layersOf(spec).find((layer) => layer.mark?.type === 'rule' && layer.mark.strokeDash);
         const point = dotLayer(spec);
-        expect(line.mark.strokeDash).toBeDefined();
-        expect(line.encoding.detail.field).toBe('__mark');
+        expect(join.encoding.x2.field).toBe('__x2');
+        // Six segments join the seven ridges at each of the three marked x.
+        expect(join.data.values).toHaveLength(3 * 6);
         expect(point.data.values).toHaveLength(3 * 7);
         // A1 = 0 at round 7 stands on the front baseline, its value scaled to its height.
         const front = point.data.values.find((row: any) => row.__depth === 0 && row.__mark === 1);
@@ -70,7 +71,7 @@ describe('Ridgeline Plot in perspective', () => {
         expect(spec.resolve.legend.color).toBe('independent');
     });
 
-    it('stands numeric series lowest at the front, and reverses on request', () => {
+    it('stands a quantitative series lowest at the front, and reverses on request', () => {
         const front = (properties: Record<string, any>) => {
             const point = dotLayer(assembleVegaLite(input(properties)));
             const row = point.data.values.find((r: any) => r.__depth === 0 && r.__mark === 0);
@@ -79,6 +80,44 @@ describe('Ridgeline Plot in perspective', () => {
         // At round 3, A1 = 0 reads 0.26 and A1 = 6 reads 0.56.
         expect(front(marked)).toBe('0.26');
         expect(front({ ...marked, order: 'reverse' })).toBe('0.56');
+    });
+
+    it('sets the labels at the right end of x to the left of their dots', () => {
+        const spec: any = assembleVegaLite(input(marked));
+        const [inner, end] = textLayers(spec).filter((layer) => layer.mark.fontSize === 10);
+        expect(inner.mark.align).toBe('left');
+        expect(end.mark.align).toBe('right');
+        expect(end.data.values.every((row: any) => row.__mark === 2)).toBe(true);
+    });
+
+    it('draws each ridge in its own layer, back to front, so a ridge hides the lines behind it', () => {
+        const ridges = layersOf(assembleVegaLite(input({ perspective: true }))).filter((layer) => (layer.mark?.type ?? layer.mark) === 'area');
+        expect(ridges.map((layer) => layer.transform[0].filter.equal)).toEqual([6, 5, 4, 3, 2, 1, 0]);
+    });
+
+    it('reads valueMax in perspective only', () => {
+        const tallest = (properties: Record<string, any>) =>
+            Math.max(...(assembleVegaLite(input(properties)) as any).data.values.map((row: any) => row.__ridge_top - row.__ridge_base));
+        expect(tallest({ valueMax: 2 })).toBe(tallest({}));
+        expect(tallest({ perspective: true, valueMax: 2 })).toBeLessThan(tallest({ perspective: true }));
+    });
+
+    it('keeps every ridge name under a house that caps its tick count', () => {
+        const small = input({});
+        small.chart_spec.baseSize = { width: 350, height: 200 };
+        const spec: any = assembleVegaLite({ ...small, theme_spec: 'nyt' });
+        const axis = ridgeLayer(spec)?.encoding?.y?.axis ?? spec.encoding.y.axis;
+        expect(spec.config?.axisY?.tickCount).toBeLessThan(7);
+        expect(axis.values).toHaveLength(7);
+        expect(axis.tickCount).toBe(7);
+    });
+
+    it('keeps a series of categories named by numbers in data order', () => {
+        const nominal = { ...input({ perspective: true, markAt: [3] }) };
+        nominal.chart_spec.encodings = { x: 'Round', y: 'Rate', color: { field: 'A1', type: 'nominal' } } as any;
+        const row = dotLayer(assembleVegaLite(nominal)).data.values.find((r: any) => r.__depth === 0);
+        // Data order puts A1 = 0 first, at the back, so A1 = 6 stands at the front.
+        expect(row.label).toBe('0.56');
     });
 
     it('keeps an opacity set in perspective', () => {
