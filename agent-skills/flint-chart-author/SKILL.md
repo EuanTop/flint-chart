@@ -411,6 +411,7 @@ string shorthand, expanded to `{ field: "<string>" }`):
 | `sortOrder` | `ascending`, `descending` | Sort direction; in Vega-Lite, direction alone preserves/reverses the semantic sequence |
 | `sortBy` | mapped `"x"`, `"y"`, `"color"`; Vega-Lite also accepts a data field or JSON-array string | Explicit category ordering; see the Vega-Lite contract below |
 | `scheme` | Vega scheme name (e.g. `viridis`, `redblue`) | Color scheme for the `color` channel |
+| `title` | a string, or `null` | The name the channel's axis or key prints in place of the field's; `null` prints none |
 
 You usually don't need `type`, `aggregate`, or `sortOrder` — they're
 inferred from the semantic type. Set them only with specific intent.

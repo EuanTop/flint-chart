@@ -86,7 +86,7 @@ const theme: ThemeSpec = {
     arc: { cornerRadius: 2 },
   },
   labels: { truncation: 'ellipsis' },
-  legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'omit', align: 'center' },
+  legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'whenAmbiguous', align: 'center' },
   dataLabels: { show: 'never', placement: 'atMark', inkMode: 'contrastWithMark' },
   annotation: { axisTitles: 'omit', unit: 'everyTick', numberFormat: { thousands: 'suffix', precision: 'one', compact: { per: 'value', threshold: 1000 } } },
   layout: { titleBlock: { anchor: 'start', gap: 'normal' } },

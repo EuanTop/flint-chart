@@ -68,7 +68,7 @@ const theme: ThemeSpec = {
   },
   marks: { bandFraction: 0.67, strokeWeight: 2 },
   labels: { truncation: 'wrap' },
-  legend: { show: 'always', placement: ['top'], direction: 'horizontal', title: 'omit', align: 'start' },
+  legend: { show: 'always', placement: ['top'], direction: 'horizontal', title: 'whenAmbiguous', align: 'start' },
   dataLabels: { show: 'never' },
   annotation: { axisTitles: 'always', axisTitlePlacement: 'flatAboveAxis' },
   layout: { titleBlock: { anchor: 'start', gap: 'normal' } },

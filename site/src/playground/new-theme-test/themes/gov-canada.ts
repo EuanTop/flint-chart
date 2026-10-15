@@ -77,7 +77,7 @@ const theme: ThemeSpec = {
     band: { fraction: 0.67, cornerRadius: 0 },
   },
   labels: { truncation: 'wrap' },
-  legend: { show: 'always', placement: ['right', 'bottom'], direction: 'vertical', title: 'omit', align: 'start' },
+  legend: { show: 'always', placement: ['right', 'bottom'], direction: 'vertical', title: 'whenAmbiguous', align: 'start' },
   dataLabels: { show: 'always', placement: 'outsideMark', inkMode: 'fixed' },
   annotation: { axisTitles: 'always', axisTitlePlacement: 'rotated', unitsInAxisTitle: true, numberFormat: { thousands: 'suffix', compact: { style: 'lower', types: ['Amount'], threshold: 1000 } } },
   // Let the columns fill the width rather than keep a fixed band step.

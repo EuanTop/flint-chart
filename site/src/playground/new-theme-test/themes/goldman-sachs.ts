@@ -82,7 +82,7 @@ const theme: ThemeSpec = {
     arc: { gap: 0 },
   },
   labels: { truncation: 'ellipsis', overflow: ['rotate45', 'rotate90'] },
-  legend: { show: 'always', placement: ['top'], direction: 'horizontal', title: 'omit', align: 'end' },
+  legend: { show: 'always', placement: ['top'], direction: 'horizontal', title: 'whenAmbiguous', align: 'end' },
   dataLabels: { show: 'never' },
   annotation: { axisTitles: 'whenAmbiguous' },
   layout: { density: 'compact', titleBlock: { anchor: 'start', gap: 'tight' } },

@@ -94,7 +94,7 @@ const theme: ThemeSpec = {
   // Donuts start at 12 o'clock, largest first (M4).
   geometry: { arc: { gap: 3, gapStyle: 'rule', order: 'largestFirst' }, line: { width: 2, interpolation: 'linear' } },
   labels: { truncation: 'wrap' },
-  legend: { show: 'always', placement: ['right'], direction: 'vertical', title: 'omit', align: 'start' },
+  legend: { show: 'always', placement: ['right'], direction: 'vertical', title: 'whenAmbiguous', align: 'start' },
   dataLabels: { show: 'never' },
   annotation: { axisTitles: 'always', axisTitlePlacement: 'rotated', unit: 'never', numberFormat: { thousands: 'separator' } },
   layout: { titleBlock: { anchor: 'start' } },

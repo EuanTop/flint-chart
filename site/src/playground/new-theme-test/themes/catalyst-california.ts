@@ -71,7 +71,7 @@ const theme: ThemeSpec = {
   },
   marks: { bandFraction: 0.55, cornerRadius: 0 },
   labels: { truncation: 'wrap' },
-  legend: { show: 'always', placement: ['seriesEnd', 'inline', 'top'], direction: 'horizontal', title: 'omit', align: 'start', suppressWhenAxisNames: true },
+  legend: { show: 'always', placement: ['seriesEnd', 'inline', 'top'], direction: 'horizontal', title: 'whenAmbiguous', align: 'start', suppressWhenAxisNames: true },
   dataLabels: { show: 'never' },
   annotation: { axisTitles: 'omit', unit: 'never' },
   layout: { titleBlock: { anchor: 'start', gap: 'tight', deckGap: 'tight' } },

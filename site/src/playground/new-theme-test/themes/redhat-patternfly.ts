@@ -103,7 +103,7 @@ const theme: ThemeSpec = {
     arc: { gap: 3, gapStyle: 'rule' },
   },
   labels: { truncation: 'ellipsis' },
-  legend: { show: 'always', placement: ['right', 'bottom'], direction: 'vertical', title: 'omit', align: 'start' },
+  legend: { show: 'always', placement: ['right', 'bottom'], direction: 'vertical', title: 'whenAmbiguous', align: 'start' },
   dataLabels: { show: 'never' },
   annotation: { axisTitles: 'always', axisTitlePlacement: 'rotated', unitsInAxisTitle: true },
   layout: { titleBlock: { anchor: 'start', gap: 'normal' }, density: 'airy', bandStepFit: 1 },

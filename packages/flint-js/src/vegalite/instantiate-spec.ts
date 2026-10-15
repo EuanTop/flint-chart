@@ -1089,6 +1089,61 @@ export function vlApplyTooltips(vgObj: any): void {
     vgObj.config.mark = { ...vgObj.config.mark, tooltip: true };
 }
 
+/** A working column Flint computes for itself: a position, an order, a jitter, a connector. */
+const isWorkingColumn = (field: unknown): boolean => typeof field === 'string' && /^(__|_flint)/.test(field);
+
+/** The channels a mark's own tooltip lists, as Vega-Lite reads them from its encoding. */
+const NOT_LISTED = new Set(['tooltip', 'href', 'url', 'description', 'key']);
+const TOOLTIP_FIELD_KEYS = ['field', 'type', 'title', 'aggregate', 'timeUnit', 'bin', 'format', 'formatType'] as const;
+const COMPOSITE_MARKS = new Set(['boxplot', 'errorbar', 'errorband']);
+
+/**
+ * Keeps Flint's working columns out of the tooltips Vega-Lite builds from each mark's encoding.
+ * A column that repacks the author's field — a folded colour key, a waterfall's step kind — carries
+ * that field's name as its title and stays, under the name. One with no name of its own — a radar's
+ * positions, a pie's order, a strip's jitter — names nothing a reader asked about, and is left out;
+ * a mark with nothing else to list shows no tooltip. A mark whose tooltip lists no working column
+ * is left as it is, and so is a composite mark (a boxplot), whose summary a stated list would drop.
+ */
+export function vlListTooltipFields(spec: any): void {
+    if (spec?.config?.mark?.tooltip !== true) return;
+    const visit = (node: any, inherited: Record<string, any>): void => {
+        if (!node || typeof node !== 'object') return;
+        const encoding = { ...inherited, ...(node.encoding ?? {}) };
+        const markTooltip = node.mark && typeof node.mark === 'object' ? node.mark.tooltip : undefined;
+        // A mark whose encoding asks for no tooltip shows none: with tooltips on for every mark, an
+        // encoding's `null` alone does not turn its own off — the mark's does.
+        const silence = () => { node.mark = { ...(typeof node.mark === 'object' ? node.mark : { type: node.mark }), tooltip: null }; };
+        // A composite mark lists its own summary — a box's quartiles and whiskers — which a list given
+        // to it would replace: it keeps Vega-Lite's own.
+        const composite = COMPOSITE_MARKS.has(typeof node.mark === 'object' ? node.mark?.type : node.mark);
+        if (node.mark && encoding.tooltip === null && markTooltip !== false && markTooltip !== null) silence();
+        else if (node.mark && !composite && markTooltip !== false && markTooltip !== null && encoding.tooltip === undefined) {
+            const listed: any[] = [];
+            let working = false;
+            for (const [channel, def] of Object.entries<any>(encoding)) {
+                if (NOT_LISTED.has(channel) || !def || typeof def !== 'object' || Array.isArray(def)) continue;
+                if (def.field === undefined && def.aggregate !== 'count') continue;
+                if (isWorkingColumn(def.field)) {
+                    working = true;
+                    // A column that repacks the author's field is listed under that field's name.
+                    if (typeof def.title !== 'string') continue;
+                }
+                const entry: Record<string, unknown> = {};
+                for (const key of TOOLTIP_FIELD_KEYS) if (def[key] !== undefined && def[key] !== null) entry[key] = def[key];
+                listed.push(entry);
+            }
+            // Stated in full, so Vega-Lite adds none of its own working columns — a sorted key's index.
+            if (working && listed.length) node.encoding = { ...(node.encoding ?? {}), tooltip: listed };
+            else if (working) silence();
+        }
+        // A layer's children read its encoding; a facet's or a concatenation's children do not.
+        for (const child of node.layer ?? []) visit(child, encoding);
+        for (const child of [node.spec, ...(node.hconcat ?? []), ...(node.vconcat ?? []), ...(node.concat ?? [])]) if (child) visit(child, {});
+    };
+    visit(spec, {});
+}
+
 /**
  * Lets the full-text tooltips Flint puts on truncated legend and axis labels fire.
  *

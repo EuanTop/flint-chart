@@ -69,7 +69,7 @@ const theme: ThemeSpec = {
   },
   // Segment 1 starts at 12 o'clock, in the data's order (M4).
   geometry: { arc: { gap: 3, gapStyle: 'rule', order: 'data' } },
-  legend: { show: 'always', placement: ['right', 'bottom'], direction: 'vertical', title: 'omit', align: 'start' },
+  legend: { show: 'always', placement: ['right', 'bottom'], direction: 'vertical', title: 'whenAmbiguous', align: 'start' },
   // “No labels on the segments; the key carries labels and values.”
   dataLabels: { show: 'never' },
   annotation: { numberFormat: { thousands: 'separator', precision: 'integer' } },

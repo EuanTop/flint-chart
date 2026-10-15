@@ -82,8 +82,17 @@ describe('boxplot categorical x-axis label fitting', () => {
 
   it('leaves the band unchanged when short labels already fit horizontally', () => {
     const grades = ['A', 'B', 'C'];
-    const { step, labelAngle, fontSize } = xAxisLayout(makeBoxplotInput(grades, 300));
+    // Band balance off: this asks only whether the names widen the band.
+    const { step, labelAngle, fontSize } = xAxisLayout({ ...makeBoxplotInput(grades, 300), options: { bandBalance: false } });
     expect(step).toBe(28); // box defaultBandSize, no widening needed
+    expect(labelAngle).toBe(0);
+    assertNonOverlapping(grades, step, labelAngle, fontSize);
+  });
+
+  it('thickens the boxes of a few groups so the plot is not a strip, labels still straight', () => {
+    const grades = ['A', 'B', 'C'];
+    const { step, labelAngle, fontSize } = xAxisLayout(makeBoxplotInput(grades, 300));
+    expect(step).toBeGreaterThan(28);
     expect(labelAngle).toBe(0);
     assertNonOverlapping(grades, step, labelAngle, fontSize);
   });
@@ -151,7 +160,9 @@ describe('word-wrapped categorical axis labels', () => {
     const categories = [`${teams[0]} Olympic delegation`, ...teams.slice(1)];
     const input = barInput(categories, horizontal);
     input.chart_spec.baseSize.width = width;
-    const spec: any = assembleVegaLite({ ...input, theme_spec: 'mckinsey' });
+    // The theme's type scale at this canvas; the canvas-fit pass, which may lay a narrow chart out
+    // wider, is tested on its own.
+    const spec: any = assembleVegaLite({ ...input, theme_spec: 'mckinsey', options: { ...input.options, canvasFit: 'off' } } as any);
     const axis = horizontal ? spec.config.axisY : spec.config.axisX;
     const size = spec._theme.decisions.dataLabels.text.fontSize;
     if (width < 300) expect(size).toBeLessThan(10);
@@ -205,13 +216,16 @@ describe('word-wrapped categorical axis labels', () => {
     expect(spec.config.axisY.labelLineHeight).toBe(Math.ceil(spec.config.axisY.labelFontSize * 1.2));
   });
 
-  it.each([80, 160])('keeps a readable Y gutter on a %spx plot', (width) => {
+  it.each([80, 160])('keeps a readable Y gutter on a %spx plot, but caps a name past it', (width) => {
     const input = barInput(['International Infrastructure Development and Regional Public Transportation Modernization Programme', ...teams.slice(1)], true);
     input.chart_spec.baseSize.width = width;
     const spec: any = assembleVegaLite(input);
-    expect(spec.config.axisY.labelExpr).toBeDefined();
+    const fontSize = spec.config.axisY.labelFontSize;
+    // A readable gutter — twelve of its size, about twenty characters, more than a quarter of the plot —
     expect(spec.config.axisY.labelLimit).toBeGreaterThan(width / 4);
-    expect(spec.config.axisY.labelLimit).toBe(182);
+    expect(spec.config.axisY.labelLimit).toBeGreaterThanOrEqual(12 * fontSize - 1);
+    // — but not the 180px a ninety-character name would take: it is cut there, with an ellipsis.
+    expect(spec.config.axisY.labelLimit).toBeLessThan(180);
     expect(spec.config.axisY.labelAngle).toBe(0);
   });
 

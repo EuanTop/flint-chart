@@ -42,6 +42,8 @@ export interface SeriesEndInputs {
     rows: any[];
     /** The plot's size in px, where known: a key inside the plot is tested against what is drawn there. */
     plot?: { width: number; height: number };
+    /** The chart fills its plot (a radar), so no corner of it is free. */
+    fills?: boolean;
 }
 
 const ENDABLE_MARKS = new Set(['line', 'trail', 'area']);
@@ -187,9 +189,11 @@ function insideCornerCovered(inputs: SeriesEndInputs): string | undefined {
     const size = d.legend.label.fontSize ?? 11;
     const keyHeight = Math.min(names.length, d.legend.maxSwatches ?? names.length) * (size + 8) + 8;
     const keyWidth = Math.max(...names.map((n) => n.length)) * size * 0.6 + size + 24;
-    if (structure.marks.includes('arc')) {
+    if (structure.marks.includes('arc') || inputs.fills) {
         const side = Math.min(plot.width, plot.height);
-        return plot.width - side >= keyWidth ? undefined : 'the pie fills the plot, so a key in its corner would sit on the wedges';
+        return plot.width - side >= keyWidth ? undefined
+            : inputs.fills ? 'the chart fills its plot, its labels around it, so a key in its corner would sit on them'
+                : 'the pie fills the plot, so a key in its corner would sit on the wedges';
     }
     const fraction = (axis: 'x' | 'y'): ((row: any) => [number, number] | undefined) | undefined => {
         const a = structure[axis];

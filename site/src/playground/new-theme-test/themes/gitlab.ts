@@ -85,7 +85,7 @@ const theme: ThemeSpec = {
     band: { fraction: 0.5, opacity: 0.2, outline: 'full', outlineWidth: 1, outlineInk: 'series' },
   },
   labels: { truncation: 'ellipsis' },
-  legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'omit', align: 'start' },
+  legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'whenAmbiguous', align: 'start' },
   dataLabels: { show: 'never' },
   annotation: { axisTitles: 'always', axisTitlePlacement: 'rotated', numberFormat: { thousands: 'suffix', compact: { per: 'value', threshold: 1000 } } },
   layout: { titleBlock: { anchor: 'start', gap: 'tight' } },

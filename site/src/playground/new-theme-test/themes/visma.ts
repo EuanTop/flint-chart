@@ -83,7 +83,7 @@ const theme: ThemeSpec = {
     redundantEncoding: 'always',
     redundantChannels: ['shape', 'dash'],
   },
-  legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'omit', align: 'center' },
+  legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'whenAmbiguous', align: 'center' },
   dataLabels: { show: 'never' },
   annotation: { axisTitles: 'whenAmbiguous', axisTitlePlacement: 'rotated', unitsInAxisTitle: true },
   layout: { titleBlock: { anchor: 'start', gap: 'normal' }, bandStepFit: 1 },

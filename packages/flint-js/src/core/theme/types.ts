@@ -539,15 +539,19 @@ export interface ThemeLegend {
     placement?: LegendPlacement[];
     direction?: 'horizontal' | 'vertical';
     /**
-     * `whenAmbiguous` asks whether the key's labels say what they are: a list
-     * of names (`Chrome`, `Cairo`) does, and a ramp of numbers does not.
+     * Whether a key carries its field's name. `always`; or `whenAmbiguous` (the default), which
+     * leaves it off only on proof the reader does not need it: the headline, deck or an axis on the
+     * same field already names it, the chart makes the key itself, or every value proves one closed
+     * kind (months, years, countries…) under a field name that says no more. A semantic type is not
+     * proof. An author who wants no title says so on the encoding. `omit` is read as `whenAmbiguous`.
      */
-    title?: 'omit' | 'whenAmbiguous' | 'always';
+    title?: 'whenAmbiguous' | 'always' | /** @deprecated read as `whenAmbiguous` */ 'omit';
     gradientLength?: number;
     /**
      * The most entries a key to *values* may spend. A legend that names ten
-     * bubble sizes is a table, not a key: three well-chosen sizes tell the
-     * reader the scale and leave the chart the room.
+     * bubble sizes is a table, not a key. Unset, a size key lists round values
+     * as its edge has room for — one for every 80 px of the plot's side it
+     * stands on, from three to five — each symbol clearly larger than the last.
      */
     maxSwatches?: number;
     swatch?: 'auto';
@@ -557,6 +561,15 @@ export interface ThemeLegend {
     titlePosition?: 'above' | 'inline';
     /** Where keys stand along their edge: from its start, centred, at its end, or spread across it. */
     align?: 'start' | 'center' | 'end' | 'spread';
+    /**
+     * The air around keys, in em of their labels — so it keeps its proportion to the type — and
+     * eased with the plot's size (three-quarters at a small tile, a quarter more on a large chart).
+     * `title`: the title block to keys standing under it; `stack`: between keys one above another;
+     * `row`: between keys side by side; `plot`: a key to the plot. Unset: one rhythm through the
+     * header, half an em for `title` and `stack`; an em and a half for `row`; an em for `plot`, by
+     * `layout.density`.
+     */
+    gaps?: { title?: number; stack?: number; row?: number; plot?: number };
     /** The legend restates the categorical axis — delete it. */
     suppressWhenAxisNames?: boolean;
     /** The legend restates a number already printed in every mark — delete it. */
@@ -734,7 +747,10 @@ export interface ThemeFacets {
 }
 
 export interface ThemeLayout {
-    /** Air around the plot. Not the ruler's gradations — those are `tickDensity`. */
+    /**
+     * Air around the plot: the canvas padding, and a key's gap to the plot (0.8, 1 or 1.4 em of its
+     * labels, unless `legend.gaps.plot` says). Not the ruler's gradations — those are `tickDensity`.
+     */
     density?: 'compact' | 'normal' | 'airy';
     targetWidth?: number;
     titleBlock?: {
@@ -745,7 +761,9 @@ export interface ThemeLayout {
          * The vertical gap between the title block and the chart below it — a
          * house's whitespace personality reaching the headline. `tight` packs
          * the chart up under the title (a dense figure, a dashboard tile);
-         * `loose` gives an action title room to breathe (a slide exhibit).
+         * `loose` gives an action title room to breathe (a slide exhibit). Keys above the plot join
+         * the block: the title stands over them at the header's rhythm (`legend.gaps`), and this gap
+         * stands below them.
          */
         gap?: 'tight' | 'normal' | 'loose';
         /** The vertical gap between the headline and its deck (subtitle). */
@@ -762,7 +780,9 @@ export interface ThemeLayout {
      * How strongly category pitch follows the available discrete-axis span.
         * On sparse one-banded axes, `0` preserves `bandStep`, `1` fills the span,
         * and intermediate values linearly blend the two. Under pressure normal
-        * elasticity applies to `bandStep`; two-banded cell grids ignore this.
+        * elasticity applies to `bandStep`. A grid's cells (both axes banded) are not bars: they keep
+        * their reading target, and grow past it toward the size that fills the base by this share, to
+        * twice the target at most.
      */
     bandStepFit?: number;
 }
@@ -1219,6 +1239,8 @@ export interface ResolvedLegend {
     orient?: 'top' | 'right' | 'bottom' | 'left' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'none';
     direction?: 'horizontal' | 'vertical';
     title: boolean;
+    /** Whether the house titles every key, or only those whose labels do not say what they are. */
+    titlePolicy?: 'always' | 'whenAmbiguous';
     label: ResolvedText;
     gradientLength?: number;
     /** The most entries a key to values may spend. */
@@ -1227,6 +1249,7 @@ export interface ResolvedLegend {
     arrangement?: ThemeLegend['arrangement'];
     titlePosition?: ThemeLegend['titlePosition'];
     align?: ThemeLegend['align'];
+    gaps?: ThemeLegend['gaps'];
 }
 
 export interface ResolvedDataLabels {
@@ -1394,7 +1417,11 @@ export interface DesignDecisions {
     /** Bound axes, keyed by screen channel. */
     axes: { x?: ResolvedAxis; y?: ResolvedAxis };
     frame: ResolvedRule;
-    baseline: ResolvedRule;
+    /**
+     * The rule the marks stand on. `anyFloor`: the house states it strongly — emphasised, or with
+     * its own ink or weight — so it is drawn along the axis's floor even where that is not zero.
+     */
+    baseline: ResolvedRule & { anyFloor?: boolean };
     series: ResolvedSeriesInk;
     legend: ResolvedLegend;
     dataLabels: ResolvedDataLabels;

@@ -354,11 +354,22 @@ export const cjsGroupedBarChartDef: ChartTemplateDef = {
                 config.data.datasets.push({
                     label: `__lane${lane}`,
                     data,
+                    // The group this lane draws at each band, so the tooltip names it, not the lane.
+                    laneGroups: categories.map((cat) => perBand.get(cat)?.[lane] ?? null),
                     backgroundColor: bg,
                     borderColor: bd,
                     borderWidth: 1,
                 });
             }
+            const tooltip = config.options.plugins.tooltip ?? {};
+            config.options.plugins.tooltip = {
+                ...tooltip,
+                filter: (item: any) => item.raw != null && (tooltip.filter ? tooltip.filter(item) : true),
+                callbacks: {
+                    ...(tooltip.callbacks ?? {}),
+                    label: (item: any) => `${item.dataset?.laneGroups?.[item.dataIndex] ?? item.dataset?.label ?? ''}: ${item.formattedValue}`,
+                },
+            };
 
             // Custom legend: one swatch per group value (not per lane).
             config.options.plugins.legend = {

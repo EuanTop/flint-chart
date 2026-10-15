@@ -78,7 +78,7 @@ const theme: ThemeSpec = {
     arc: { gap: 1, gapStyle: 'rule' },
   },
   labels: { truncation: 'wrap' },
-  legend: { show: 'always', placement: ['top'], direction: 'horizontal', title: 'omit', align: 'start' },
+  legend: { show: 'always', placement: ['top'], direction: 'horizontal', title: 'whenAmbiguous', align: 'start' },
   dataLabels: { show: 'never' },
   annotation: { axisTitles: 'omit', numberFormat: { thousands: 'suffix', compact: { threshold: 1000 } } },
   layout: { titleBlock: { anchor: 'start', deckGap: 'loose' } },

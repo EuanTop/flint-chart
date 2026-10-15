@@ -78,7 +78,7 @@ const theme: ThemeSpec = {
   marks: { cornerRadius: 0, bandFraction: 0.5 },
   labels: { truncation: 'wrap' },
   // Direct labels instead of a legend.
-  legend: { show: 'always', placement: ['seriesEnd', 'inline', 'right'], title: 'omit' },
+  legend: { show: 'always', placement: ['seriesEnd', 'inline', 'right'], title: 'whenAmbiguous' },
   dataLabels: { show: 'whenTheyFit', placement: 'atMark', inkMode: 'contrastWithMark' },
   annotation: { axisTitles: 'always', axisTitlePlacement: 'flatAboveAxis', unitsInAxisTitle: true, axisTitleGap: 12 },
   layout: { density: 'airy', titleBlock: { anchor: 'start', gap: 'loose', deckGap: 'normal' }, bandStepFit: 1 },

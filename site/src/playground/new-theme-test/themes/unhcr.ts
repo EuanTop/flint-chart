@@ -78,7 +78,7 @@ const theme: ThemeSpec = {
   marks: { bandFraction: 0.72, strokeWeight: 2, cornerRadius: 0 },
   geometry: { line: { width: 2 }, point: { presence: 'omit' } },
   labels: { truncation: 'wrap' },
-  legend: { show: 'always', placement: ['seriesEnd', 'top'], direction: 'horizontal', title: 'omit', align: 'start', suppressWhenAxisNames: true },
+  legend: { show: 'always', placement: ['seriesEnd', 'top'], direction: 'horizontal', title: 'whenAmbiguous', align: 'start', suppressWhenAxisNames: true },
   dataLabels: { show: 'never', placement: 'outsideMark', inkMode: 'contrastWithMark' },
   annotation: {
     axisTitles: 'whenAmbiguous',

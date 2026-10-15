@@ -1391,10 +1391,15 @@ function buildEncodingTooltipFormatter(option: any): ((params: any) => string) |
             }
             const parts = [`${categoryLabel}: ${cat}`];
             for (const item of list) {
-                const name = item.seriesName ?? valueLabel;
+                // A bar drawn in a lane is named by the group it draws; a series the template names for
+                // itself (`__…`) and that draws no group is not listed — its name is not the reader's.
+                const lane = item?.data && typeof item.data === 'object' && !Array.isArray(item.data) ? item.data.laneGroup : undefined;
+                if (lane === undefined && String(item?.seriesName ?? '').startsWith('__')) continue;
+                const name = lane ?? item.seriesName ?? valueLabel;
                 let val = item.value != null ? item.value : (Array.isArray(item.data) ? item.data[item.dataIndex] : item.data);
                 // Line/area series data is [x, y]; ECharts may pass the full point — use y (index 1) for value.
                 if (Array.isArray(val) && val.length >= 2) val = val[1];
+                if (val && typeof val === 'object' && 'value' in val) val = (val as any).value;
                 parts.push(`${name}: ${fmtNumForTooltip(val)}`);
             }
             return parts.join('<br/>');
@@ -1411,7 +1416,7 @@ function buildEncodingTooltipFormatter(option: any): ((params: any) => string) |
         for (const p of parts) {
             let val: unknown;
             if (p.from === 'series') {
-                val = params.seriesName ?? params.name;
+                val = params.data?.laneGroup ?? params.seriesName ?? params.name;
             } else if (p.from === 'name') {
                 val = params.name;
             } else if (p.from === 'value') {

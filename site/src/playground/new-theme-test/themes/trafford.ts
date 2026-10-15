@@ -78,7 +78,7 @@ const theme: ThemeSpec = {
     area: { opacity: 0.4 },
   },
   labels: { truncation: 'ellipsis' },
-  legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'omit', align: 'center', suppressWhenAxisNames: true },
+  legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'whenAmbiguous', align: 'center', suppressWhenAxisNames: true },
   dataLabels: { show: 'never', placement: 'outsideMark', inkMode: 'fixed' },
   annotation: { axisTitles: 'whenAmbiguous', axisTitlePlacement: 'rotated', unit: 'never', numberFormat: { thousands: 'separator' } },
   layout: { density: 'airy', titleBlock: { anchor: 'start', gap: 'normal' } },

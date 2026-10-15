@@ -56,6 +56,11 @@ export interface ChartEncoding {
     sortOrder?: "ascending" | "descending";
     sortBy?: string;
     scheme?: string;
+    /**
+     * The name the channel's axis or key prints, in place of the field's; `null` prints none. A
+     * theme still decides whether a key is titled at all: a name given here renames it where it is.
+     */
+    title?: string | null;
 }
 
 /**
@@ -961,6 +966,16 @@ export interface PivotDef {
  *   1. declareLayoutMode — declare axis flags, type overrides, param overrides
  *   2. instantiate — build final spec from resolved encodings + layout
  */
+/** What a chart draws past its plot on each side, in px, and whether it fills the plot itself. */
+export interface PlotOverhang {
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+    /** The marks fill the plot, as a pie or a radar does: no corner of it is free for a key. */
+    fills?: boolean;
+}
+
 export interface ChartTemplateDef {
     /** Display name of the chart type, e.g. "Scatter Plot" */
     chart: string;
@@ -1086,6 +1101,14 @@ export interface ChartTemplateDef {
      * Runs in the plan; `instantiate` draws at `context.plot`. Undefined keeps the layout's size.
      */
     planPlot?: (context: PlotPlanContext) => { width: number; height: number } | undefined;
+
+    /**
+     * How far this chart type draws past its plot on each side, in px — a radar's spoke labels stand
+     * outside its outer ring — and whether it fills the plot, so a key beside the plot stands clear
+     * of what it draws there and a key inside the plot knows it has no empty corner. Runs in the
+     * plan, at the planned plot.
+     */
+    planOverhang?: (context: PlotPlanContext, plot: { width: number; height: number }) => PlotOverhang | undefined;
 
     /**
      * The views this chart type draws and how they stand, where it composes them itself rather
@@ -1366,6 +1389,40 @@ export interface ChartAssemblyInput {
  * Options for the chart assembly function.
  * Includes layout tuning parameters — all have sensible defaults.
  */
+/**
+ * A treatment the canvas-fit pass lays a chart out under, to win back room the title, keys and
+ * names took from the chart area (see `AssembleOptions.canvasFit`).
+ */
+export interface CanvasTreatment {
+    /** Every key at one edge: beside the plot, or in one row above or below it. */
+    keys?: 'side' | 'top' | 'bottom';
+    /**
+     * One key moved to another edge, the others left where they stand: the key at `index` among
+     * the chart's keys. `title` names it, for reports.
+     */
+    oneKey?: { index: number; to: 'side' | 'top' | 'bottom'; title?: string };
+    /**
+     * The width the names down the y axis are given, in px: longer ones wrap onto a second line, so
+     * the chart area — its plot and its names — takes the width the box leaves it.
+     */
+    rowNames?: number;
+    /**
+     * The room the box leaves the plot once what is around the chart is settled, in px: the plot is
+     * laid out again in it, once. A continuous side takes it; a banded side keeps its steps.
+     */
+    plotSpace?: { width?: number; height?: number };
+    /** The headline and deck set at this share of their size, never below a legible floor. */
+    titleScale?: number;
+    /** Long key names kept to this many px a column, wrapped onto lines before they are cut. */
+    names?: { keyWidth: number };
+    /**
+     * The plot laid out at this share of its base size, both ways, so it keeps its shape: what the
+     * box cannot hold comes out of the plot rather than out of every glyph, as a host shrinking the
+     * whole drawing would take it.
+     */
+    plotScale?: number;
+}
+
 export interface AssembleOptions {
     /** Whether to add tooltips to the chart (default: false) */
     addTooltips?: boolean;
@@ -1494,6 +1551,23 @@ export interface AssembleOptions {
      * bands for their labels.
      */
     labelStep?: { x?: number; y?: number };
+    /**
+     * What the layout does when the chart will not read well in its canvas: the title, keys, labels
+     * and chrome taking the chart area's room, the drawing overflowing its box past legibility, or
+     * stretched out of its box's shape. `'auto'` (the default) lays such a chart out again — each part
+     * given a box from the canvas and fitted to it (keys on the edge with room, their names wrapped;
+     * the title set down to fit), then, where that is not enough, cheap treatments one at a time — and
+     * keeps the cheapest that reads well. A chart that reads well as planned is never changed.
+     * `'off'` lays every chart out as planned.
+     */
+    canvasFit?: 'off' | 'auto';
+    /**
+     * Whether the canvas fit, once it has settled what is around the chart, lays the plot out once
+     * more in the room the box leaves it — kept only where the chart reads better for it (default true).
+     */
+    canvasRefit?: boolean;
+    /** Internal: the treatment a canvas-fit pass lays the chart out under. */
+    canvasTreatment?: CanvasTreatment;
     /** Attach the theme's resolved decisions to the spec as `_theme.decisions`, for tools that inspect them. Default: false. */
     themeDecisions?: boolean;
     /**
@@ -1648,4 +1722,26 @@ export interface AssembleOptions {
      * scatter, line, or fully-banded charts.
      */
     targetBandAR?: number;
+
+    /**
+     * How far a grid's cells grow past their reading target (28 px) toward the size that fills the
+     * base, from 0 (not at all, the default) to 1 (to twice the target at most). Set from a house's
+     * `layout.bandStepFit`.
+     */
+    cellGrowth?: number;
+
+    /**
+     * Whether a plot with one banded axis leans back where its bands, with the labels it cannot
+     * drop, put it outside the shapes a chart of its base takes on its own (default true). That
+     * range runs from the base with its height stretched to the base with its width stretched
+     * (at least 1.25× either side); where it cannot be reached readably, a range half as wide
+     * again is aimed for instead.
+     */
+    bandBalance?: boolean;
+
+    /** The centre of that range, as width over height: unset, the base's. */
+    targetAspect?: number;
+
+    /** The range's spread either side of its centre, as a ratio: unset, the stretch allowed. */
+    aspectTolerance?: number;
 }

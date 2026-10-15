@@ -4,6 +4,8 @@ import type { LegendPlacementPlan } from './series-end';
 import type { ChartStructure, KeyChannel } from './structure';
 import type { DesignDecisions } from './theme/types';
 import type { ChannelSemantics, LayoutResult } from './types';
+import { format as formatNumber } from 'd3-format';
+import { niceTicks } from './ruler';
 
 /** A key the chart may draw, and what the plan decides about it. */
 export interface PlannedKey {
@@ -51,6 +53,25 @@ export interface LegendPlan extends LegendPlacementPlan {
  * show that area, not radius, carries the value; few enough that the key stays a key.
  */
 export const SIZE_KEY_SWATCHES = 3;
+/** The round steps a sampled key value takes, of a power of ten. */
+const NICE_STEPS = [1, 2, 2.5, 5];
+/** How far apart two sampled values' symbols stand in width, as a share of the largest's. */
+const SAMPLE_SEPARATION = 0.12;
+
+/** The most entries a size key lists, however much room it has: past this a key is a table. */
+export const SIZE_KEY_MAX_SWATCHES = 5;
+/** The run of the plot's edge one size-key entry is given, in px. */
+const SIZE_KEY_SPACING = 80;
+
+/**
+ * How many round values a size key lists: one for every 80 px of the edge it stands on — the
+ * plot's height beside it, its width above or below — from three, which tell the reader the scale,
+ * to five, past which the key reads as a table.
+ */
+export function sizeKeySwatches(orient: string | undefined, plot: { width: number; height: number }): number {
+    const run = orient === 'top' || orient === 'bottom' ? plot.width : plot.height;
+    return Math.min(SIZE_KEY_MAX_SWATCHES, Math.max(SIZE_KEY_SWATCHES, Math.round(run / SIZE_KEY_SPACING)));
+}
 const CONNECTED_MARKS = new Set(['line', 'area', 'trail']);
 const NAMING_CHANNELS = new Set<KeyChannel>(['color', 'fill', 'stroke', 'shape', 'size', 'opacity']);
 
@@ -65,17 +86,44 @@ export function roundSample(rows: any[], field: string, count: number): number[]
         if (v < min) min = v;
     }
     if (!Number.isFinite(max) || max <= 0) return undefined;
-    const round1 = (v: number) => {
-        const mag = 10 ** Math.floor(Math.log10(Math.abs(v)));
-        return Math.round(v / mag) * mag;
-    };
-    const out: number[] = [];
-    for (let i = 0; i < count; i++) {
-        const t = count === 1 ? 1 : (i + 1) / count;
-        const v = round1(min + (max - min) * t * t);
-        if (v > 0 && !out.includes(v)) out.push(v);
+    // Round values a reader takes in at a glance — 1, 2, 2.5, 5 of a power of ten — up to the largest.
+    const ladder: number[] = [];
+    for (let exp = Math.floor(Math.log10(max)); exp >= Math.floor(Math.log10(max)) - 3; exp--) {
+        for (const step of [...NICE_STEPS].reverse()) {
+            const v = step * 10 ** exp;
+            if (v <= max * 1.0001 && !ladder.includes(v)) ladder.push(v);
+        }
     }
+    // Targets even in a symbol's width (the square root of its area), from the largest down; each
+    // takes the round value nearest it whose symbol stands clearly smaller than the last one's, so a
+    // key lists fewer where the values cannot hold more apart.
+    const apart = Math.sqrt(max) * SAMPLE_SEPARATION;
+    const out: number[] = [];
+    for (let i = count - 1; i >= 0; i--) {
+        const t = count === 1 ? 1 : (i + 1) / count;
+        const target = Math.max(min, 0) + (max - Math.max(min, 0)) * t * t;
+        const last = out[out.length - 1];
+        const options = ladder.filter((v) => last === undefined || (v < last && Math.sqrt(last) - Math.sqrt(v) >= apart));
+        if (!options.length) break;
+        out.push(options.reduce((best, v) => (Math.abs(Math.log(v / target)) < Math.abs(Math.log(best / target)) ? v : best)));
+    }
+    out.reverse();
     return out.length > 1 ? out : undefined;
+}
+
+/** The ticks a key to a field's values lists where none are sampled: a scale's five or so, from zero for a size. */
+function valueKeyTicks(rows: any[], field: string, fromZero: boolean): string[] | undefined {
+    let min = Infinity;
+    let max = -Infinity;
+    for (const row of rows ?? []) {
+        const value = Number(row?.[field]);
+        if (!Number.isFinite(value)) continue;
+        if (value < min) min = value;
+        if (value > max) max = value;
+    }
+    if (!Number.isFinite(min)) return undefined;
+    const ticks = niceTicks(fromZero ? Math.min(0, min) : min, fromZero ? Math.max(0, max) : max, 5);
+    return ticks.length ? ticks.map((tick) => formatNumber(',')(tick)) : undefined;
 }
 
 /**
@@ -114,6 +162,8 @@ export interface LegendInputs {
     flatYTitle: boolean;
     /** How far above the plot the flat y title's baseline sits, in px. */
     flatYTitleLift?: number;
+    /** The title each axis prints, `null` where none: a key on an axis's field whose title is printed need not repeat it. */
+    axisTitles?: Record<'x' | 'y', string | null | undefined>;
 }
 
 /**
@@ -168,8 +218,8 @@ function foldedColour(inputs: LegendInputs, field: string, design: DesignDecisio
  * theme that names series some other way (or not at all) drops the keys that name series and keeps
  * the keys to values, which nothing else explains; a theme that leaves series titles off drops
  * those titles, while a key to values keeps its title, a number naming nothing until it says what
- * it counts. A size key is sampled at three round values unless the house says how many; an
- * opacity key only where it does. A horizontal ramp the house does not size runs 45% of the
+ * it counts. A size key is sampled at round values, one for every 80 px of the edge it stands on,
+ * from three to five, never more than the house allows; an opacity key only where the house says how many. A horizontal ramp the house does not size runs 45% of the
  * block, between 80 and 200 px, and a top key clears a flat y title by its line and 12 px.
  */
 export function planLegend(inputs: LegendInputs): LegendPlan {
@@ -179,10 +229,16 @@ export function planLegend(inputs: LegendInputs): LegendPlan {
         const valueKey = (key.channel === 'size' || key.channel === 'opacity') && key.type === 'quantitative';
         const governed = Boolean(design) && NAMING_CHANNELS.has(key.channel);
         const show = !governed || named || valueKey;
-        const untitled = Boolean(design) && named && !design!.legend.title && governed && !valueKey;
-        const cap = !design || !named || !key.field || key.type !== 'quantitative' ? undefined
-            : key.channel === 'size' ? design.legend.maxSwatches ?? SIZE_KEY_SWATCHES
-                : key.channel === 'opacity' ? design.legend.maxSwatches : undefined;
+        // A key the template makes itself — a waterfall's total, increase and decrease — is explained
+        // by the chart it keys, so it is titled only where the house titles every key.
+        const madeByChart = Boolean(key.derived) && design?.legend.titlePolicy !== 'always';
+        // Nor need a key repeat the name an axis on the same field already prints.
+        const printedOnAxis = Boolean(key.field) && design?.legend.titlePolicy !== 'always' && (['x', 'y'] as const).some((axis) =>
+            structure[axis]?.fields.includes(key.field!) && typeof inputs.axisTitles?.[axis] === 'string' && design?.axes[axis]?.title.show !== false);
+        const untitled = Boolean(design) && named && (!design!.legend.title || madeByChart || printedOnAxis) && governed && !valueKey;
+        const cap = !named || !key.field || key.type !== 'quantitative' ? undefined
+            : key.channel === 'size' ? Math.min(design?.legend.maxSwatches ?? Infinity, sizeKeySwatches(placement.orient, plot))
+                : key.channel === 'opacity' ? design?.legend.maxSwatches : undefined;
         const samples = cap ? roundSample(rows, key.field!, cap) : undefined;
         const fold = design && key.channel === 'color' && key.field && !key.via ? foldedColour(inputs, key.field, design) : undefined;
         const planned: PlannedKey = {
@@ -234,7 +290,8 @@ export interface KeyLayoutInputs {
     structure: ChartStructure;
     layout: LayoutResult;
     /** The title each key's channel prints, from its encoding. */
-    titles: Partial<Record<string, string>>;
+    /** Each channel's key title; `null` where the author asked for none. */
+    titles: Partial<Record<string, string | null>>;
     /** The areas a size channel spans, in px². */
     sizes?: { range: [number, number] };
     /** Whether a theme is applied. */
@@ -287,7 +344,7 @@ export function keysToLayout(plan: LegendPlan, inputs: KeyLayoutInputs): Array<K
         const statedTitle = stated.get(key.channel);
         const title = plan.untitled || key.untitled ? null
             : statedTitle !== undefined ? statedTitle
-                : titles[key.channel] ?? key.via ?? key.field ?? null;
+                : titles[key.channel] !== undefined ? titles[key.channel] as string | null : key.via ?? key.field ?? null;
         const style: KeyStyle = {
             labelFont: font, labelFontSize,
             // Measured in the weight, slope and case the key is drawn in.
@@ -298,6 +355,10 @@ export function keysToLayout(plan: LegendPlan, inputs: KeyLayoutInputs): Array<K
             padding: corner ? 4 : 0,
             ...(plan.gradient ? { gradientLength: plan.gradient.length } : l?.gradientLength ? { gradientLength: l.gradientLength } : {}),
         };
+        // A key to values with none sampled draws its scale's ticks, about five, as the backend does:
+        // those are what it lists, not the rows' values.
+        const drawnTicks = !gradient && !key.samples && !key.entries && key.field && key.type === 'quantitative'
+            ? valueKeyTicks(inputs.rows, key.field, key.channel === 'size') : undefined;
         const relocated = plan.secondaryEdge && SECONDARY_CHANNELS.has(key.channel);
         const pinned = inputs.authored[key.channel];
         const edge = pinned?.orient ?? (relocated ? plan.secondaryEdge! : orient);
@@ -306,8 +367,8 @@ export function keysToLayout(plan: LegendPlan, inputs: KeyLayoutInputs): Array<K
             gradient,
             ...(key.entries ? { labels: key.entries } : {}),
             ...(!key.entries && (key.samples || key.field)
-                ? { valueLabels: key.samples?.map(String) ?? [...new Set(inputs.rows.map((row) => String(row?.[key.field!])))] } : {}),
-            count: key.samples?.length ?? key.entries?.length ?? 5,
+                ? { valueLabels: key.samples?.map(String) ?? drawnTicks ?? [...new Set(inputs.rows.map((row) => String(row?.[key.field!])))] } : {}),
+            count: key.samples?.length ?? key.entries?.length ?? drawnTicks?.length ?? 5,
             title,
             style,
             ...(key.channel === 'size' ? { largestSymbol: design?.marks.sizeRange?.[1] ?? sizes?.range[1] ?? 400 } : {}),

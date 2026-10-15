@@ -80,7 +80,7 @@ const theme: ThemeSpec = {
     arc: { cornerRadius: 0 },
   },
   labels: { truncation: 'never' },
-  legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'omit', align: 'start' },
+  legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'whenAmbiguous', align: 'start' },
   dataLabels: { show: 'never', placement: 'outsideMark' },
   annotation: { axisTitles: 'omit', unit: 'never', numberFormat: { thousands: 'suffix' } },
   layout: { titleBlock: { anchor: 'start', gap: 'loose', deckGap: 'tight' }, bandStepFit: 1 },

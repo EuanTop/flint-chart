@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { TEST_GENERATORS } from '../src/test-data';
 import { THEME_PRESETS } from '../src/core/theme/presets';
 import { vlGetTemplateDef } from '../src/vegalite/templates';
-import { vegaLiteTitleFits } from '../src/vegalite/assemble';
+import { vegaLiteStages, vegaLiteTitleFits } from '../src/vegalite/assemble';
 import type { ChartAssemblyInput } from '../src/core/types';
 
 function input(testCase: any, theme: string | undefined, title?: { title: string; subtitle?: string; width: number }): ChartAssemblyInput {
@@ -59,4 +59,24 @@ describe('title plan', () => {
         }
         expect(mismatches).toEqual([]);
     }, 300_000);
+
+    it('lets the title run over keys beside the plot', () => {
+        // Institutions down the side, four answers in a key at the right: the title spans the whole
+        // drawing, keys and all, rather than breaking over the plot and its labels alone.
+        const institutions = ['Small business', 'Scientists', 'The military', 'The police', 'The Supreme Court', 'The press', 'Congress'];
+        const answers = ['A great deal', 'Some', 'Not much', 'None at all'];
+        const { plan } = vegaLiteStages({
+            data: { values: institutions.flatMap((Institution, i) => answers.map((Answer, k) => ({ Institution, Answer, Share: 10 + ((i + k) % 4) * 10 }))) },
+            semantic_types: { Institution: 'Category', Answer: 'Category', Share: 'Percentage' },
+            chart_spec: {
+                chartType: 'Stacked Bar Chart', encodings: { x: 'Share', y: 'Institution', color: 'Answer' }, baseSize: { width: 300, height: 260 },
+                title: 'Confidence in America’s public institutions, by trust (% of adults)',
+            },
+            options: { canvasFit: 'off' },
+        } as ChartAssemblyInput);
+        const side = (plan.legend.layout?.footprint ?? []).filter((edge) => edge.orient === 'right');
+        expect(side.length).toBe(1);
+        expect(plan.title!.block).toBeGreaterThan(plan.plot.width * 1.07 + side[0].width);
+        expect(plan.title!.headline?.lines).toBeUndefined();
+    });
 });

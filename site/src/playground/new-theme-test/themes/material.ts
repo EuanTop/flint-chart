@@ -73,7 +73,7 @@ const theme: ThemeSpec = {
     point: { presence: 'omit' },
   },
   labels: { truncation: 'wrap' },
-  legend: { show: 'always', placement: ['bottom', 'seriesEnd'], direction: 'horizontal', title: 'omit', align: 'start' },
+  legend: { show: 'always', placement: ['bottom', 'seriesEnd'], direction: 'horizontal', title: 'whenAmbiguous', align: 'start' },
   dataLabels: { show: 'never' },
   annotation: { unit: 'lastTick', axisTitles: 'whenAmbiguous', axisTitlePlacement: 'flatAboveAxis', numberFormat: { thousands: 'separator' } },
   layout: { titleBlock: { anchor: 'start', gap: 'loose', deckGap: 'normal' }, bandStepFit: 1 },

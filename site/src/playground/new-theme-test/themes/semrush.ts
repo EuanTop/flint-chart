@@ -86,7 +86,7 @@ const theme: ThemeSpec = {
     arc: { gap: 1, gapStyle: 'rule' },
   },
   labels: { truncation: 'ellipsis' },
-  legend: { show: 'always', placement: ['top', 'bottom', 'right'], direction: 'horizontal', title: 'omit', align: 'start' },
+  legend: { show: 'always', placement: ['top', 'bottom', 'right'], direction: 'horizontal', title: 'whenAmbiguous', align: 'start' },
   dataLabels: { show: 'never' },
   annotation: { axisTitles: 'whenAmbiguous', unit: 'everyTick', numberFormat: { thousands: 'suffix', precision: 'integer', compact: {} } },
   layout: { titleBlock: { anchor: 'start', gap: 'normal' } },

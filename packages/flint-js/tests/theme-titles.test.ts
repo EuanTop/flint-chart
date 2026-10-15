@@ -1,4 +1,5 @@
 import { vegaLiteStages } from '../src/vegalite/assemble';
+import { TEST_GENERATORS } from '../src/test-data';
 import { titleMeasures } from '../src/core/title-fit';
 import { tableTextMeasurer } from '../src/core/text-width';
 // Copyright (c) Microsoft Corporation.
@@ -489,23 +490,160 @@ describe('legend titles', () => {
         { Island: 'Biscoe', Species: 'Gentoo', Mass: 4900 },
     ];
 
-    function keyed(colorField: string) {
+    function keyed(colorField: string, title = 'Heavier in the west', x = 'Island', species = 'Category', legendTitle = 'whenAmbiguous') {
         return assembleVegaLite({
             data: { values: PENGUINS },
-            semantic_types: { Island: 'City', Species: 'Category', Mass: 'Amount' },
+            semantic_types: { Island: 'City', Species: species, Mass: 'Amount' },
             chart_spec: {
                 chartType: 'Bar Chart',
-                title: 'Heavier in the west',
-                encodings: { x: 'Island', y: 'Mass', color: colorField },
+                title,
+                encodings: { x, y: 'Mass', color: colorField },
             },
+            theme_spec: house({ axisTitles: 'omit' }, { title: legendTitle } as any),
+        } as any) as any;
+    }
+
+    /** A key on a field of its own name and type, with nothing else said about it. */
+    function plainKey(field: string, semanticType: string, values: string[]) {
+        return assembleVegaLite({
+            data: { values: values.map((value, index) => ({ [field]: value, Mass: 3000 + index * 400 })) },
+            semantic_types: { [field]: semanticType, Mass: 'Amount' },
+            chart_spec: { chartType: 'Bar Chart', title: 'Heavier in the west', encodings: { x: field, y: 'Mass', color: field } },
             theme_spec: house({ axisTitles: 'omit' }, { title: 'whenAmbiguous' }),
         } as any) as any;
     }
 
-    it('leaves a key of names untitled', () => {
+    it('leaves a key untitled where the field is plainly a place or a date, named as such', () => {
+        expect(plainKey('Country', 'Country', ['France', 'Japan', 'Peru'])._theme.decisions.legend.title).toBe(false);
+        expect(plainKey('country_name', 'Country', ['France', 'Japan', 'Peru'])._theme.decisions.legend.title).toBe(false);
+        expect(plainKey('Month', 'Month', ['Jan', 'Feb', 'Mar'])._theme.decisions.legend.title).toBe(false);
+    });
+
+    it('leaves a key untitled on what its values prove, whatever the field is typed', () => {
+        // Typed only a category, the values still prove they are countries.
+        expect(plainKey('Country', 'Category', ['France', 'Japan', 'Peru'])._theme.decisions.legend.title).toBe(false);
+    });
+
+    it('never drops a title on a semantic type alone', () => {
+        // Typed a country, but the values are not countries: a type is a label, not proof.
+        expect(plainKey('Country', 'Country', ['Tier A', 'Tier B', 'Tier C'])._theme.decisions.legend.title).toBe(true);
+        expect(plainKey('Month', 'Month', ['M1', 'M2', 'M3'])._theme.decisions.legend.title).toBe(true);
+    });
+
+    it('leaves a key untitled where an axis on the same field prints its name, and titles it where the axis does not', () => {
+        const keyTitle = (x: unknown) => vegaLiteStages({
+            data: { values: PENGUINS },
+            semantic_types: { Island: 'City', Species: 'Category', Mass: 'Amount' },
+            chart_spec: { chartType: 'Bar Chart', title: 'Heavier in the west', encodings: { x, y: 'Mass', color: 'Species' } },
+            theme_spec: house({ axisTitles: 'always' }, { title: 'whenAmbiguous' }),
+        } as any).plan.legend.keyInputs?.find(Boolean)?.title;
+        expect(keyTitle('Species')).toBeNull();
+        expect(keyTitle({ field: 'Species', title: null })).toBe('Species');
+    });
+
+    it('titles a key of places whose field names their role: `Origin` says which countries these are', () => {
+        expect(plainKey('Origin', 'Country', ['France', 'Japan', 'Peru'])._theme.decisions.legend.title).toBe(true);
+        // The island field is typed a city, but its name says more than the type does.
+        expect(keyed('Island', 'Heavier in the west', 'Species')._theme.decisions.legend.title).toBe(true);
+    });
+
+    it('titles a key of a generic category: `Adelie` and `Gentoo` do not say they are species', () => {
         const spec = keyed('Species');
         expect(spec._theme.decisions.legend.show).toBe(true);
+        expect(spec._theme.decisions.legend.title).toBe(true);
+    });
+
+    it('leaves a key untitled where the headline already names its field', () => {
+        const spec = keyed('Species', 'Gentoo are the heaviest species');
         expect(spec._theme.decisions.legend.title).toBe(false);
+    });
+
+    it('takes the author\'s name for a key, or none', () => {
+        const titled = (color: unknown) => vegaLiteStages({
+            data: { values: PENGUINS },
+            semantic_types: { Island: 'City', Species: 'Category', Mass: 'Amount' },
+            chart_spec: { chartType: 'Bar Chart', title: 'Heavier in the west', encodings: { x: 'Island', y: 'Mass', color } },
+            theme_spec: house({ axisTitles: 'omit' }, { title: 'whenAmbiguous' }),
+        } as any).plan.legend.keyInputs?.find(Boolean)?.title;
+        expect(titled({ field: 'Species', title: null })).toBeNull();
+        expect(titled({ field: 'Species', title: 'Penguin' })).toBe('Penguin');
+        expect(titled('Species')).toBe('Species');
+    });
+
+    it('leaves a key the chart makes itself untitled: a waterfall\'s steps are explained by the chart', () => {
+        const steps = [{ Step: 'Start', Value: 100 }, { Step: 'Sales', Value: 40 }, { Step: 'Costs', Value: -25 }, { Step: 'End', Value: 115 }];
+        const keyTitle = (legend: Record<string, unknown>) => vegaLiteStages({
+            data: { values: steps },
+            semantic_types: { Step: 'Category', Value: 'Amount' },
+            chart_spec: { chartType: 'Waterfall Chart', title: 'From start to end', encodings: { x: 'Step', y: 'Value' } },
+            theme_spec: house({ axisTitles: 'omit' }, legend as any),
+        } as any).plan.legend.keyInputs?.find(Boolean)?.title;
+        expect(keyTitle({ title: 'whenAmbiguous' })).toBeNull();
+        expect(keyTitle({ title: 'always' })).toBe('Type');
+        // And the drawn key follows the plan, over the title the template writes.
+        const { spec } = vegaLiteStages({
+            data: { values: steps },
+            semantic_types: { Step: 'Category', Value: 'Amount' },
+            chart_spec: { chartType: 'Waterfall Chart', title: 'From start to end', encodings: { x: 'Step', y: 'Value' } },
+            theme_spec: 'economist',
+        } as any);
+        const drawn: unknown[] = [];
+        JSON.stringify(spec, (_key, value) => {
+            if (value && typeof value === 'object' && value.field === '__wf_color' && value.legend) drawn.push(value.legend.title);
+            return value;
+        });
+        expect(drawn.length).toBeGreaterThan(0);
+        expect(drawn.every((title) => title === null)).toBe(true);
+    });
+
+    it('titles a key whose tail folds into "Others" with its field, never the working column', () => {
+        const recipients = ['Alpha Fund', 'Beta Trust', 'Gamma Works', 'Delta Aid', 'Epsilon Care', 'Zeta Relief', 'Eta Help', 'Theta Hope', 'Iota Rise', 'Kappa Way'];
+        const { spec } = vegaLiteStages({
+            data: { values: recipients.map((Recipient, index) => ({ Recipient, Share: 20 - index })) },
+            semantic_types: { Recipient: 'Category', Share: 'Percentage' },
+            chart_spec: { chartType: 'Pie Chart', title: 'Shares of the aid budget', encodings: { color: 'Recipient', size: 'Share' } },
+            theme_spec: 'economist',
+        } as any);
+        const titles: unknown[] = [];
+        JSON.stringify(spec, (_key, value) => {
+            if (value && typeof value === 'object' && value.field === '__flintColorKey') titles.push(value.legend?.title ?? value.title);
+            return value;
+        });
+        expect(titles.length).toBeGreaterThan(0);
+        expect(titles).not.toContain('__flintColorKey');
+        expect(titles).toContain('Recipient');
+    });
+
+    it('titles a shape that repeats the colours as the colour key is titled, never with a working column', () => {
+        const internalTitles = (spec: any) => {
+            const out: unknown[] = [];
+            JSON.stringify(spec, (key, value) => {
+                if (value && typeof value === 'object' && ['color', 'shape', 'strokeDash'].includes(key)
+                    && typeof value.field === 'string' && value.field.startsWith('__') && value.legend !== null) {
+                    const title = value.legend?.title !== undefined ? value.legend.title : value.title;
+                    if (title === undefined || (typeof title === 'string' && title.startsWith('__'))) out.push(`${key}:${value.field}`);
+                }
+                return value;
+            });
+            return out;
+        };
+        const radar = (TEST_GENERATORS as any)['Radar Chart']()[0];
+        const many = Array.from({ length: 20 }, (_, index) => ({ X: index, Y: (index * 7) % 13, Group: `Group ${index + 1}` }));
+        for (const theme of ['nature', 'apple']) {
+            const names = new Map(radar.fields.map((field: any) => [field.id, field.name]));
+            const encodings = Object.fromEntries(Object.entries<any>(radar.encodingMap).filter(([, e]) => names.get(e?.fieldID)).map(([channel, e]) => [channel, names.get(e.fieldID)]));
+            const semantic = Object.fromEntries(Object.entries<any>(radar.metadata).map(([field, meta]) => [field, meta.semanticType]));
+            expect(internalTitles(assembleVegaLite({ data: { values: radar.data }, semantic_types: semantic, chart_spec: { chartType: radar.chartType, encodings, chartProperties: radar.chartProperties }, theme_spec: theme }))).toEqual([]);
+            expect(internalTitles(assembleVegaLite({ data: { values: many }, semantic_types: { X: 'Quantity', Y: 'Quantity', Group: 'Category' }, chart_spec: { chartType: 'Scatter Plot', encodings: { x: 'X', y: 'Y', color: 'Group' } }, theme_spec: theme }))).toEqual([]);
+        }
+    });
+
+    it('reads a theme\'s `omit` as `whenAmbiguous`: the reader gets the name of what a key does not explain', () => {
+        const spec = keyed('Species', 'Heavier in the west', 'Island', 'Category', 'omit');
+        expect(spec._theme.decisions.legend.title).toBe(true);
+        expect(spec._theme.report.some((r: any) => r.code === 'legend-title-omit-read-as-when-ambiguous')).toBe(true);
+        // Read as `whenAmbiguous`, it still leaves a key untitled where the headline names the field.
+        expect(keyed('Species', 'Gentoo are the heaviest species', 'Island', 'Category', 'omit')._theme.decisions.legend.title).toBe(false);
     });
 
     it('titles a key of values', () => {

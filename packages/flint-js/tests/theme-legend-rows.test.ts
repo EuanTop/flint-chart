@@ -60,6 +60,9 @@ function bubble(width: number, sizeField: string | null = 'Population'): any {
             baseSize: { width, height: 240 },
         },
         theme_spec: theme(),
+        // These test how keys arrange at the edge the theme asks for; the canvas-fit pass, which
+        // moves keys off it where the box is short, is tested on its own.
+        options: { canvasFit: 'off' },
     } as any) as any;
 }
 
@@ -169,7 +172,9 @@ describe('legend title and entry wrapping', () => {
                 theme_spec: { extends: preset, ink: { series: {
                     categoricalExtended: rows(16).map((_, index) => `#${(0x100000 + index * 0x0f0f0f).toString(16)}`),
                 } } },
-            });
+                // The key layout's own rule, apart from the canvas-fit pass.
+                options: { canvasFit: 'off' },
+            } as any);
             expect(pinned ? ['top'] : ['left', 'right']).toContain(spec._legendLayout.legends[0].orient);
             const view = new View(parse(compile(spec).spec), { renderer: 'none' });
             try {
@@ -235,6 +240,28 @@ describe('legend title and entry wrapping', () => {
                 view.finalize();
             }
         }
+    });
+
+    it('wraps phrase-long names beside a narrow plot rather than take its room', () => {
+        const segments = ['Residential customers on fixed tariffs', 'Small and medium-sized businesses', 'Large industrial and commercial accounts'];
+        const keyed = (width: number) => assembleVegaLite({
+            data: { values: ['North', 'South', 'East'].flatMap((Region, r) => segments.map((Segment, k) => ({ Region, Segment, Revenue: 30 + r * 12 + k * 9 }))) },
+            semantic_types: { Region: 'Category', Segment: 'Category', Revenue: 'Amount' },
+            chart_spec: { chartType: 'Grouped Bar Chart', encodings: { x: 'Region', y: 'Revenue', group: 'Segment' }, baseSize: { width, height: 240 } },
+            options: { canvasFit: 'off' },
+        } as any) as any;
+        const narrow = keyed(180);
+        const wide = keyed(640);
+        const legend = narrow._legendLayout.legends[0];
+        expect(legend.orient).toBe('right');
+        // Beside a narrow plot the names wrap whole onto lines, and the key is narrower for it…
+        expect(legend.width).toBeLessThan(wide._legendLayout.legends[0].width - 20);
+        const labelExprs: string[] = [];
+        JSON.stringify(narrow, (_k, v) => { if (typeof v?.labelExpr === 'string' && v.labelExpr.includes('Residential')) labelExprs.push(v.labelExpr); return v; });
+        expect(labelExprs.some((expr) => expr.includes('["Residential customers'))).toBe(true);
+        expect(JSON.stringify(narrow)).not.toContain('…');
+        // …while beside a wide one each stays on its line.
+        expect(JSON.stringify(wide)).not.toContain('["Residential customers');
     });
 
     it.each([80, 480])('does not wrap two ordinary country names just to narrow the legend (plot width %s)', async (width) => {
@@ -678,7 +705,8 @@ describe('two keys above one plot', () => {
     });
 
     it('gives each a row when they will not fit across the block', () => {
-        const spec = bubble(320);
+        // The block a row of keys spans is the plot and the y labels beside it, as the title's is.
+        const spec = bubble(240);
         expect(layoutOf(spec)?.top?.direction).toBe('vertical');
         expect(spec._legendLayout.overflow).toEqual([]);
     });
@@ -691,8 +719,8 @@ describe('two keys above one plot', () => {
 
     it('says nothing about rows when there is only one key', () => {
         const spec = bubble(320, null);
-        expect(layoutOf(spec)?.top?.direction).toBeUndefined();
-        expect(spec._theme.report.some((r: any) => /row each/.test(r.message))).toBe(false);
+        // One key may still be anchored along its edge; there are no rows to arrange.
+        expect(spec._theme.report.some((r: any) => r.code === 'keys-arrangement-gave-way' || /row each/.test(r.message))).toBe(false);
     });
 
     /**

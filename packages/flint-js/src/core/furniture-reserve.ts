@@ -1,3 +1,4 @@
+import type { AxisTitleFit } from './axis-title-fit';
 import { format as formatNumber } from 'd3-format';
 import type { AxisLabelPlan } from './axis-labels';
 import type { FurniturePlan } from './furniture-plan';
@@ -47,6 +48,8 @@ export interface ReserveInputs {
     channelSemantics: Record<string, ChannelSemantics>;
     axisLabels: Record<'x' | 'y', AxisLabelPlan>;
     axisTitles: Record<'x' | 'y', string | null | undefined>;
+    /** How a title longer than its axis is wrapped, where the plan fitted it: a second line takes its depth. */
+    axisTitleFit?: Partial<Record<'x' | 'y', AxisTitleFit>>;
     domains: Partial<Record<'x' | 'y', MeasureDomain>>;
     rulers: Partial<Record<'x' | 'y', AxisRuler>>;
     furniture: FurniturePlan;
@@ -126,17 +129,19 @@ function tickDepth(channel: 'x' | 'y', inputs: ReserveInputs, labelDepth: number
 function axisTitleDepth(channel: 'x' | 'y', inputs: ReserveInputs): number {
     const { design, themed, axisTitles, layout, spacing } = inputs;
     if (typeof axisTitles[channel] !== 'string' || !axisTitles[channel]) return 0;
-    if (!themed) return layout.titleFontSize + spacing.axisTitlePadding;
+    const fit = inputs.axisTitleFit?.[channel];
+    const extra = fit ? (fit.lines.length - 1) * fit.lineHeight : 0;
+    if (!themed) return layout.titleFontSize + spacing.axisTitlePadding + extra;
     const title = design.axes[channel]?.title;
     if (!title?.show || (title.placement && title.placement !== 'rotated')) return 0;
-    return (title.fontSize ?? layout.titleFontSize) + (title.gap ?? spacing.axisTitlePadding);
+    return (title.fontSize ?? layout.titleFontSize) + (title.gap ?? spacing.axisTitlePadding) + extra;
 }
 
 /** The keys' room at each edge, the edge's offset from the plot included. */
 function keyRoom(inputs: ReserveInputs, edges: Set<string>, dimension: 'width' | 'height'): number {
     const room = inputs.legend.layout?.footprint ?? [];
     return room.filter((edge) => edges.has(edge.orient))
-        .reduce((sum, edge) => sum + edge[dimension] + inputs.spacing.keyOffset, 0);
+        .reduce((sum, edge) => sum + edge[dimension] + (inputs.legend.layout?.offsets?.[edge.orient as 'top'] ?? inputs.spacing.keyOffset), 0);
 }
 
 /** The names a series-end placement sets past the runs' ends: the widest, at the size and offset it is set with. */
@@ -164,7 +169,8 @@ function titleHeight(inputs: ReserveInputs): number {
     const deck = titlePlan?.deck ?? title.subtitle?.join(' ');
     const deckSize = (themed ? design.title.deck.fontSize : undefined) ?? Math.round(layout.titleFontSize * 0.85);
     const deckRoom = deck ? (themed ? design.title.deckPadding : spacing.deckPadding) + deckSize : 0;
-    return headline + deckRoom + (themed ? design.title.offset : spacing.titleOffset);
+    // Over keys above the plot the title stands at the header's inner gap; its own gap is the keys'.
+    return headline + deckRoom + (inputs.legend.layout?.headerGap ?? (themed ? design.title.offset : spacing.titleOffset));
 }
 
 /**

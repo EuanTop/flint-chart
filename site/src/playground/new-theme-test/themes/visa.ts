@@ -84,7 +84,7 @@ const theme: ThemeSpec = {
     reference: { presence: 'full', style: 'line', weight: 1, label: true },
   },
   labels: { truncation: 'wrap' },
-  legend: { show: 'always', placement: ['top'], direction: 'horizontal', title: 'omit', align: 'start' },
+  legend: { show: 'always', placement: ['top'], direction: 'horizontal', title: 'whenAmbiguous', align: 'start' },
   dataLabels: { show: 'always', placement: 'outsideMark', inkMode: 'fixed' },
   annotation: { axisTitles: 'always', axisTitlePlacement: 'rotated', numberFormat: { thousands: 'suffix', compact: { style: 'lower', per: 'value' } }, pointLabels: 'all' },
   layout: { titleBlock: { anchor: 'start', gap: 'normal' }, bandStepFit: 1 },

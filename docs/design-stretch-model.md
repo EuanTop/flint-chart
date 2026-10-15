@@ -982,6 +982,46 @@ The result is clamped to $[S_{\min},\; \text{actualDim}]$ — the blend only **s
 
 > **Implementation:** Band AR blending block in `computeLayout()` (~lines 702–735). Controlled by `options.targetBandAR` (`AssembleOptions`). VL backend sets default `targetBandAR = 10` in `assemble.ts`.
 
+### §3.9.6 Band Balance
+
+Band AR blending bounds one band; **band balance** bounds the whole chart. A banded axis is
+step × count long, so few categories leave a strip and many a long low band.
+
+**Natural range.** A chart of no bands starts at its base and stretches by up to $s_x$, $s_y$, so its
+shapes run over
+
+$$\left[\frac{W_b}{H_b \cdot s_y},\; \frac{W_b \cdot s_x}{H_b}\right]$$
+
+(at least 1.25× either side of the base's ratio; `targetAspect` and `aspectTolerance` override the
+centre and the spread). 300 × 300 at ×1.5 gives 0.67–1.5.
+
+**Intrinsic shape.** The chart is judged as the reader sees it: the plot (or the panels as one grid)
+with the labels it cannot drop, as a range. Category names count from their mean to their longest
+width, capped at max(40 px, 30% of the plot side) where they would wrap or be cut; x names that do
+not fit their band count as two lines or as rotated; value labels 3–6 characters; an axis title or
+not. Its ratio runs from (W + beside.lo)/(H + below.hi) to (W + beside.hi)/(H + below.lo).
+
+**Tiers.**
+
+1. Where the intrinsic range meets the natural range, nothing changes.
+2. Otherwise the free sides lean the chart back to the natural range's nearer end:
+
+| Drift | One axis banded | Edit |
+|---|---|---|
+| Too wide, banded x (many columns) | value axis is y | Lengthen the plot height, within the stretch cap |
+| Too wide, banded y (few rows) | value axis is x | Thicken the step (to max(`maxBandSize`, 2 × house step)), then shorten the width (to half its base) |
+| Too tall, banded y (many rows) | value axis is x | Lengthen the plot width, within the stretch cap |
+| Too tall, banded x (few columns) | value axis is y | Thicken the step, then shorten the height (to half its base) |
+
+3. Where those limits stop it short of the natural range, it aims instead for that range widened
+   1.5× at each end round the base's shape — the least edit that is still worth making.
+
+The count of bands, and any step a crowd of them set, is not touched. Grids (both axes banded) are
+left to §2's square-cell rule. Faceted charts are judged as one grid; each panel's labels are
+counted where they sit. Pinned plots are skipped; `bandBalance: false` turns it off.
+
+> **Implementation:** `naturalAspectRange` / `shapeDivergence` in `core/natural-shape.ts`; the band balance block in `computeLayout()`, after band AR blending and before the pinned plot.
+
 ---
 
 # §4 Circumference (Radial Pressure Model)
@@ -1259,6 +1299,7 @@ For continuous axes, raw pressure is augmented with aspect-ratio intelligence:
 6. **Gas–Banking blend (§3.8.4).** 50/50 geometric mean in log space: gasAR (density) × bankingAR (perception).
 7. **Per-subplot baseline (§3.8.2).** Faceted charts feed per-subplot canvas (with facet elasticity) to gas pressure, not the full canvas.
 8. **Band AR blending (§3.9).** When one axis is banded and the other continuous, `targetBandAR` prevents excessively elongated bands via log-space blend.
+9. **Band balance (§3.9.6).** The chart area, with the labels it cannot drop, is held within the shapes its base takes on its own, by its free sides.
 
 ### Decision tree
 
@@ -1268,6 +1309,7 @@ Is the chart axis-based?
 │   ├── Both banded  → §2 Elastic Budget on each axis
 │   ├── One banded   → §2 for banded axis, §3 for continuous axis
 │   │                  + §3.9 Band AR blending if targetBandAR set
+│   │                  + §3.9.6 Band balance
 │   └── Neither      → §3 Gas Pressure (both axes continuous)
 │                      + §3.8 Banking AR + Gas–Banking blend
 └── NO:  Is the layout radial (items around a circle)?

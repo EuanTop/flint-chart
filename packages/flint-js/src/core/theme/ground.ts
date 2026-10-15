@@ -55,6 +55,8 @@ import {
 } from './presence.js';
 import { resolveDisplayUnit } from '../field-semantics.js';
 import { getRegistryEntry, isRegistered } from '../type-registry.js';
+import { alreadyNamed } from '../title-plan.js';
+import { namedAsItsKind, selfNamingKind } from '../self-naming-values.js';
 import { inferValueLabelFormat } from './value-label-format.js';
 import { COMPACT_SUFFIXES, DEFAULT_COMPACT_TYPES, compactApplies, compactPrint, type CompactPrint, type CompactRule } from '../number-compact.js';
 import { deepMerge } from './merge.js';
@@ -183,6 +185,10 @@ export interface GroundingContext {
  *
  * Returns the merged options; keys the caller left undefined take the house's.
  */
+/** How far a zero rule a house states plainly steps from its grid's ink toward its axis ink: 'full', and 'quiet'. */
+const ZERO_STEP = 0.5;
+const ZERO_STEP_QUIET = 0.3;
+
 export function resolveCompileDefaults<T extends Record<string, any>>(
     theme: ThemeSpec | undefined,
     authored: T | undefined,
@@ -663,9 +669,11 @@ const MULTI_VALUE_GLYPH_CHARTS = new Set(['Candlestick Chart']);
 // The title block's vertical rhythm, as a multiple of the headline / deck font
 // size. A house's whitespace personality reaches the title here: `tight` packs
 // the chart up under the headline (a dense figure, a dashboard tile); `loose`
-// gives an action title room to breathe (a slide exhibit). `normal` preserves
-// the ratios the realizer used before the block was expressible.
-const TITLE_GAP: Record<'tight' | 'normal' | 'loose', number> = { tight: 0.45, normal: 0.9, loose: 1.7 };
+// gives an action title room to breathe (a slide exhibit). The gap sets the
+// title block apart from the chart: under a deck it is the space of more than
+// one deck line, so the deck and the labels below it do not read as one column
+// of text, even at `tight`.
+const TITLE_GAP: Record<'tight' | 'normal' | 'loose', number> = { tight: 0.7, normal: 1.25, loose: 2 };
 const DECK_GAP: Record<'tight' | 'normal' | 'loose', number> = { tight: 0.25, normal: 0.55, loose: 1.05 };
 
 function distinctCount(table: any[], field: string | undefined): number {
@@ -752,6 +760,23 @@ function labelsNameThemselves(ctx: GroundingContext, channel: string | undefined
     return entry.t1 === 'DateGranule'
         || entry.visEncodings.includes('nominal')
         || entry.visEncodings.includes('temporal');
+}
+
+/**
+ * Whether a key's names need no title over them, on proof only — a title the reader did not need
+ * costs a line, one they needed and did not get leaves the colours unread. Proof is the headline or
+ * deck already naming the field, or every value proving one closed kind (months, years, countries,
+ * US states, continents; never codes) under a field name that says no more than that kind (`Country`
+ * over country names; not `Origin`). What the field is typed as proves nothing: a type is a label,
+ * not what the reader sees.
+ */
+function keyNamesItselfOf(ctx: GroundingContext, channel: string | undefined): boolean {
+    if (!channel) return false;
+    const field = ctx.channelSemantics?.[channel]?.field;
+    if (!field) return false;
+    if (ctx.headline && alreadyNamed(field, ctx.headline)) return true;
+    const kind = selfNamingKind(ctx.table.map((row) => row?.[field]));
+    return Boolean(kind && namedAsItsKind(field, kind));
 }
 
 /**
@@ -976,10 +1001,23 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
     // changes sign, and on a chart of lengths it is the line every mark is
     // measured from. A house that wants it stated says so; the default is to
     // let it be an ordinary line.
+    //
+    // Houses state it, but most state it as a step past the grid, not as an axis: a line a shade
+    // darker than the gridlines, at their weight, solid where they are dashed. Only a house that
+    // gives zero its own ink, or asks for it emphasised, gets a stronger line.
     const zeroStated = structure.grid?.zero;
-    const zeroRule: ResolvedRule | undefined = zeroStated && zeroStated !== 'omit'
-        && !(typeof zeroStated === 'object' && zeroStated.presence === 'omit')
-        ? ruleFrom(zeroStated, structureInk.zero ?? structureInk.rule ?? structureInk.axis, 'full')
+    const zeroOwn = typeof zeroStated === 'object' && zeroStated !== null ? zeroStated : undefined;
+    const zeroPresence = zeroOwn ? zeroOwn.presence ?? 'quiet' : zeroStated as Presence | undefined;
+    const zeroStrong = Boolean(structureInk.zero || zeroOwn?.color) || zeroPresence === 'emphasised';
+    const zeroRule: ResolvedRule | undefined = zeroStated && zeroStated !== 'omit' && zeroPresence !== 'omit'
+        ? zeroStrong || !measureGrid.show
+            ? ruleFrom(zeroStated, structureInk.zero ?? structureInk.rule ?? structureInk.axis, 'full')
+            : {
+                show: true,
+                color: mixHex(measureGrid.color, ink('full', structureInk.rule ?? structureInk.axis, 'full') ?? measureGrid.color, zeroPresence === 'quiet' || zeroPresence === 'hairline' ? ZERO_STEP_QUIET : ZERO_STEP, measureGrid.color),
+                width: zeroOwn?.weight ?? measureGrid.width,
+                ...(zeroOwn?.dash ? { dash: zeroOwn.dash } : zeroOwn?.style ? { dash: dashOf(zeroOwn.style) } : {}),
+            }
         : undefined;
     // Finer lines between the labelled ones, a step fainter than the grid they divide (GR2).
     const minorStated = structure.grid?.minor;
@@ -997,8 +1035,14 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
 
     const frame = rule(structure.frame, structureInk.frame ?? structureInk.axis, 'omit');
     // The rule the marks stand on is drawn only where the house states it (A7).
+    // A base is at zero: along a floor that is not zero, it would claim a base the chart does not
+    // have. Only a house that states it strongly — emphasised, or with its own ink or weight — draws
+    // it there too.
+    const baselineOwn = typeof structure.baseline === 'object' && structure.baseline !== null ? structure.baseline : undefined;
+    const baselineStrong = structure.baseline === 'emphasised' || baselineOwn?.presence === 'emphasised'
+        || baselineOwn?.color !== undefined || baselineOwn?.weight !== undefined;
     const baseline = structure.baseline !== undefined
-        ? ruleFrom(structure.baseline, structureInk.axis, 'full')
+        ? { ...ruleFrom(structure.baseline, structureInk.axis, 'full'), ...(baselineStrong ? { anyFloor: true } : {}) }
         : { show: false, color: 'transparent', width: 0 };
 
     const truncation = theme.labels?.truncation ?? 'ellipsis';
@@ -1253,13 +1297,17 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
         }
     }
 
-    // A key to a set of names needs no title: `Chrome`, `Safari`, `Firefox`
-    // say what kind of thing they are, and `Browser` written over them repeats
-    // it. A ramp of numbers says nothing of the sort — `26` is an instance of
+    // A key to a set of names needs no title where the names say what they are:
+    // `Chrome`, `Safari`, `Firefox`, or countries, or years. `Some`, `Not much`
+    // or `Increase` do not, nor do a ramp's numbers — `26` is an instance of
     // nothing until the key names what it counts. `whenAmbiguous` is that
-    // question, and it is asked of the field, not answered with a constant.
-    const titlePolicy = legendSpec.title ?? 'whenAmbiguous';
-    const keyNamesItself = labelsNameThemselves(ctx, bindings.seriesChannel);
+    // question, asked of the field, not answered with a constant.
+    // Whether the reader gets the field's name is not a house's choice: `omit` is read as `whenAmbiguous`.
+    const titlePolicy = legendSpec.title === 'always' ? 'always' : 'whenAmbiguous';
+    if (legendSpec.title === 'omit') {
+        say('legend.title', 'legend-title-omit-read-as-when-ambiguous', 'the theme asks to omit key titles; a key whose labels do not say what they are keeps its title, so `omit` is read as `whenAmbiguous`');
+    }
+    const keyNamesItself = keyNamesItselfOf(ctx, bindings.seriesChannel);
     const legendTitle = titlePolicy === 'always'
         || (titlePolicy === 'whenAmbiguous' && legendShow && !keyNamesItself);
 
@@ -1990,12 +2038,14 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
             direction: theme.legend?.direction
                 ?? (legendOrient === 'top' || legendOrient === 'bottom' ? 'horizontal' : 'vertical'),
             title: legendTitle,
+            titlePolicy,
             label: keyLabel,
             gradientLength: legendSpec.gradientLength,
             maxSwatches: legendSpec.maxSwatches,
             ...(legendSpec.arrangement ? { arrangement: legendSpec.arrangement } : {}),
             ...(legendSpec.titlePosition ? { titlePosition: legendSpec.titlePosition } : {}),
             ...(legendSpec.align ? { align: legendSpec.align } : {}),
+            ...(legendSpec.gaps ? { gaps: legendSpec.gaps } : {}),
         },
         dataLabels: {
             show: dlShow,

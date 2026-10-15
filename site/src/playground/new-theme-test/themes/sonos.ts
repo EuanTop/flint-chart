@@ -77,7 +77,7 @@ const theme: ThemeSpec = {
     point: { presence: 'full', size: 36, fill: 'solid', outlineWidth: 1.5 },
     arc: { gap: 2, gapStyle: 'rule' },
   },
-  legend: { show: 'always', placement: ['top'], direction: 'horizontal', title: 'omit', align: 'start' },
+  legend: { show: 'always', placement: ['top'], direction: 'horizontal', title: 'whenAmbiguous', align: 'start' },
   dataLabels: { show: 'whenTheyFit', placement: 'atMark', inkMode: 'contrastWithMark' },
   annotation: { axisTitles: 'omit' },
   layout: { titleBlock: { anchor: 'start', gap: 'normal' } },

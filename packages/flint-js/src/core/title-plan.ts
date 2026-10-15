@@ -16,6 +16,11 @@ export interface TitlePlan {
     deck?: string;
     /** The deck broken over lines. */
     deckFit?: ReturnType<typeof fitDeckText>;
+    /**
+     * How far, in px, a title centred over the plot is moved along it so it stays within the drawing:
+     * the nearest place to centred where it adds no width to the drawing. Unset where it is centred.
+     */
+    shift?: number;
 }
 
 export interface TitlePlanInputs {
@@ -37,6 +42,11 @@ export interface TitlePlanInputs {
     viewsWidth?: number;
     /** The width header pieces take beside the headline, at its start and end. */
     beside?: { start: number; end: number };
+    /**
+     * The width keys beside the plot take, with their offset: the title spans the whole drawing, so
+     * it may run over them. Rules and the source close only the chart block, and do not.
+     */
+    keysBeside?: number;
 }
 
 /**
@@ -136,8 +146,14 @@ export function chartBlock(inputs: TitlePlanInputs, toCanvas = true): number | u
     const field = structure.x?.derived ? undefined : structure.x?.fields[0];
     const bands = layout.xNominalCount > 0 && field ? new Set(rows.map((row) => row?.[field]).filter((v) => v != null)).size : 0;
     const plotWidth = Math.round((inputs.viewsWidth ?? (bands ? layout.xStep * bands : plot.width)) * 1.07);
-    const block = Math.max(plotWidth + labelGutter(inputs), toCanvas ? canvasContentWidth(design.layout) : 0);
+    const block = Math.max(plotWidth + labelGutter(inputs) + (inputs.keysBeside ?? 0), toCanvas ? canvasContentWidth(design.layout) : 0);
     return block && Number.isFinite(block) ? block : undefined;
+}
+
+/** The width keys beside the plot take, each edge with its offset from the plot, which a title may run over. */
+export function keysBesideWidth(footprint: Array<{ orient: string; width: number }> | undefined, keyOffset: number): number {
+    return (footprint ?? []).filter((edge) => edge.orient === 'left' || edge.orient === 'right')
+        .reduce((sum, edge) => sum + edge.width + keyOffset, 0);
 }
 
 /**
@@ -163,6 +179,36 @@ export function planTitle(inputs: TitlePlanInputs): TitlePlan | undefined {
     const deck = deckRaw ? applyTextCase(deckRaw, design.title.deck.textCase) : deckRaw;
     const deckFit = deck && deck.trim() ? fitDeckText(deck, block, design.title.deck.fontSize ?? 11, measure.deck) : undefined;
     return { block, ...(headline ? { headline } : {}), ...(deck !== undefined ? { deck } : {}), ...(deckFit ? { deckFit } : {}) };
+}
+
+/** The widest line of a fitted title, headline or deck, as drawn. */
+export function fittedTitleWidth(
+    title: TitlePlan, headline: string | undefined, design: DesignDecisions, drawn?: { headline: number; deck: number },
+): number {
+    const measure = titleMeasures(design.title, design.font, tableTextMeasurer);
+    const headlineSize = title.headline?.fontSize ?? drawn?.headline ?? design.title.headline.fontSize ?? 14;
+    const deckSize = drawn?.deck ?? design.title.deck.fontSize ?? 11;
+    const headlines = title.headline?.lines ?? (headline ? [applyTextCase(headline, design.title.headline.textCase)] : []);
+    const decks = title.deckFit?.lines ?? (title.deck ? [title.deck] : []);
+    return Math.max(0, ...headlines.map((line) => measure.headline(line, headlineSize)), ...decks.map((line) => measure.deck(line, deckSize)));
+}
+
+/**
+ * Where a title centred over the plot goes: centred, where that keeps it within the drawing; else
+ * moved the least that does — to the drawing's edge on the side it would run past — so it adds no
+ * width the drawing does not have. Wider than the drawing, it is centred on the drawing. The move,
+ * in px from centred over the plot; positions run from the plot's left edge, with `left` px of the
+ * drawing before it and `right` px after it.
+ */
+export function nearestCentredShift(width: number, span: { left: number; plot: number; right: number }): number {
+    const centre = span.plot / 2;
+    const low = -span.left;
+    const high = span.plot + span.right;
+    const half = width / 2;
+    if (width >= high - low) return Math.round((low + high) / 2 - centre);
+    if (centre + half > high) return Math.round(high - half - centre);
+    if (centre - half < low) return Math.round(low + half - centre);
+    return 0;
 }
 
 /** The plot's height once the fitted title's extra lines are taken out of it. */

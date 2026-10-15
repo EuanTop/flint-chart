@@ -74,7 +74,7 @@ const theme: ThemeSpec = {
   marks: { bandFraction: 0.62 },
   // A blue-to-transparent gradient under the line, as in Stocks (R12).
   geometry: { band: { cornerRadius: 3 }, line: { wash: 'fade', washOpacity: 0.3 }, area: { fill: 'fade' } },
-  legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'omit', align: 'start', suppressWhenAxisNames: true },
+  legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'whenAmbiguous', align: 'start', suppressWhenAxisNames: true },
   variants: [
     {
       when: { seriesCount: { gte: 2 } },

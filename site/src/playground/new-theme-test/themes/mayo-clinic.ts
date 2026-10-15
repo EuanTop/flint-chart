@@ -81,7 +81,7 @@ const theme: ThemeSpec = {
   marks: { strokeWeight: 2, cornerRadius: 0 },
   geometry: { band: { cornerRadius: 0 } },
   labels: { truncation: 'ellipsis' },
-  legend: { show: 'always', placement: ['top'], direction: 'horizontal', title: 'omit', align: 'start' },
+  legend: { show: 'always', placement: ['top'], direction: 'horizontal', title: 'whenAmbiguous', align: 'start' },
   annotation: { axisTitles: 'whenAmbiguous', numberFormat: { thousands: 'separator' } },
   layout: { density: 'compact', titleBlock: { anchor: 'start', gap: 'tight' } },
 };

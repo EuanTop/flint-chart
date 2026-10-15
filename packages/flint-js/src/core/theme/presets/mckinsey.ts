@@ -194,7 +194,7 @@ export const mckinsey: ThemePreset = {
                 "top"
             ],
             "direction": "horizontal",
-            "title": "omit",
+            "title": "whenAmbiguous",
             "suppressWhenValuesPrinted": true
         },
         "dataLabels": {

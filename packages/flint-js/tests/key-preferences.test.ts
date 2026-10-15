@@ -36,8 +36,21 @@ describe('how several keys stand, as a theme prefers', () => {
 
     it('gives way and says why where the keys would overflow', () => {
         const pinned = (index: number) => ({ ...key(null, Array.from({ length: 3 }, (_, entry) => `Long category ${index}-${entry}`)), fixed: true });
-        const narrow = planKeyLayout([pinned(0), pinned(1), pinned(2)], { width: 240, height: 600 }, tableTextMeasurer, { arrangement: 'row' });
+        // Too narrow for three keys side by side even with their names wrapped.
+        const narrow = planKeyLayout([pinned(0), pinned(1), pinned(2)], { width: 160, height: 600 }, tableTextMeasurer, { arrangement: 'row' });
         expect(narrow.edges.find((edge) => edge.orient === 'top')?.direction).toBe('vertical');
         expect(narrow.notes.some((note) => note.code === 'keys-arrangement-gave-way')).toBe(true);
+    });
+});
+
+describe('keys sharing an edge, counted in the room they take', () => {
+    it('counts a row of large bubbles as the lines it stands, and moves it beside the plot', () => {
+        const plain = key('Tier', ['Gold', 'Silver', 'Bronze']);
+        const bubbles = (largestSymbol?: number): KeyToLayout => ({ ...key('Size', ['10', '40', '80']), ...(largestSymbol ? { largestSymbol } : {}), edges: ['top', 'right'] });
+        const square = { width: 400, height: 400 };
+        const small = planKeyLayout([plain, bubbles()], square, tableTextMeasurer, { arrangement: 'stack' });
+        const large = planKeyLayout([plain, bubbles(3600)], square, tableTextMeasurer, { arrangement: 'stack' });
+        expect(small.keys[1]?.orient).toBe('top');
+        expect(large.keys[1]?.orient).toBe('right');
     });
 });

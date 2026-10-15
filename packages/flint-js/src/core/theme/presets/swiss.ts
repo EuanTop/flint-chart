@@ -175,7 +175,7 @@ export const swiss: ThemePreset = {
             show: 'always',
             placement: ['top'],
             direction: 'horizontal',
-            title: 'omit',
+            title: 'whenAmbiguous',
             suppressWhenAxisNames: true,
         },
         dataLabels: {

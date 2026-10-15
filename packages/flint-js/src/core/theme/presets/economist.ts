@@ -163,7 +163,7 @@ export const economist: ThemePreset = {
                 "top"
             ],
             "direction": "horizontal",
-            "title": "omit",
+            "title": "whenAmbiguous",
             "maxSwatches": 3,
             "arrangement": "row",
             "titlePosition": "inline"

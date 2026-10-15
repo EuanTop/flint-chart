@@ -81,7 +81,7 @@ const theme: ThemeSpec = {
   },
   geometry: { line: { width: 2.5, cap: 'round' }, arc: { gap: 1, gapStyle: 'rule' } },
   labels: { truncation: 'wrap' },
-  legend: { show: 'always', placement: ['seriesEnd', 'top'], direction: 'horizontal', title: 'omit', align: 'start' },
+  legend: { show: 'always', placement: ['seriesEnd', 'top'], direction: 'horizontal', title: 'whenAmbiguous', align: 'start' },
   dataLabels: { show: 'never', placement: 'atMark', inkMode: 'contrastWithMark' },
   annotation: {
     unit: 'everyTick',

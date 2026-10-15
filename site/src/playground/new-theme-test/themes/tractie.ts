@@ -92,7 +92,7 @@ const theme: ThemeSpec = {
     arc: { gap: 3, gapStyle: 'pad', cornerRadius: 4 },
   },
   labels: { truncation: 'ellipsis' },
-  legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'omit', align: 'start' },
+  legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'whenAmbiguous', align: 'start' },
   dataLabels: { show: 'never' },
   annotation: { unit: 'everyTick', axisTitles: 'whenAmbiguous', axisTitlePlacement: 'rotated', numberFormat: { precision: 'integer' } },
   // 16px bars with 8px between them: a 24px step that does not stretch to fill the width.

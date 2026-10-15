@@ -76,7 +76,7 @@ const theme: ThemeSpec = {
   marks: { bandFraction: 0.75, strokeWeight: 2.5 },
   geometry: { point: { presence: 'full', size: 40, fill: 'solid' }, line: { width: 2.5 } },
   labels: { truncation: 'ellipsis' },
-  legend: { show: 'always', placement: ['seriesEnd', 'inline', 'top'], direction: 'horizontal', title: 'omit', align: 'center' },
+  legend: { show: 'always', placement: ['seriesEnd', 'inline', 'top'], direction: 'horizontal', title: 'whenAmbiguous', align: 'center' },
   dataLabels: { show: 'whenTheyFit', placement: 'atMark', inkMode: 'contrastWithMark' },
   annotation: { axisTitles: 'whenAmbiguous', numberFormat: { thousands: 'separator', precision: 'auto' } },
   layout: { titleBlock: { anchor: 'start', gap: 'normal' } },

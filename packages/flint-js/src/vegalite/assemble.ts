@@ -70,7 +70,7 @@ import { vegaLiteDepartures } from './honour';
 import type { PlanDeparture } from '../core/honour';
 import { escapeVlFieldName } from './field-name';
 import type { CategoryOrder } from '../core/channel-decisions';
-import { templateStatesAxisLabels, vlApplyLayoutToSpec, vlApplyTooltips, vlFinalizeTemporalAxes } from './instantiate-spec';
+import { templateStatesAxisLabels, vlApplyLayoutToSpec, vlApplyTooltips, vlFinalizeTemporalAxes, vlListTooltipFields } from './instantiate-spec';
 import { normalizeChartProperties } from '../core/normalize-properties';
 import { resolveChartDefaults, resolveCompileDefaults, resolveGeometry, resolveValueLabelChoice } from '../core/theme/ground';
 import { resolveThemeSpec } from '../core/theme/presets';
@@ -109,6 +109,9 @@ import { heightAfterTitle, type TitlePlan } from '../core/title-plan';
  * ```
  */
 /** How Vega-Lite lays a chart out where nothing else says. */
+/** The gap, in px, between an unthemed chart's title block and the chart below it. */
+const UNTHEMED_TITLE_OFFSET = 10;
+
 const VEGA_LITE_LAYOUT: BackendLayoutProfile = {
     spellField: (name) => escapeVlFieldName(name),
     measureText: rendererTextMeasurer,
@@ -132,7 +135,10 @@ const VEGA_LITE_LAYOUT: BackendLayoutProfile = {
     // Vega-Lite's band padding where an offset channel nests marks inside each band.
     nestedBandPadding: { inner: 0.2, outer: 0.2 },
     // Vega's config defaults for axes, legends and titles.
-    spacing: { tickSize: 5, labelPadding: 2, axisTitlePadding: 4, keyOffset: 18, titleOffset: 4, deckPadding: 3 },
+    // The title's offset is Flint's, not Vega's 4px: a title that close to the top labels reads as one with them.
+    spacing: { tickSize: 5, labelPadding: 2, axisTitlePadding: 4, keyOffset: 18, titleOffset: UNTHEMED_TITLE_OFFSET, deckPadding: 3 },
+    // Vega's group-title and group-subtitle styles.
+    titleSizes: { headline: 13, deck: 12 },
 };
 
 /** The headline and deck as one string, whichever shape the title took. */
@@ -184,6 +190,28 @@ export function indexAxisOf(
     const discrete = (type: string | undefined) => type === 'nominal' || type === 'ordinal';
     if (discrete(y) && x !== undefined && !discrete(x)) return 'y';
     return 'x';
+}
+
+/**
+ * Axis titles longer than their axes, as the plan wrapped them: two lines at the axis's length, a
+ * line past it cut with an ellipsis. Written only where the title drawn is the one the plan fitted.
+ */
+function vlWriteAxisTitles(spec: any, fits: LayoutPlan['axisTitleFit']): void {
+    if (!fits) return;
+    const visit = (node: any): void => {
+        if (!node || typeof node !== 'object') return;
+        for (const channel of ['x', 'y'] as const) {
+            const fit = fits[channel];
+            const enc = node.encoding?.[channel];
+            if (!fit || !enc || enc.axis === null) continue;
+            const drawn = typeof enc.axis?.title === 'string' ? enc.axis.title : typeof enc.title === 'string' ? enc.title : enc.axis?.title === undefined && enc.title === undefined ? enc.field : undefined;
+            if (typeof drawn !== 'string' || drawn.replace(/\s+/g, ' ').trim().toLowerCase() !== fit.lines.join(' ').toLowerCase()) continue;
+            enc.axis = { ...(enc.axis ?? {}), title: fit.lines.length > 1 ? fit.lines : fit.lines[0], titleLimit: fit.limit, titleLineHeight: fit.lineHeight };
+        }
+        for (const key of ['layer', 'concat', 'hconcat', 'vconcat']) for (const child of node[key] ?? []) visit(child);
+        if (node.spec) visit(node.spec);
+    };
+    visit(spec);
 }
 
 /** The plot's stated size — the view's continuous size, and the plot view's width and height — as one string. */
@@ -567,7 +595,10 @@ function emitVegaLite(input: ChartAssemblyInput, prepared: VegaLitePreparation, 
             report: [...themePresets.report, ...chartDefaultsReport, ...geometryReport, ...design.report, ...realizeReport],
         };
     } else {
-        realizeValueLabelsVegaLite(vgObj, design, values, plan.title, plan.valueLabels);
+        realizeValueLabelsVegaLite(vgObj, design, values, plan.title, plan.valueLabels, plan.legend.layout?.footprint, plan.legend.layout?.offsets?.right);
+        if (vgObj.title && vgObj.config?.title?.offset === undefined) {
+            vgObj.config = { ...vgObj.config, title: { ...vgObj.config?.title, offset: UNTHEMED_TITLE_OFFSET } };
+        }
         applyChartValueColors(vgObj, channelSemantics, values);
     }
     // The header — a figure label, a rule on the canvas edge, a logo beside the headline — is the
@@ -598,7 +629,9 @@ function emitVegaLite(input: ChartAssemblyInput, prepared: VegaLitePreparation, 
     chartTemplate.postProcess?.(vgObj, instantiateContext);
     vlFinalizeTemporalAxes(vgObj, instantiateContext);
     vlWriteKeyLayout(vgObj, plan.legend, plan.plot, plan.layout, VEGA_LITE_LAYOUT.measureText!);
+    vlWriteAxisTitles(vgObj, plan.axisTitleFit);
     vlCaseKeyLabels(vgObj, plan.legend);
+    vlListTooltipFields(vgObj);
     const plotAsPlanned = plotSizeFields(vgObj) === plannedPlotSize;
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -620,6 +653,10 @@ function emitVegaLite(input: ChartAssemblyInput, prepared: VegaLitePreparation, 
     }
     if (warnings.length > 0) {
         result._warnings = warnings;
+    }
+    // What the canvas-fit pass judged and did, for tools that inspect the layout.
+    if (plan.canvasFit && (plan.canvasFit.before.flags.length || plan.canvasFit.treatment)) {
+        result._canvasFit = plan.canvasFit;
     }
     if (plan.viewports.length > 0) {
         result._viewports = plan.viewports;
@@ -886,7 +923,11 @@ export function vegaLiteTitleFits(input: ChartAssemblyInput): { planned: unknown
     const prepared = prepareVegaLite(input);
     const analysis = analyzeChart(input, prepared.template, prepared.chartProperties, vlGetTemplateDef);
     const plan = planLayout(analysis, vegaLitePlanContext(input, prepared, analysis));
-    const fitted = (spec: any) => ({ title: spec.title, plot: plotSizeFields(spec) });
+    // The fit, not the place: where a centred title sits is the plan's alone.
+    const fitted = (spec: any) => {
+        const { dx: _dx, ...title } = spec.title && typeof spec.title === 'object' ? spec.title : { text: spec.title };
+        return { title: spec.title && typeof spec.title === 'object' ? title : spec.title, plot: plotSizeFields(spec) };
+    };
     return {
         planned: fitted(emitVegaLite(input, prepared, analysis, plan).spec),
         own: fitted(emitVegaLite(input, prepared, analysis, { ...plan, title: undefined }).spec),
@@ -963,6 +1004,7 @@ export function openVegaLiteSession(
             ...(change.pinPlot ? { plot: frame.plot } : {}),
             ...(frame.title ? { title: frame.title } : {}),
             ...(frame.reserve ? { reserve: frame.reserve } : {}),
+            ...(frame.canvasFit?.treatment ? { treatment: frame.canvasFit.treatment } : {}),
         },
     }));
     const first = emitted(prepared, frame);

@@ -16,19 +16,27 @@ const walk = (node: any, visit: (node: any) => void): void => {
 };
 
 /** The legend settings of a key's planned layout, written over what its encoding already states. */
-function keyLegend(legend: any, layout: KeyLayout, labels: string[] | undefined): any {
+function keyLegend(legend: any, layout: KeyLayout, labels: string[] | undefined, offset?: number): any {
     const out = { ...(legend ?? {}) };
+    // The key's air to the plot, as planned; an author's offset stands.
+    if (offset !== undefined && out.offset === undefined) out.offset = offset;
     if (layout.moved) {
         out.orient = layout.orient;
         if (out.direction === undefined) out.direction = ['top', 'bottom'].includes(layout.orient) ? 'horizontal' : 'vertical';
         if (out.titleOrient === undefined) out.titleOrient = 'top';
     }
-    if (layout.inlineTitle) out.titleOrient = 'left';
+    if (layout.gradientLength !== undefined) out.gradientLength = layout.gradientLength;
+    if (layout.inlineTitle) {
+        out.titleOrient = 'left';
+        if (layout.titlePadding !== undefined && out.titlePadding === undefined) out.titlePadding = layout.titlePadding;
+    }
     if (layout.titleFitted) out.titleLimit = 0;
     if (layout.titleLines) {
         out.title = layout.titleLines;
         out.titleLineHeight = layout.titleLineHeight;
     }
+    // A row of values too wide for its edge wraps onto the columns planned for it.
+    if (!layout.labelsFitted && layout.columns !== undefined && out.columns === undefined) out.columns = layout.columns;
     if (layout.labelsFitted && labels?.length) {
         if (layout.columns !== undefined) out.columns = layout.columns;
         out.labelFontSize = layout.labelFontSize;
@@ -114,10 +122,17 @@ export function vlWriteKeyLayout(
             const index = key ? plan.keys.indexOf(key) : -1;
             const keyLayout = index >= 0 ? layout.keys[index] : undefined;
             if (!key || !keyLayout) continue;
-            encoding.legend = keyLegend(encoding.legend, keyLayout, key.entries);
+            encoding.legend = keyLegend(encoding.legend, keyLayout, key.entries, layout.offsets?.[keyLayout.orient as 'top']);
+            // A key to values lists the round values the plan sampled, with or without a theme.
+            if (key.samples && encoding.legend.values === undefined) encoding.legend = { ...encoding.legend, values: key.samples };
         }
     });
     writeEdges(spec, layout.edges);
+    // A title over keys above the plot stands at the header's inner gap; the keys keep the title's gap below them.
+    if (layout.headerGap !== undefined && spec.title) {
+        spec.config ??= {};
+        spec.config.title = { ...spec.config.title, offset: layout.headerGap };
+    }
     spec._legendLayout = {
         plotWidth: layout.plot.width, plotHeight: layout.plot.height,
         legends: plan.keys.map((key, index) => ({ key, laid: layout.keys[index] })).filter((entry) => entry.laid)

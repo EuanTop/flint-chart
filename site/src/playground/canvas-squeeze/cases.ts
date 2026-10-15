@@ -5,7 +5,7 @@
  */
 import { PREVIEW_CASES } from '../../shared/preview-cases';
 
-export type SqueezeIssue = 'header' | 'legend' | 'labels' | 'facets' | 'footer' | 'tile' | 'control' | 'keysTop' | 'keysBottom' | 'bigTitle' | 'doubleKeys';
+export type SqueezeIssue = 'header' | 'legend' | 'labels' | 'facets' | 'footer' | 'tile' | 'control' | 'keysTop' | 'keysBottom' | 'bigTitle' | 'doubleKeys' | 'discreteFew' | 'discreteMany';
 
 export interface SqueezeCase {
   id: string;
@@ -17,6 +17,13 @@ export interface SqueezeCase {
   /** A preset house; unset is Flint's own defaults. */
   theme?: string;
   input: { data: { values: Record<string, unknown>[] }; semantic_types: Record<string, string>; chart_spec: Record<string, any> };
+  /**
+   * Cases written to stress the canvas-fit strategies (`challenge`), or to show how a chart's
+   * shape drifts from its base when its size is counted in bands (`discrete`).
+   */
+  group?: 'challenge' | 'discrete';
+  /** What a good layout should do with a challenge case. */
+  expect?: string;
 }
 
 type Spec = Partial<{ title: string; subtitle: string; source: string; encodings: Record<string, unknown>; chartProperties: Record<string, unknown>; chartType: string }>;
@@ -90,6 +97,13 @@ const metros = Array.from({ length: 24 }, (_, i) => ({
   'Population growth (%)': Math.round((((i * 17) % 40) / 10 - 0.5) * 10) / 10,
   'Population (M)': Math.round((1.5 + ((i * 53) % 37)) * 10) / 10,
 }));
+
+// Ten countries with long names, a share each, for keys that cannot fit across a narrow plot.
+const LONG_COUNTRIES = ['Democratic Republic of the Congo', 'Bosnia and Herzegovina', 'Central African Republic', 'Trinidad and Tobago', 'Papua New Guinea', 'Saint Vincent and the Grenadines', 'United Arab Emirates', 'Dominican Republic', 'Equatorial Guinea', 'Sao Tome and Principe'];
+const longCountryShares = LONG_COUNTRIES.map((Country, i) => ({ Country, Share: 4 + ((i * 7) % 17) }));
+const longCountryPoints = LONG_COUNTRIES.flatMap((Country, i) => [0, 1, 2].map((k) => ({ Country, 'Spending (% of GDP)': 2 + ((i * 3 + k * 5) % 14), 'Growth (%)': ((i * 5 + k * 7) % 11) - 3 })));
+// Three regions over twelve months: a line chart whose series the theme names at their ends.
+const regionMonths = ['North', 'Central', 'South'].flatMap((Region, r) => Array.from({ length: 12 }, (_, i) => ({ Month: `2024-${String(i + 1).padStart(2, '0')}-01`, Region, 'Orders (k)': 20 + r * 6 + ((i * (r + 2)) % 9) })));
 
 export const CASES: SqueezeCase[] = [
   // ── Squeezed: the header takes the plot ─────────────────────────────────────
@@ -449,4 +463,211 @@ export const CASES: SqueezeCase[] = [
       title: 'Bigger is not more profitable', subtitle: 'Revenue against operating margin, 28 listed companies',
     }),
   },
+  // ── Challenge: written to stress the strategies ─────────────────────────────
+  {
+    id: 'ch-two-bars-long-title', kind: 'squeezed', issue: 'bigTitle', group: 'challenge', name: 'A long headline over two bars',
+    note: 'A three-line headline and a deck over a chart of two bars, in Pop’s big type.',
+    expect: 'No layout makes this good: the words outweigh the chart. A smaller title helps a little; nothing should be cut, and the chart should not be distorted trying.',
+    theme: 'pop',
+    input: own([{ Group: 'Before', 'Score': 41 }, { Group: 'After', 'Score': 67 }], { Group: 'Category', Score: 'Score' }, {
+      chartType: 'Bar Chart', encodings: { x: 'Group', y: 'Score' },
+      title: 'After the redesign, the share of first-time visitors who completed the sign-up flow rose from forty-one to sixty-seven per cent',
+      subtitle: 'Completion rate of the sign-up flow, %, before and after the September redesign',
+    }),
+  },
+  {
+    id: 'ch-ten-long-keys-top', kind: 'squeezed', issue: 'keysTop', group: 'challenge', name: 'Ten long names in a top key',
+    note: 'Datawrapper keys on top; ten country names that each run 120–220px.',
+    expect: 'On top, the key wraps into many rows and takes the height; beside the plot it takes the width. The right answer depends on the box: a tall box keeps it on top, a square one moves it beside with narrower names.',
+    theme: 'datawrapper',
+    input: own(longCountryPoints, { Country: 'Country', 'Spending (% of GDP)': 'Percentage', 'Growth (%)': 'Percentage' }, {
+      chartType: 'Scatter Plot', encodings: { x: 'Spending (% of GDP)', y: 'Growth (%)', color: 'Country' },
+      title: 'Spending and growth', subtitle: 'Three years per country',
+    }),
+  },
+  {
+    id: 'ch-pie-long-key-economist', kind: 'squeezed', issue: 'keysTop', group: 'challenge', name: 'A pie with a long key, Economist',
+    note: 'A square pie under the red tab, a headline and a key of ten long names on top.',
+    expect: 'A pie is square, so a top key makes the drawing tall: the key should move beside the pie, with narrower names.',
+    theme: 'economist',
+    input: own(longCountryShares, { Country: 'Country', Share: 'Percentage' }, {
+      chartType: 'Pie Chart', encodings: { color: 'Country', size: 'Share' }, title: 'Shares of the aid budget', subtitle: 'Ten recipients, %',
+    }),
+  },
+  {
+    id: 'ch-series-end', kind: 'healthy', issue: 'control', group: 'challenge', name: 'Lines named at their ends, NYT',
+    note: 'Three regions, which NYT names at the ends of their lines instead of in a key.',
+    expect: 'Nothing to move: the names sit beside the lines. The layout should leave it as planned.',
+    theme: 'nyt',
+    input: own(regionMonths, { Month: 'Date', Region: 'Category', 'Orders (k)': 'Quantity' }, {
+      chartType: 'Line Chart', encodings: { x: 'Month', y: 'Orders (k)', color: 'Region' }, title: 'Orders held up in every region',
+    }),
+  },
+  {
+    id: 'ch-roomy-scatter', kind: 'healthy', issue: 'control', group: 'challenge', name: 'A key with room to spare',
+    note: 'Penguins with Datawrapper’s key on top, in a box that holds them.',
+    expect: 'Reads well as planned: must not change.',
+    theme: 'datawrapper',
+    input: fromPreview('penguins'),
+  },
+  {
+    id: 'ch-ramp-key-deck', kind: 'squeezed', issue: 'keysTop', group: 'challenge', name: 'A colour ramp and a long deck',
+    note: 'A heatmap whose ramp key Datawrapper sets on top, under a two-line deck.',
+    expect: 'A ramp is short on top and long beside: moving it costs height either way; a smaller deck may be the cheaper win.',
+    theme: 'datawrapper',
+    input: fromPreview('temp-heatmap', { subtitle: 'Monthly mean temperature in eight cities, degrees Celsius, averaged over the thirty years from 1991 to 2020' }),
+  },
+  {
+    id: 'ch-facets-key-top', kind: 'squeezed', issue: 'keysTop', group: 'challenge', name: 'Panels with a key on top',
+    note: 'Three species panels with Datawrapper’s key and a deck on top.',
+    expect: 'The grid is one chart area: the key should move where the grid has room, the panels should not be judged one by one.',
+    theme: 'datawrapper',
+    input: fromPreview('penguins', { encodings: { x: 'Flipper length (mm)', y: 'Body mass (g)', color: 'Species', column: 'Species' }, subtitle: 'Palmer Station, Antarctica; one dot per bird' }),
+  },
+  {
+    id: 'ch-grouped-long-groups', kind: 'squeezed', issue: 'keysTop', group: 'challenge', name: 'Grouped bars, long group names, Swiss',
+    note: 'Swiss’s bold headline and a key of long group names on top of grouped bars.',
+    expect: 'Key beside the bars, names wrapped; the headline can stay full size.',
+    theme: 'swiss',
+    input: own(['North', 'South', 'East'].flatMap((Region, r) => ['Residential customers on fixed tariffs', 'Small and medium-sized businesses', 'Large industrial and commercial accounts'].map((Segment, k) => ({ Region, Segment, 'Revenue ($m)': 30 + r * 12 + k * 9 }))),
+      { Region: 'Category', Segment: 'Category', 'Revenue ($m)': 'Amount' }, {
+        chartType: 'Grouped Bar Chart', encodings: { x: 'Region', y: 'Revenue ($m)', group: 'Segment' }, title: 'Revenue by region and segment',
+      }),
+  },
+  {
+    id: 'ch-wide-bubbles', kind: 'squeezed', issue: 'doubleKeys', group: 'challenge', name: 'Colour and size keys, NYT, short title',
+    note: 'The Gapminder bubbles in NYT with a one-line headline: only the two key rows on top.',
+    expect: 'The two keys side by side on one row, or beside the plot — whichever leaves the drawing nearer its box’s shape.',
+    theme: 'nyt',
+    input: fromPreview('gapminder-bubble', { title: 'Wealth and health' }),
+  },
+  {
+    id: 'ch-value-bars-pop', kind: 'squeezed', issue: 'bigTitle', group: 'challenge', name: 'Value-labelled bars under Pop’s headline',
+    note: 'Pop’s largest headline over a bar chart that prints its values.',
+    expect: 'The title should come down a size before anything else moves; no key to move.',
+    theme: 'pop',
+    input: fromPreview('big-mac', { title: 'A burger costs twice as much in Switzerland as in India', subtitle: 'Big Mac price, US dollars' }),
+  },
+  {
+    id: 'ch-long-title-roomy', kind: 'healthy', issue: 'control', group: 'challenge', name: 'A long headline with room to spare',
+    note: 'A two-line headline over a line chart whose box holds it: the furniture is large, but nothing is squeezed.',
+    expect: 'Must not change at the larger setups: a drawing with room in its box is shown as drawn. In a tight box, a smaller title is fair.',
+    theme: 'nyt',
+    input: fromPreview('keeling', { title: 'Carbon dioxide at Mauna Loa has risen in every one of the sixty-five years since measurements began' }),
+  },
+  {
+    id: 'ch-short-keys-top', kind: 'healthy', issue: 'control', group: 'challenge', name: 'Short keys on top that fit',
+    note: 'Datawrapper’s key on top with three short names, over grouped bars.',
+    expect: 'One short row of keys costs little height: the theme’s top key should stay where the box holds it.',
+    theme: 'datawrapper',
+    input: fromPreview('medals-grouped', { subtitle: 'Medals won at Paris 2024' }),
+  },
+  {
+    id: 'ch-side-key-tile', kind: 'squeezed', issue: 'tile', group: 'challenge', name: 'A side key the box cannot hold',
+    note: 'Eight long product names beside a line chart in a box that holds neither them nor the plot at its size.',
+    expect: 'Narrower names first; where the drawing would still be shrunk past legibility, a smaller plot that keeps its shape, so the text stays full size.',
+    input: own(productLines, { Year: 'Year', Product: 'Category', 'Monthly active users (M)': 'Quantity' }, {
+      chartType: 'Line Chart', encodings: { x: 'Year', y: 'Monthly active users (M)', color: 'Product' },
+      title: 'Monthly active users by product line', subtitle: 'Millions, annual average',
+    }),
+  },
+
+  ...discreteCases(),
 ];
+
+/**
+ * A chart sized by bands is as long as its categories make it, not as its base size says: a few
+ * leave it short of its base, many stretch it well past. Each pairing of a discrete and a
+ * continuous axis, and two discrete axes, in a few categories and in many — with a headline, and
+ * a key where the chart has one, so what is set around the chart weighs in too.
+ */
+function discreteCases(): SqueezeCase[] {
+  const wave = (i: number, k = 0) => Math.round(40 + 35 * Math.abs(Math.sin(i * 1.3 + k * 0.7)) + (i * 7 + k * 11) % 23);
+  const regions = ['North', 'South', 'East', 'West'];
+  const countries = ['Argentina', 'Australia', 'Austria', 'Belgium', 'Brazil', 'Canada', 'Chile', 'China', 'Colombia', 'Denmark',
+    'Egypt', 'Finland', 'France', 'Germany', 'Greece', 'India', 'Indonesia', 'Ireland', 'Israel', 'Italy',
+    'Japan', 'Kenya', 'Mexico', 'Morocco', 'Netherlands', 'Norway', 'Peru', 'Poland', 'Portugal', 'Spain'];
+  const segments = ['Goods', 'Services', 'Energy'];
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const hours = Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, '0')}:00`);
+  const teams = ['Platform', 'Mobile', 'Web', 'Data', 'Design'];
+  const grid = (xs: string[], ys: string[], xName: string, yName: string) =>
+    xs.flatMap((x, i) => ys.map((y, k) => ({ [xName]: x, [yName]: y, Load: wave(i, k) })));
+  const types = (fields: Record<string, string>) => fields;
+  const base = { kind: 'healthy' as const, group: 'discrete' as const };
+  return [
+    {
+      ...base, id: 'dd-bars-few', issue: 'discreteFew', name: 'Few columns',
+      note: 'Four regions as vertical bars: the plot is narrower than its base.',
+      expect: 'Four bands at a comfortable step leave the plot narrower than its base; within tolerance it keeps its shape.',
+      input: own(regions.map((Region, i) => ({ Region, 'Sales ($k)': wave(i) })), types({ Region: 'Category', 'Sales ($k)': 'Amount' }),
+        { chartType: 'Bar Chart', encodings: { x: 'Region', y: 'Sales ($k)' }, title: 'Sales by region' }),
+    },
+    {
+      ...base, id: 'dd-bars-many', issue: 'discreteMany', name: 'Many columns',
+      note: 'Thirty countries as vertical bars: the bands stretch the plot well past its base width.',
+      expect: 'Thirty bands make a wide, flat plot; where it drifts far from the base shape, the layout should lean back toward it.',
+      input: own(countries.map((Country, i) => ({ Country, 'Exports ($bn)': wave(i) })), types({ Country: 'Country', 'Exports ($bn)': 'Amount' }),
+        { chartType: 'Bar Chart', encodings: { x: 'Country', y: 'Exports ($bn)' }, title: 'Exports by country' }),
+    },
+    {
+      ...base, id: 'dd-stack-many', issue: 'discreteMany', name: 'Many columns and a key',
+      note: 'Thirty countries stacked by three segments: the bands stretch the plot, and the key takes its edge too.',
+      expect: 'The key adds to the stretch the bands make; the two together decide how far the drawing drifts from its base.',
+      input: own(countries.flatMap((Country, i) => segments.map((Segment, k) => ({ Country, Segment, 'Exports ($bn)': Math.round(wave(i, k) / 3) }))),
+        types({ Country: 'Country', Segment: 'Category', 'Exports ($bn)': 'Amount' }),
+        { chartType: 'Stacked Bar Chart', encodings: { x: 'Country', y: 'Exports ($bn)', color: 'Segment' }, title: 'Exports by country and segment' }),
+    },
+    {
+      ...base, id: 'dd-rows-few', issue: 'discreteFew', name: 'Few rows',
+      note: 'Four regions as horizontal bars: the plot is shorter than its base.',
+      expect: 'Four rows leave the plot short of its base height; within tolerance it keeps its shape.',
+      input: own(regions.map((Region, i) => ({ Region, 'Sales ($k)': wave(i) })), types({ Region: 'Category', 'Sales ($k)': 'Amount' }),
+        { chartType: 'Bar Chart', encodings: { x: 'Sales ($k)', y: 'Region' }, title: 'Sales by region' }),
+    },
+    {
+      ...base, id: 'dd-rows-many', issue: 'discreteMany', name: 'Many rows',
+      note: 'Thirty countries as horizontal bars: the rows stretch the plot well past its base height.',
+      expect: 'Thirty rows make a tall, narrow plot; where it drifts far from the base shape, the layout should lean back toward it.',
+      input: own(countries.map((Country, i) => ({ Country, 'Exports ($bn)': wave(i) })), types({ Country: 'Country', 'Exports ($bn)': 'Amount' }),
+        { chartType: 'Bar Chart', encodings: { x: 'Exports ($bn)', y: 'Country' }, title: 'Exports by country' }),
+    },
+    {
+      ...base, id: 'dd-rows-many-key', issue: 'discreteMany', name: 'Many rows and a key',
+      note: 'Thirty countries stacked by three segments as horizontal bars, with their key.',
+      expect: 'The rows make the plot tall; a key above it makes it taller still, a key beside it widens it back toward the base.',
+      input: own(countries.flatMap((Country, i) => segments.map((Segment, k) => ({ Country, Segment, 'Exports ($bn)': Math.round(wave(i, k) / 3) }))),
+        types({ Country: 'Country', Segment: 'Category', 'Exports ($bn)': 'Amount' }),
+        { chartType: 'Stacked Bar Chart', encodings: { x: 'Exports ($bn)', y: 'Country', color: 'Segment' }, title: 'Exports by country and segment' }),
+    },
+    {
+      ...base, id: 'dd-heat-few', issue: 'discreteFew', name: 'A small grid',
+      note: 'Four regions by three segments: a small heatmap with its ramp.',
+      expect: 'Twelve cells at a comfortable step make a small plot; it keeps its shape and its key.',
+      input: own(grid(regions, segments, 'Region', 'Segment'), types({ Region: 'Category', Segment: 'Category', Load: 'Quantity' }),
+        { chartType: 'Heatmap', encodings: { x: 'Region', y: 'Segment', color: 'Load' }, title: 'Load by region and segment' }),
+    },
+    {
+      ...base, id: 'dd-heat-wide', issue: 'discreteMany', name: 'A wide grid',
+      note: 'Twenty-four hours across by seven days down: four times as wide as tall.',
+      expect: 'The columns make the plot wide and flat; a little wider than the base is fine, far wider should lean back toward it.',
+      input: own(grid(hours, days, 'Hour', 'Day'), types({ Hour: 'Category', Day: 'Category', Load: 'Quantity' }),
+        { chartType: 'Heatmap', encodings: { x: 'Hour', y: 'Day', color: 'Load' }, title: 'Load by hour and day' }),
+    },
+    {
+      ...base, id: 'dd-heat-tall', issue: 'discreteMany', name: 'A tall grid',
+      note: 'Five teams across by twenty-four hours down: five times as tall as wide.',
+      expect: 'The rows make the plot tall and narrow; the key beside it or below it changes how far the drawing drifts.',
+      input: own(grid(teams, hours, 'Team', 'Hour'), types({ Team: 'Category', Hour: 'Category', Load: 'Quantity' }),
+        { chartType: 'Heatmap', encodings: { x: 'Team', y: 'Hour', color: 'Load' }, title: 'Load by team and hour' }),
+    },
+    {
+      ...base, id: 'dd-heat-many', issue: 'discreteMany', name: 'A large grid',
+      note: 'Thirty countries across by twenty-four hours down: both axes long.',
+      expect: 'Both axes grow past the base; the shape stays near square, but the size far exceeds the box.',
+      input: own(grid(countries, hours, 'Country', 'Hour'), types({ Country: 'Country', Hour: 'Category', Load: 'Quantity' }),
+        { chartType: 'Heatmap', encodings: { x: 'Country', y: 'Hour', color: 'Load' }, title: 'Load by country and hour' }),
+    },
+  ];
+}
+

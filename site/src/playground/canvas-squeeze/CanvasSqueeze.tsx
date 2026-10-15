@@ -1,13 +1,12 @@
 /**
- * Canvas squeeze: the test bed for a layout (compiler) rework. Charts are set in a small box and
+ * Canvas squeeze: the test bed for the layout's canvas fit. Charts are set in a small box and
  * measured from the SVG Vega drew: how much of the box the chart area got, and what the title,
- * keys, labels and chrome took. The goal is a layout algorithm that, seeing a chart will not read
- * well in its box, weighs the remedies it has — moving keys, a smaller title, trimmed names, a
- * larger render shrunk to fit — and takes the cheapest trade-off that makes the chart readable and
- * good. The remedies tab prototypes those trade-offs as overrides to learn what each one buys.
+ * keys, labels and chrome took. Each case is shown as planned and as the canvas fit lays it out,
+ * where the fit changes it.
  */
-import { useCallback, useMemo, useState, type CSSProperties } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { assembleVegaLite, THEME_PRESETS, type ChartAssemblyInput } from 'flint-chart';
+import { naturalAspectRange, shapeDivergence, widenRange, FALLBACK_WIDEN, type AspectRange } from '../../../../packages/flint-js/src/core/natural-shape';
 import type { View } from 'vega';
 import { VegaLiteView } from '../../components/VegaLiteView';
 import { siteTheme } from '../../shared/theme';
@@ -38,6 +37,10 @@ interface Measured {
   labelShare: { y: number; x: number };
   /** Width over height of the first panel. */
   aspect: number;
+  /** The shapes, width over height, a chart of this base takes on its own: its base stretched on either side. */
+  naturalRange: AspectRange;
+  /** How far the chart area lies outside them, as a ratio: 1 inside, above 1 too wide, below 1 too tall. */
+  natural: number;
   /**
    * How far the shapes drift, as a ratio of aspects (1 is none): the drawing's against its box's,
    * and the chart area's against the base size's.
@@ -47,14 +50,20 @@ interface Measured {
   minSide: number;
   /** Room around the union of the panels, in drawn px. */
   margins: { top: number; bottom: number; left: number; right: number };
+  /** Each criterion, passed, strayed from, or failed. */
+  checks: Check[];
   /** Why the chart reads as squeezed; empty where it does not. */
   flags: string[];
   /** What is off without hurting the reading: a drawing a little larger than its box. */
   notes: string[];
 }
 
+/** A criterion as the chart meets it: green where it passes, yellow where it strays, red where it fails. */
+type CheckStatus = 'pass' | 'warn' | 'fail';
+interface Check { id: string; label: string; status: CheckStatus; detail: string }
+
 /** Below these a chart reads as squeezed. */
-const LIMITS = { scale: 0.7, around: 0.4, labels: 0.4, aspectMax: 3, aspectMin: 1 / 3, minSide: 100, overrun: 12, drift: 1.35 };
+const LIMITS = { scale: 0.7, around: 0.4, labels: 0.4, natural: 1.1, minSide: 100, overrun: 12, drift: 1.35 };
 
 const PART_STYLE: Record<PartRole | 'plot', { color: string; label: string }> = {
   plot: { color: '#2f6fbd', label: 'Plot' },
@@ -70,6 +79,7 @@ const PART_STYLE: Record<PartRole | 'plot', { color: string; label: string }> = 
 const ISSUE_LABEL: Record<SqueezeIssue, string> = {
   header: 'Header', legend: 'Keys', labels: 'Labels', facets: 'Panels', footer: 'Chrome', tile: 'Tile', control: 'Control',
   keysTop: 'Theme: keys on top', keysBottom: 'Theme: keys below', bigTitle: 'Theme: big title', doubleKeys: 'Theme: colour + size keys',
+  discreteFew: 'Few bands', discreteMany: 'Many bands',
 };
 
 function union(rects: Rect[]): Rect | undefined {
@@ -81,7 +91,13 @@ function union(rects: Rect[]): Rect | undefined {
   return { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
 }
 
-function measure(svg: SVGSVGElement, view: View, box: { width: number; height: number }, base: { width: number; height: number }): Measured {
+/** Which sides of a spec's plot its bands set: a stated step is a banded side. */
+function bandedSides(spec: any): { x: boolean; y: boolean } {
+  const plot = spec?.spec ?? spec;
+  return { x: typeof plot?.width === 'object' && plot.width?.step != null, y: typeof plot?.height === 'object' && plot.height?.step != null };
+}
+
+function measure(svg: SVGSVGElement, view: View, box: { width: number; height: number }, base: { width: number; height: number }, banded = { x: false, y: false }): Measured {
   const drawn = { width: Number(svg.getAttribute('width')) || 0, height: Number(svg.getAttribute('height')) || 0 };
   const outer = svg.getBoundingClientRect();
   const k = outer.width / (drawn.width || 1);
@@ -138,18 +154,25 @@ function measure(svg: SVGSVGElement, view: View, box: { width: number; height: n
   const margins = {
     top: plot.y, bottom: drawn.height - (plot.y + plot.height), left: plot.x, right: drawn.width - (plot.x + plot.width),
   };
-  const flags: string[] = [];
-  const notes: string[] = [];
+  const checks: Check[] = [];
+  const check = (id: string, label: string, status: CheckStatus, detail: string) => checks.push({ id, label, status, detail });
   // A drawing a little larger than its box reads fine shrunk; text shrunk past this is too small.
-  if (scale < LIMITS.scale) flags.push(`shown at ${Math.round(scale * 100)}%: text too small`);
-  else if (scale < 0.97) notes.push(`overflows its box: shown at ${Math.round(scale * 100)}%`);
+  check('fit', 'Fits its box', scale < LIMITS.scale ? 'fail' : scale < 0.97 ? 'warn' : 'pass',
+    scale < LIMITS.scale ? `shown at ${pct(scale)}: text too small` : scale < 0.97 ? `overflows its box: shown at ${pct(scale)}` : 'inside its box');
   // Two trade-offs, read apart. The chart area against what is set around it: the title, deck, keys
   // and chrome. Each panel against its own labels: the y labels beside it, the x labels below it.
   const axisTitles = all('g.role-axis-title');
   const area = union([plot, ...labels, ...axisTitles, ...headers]) ?? plot;
   const around = { width: 1 - area.width / (drawn.width || 1), height: 1 - area.height / (drawn.height || 1) };
-  if (around.height > LIMITS.around) flags.push(`title, keys and chrome take ${Math.round(around.height * 100)}% of the height`);
-  if (around.width > LIMITS.around) flags.push(`keys and chrome take ${Math.round(around.width * 100)}% of the width`);
+  // What is around the chart area squeezes it, or bends the drawing out of shape, only where the
+  // box holds it in: a drawing with room to spare in its box is shown as drawn.
+  const held = scale < 0.99;
+  const crowdedHigh = held && around.height > LIMITS.around;
+  const crowdedWide = held && around.width > LIMITS.around;
+  check('around', 'Room around', crowdedHigh || crowdedWide ? 'fail' : 'pass',
+    crowdedHigh ? `title, keys and chrome take ${pct(around.height)} of the height`
+      : crowdedWide ? `keys and chrome take ${pct(around.width)} of the width`
+        : `title, keys, chrome: ${pct(around.height)} of the height, ${pct(around.width)} of the width`);
   const own = [...labels, ...axisTitles];
   const labelShare = { y: 0, x: 0 };
   for (const p of panels) {
@@ -167,11 +190,33 @@ function measure(svg: SVGSVGElement, view: View, box: { width: number; height: n
       labelShare.x = Math.max(labelShare.x, depth / (depth + p.height));
     }
   }
-  if (labelShare.y > LIMITS.labels) flags.push(`y labels take ${Math.round(labelShare.y * 100)}% of ${facet ? 'a panel’s' : 'the chart’s'} width`);
-  if (labelShare.x > LIMITS.labels) flags.push(`x labels take ${Math.round(labelShare.x * 100)}% of ${facet ? 'a panel’s' : 'the chart’s'} height`);
-  // Panels are read as one area: their size and shape are not judged one by one.
-  if (!facet && (aspect > LIMITS.aspectMax || (aspect && aspect < LIMITS.aspectMin))) flags.push(`plot ${aspect.toFixed(1)}:1`);
-  if (!facet && minSide && minSide < LIMITS.minSide) flags.push(`plot side ${Math.round(minSide)}px`);
+  const whose = facet ? 'a panel’s' : 'the chart’s';
+  check('labels', 'Own labels', labelShare.y > LIMITS.labels || labelShare.x > LIMITS.labels ? 'fail' : 'pass',
+    labelShare.y > LIMITS.labels ? `y labels take ${pct(labelShare.y)} of ${whose} width`
+      : labelShare.x > LIMITS.labels ? `x labels take ${pct(labelShare.x)} of ${whose} height`
+        : `y ${pct(labelShare.y)} of ${whose} width, x ${pct(labelShare.x)} of its height`);
+  // The chart area — the plot, or the panels as one grid, with their own labels — against the
+  // shapes a chart of this base takes on its own, as the compiler judges it: green inside them;
+  // yellow where no arrangement reaches them but the chart sits in the looser range round its
+  // base; red past that too. A little past an end is the compiler's estimate of the labels
+  // against the drawn ones.
+  const naturalRange = naturalAspectRange(base, { x: box.width / base.width, y: box.height / base.height });
+  const looser = widenRange(naturalRange, FALLBACK_WIDEN);
+  const areaAspect = area.width / (area.height || 1);
+  const inside = (range: AspectRange) => Math.abs(Math.log(shapeDivergence({ lo: areaAspect, hi: areaAspect }, range))) <= Math.log(LIMITS.natural);
+  const natural = shapeDivergence({ lo: areaAspect, hi: areaAspect }, naturalRange);
+  const span = (range: AspectRange) => `${range.lo.toFixed(2)}–${range.hi.toFixed(2)}`;
+  // A shape the data sets is not the layout's to change: the long side is set by its bands, and the
+  // short one is set by bands too or already stretched as far as the box allows.
+  const atCap = (side: 'x' | 'y') => side === 'x' ? plot.width >= box.width - 4 : plot.height >= box.height - 4;
+  const wide = areaAspect > naturalRange.hi;
+  const setByBands = !inside(naturalRange) && (wide ? banded.x && (banded.y || atCap('y')) : banded.y && (banded.x || atCap('x')));
+  check('shape', 'Own shape', inside(naturalRange) || setByBands ? 'pass' : inside(looser) ? 'warn' : 'fail',
+    inside(naturalRange) ? `chart area ${areaAspect.toFixed(2)}:1, inside its base’s ${span(naturalRange)}`
+      : setByBands ? `chart area ${areaAspect.toFixed(2)}:1, set by its bands (${banded.x && banded.y ? 'its cells' : wide ? 'its columns' : 'its rows'}): the data's shape, not the layout's`
+        : `chart area ${areaAspect.toFixed(2)}:1, past its base’s ${span(naturalRange)}${inside(looser) ? ', inside the looser ' : ' and the looser '}${span(looser)}`);
+  check('size', 'Plot size', !facet && minSide && minSide < LIMITS.minSide ? 'fail' : 'pass',
+    facet ? `${panels.length} panels, read as one` : `shortest side ${Math.round(minSide)}px`);
   // An axis title longer than its axis runs past the plot's ends: it reads as spilling out.
   for (const part of facet ? [] : parts) {
     if (part.role !== 'axisTitle') continue;
@@ -180,19 +225,33 @@ function measure(svg: SVGSVGElement, view: View, box: { width: number; height: n
     const middle = beside ? r.y + r.height / 2 : r.x + r.width / 2;
     const panel = panels.find((p) => beside ? middle >= p.y && middle <= p.y + p.height : middle >= p.x && middle <= p.x + p.width) ?? plot;
     const overrun = beside ? r.height - panel.height : r.width - panel.width;
-    if (overrun > LIMITS.overrun) flags.push(`${beside ? 'y' : 'x'}-axis title ${Math.round(overrun)}px longer than its axis`);
+    if (overrun > LIMITS.overrun) check('axisTitle', 'Axis titles', 'fail', `${beside ? 'y' : 'x'}-axis title ${Math.round(overrun)}px longer than its axis`);
   }
+  if (!checks.some((c) => c.id === 'axisTitle')) check('axisTitle', 'Axis titles', 'pass', facet ? 'not judged on panels' : 'within their axes');
+  // A title and a row of keys above a plot are a house's design: what is around the chart counts
+  // toward the shape only past a quarter of the chart area's height above and below it, a third of
+  // its width beside it — as the compiler judges it.
+  const shaped = {
+    width: area.width + Math.max(0, drawn.width - area.width - area.width * 0.33),
+    height: area.height + Math.max(0, drawn.height - area.height - area.height * 0.25),
+  };
   const drift = {
-    drawing: (drawn.width / (drawn.height || 1)) / (box.width / box.height),
+    drawing: (shaped.width / (shaped.height || 1)) / (box.width / box.height),
     area: (area.width / (area.height || 1)) / (base.width / base.height),
     around: 1,
   };
   // What the title, keys and chrome do to the shape, apart from what the chart area does itself:
   // a square plot under two rows of keys still makes a tall drawing in a square box.
   drift.around = drift.drawing / drift.area;
-  if (drift.around > LIMITS.drift) flags.push(`keys and chrome stretch the drawing ${drift.around.toFixed(1)}× wider than its box`);
-  if (drift.around < 1 / LIMITS.drift) flags.push(`title, keys and chrome stretch the drawing ${(1 / drift.around).toFixed(1)}× taller than its box`);
-  return { drawn, panels, parts, scale, plotShare, boxUsed, area, around, labelShare, aspect, drift, minSide, margins, flags: [...new Set(flags)], notes };
+  const wider = held && drift.around > LIMITS.drift;
+  const taller = held && drift.around < 1 / LIMITS.drift;
+  check('drift', 'Drawing shape', wider || taller ? 'fail' : 'pass',
+    wider ? `keys and chrome stretch the drawing ${drift.around.toFixed(1)}× wider than its box`
+      : taller ? `title, keys and chrome stretch the drawing ${(1 / drift.around).toFixed(1)}× taller than its box`
+        : `what is around it bends the drawing ${Math.max(drift.around, 1 / drift.around).toFixed(2)}× from its box’s shape`);
+  const flags = checks.filter((c) => c.status === 'fail').map((c) => c.detail);
+  const notes = checks.filter((c) => c.status === 'warn').map((c) => c.detail);
+  return { checks, drawn, panels, parts, scale, plotShare, boxUsed, area, around, labelShare, aspect, naturalRange, natural, drift, minSide, margins, flags: [...new Set(flags)], notes };
 }
 
 /**
@@ -213,68 +272,34 @@ const setupLabel = (setup: Setup) => `${setup.base.width} × ${setup.base.height
 /** The box the chart has to fit, which it is measured against. */
 const boxOf = (setup: Setup) => ({ width: Math.round(setup.base.width * setup.stretch), height: Math.round(setup.base.height * setup.stretch) });
 
-/**
- * A remedy, prototyped without touching the compiler: a theme override over the case's house, or a
- * larger render the host shrinks into the box. `cost` orders them: moving keys loses nothing, a
- * smaller title loses emphasis, trimmed names lose words, a shrunk render loses legibility.
- */
-interface RemedyPart { label: string; cost: number; theme?: Record<string, any>; render?: number }
-const REMEDY_PARTS: Record<string, RemedyPart> = {
-  E: { label: 'Empty theme', cost: 0 },
-  KR: { label: 'Keys right', cost: 0.5, theme: { legend: { placement: ['right'], maxSwatches: 3 } } },
-  KT: { label: 'Keys on top, one row', cost: 0.5, theme: { legend: { placement: ['top'], arrangement: 'row', maxSwatches: 3 } } },
-  KB: { label: 'Keys below, one row', cost: 0.5, theme: { legend: { placement: ['bottom'], arrangement: 'row', maxSwatches: 3 } } },
-  T: { label: 'Smaller title', cost: 1, theme: { type: { headline: { size: 13 }, deck: { size: 11 } } } },
-  L: { label: 'Trim names', cost: 2, theme: { labels: { truncation: 'ellipsis', fit: { rowLimit: '22%' } } } },
-  S: { label: 'Render 1.25×, shrink', cost: 3, render: 1.25 },
-};
-interface Remedy { id: string; parts: string[]; label: string; cost: number; theme?: Record<string, any>; render: number }
-const REMEDY_COMBOS = [['E'], ['KR'], ['KT'], ['KB'], ['T'], ['L'], ['S'], ['T', 'L'], ['KR', 'T', 'L'], ['KT', 'T', 'L'], ['KT', 'T', 'L', 'S']];
+/** The chart as planned, or as the canvas fit lays it out (`options.canvasFit`). */
+type Layout = 'off' | 'auto';
 
-function deepMerge(a: any, b: any): any {
-  if (!b) return a;
-  if (!a || typeof a !== 'object' || typeof b !== 'object' || Array.isArray(a) || Array.isArray(b)) return b;
-  const out = { ...a };
-  for (const [k, v] of Object.entries(b)) out[k] = deepMerge(a[k], v);
-  return out;
-}
-const REMEDIES: Remedy[] = REMEDY_COMBOS.map((parts) => ({
-  id: parts.join('+'),
-  parts,
-  label: parts.map((p) => REMEDY_PARTS[p].label).join(' + '),
-  cost: parts.reduce((sum, p) => sum + REMEDY_PARTS[p].cost, 0),
-  theme: parts.reduce<Record<string, any> | undefined>((acc, p) => deepMerge(acc, REMEDY_PARTS[p].theme), undefined),
-  render: parts.reduce((f, p) => f * (REMEDY_PARTS[p].render ?? 1), 1),
-}));
+interface Compiled { spec?: any; error?: string; ms: number; fit?: any }
 
-function compile(c: SqueezeCase, setup: Setup, remedy?: Remedy) {
+function compile(c: SqueezeCase, setup: Setup, layout: Layout, refit = true): Compiled {
+  const started = performance.now();
   try {
     const input = structuredClone(c.input) as unknown as ChartAssemblyInput;
-    const f = remedy?.render ?? 1;
-    (input.chart_spec as any).baseSize = { width: setup.base.width * f, height: setup.base.height * f };
-    (input.chart_spec as any).canvasSize = { width: boxOf(setup).width * f, height: boxOf(setup).height * f };
-    // A remedy is an override over the case's house; Flint's defaults have none, so they take an
-    // empty theme (which itself changes the drawing: compare against the "Empty theme" column).
-    if (remedy) (input as any).theme_spec = deepMerge(c.theme ? { extends: c.theme } : { id: 'flint-defaults' }, remedy.theme ?? {});
-    else if (c.theme) (input as any).theme_spec = c.theme;
+    (input as any).options = { ...((input as any).options ?? {}), canvasFit: layout, canvasRefit: refit };
+    (input.chart_spec as any).baseSize = setup.base;
+    (input.chart_spec as any).canvasSize = boxOf(setup);
+    if (c.theme) (input as any).theme_spec = c.theme;
     const spec: any = assembleVegaLite(input);
-    return { spec };
+    return { spec, ms: performance.now() - started, fit: spec._canvasFit };
   } catch (error) {
-    return { error: String(error) };
+    return { error: String(error), ms: performance.now() - started };
   }
 }
 
-/**
- * What the reader sees: an issue where the other parts leave the plot looking bad, a warning where
- * the chart reads well but is drawn larger than its box, a fit where it is neither.
- */
+/** What the reader sees: an issue where a check fails, a warning where one only strays, a fit where all pass. */
 type Verdict = 'issue' | 'warning' | 'fit';
 const verdictOf = (m: Measured | undefined): Verdict | undefined =>
   !m ? undefined : m.flags.length ? 'issue' : m.notes.length ? 'warning' : 'fit';
 const VERDICTS: { id: Verdict; label: string; lead: string }[] = [
-  { id: 'issue', label: 'Issue', lead: 'The title, keys, labels or chrome take so much of the box that the plot looks bad: squashed, tiny, distorted, shrunk past legibility, or missing data.' },
-  { id: 'warning', label: 'Warning', lead: 'The chart reads well, but it is drawn larger than its box: the host has to shrink it a little or give it more room.' },
-  { id: 'fit', label: 'Fit', lead: 'The chart reads well and stays inside its box.' },
+  { id: 'issue', label: 'Issue', lead: 'Some check red: the plot looks bad — squashed, tiny, out of shape, shrunk past legibility.' },
+  { id: 'warning', label: 'Warning', lead: 'Some check yellow, none red: the chart reads, but is drawn a little larger than its box, or out of its own shape where no arrangement could keep it.' },
+  { id: 'fit', label: 'Fit', lead: 'Every check green.' },
 ];
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
@@ -304,15 +329,15 @@ function roomTable(m: Measured) {
   return [...merged.values()];
 }
 
-function CaseCard({ c, setup, remedy, mode, showParts, hidden, measured, onMeasured }: {
-  c: SqueezeCase; setup: Setup; remedy?: Remedy; mode: 'fit' | 'natural'; showParts: boolean; hidden: boolean; measured?: Measured; onMeasured: (id: string, m: Measured) => void;
+function CaseCard({ c, setup, compiled, measureKey, tag, mode, showParts, measured, onMeasured }: {
+  c: SqueezeCase; setup: Setup; compiled: Compiled; measureKey: string; tag?: string;
+  mode: 'fit' | 'natural'; showParts: boolean; measured?: Measured; onMeasured: (id: string, m: Measured) => void;
 }) {
-  const key = remedy ? `${remedy.id}::${c.id}` : c.id;
-  const compiled = useMemo(() => compile(c, setup, remedy), [c, setup, remedy]);
+  const key = measureKey;
   const box = useMemo(() => boxOf(setup), [setup]);
   const onReady = useCallback((svg: SVGSVGElement, view: View) => {
     // Furniture is appended after render; measure on the next frame so it is in place.
-    const frame = requestAnimationFrame(() => onMeasured(key, measure(svg, view, box, setup.base)));
+    const frame = requestAnimationFrame(() => onMeasured(key, measure(svg, view, box, setup.base, bandedSides(compiled.spec))));
     return () => cancelAnimationFrame(frame);
   }, [key, box, setup, compiled, onMeasured]);
   const scale = mode === 'fit' ? measured?.scale ?? 1 : 1;
@@ -325,20 +350,20 @@ function CaseCard({ c, setup, remedy, mode, showParts, hidden, measured, onMeasu
     : { width: box.width, height: box.height };
 
   return (
-    // A card on another tab is still laid out, off the page, so it is measured and counted.
-    <article className="squeeze-card" id={key} data-hidden={hidden} aria-hidden={hidden} style={{ width: Math.max(280, stage.width) + 30 }}>
+    <article className="squeeze-card" id={key} style={{ width: Math.max(280, stage.width) + 30 }}>
       <header>
         <div className="squeeze-card-title">
           <strong>{c.name}</strong>
           <span className="squeeze-tag">{ISSUE_LABEL[c.issue]}</span>
-          {remedy && <span className="squeeze-tag" data-remedy>{remedy.label}</span>}
+          {tag && <span className="squeeze-tag" data-remedy>{tag}</span>}
         </div>
         <p>{c.note}</p>
+        {c.expect && <p className="squeeze-expect"><b>Should:</b> {c.expect}</p>}
         <code>{theme} · {String(c.input.chart_spec.chartType)}</code>
       </header>
       <div className="squeeze-stage" style={stage}>
         <div className="squeeze-box" style={{ width: box.width, height: box.height }} />
-        {'error' in compiled ? <pre className="squeeze-error">{compiled.error}</pre> : (
+        {compiled.error !== undefined ? <pre className="squeeze-error">{compiled.error}</pre> : (
           <div className="squeeze-drawing" style={{ transform: `scale(${scale})` }}>
             <VegaLiteView spec={compiled.spec} renderer="svg" onReady={onReady} />
             {measured && showParts && (
@@ -358,15 +383,18 @@ function CaseCard({ c, setup, remedy, mode, showParts, hidden, measured, onMeasu
       {measured && (
         <footer>
           <div className="squeeze-verdict" data-verdict={verdict}>
-            {verdict === 'issue' ? measured.flags.join(' · ') : verdict === 'warning' ? measured.notes.join(' · ') : 'fits its box'}
+            {verdict === 'issue' ? 'Issue' : verdict === 'warning' ? 'Warning' : 'Fit'}
           </div>
+          <ul className="squeeze-checks">
+            {measured.checks.map((check) => (
+              <li key={check.id} data-status={check.status}><i /><b>{check.label}</b> {check.detail}</li>
+            ))}
+          </ul>
           <dl>
             <dt>Plot</dt><dd>{pct(measured.plotShare)} of the drawing{measured.panels.length > 1 ? `, ${measured.panels.length} panels` : ''}</dd>
             <dt>Panel</dt><dd>{px(measured.panels[0]?.width ?? 0)} × {px(measured.panels[0]?.height ?? 0)} ({measured.aspect.toFixed(2)}:1)</dd>
             <dt>Drawn</dt><dd>{px(measured.drawn.width)} × {px(measured.drawn.height)}{measured.scale < 1 ? `, shown at ${pct(measured.scale)}` : ''}, {pct(measured.boxUsed)} of the box used</dd>
-            <dt>Around</dt><dd>title, keys, chrome: {pct(measured.around.height)} of the height, {pct(measured.around.width)} of the width</dd>
-            <dt>Labels</dt><dd>y {pct(measured.labelShare.y)} of {measured.panels.length > 1 ? 'a panel’s' : 'the chart’s'} width, x {pct(measured.labelShare.x)} of its height</dd>
-            <dt>Around</dt><dd>top {px(measured.margins.top)} · bottom {px(measured.margins.bottom)} · left {px(measured.margins.left)} · right {px(measured.margins.right)}</dd>
+            <dt>Margins</dt><dd>top {px(measured.margins.top)} · bottom {px(measured.margins.bottom)} · left {px(measured.margins.left)} · right {px(measured.margins.right)}</dd>
           </dl>
           {room.length > 0 && (
             <ul className="squeeze-room">
@@ -398,48 +426,57 @@ export function CanvasSqueeze() {
   const setup = SETUPS.find((s) => s.id === setupId) ?? SETUPS[0];
   const chooseSetup = (id: string) => { setMeasured({}); setSetupId(id); };
   const [showParts, setShowParts] = useState(true);
-  const [tab, setTab] = useState<Verdict | 'remedies'>('issue');
-  const [preview, setPreview] = useState<string>();
+  const [refit, setRefit] = useState(true);
+  const chooseRefit = (on: boolean) => { setMeasured({}); setRefit(on); };
   const [measured, setMeasured] = useState<Record<string, Measured>>({});
   const onMeasured = useCallback((id: string, m: Measured) => setMeasured((prev) => ({ ...prev, [id]: m })), []);
-  const shown = CASES.filter((c) => verdictOf(measured[c.id]) === tab);
-  const count = (verdict: Verdict) => CASES.filter((c) => verdictOf(measured[c.id]) === verdict).length;
+
+  // Each case as the canvas fit lays it out, once per setup.
+  const compiled = useMemo(() => Object.fromEntries(CASES.map((c) => [c.id, compile(c, setup, 'auto', refit)])) as Record<string, Compiled>, [setup, refit]);
+  // For inspecting the fit records from the console and the browser tools.
+  useEffect(() => { (window as any).__squeeze = { compiled, measured }; }, [compiled, measured]);
   const pending = CASES.filter((c) => !measured[c.id]).length;
-  // The remedies are tried on the cases that are issues as they stand.
-  const issueCases = CASES.filter((c) => verdictOf(measured[c.id]) === 'issue');
-  const remedyPending = tab === 'remedies' ? issueCases.reduce((n, c) => n + REMEDIES.filter((r) => !measured[`${r.id}::${c.id}`]).length, 0) : 0;
-  const cheapest = (c: SqueezeCase) => REMEDIES
-    .filter((r) => r.id !== 'E' && measured[`${r.id}::${c.id}`] && verdictOf(measured[`${r.id}::${c.id}`]) !== 'issue')
-    .sort((a, b) => a.cost - b.cost || (verdictOf(measured[`${a.id}::${c.id}`]) === 'fit' ? -1 : 1))[0];
+  const times = CASES.map((c) => compiled[c.id]?.ms ?? 0);
+  // Issues first, then warnings, then fits; a case not yet measured last.
+  const order: (Verdict | 'pending')[] = ['issue', 'warning', 'fit', 'pending'];
+  const groupOf = (c: SqueezeCase) => verdictOf(measured[c.id]) ?? 'pending';
+  const sorted = [...CASES].sort((a, b) => order.indexOf(groupOf(a)) - order.indexOf(groupOf(b)));
+  const firstOf = new Map<string, string>();
+  for (const c of sorted) if (!firstOf.has(groupOf(c))) firstOf.set(groupOf(c), c.id);
+  const sizeOf = (group: Verdict | 'pending') => CASES.filter((c) => groupOf(c) === group).length;
 
   return (
     <div className="squeeze-page">
       <style>{styles}</style>
       <h1>Canvas squeeze</h1>
       <p className="squeeze-lead squeeze-goal">
-        <b>The goal:</b> when a chart will not read well in its box, the compiler's layout decides how to use the tools it
-        has — move or regroup the keys, set the title smaller, trim long names, or render larger and shrink to fit — and
-        takes the cheapest trade-off that leaves the chart readable and good. This page collects the cases, measures
-        where each one goes wrong, and prototypes the remedies (the <b>Remedies</b> tab) to learn what each one buys and
-        costs before the algorithm is written.
+        <b>The canvas fit.</b> Some charts do not read well in the box a host gives them: the title, keys and chrome take
+        the chart's room, or push the drawing out of the box's shape, or the host has to shrink it past legibility. The
+        layout's canvas fit catches these from the plan, before anything is drawn, and lays the chart out again; a chart
+        that reads well as planned is never changed. This page shows every case as planned and as the fit lays it out.
       </p>
-      <p className="squeeze-lead">
-        Charts in a small box. Every chart gets the same base size and an allowance to grow under pressure: 300 × 300
-        that may grow 1.5× has a 450 × 450 box (the dashed line). Each is measured from the SVG Vega drew: how much
-        of the box the plot got, and what took the rest. Each chart lands on one of three tabs by what it
-        measures: <b>issue</b>, <b>warning</b> or <b>fit</b>.
-      </p>
-      <p className="squeeze-lead">
-        Two trade-offs are read apart. <b>The chart area against what is around it</b>: the chart area is the plot with its
-        own axes, or for panels the whole grid with its headers and axes, read as one area (the dotted line); an issue is
-        the title, deck, keys and chrome taking over {pct(LIMITS.around)} of the drawing's height or width. <b>Each panel
-        against its own labels</b>: an issue is a panel's own y labels taking over {pct(LIMITS.labels)} of the width beside
-        it, or its own x labels over {pct(LIMITS.labels)} of the height below it. A single plot is also an issue when it is
-        flatter or taller than {LIMITS.aspectMax}:1, shorter than {LIMITS.minSide}px a side, or an axis title runs past
-        its ends; panels are not judged one by one. <b>Shape</b>: the title, keys and chrome stretching the drawing over{' '}
-        {LIMITS.drift}× taller or wider than its box, beyond the shape the chart area takes itself. A chart shrunk below {pct(LIMITS.scale)} to fit its box is an issue
-        (its text is too small); a little larger than its box, a warning. Values left out to fit are not flagged.
-      </p>
+      <div className="squeeze-logic">
+        <div>
+          <h3>What it aims for</h3>
+          <ol>
+            <li><b>Fitting:</b> the drawing enters its box legibly — a host may shrink it a little, never past {pct(LIMITS.scale)}.</li>
+            <li><b>Balance:</b> the title, keys and chrome take at most {pct(LIMITS.around)} of the drawing's height or width; a panel's own labels at most {pct(LIMITS.labels)} of it.</li>
+            <li><b>Shape:</b> nothing around the chart stretches the drawing more than {LIMITS.drift}× out of its box's shape — past what a title and a row of keys take as a matter of course.</li>
+            <li><b>Own shape:</b> the chart area — the plot with its labels — sits in the shapes its base takes on its own, from the base with its height stretched to the base with its width stretched (green). Where no arrangement of its bands can reach them, it sits in a range {FALLBACK_WIDEN}× looser round its base (yellow); past that it is red — unless its bands set the shape (a grid's cells, or bands beside a side already stretched to the box), which is the data's shape, not the layout's.</li>
+          </ol>
+        </div>
+        <div>
+          <h3>How it decides</h3>
+          <ol>
+            <li><b>Put each problem down to its parts.</b> Too wide: the keys beside the plot. Too tall: the keys stacked above or below, and the title only where it is most of what stands there. A title and a row of keys above a plot are the theme's design, allowed for: only a header much larger than that bends the shape.</li>
+            <li><b>The least edit a reader would notice, one at a time:</b> keys in one row on their edge; names wrapped — a key's, or, where the chart area itself is too wide, the names down the y axis; the title a size down; one of several keys on an edge moved to another; every key to another edge; the title two sizes down. Never an edit that makes text already too small smaller still. Only the culprit's edits, each priced on one scale; of those that clear, the cheapest is kept, and how its result reads only tells edits alike apart. Two together only where none clears alone.</li>
+            <li><b>Then the plot.</b> Where the box cannot hold the chart legibly as it is, the plot comes down, keeping its shape. The fit never lays a chart out larger for the host to shrink: one that still overflows is drawn at its size, for the reader to scroll or the host to scale.</li>
+            <li><b>A chart drawn a little past its box</b> (a warning) gets only the gentlest edits — keys in a row on their edge, or names wrapped — kept where they bring it at least 3 points nearer its box with nothing going wrong.</li>
+            <li><b>Then the plot, once more.</b> With the title and keys settled, the plot is laid out again, once, in the room the box leaves it at the scale it is shown: a continuous side grows into it, never past its stretch cap, the chart area staying within the looser range of its own shapes. Kept only where the text is no smaller, nothing new goes wrong, and the drawing reads better.</li>
+            <li><b>The title spans the drawing.</b> A headline and deck may run over keys beside the plot, not just over the plot and its labels.</li>
+          </ol>
+        </div>
+      </div>
 
       <div className="squeeze-controls">
         <div role="group" aria-label="Size">
@@ -455,126 +492,53 @@ export function CanvasSqueeze() {
           <button type="button" aria-pressed={mode === 'natural'} onClick={() => setMode('natural')}>As drawn</button>
         </div>
         <label><input type="checkbox" checked={showParts} onChange={(e) => setShowParts(e.target.checked)} /> Outline the parts</label>
+        <label title="Once the title and keys are settled, lay the plot out once more in the room the box leaves it (options.canvasRefit)"><input type="checkbox" checked={refit} onChange={(e) => chooseRefit(e.target.checked)} /> Refit the plot</label>
         <ul className="squeeze-key">
           {Object.entries(PART_STYLE).map(([role, s]) => <li key={role}><i style={{ background: s.color }} />{s.label}</li>)}
         </ul>
       </div>
 
-      <div className="squeeze-tabs" role="tablist" aria-label="Verdict">
-        {VERDICTS.map((v) => (
-          <button key={v.id} type="button" role="tab" aria-selected={tab === v.id} data-verdict={v.id} onClick={() => setTab(v.id)}>
-            {v.label}<span>{count(v.id)}</span>
-          </button>
-        ))}
-        <button type="button" role="tab" aria-selected={tab === 'remedies'} data-verdict="remedies" onClick={() => setTab('remedies')}>
-          Remedies<span>{count('issue')} issues</span>
-        </button>
-        {(pending > 0 || remedyPending > 0) && <em>measuring {pending + remedyPending}…</em>}
-      </div>
       <p className="squeeze-tab-lead">
-        {tab === 'remedies'
-          ? 'Each issue tried again under each remedy and their combinations, prototyped as theme overrides over its house, or as a larger render the host shrinks into the box. Cheaper remedies come first: moving keys loses nothing, a smaller title loses emphasis, trimmed names lose words, a shrunk render loses legibility. Charts on Flint’s defaults take an empty theme to carry the override, which by itself changes the drawing: read their remedies against the “Empty theme” column. Click a cell to see that chart.'
-          : VERDICTS.find((v) => v.id === tab)?.lead}
+        Every case as the canvas fit lays it out, grouped by its checks:{' '}
+        {VERDICTS.map((x, i) => <span key={x.id}>{i ? ', ' : ''}<b className="squeeze-count" data-verdict={x.id}>{sizeOf(x.id)} {x.label.toLowerCase()}</b></span>)}
+        {pending > 0 ? `, ${pending} measuring` : ''}. Compile: {(times.reduce((a, b) => a + b, 0) / Math.max(1, times.length)).toFixed(1)} ms a chart on average, {Math.max(...times).toFixed(0)} ms at most.
       </p>
 
-      {tab === 'remedies' && (
-        <section className="squeeze-remedies">
-          <p>
-            Rescued: <b>{issueCases.filter((c) => cheapest(c)).length}</b> of {issueCases.length} issues.
-          </p>
-          <table>
-            <thead>
-              <tr>
-                <th>Case</th><th>As it stands</th>
-                {REMEDIES.map((r) => <th key={r.id} title={r.label}>{r.parts.join(' + ')}</th>)}
-                <th>Cheapest rescue</th>
-              </tr>
-            </thead>
-            <tbody>
-              {issueCases.map((c) => {
-                const best = cheapest(c);
-                const cell = (key: string, m: Measured | undefined) => (
-                  <td key={key} data-verdict={verdictOf(m)} aria-selected={preview === key} onClick={() => setPreview(key)} title={m ? [...m.flags, ...m.notes].join(' · ') || 'fits its box' : 'measuring'}>
-                    {!m ? '…' : verdictOf(m) === 'issue' ? m.flags[0] : verdictOf(m) === 'warning' ? `shown ${pct(m.scale)}` : 'fits'}
-                  </td>
-                );
-                return (
-                  <tr key={c.id}>
-                    <td>{c.name}<small>{c.theme ? THEME_PRESETS[c.theme]?.label ?? c.theme : 'Flint default'}</small></td>
-                    {cell(c.id, measured[c.id])}
-                    {REMEDIES.map((r) => cell(`${r.id}::${c.id}`, measured[`${r.id}::${c.id}`]))}
-                    <td data-verdict={best ? verdictOf(measured[`${best.id}::${c.id}`]) : 'issue'}>{best ? best.label : 'none'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          <dl className="squeeze-remedy-key">
-            {Object.entries(REMEDY_PARTS).map(([id, part]) => (
-              <div key={id}><dt>{id}</dt><dd>{part.label}{part.theme ? <code>{JSON.stringify(part.theme)}</code> : part.render ? <code>{`render ×${part.render}`}</code> : <code>{'{}'}</code>}</dd></div>
-            ))}
-          </dl>
-          <div className="squeeze-grid">
-            {issueCases.flatMap((c) => REMEDIES.map((r) => (
-              <CaseCard key={`${setup.id}:${r.id}:${c.id}`} c={c} setup={setup} remedy={r} mode={mode} showParts={showParts}
-                hidden={preview !== `${r.id}::${c.id}`} measured={measured[`${r.id}::${c.id}`]} onMeasured={onMeasured} />
-            )))}
-            {issueCases.filter((c) => preview === c.id).map((c) => (
-              <CaseCard key={`${setup.id}:preview:${c.id}`} c={c} setup={setup} mode={mode} showParts={showParts}
-                hidden={false} measured={measured[c.id]} onMeasured={onMeasured} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      <section className="squeeze-score" hidden={tab === 'remedies'}>
-        <table>
-          <thead>
-            <tr><th>Case</th><th>Type</th><th>Drawn</th><th>Shown at</th><th>Box used</th><th>Plot share</th><th>Around: height</th><th>Around: width</th><th>Y labels</th><th>X labels</th><th>Drawing shape</th><th>Area shape</th><th>Stretch by the rest</th><th>Panel</th><th>Above</th><th>Below</th><th>Left</th><th>Right</th><th>Why</th></tr>
-          </thead>
-          <tbody>
-            {shown.map((c) => {
-              const m = measured[c.id];
-              return (
-                <tr key={c.id} data-verdict={verdictOf(m)}>
-                  <td><a href={`#${c.id}`} onClick={(e) => { e.preventDefault(); document.getElementById(c.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>{c.name}</a></td>
-                  <td>{ISSUE_LABEL[c.issue]}</td>
-                  {m ? (
-                    <>
-                      <td>{px(m.drawn.width)}×{px(m.drawn.height)}</td>
-                      <td>{pct(m.scale)}</td>
-                      <td>{pct(m.boxUsed)}</td>
-                      <td>{pct(m.plotShare)}</td>
-                      <td>{pct(m.around.height)}</td>
-                      <td>{pct(m.around.width)}</td>
-                      <td>{pct(m.labelShare.y)}</td>
-                      <td>{pct(m.labelShare.x)}</td>
-                      <td>{m.drift.drawing.toFixed(2)}</td>
-                      <td>{m.drift.area.toFixed(2)}</td>
-                      <td>{m.drift.around.toFixed(2)}</td>
-                      <td>{px(m.panels[0]?.width ?? 0)}×{px(m.panels[0]?.height ?? 0)}{m.panels.length > 1 ? ` ×${m.panels.length}` : ''}</td>
-                      <td>{px(m.margins.top)}</td>
-                      <td>{px(m.margins.bottom)}</td>
-                      <td>{px(m.margins.left)}</td>
-                      <td>{px(m.margins.right)}</td>
-                      <td>{m.flags.join(' · ') || m.notes.join(' · ') || '—'}</td>
-                    </>
-                  ) : <td colSpan={17}>measuring…</td>}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </section>
-
-      <section className="squeeze-grid">
-        {CASES.map((c) => (
-          <CaseCard key={`${setup.id}:${c.id}`} c={c} setup={setup} mode={mode} showParts={showParts}
-            hidden={verdictOf(measured[c.id]) !== tab} measured={measured[c.id]} onMeasured={onMeasured} />
-        ))}
+      <section className="squeeze-cases">
+        {sorted.map((c) => {
+          const group = groupOf(c);
+          const heading = VERDICTS.find((x) => x.id === group);
+          const fit = compiled[c.id];
+          return (
+            <Fragment key={`${setup.id}:${refit}:${c.id}`}>
+              {firstOf.get(group) === c.id && (
+                <h2 className="squeeze-group" data-verdict={group}>
+                  {heading ? <>{heading.label}<span>{sizeOf(group)}</span> <small>{heading.lead}</small></> : <>Measuring<span>{sizeOf(group)}</span></>}
+                </h2>
+              )}
+              <CaseCard c={c} setup={setup} compiled={fit} measureKey={c.id}
+                tag={fit.fit?.treatment ? `Fit: ${describe(fit.fit.treatment)}` : undefined}
+                mode={mode} showParts={showParts} measured={measured[c.id]} onMeasured={onMeasured} />
+            </Fragment>
+          );
+        })}
       </section>
     </div>
   );
+}
+
+/** A treatment in words. */
+function describe(treatment: any): string {
+  if (!treatment) return 'as planned';
+  const parts: string[] = [];
+  if (treatment.keys) parts.push(treatment.keys === 'side' ? 'keys beside' : `keys ${treatment.keys === 'top' ? 'above' : 'below'}, one row`);
+  if (treatment.oneKey) parts.push(`${treatment.oneKey.title ?? 'one'} key ${treatment.oneKey.to === 'side' ? 'beside' : treatment.oneKey.to === 'top' ? 'above' : 'below'}`);
+  if (treatment.rowNames) parts.push(`row names ${treatment.rowNames}px`);
+  if (treatment.plotSpace) parts.push(`plot refit${treatment.plotSpace.width ? ` ${treatment.plotSpace.width}w` : ''}${treatment.plotSpace.height ? ` ${treatment.plotSpace.height}h` : ''}`);
+  if (treatment.titleScale) parts.push(`title ${Math.round(treatment.titleScale * 100)}%`);
+  if (treatment.names) parts.push(`key names ${treatment.names.keyWidth}px`);
+  if (treatment.plotScale) parts.push(`plot ${Math.round(treatment.plotScale * 100)}%`);
+  return parts.join(' + ') || 'as planned';
 }
 
 const styles = `
@@ -589,15 +553,6 @@ const styles = `
   .squeeze-controls button[aria-pressed="true"] { background: ${siteTheme.surface}; color: ${siteTheme.text}; box-shadow: 0 1px 2px rgba(31,35,40,0.16); font-weight: 600; }
   .squeeze-key { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; padding: 0; list-style: none; color: ${siteTheme.textMuted}; }
   .squeeze-key i, .squeeze-room i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
-  .squeeze-score { margin: 8px 0 28px; }
-  .squeeze-score p { margin: 0 0 8px; font-size: 13px; color: ${siteTheme.textMuted}; }
-  .squeeze-score table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
-  .squeeze-score th, .squeeze-score td { text-align: left; padding: 4px 8px; border-bottom: 1px solid ${siteTheme.border}; white-space: nowrap; }
-  .squeeze-score th { color: ${siteTheme.textMuted}; font-weight: 600; }
-  .squeeze-score td:last-child { white-space: normal; }
-  .squeeze-score tr[data-verdict="issue"] td:last-child { color: #b3261e; }
-  .squeeze-score tr[data-verdict="warning"] td:last-child { color: #8a5300; }
-  .squeeze-score a { color: inherit; }
   .squeeze-grid { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
   .squeeze-card { background: ${siteTheme.surface}; border: 1px solid ${siteTheme.border}; border-radius: 10px; padding: 14px; scroll-margin-top: 70px; }
   .squeeze-card > header { max-width: 100%; margin-bottom: 10px; }
@@ -618,33 +573,31 @@ const styles = `
   .squeeze-verdict { display: inline-block; margin-bottom: 6px; padding: 2px 8px; border-radius: 4px; background: #e6f4ea; color: #1e7b34; font-weight: 600; }
   .squeeze-verdict[data-verdict="issue"] { background: #fdecea; color: #b3261e; }
   .squeeze-verdict[data-verdict="warning"] { background: #fff4e0; color: #8a5300; }
-  .squeeze-card[data-hidden="true"] { position: absolute; left: -100000px; top: 0; visibility: hidden; }
-  .squeeze-tabs { display: flex; align-items: flex-end; gap: 22px; margin: 8px 0 0; border-bottom: 1px solid ${siteTheme.border}; }
-  .squeeze-tabs button { border: 0; background: transparent; padding: 8px 0; margin-bottom: -1px; border-bottom: 2px solid transparent; font: inherit; font-size: 15px; font-weight: 600; color: ${siteTheme.textMuted}; cursor: pointer; }
-  .squeeze-tabs button span { margin-left: 6px; font-weight: 500; font-variant-numeric: tabular-nums; }
-  .squeeze-tabs button[aria-selected="true"][data-verdict="issue"] { color: #b3261e; border-bottom-color: #b3261e; }
-  .squeeze-tabs button[aria-selected="true"][data-verdict="warning"] { color: #8a5300; border-bottom-color: #c98a1a; }
-  .squeeze-tabs button[aria-selected="true"][data-verdict="fit"] { color: #1e7b34; border-bottom-color: #1e7b34; }
-  .squeeze-tabs em { margin-left: auto; padding-bottom: 8px; font-size: 12px; color: ${siteTheme.textMuted}; }
+  .squeeze-checks { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 2px; }
+  .squeeze-checks li { display: flex; gap: 6px; align-items: baseline; line-height: 1.35; }
+  .squeeze-checks li i { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: #1e7b34; transform: translateY(-1px); }
+  .squeeze-checks li[data-status="warn"] i { background: #d08a00; }
+  .squeeze-checks li[data-status="fail"] i { background: #b3261e; }
+  .squeeze-checks li b { flex: 0 0 auto; font-weight: 600; }
+  .squeeze-checks li[data-status="pass"] { color: ${siteTheme.textMuted}; }
+  .squeeze-group { flex: 0 0 100%; margin: 18px 0 0; padding: 6px 0 6px 10px; border-left: 4px solid #1e7b34; font-size: 17px; }
+  .squeeze-group[data-verdict="issue"] { border-color: #b3261e; }
+  .squeeze-group[data-verdict="warning"] { border-color: #d08a00; }
+  .squeeze-group[data-verdict="pending"] { border-color: #aaa; }
+  .squeeze-group span { margin-left: 8px; font-weight: 500; opacity: 0.6; }
+  .squeeze-group small { margin-left: 10px; font-size: 13px; font-weight: 400; opacity: 0.75; }
+  .squeeze-count[data-verdict="issue"] { color: #b3261e; }
+  .squeeze-count[data-verdict="warning"] { color: #8a5300; }
+  .squeeze-count[data-verdict="fit"] { color: #1e7b34; }
+  .squeeze-expect { margin: 4px 0 0; font-size: 12px; color: ${siteTheme.text} !important; }
   .squeeze-tab-lead { max-width: 1000px; margin: 10px 0 14px; font-size: 13px; color: ${siteTheme.textMuted}; line-height: 1.5; }
-  .squeeze-tabs button[aria-selected="true"][data-verdict="remedies"] { color: ${siteTheme.text}; border-bottom-color: ${siteTheme.text}; }
-  .squeeze-remedies > p { margin: 0 0 8px; font-size: 13px; color: ${siteTheme.textMuted}; }
-  .squeeze-remedies table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin-bottom: 14px; table-layout: fixed; }
-  .squeeze-remedies th, .squeeze-remedies td { padding: 4px 6px; border: 1px solid #fff; text-align: left; vertical-align: top; line-height: 1.3; }
-  .squeeze-remedies th { color: ${siteTheme.textMuted}; font-weight: 600; background: ${siteTheme.bg}; }
-  .squeeze-remedies th:first-child, .squeeze-remedies td:first-child { width: 170px; }
-  .squeeze-remedies td small { display: block; color: ${siteTheme.textMuted}; }
-  .squeeze-remedies td[data-verdict] { cursor: pointer; }
-  .squeeze-remedies td[data-verdict="issue"] { background: #fdecea; color: #b3261e; }
-  .squeeze-remedies td[data-verdict="warning"] { background: #fff4e0; color: #8a5300; }
-  .squeeze-remedies td[data-verdict="fit"] { background: #e6f4ea; color: #1e7b34; }
-  .squeeze-remedies td[aria-selected="true"] { outline: 2px solid ${siteTheme.text}; outline-offset: -2px; }
-  .squeeze-remedy-key { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0 0 14px; font-size: 12px; }
-  .squeeze-remedy-key div { display: flex; gap: 6px; }
-  .squeeze-remedy-key dt { font-weight: 700; }
-  .squeeze-remedy-key dd { margin: 0; color: ${siteTheme.textMuted}; }
-  .squeeze-remedy-key code { margin-left: 6px; font-size: 11px; }
   .squeeze-tag[data-remedy] { background: #e8eefb; color: #2f4f8f; }
+  .squeeze-logic { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 28px; max-width: 1180px; margin: 6px 0 14px; font-size: 13px; line-height: 1.5; color: ${siteTheme.textMuted}; }
+  .squeeze-logic h3 { margin: 0 0 4px; font-size: 13px; color: ${siteTheme.text}; }
+  .squeeze-logic ol { margin: 0; padding-left: 18px; }
+  .squeeze-logic b { color: ${siteTheme.text}; }
+  .squeeze-cases { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+  /* The line is the text's to keep readable; the row is the paragraph's, so no card sits beside it. */
   .squeeze-card dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; }
   .squeeze-card dt { color: ${siteTheme.textMuted}; }
   .squeeze-card dd { margin: 0; font-variant-numeric: tabular-nums; }

@@ -142,7 +142,7 @@ export const apple: ThemePreset = {
             show: 'always',
             placement: ['bottom'],
             direction: 'horizontal',
-            title: 'omit',
+            title: 'whenAmbiguous',
             suppressWhenAxisNames: true,
         },
         dataLabels: { show: 'never' },

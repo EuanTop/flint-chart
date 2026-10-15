@@ -51,7 +51,7 @@ function buildRadarLayers(
     axisField: string,
     valueField: string,
     groupField: string | undefined,
-    opts: { filled: boolean; fillOpacity: number; strokeWidth: number; domainPad: number; room?: { width: number; plot: number; measure?: (text: string, fontSize: number) => number } },
+    opts: { filled: boolean; fillOpacity: number; strokeWidth: number; domainPad: number; yDomain?: [number, number]; room?: { width: number; plot: number; measure?: (text: string, fontSize: number) => number } },
 ): any[] {
     const axes: string[] = [];
     const axisSet = new Set<string>();
@@ -200,7 +200,7 @@ function buildRadarLayers(
         mark: { type: "rule", stroke: "#ddd", strokeWidth: 0.8 },
         encoding: {
             x: { field: "__x", type: "quantitative", scale: { domain: [-domainPad, domainPad] }, axis: null },
-            y: { field: "__y", type: "quantitative", scale: { domain: [-domainPad, domainPad] }, axis: null },
+            y: { field: "__y", type: "quantitative", scale: { domain: opts.yDomain ?? [-domainPad, domainPad] }, axis: null },
             x2: { field: "__x2" }, y2: { field: "__y2" },
         },
     });
@@ -223,10 +223,10 @@ function buildRadarLayers(
         layers.push({
             data: { values: [lbl] },
             mark: {
-                type: "text", fontSize: 10, fill: "#555",
+                type: "text", fontSize: LABEL_FONT_SIZE, fill: "#555",
                 align: lbl.__align, baseline: lbl.__baseline,
                 dx: lbl.__dx, dy: lbl.__dy,
-                limit: lbl.__limit, lineHeight: 13,
+                limit: lbl.__limit, lineHeight: LABEL_LINE_HEIGHT,
             },
             encoding: {
                 x: { field: "__x", type: "quantitative", axis: null },
@@ -311,16 +311,24 @@ const LABEL_MIN_LIMIT = 40;
 /** Where the spoke labels sit, as a share of the half plot: their radius over the scale's padded domain. */
 const LABEL_RADIUS = 1.15 / 1.18;
 
+/** The scale's padded domain: the outer ring stands at 1 within ±this. */
+const RADAR_DOMAIN_PAD = 1.18;
+/** The reach of a dot on a ring corner past the corner, in px. */
+const RADAR_DOT = 4;
+/** The axis labels' type, as the labels layer draws it. */
+const LABEL_FONT_SIZE = 10;
+const LABEL_LINE_HEIGHT = 13;
+
 /**
  * The square plot a radar draws in `room`, kept small enough that its spoke labels, which stand
  * outside the outer ring, stay inside the room too.
  */
-function radarPlotFor(ctx: PlotPlanContext, room: { width: number; height: number }): number {
+function radarOverhangAt(ctx: PlotPlanContext): ((plot: number) => { left: number; right: number; top: number; bottom: number; slackTop: number; slackBottom: number }) | undefined {
     const axisField = ctx.channelSemantics.x?.field;
     const valueField = ctx.channelSemantics.y?.field;
     const rows = ctx.table ?? [];
     const axes = [...new Set(rows.map((row: any) => String(row[axisField!])))];
-    if (!axes.length) return Math.min(room.width, room.height);
+    if (!axes.length) return undefined;
     const measure = (text: string) => Math.min(120, ctx.measureText ? ctx.measureText(text, 10) : text.length * 10 * 0.55);
     const labels = axes.map((axis, index) => {
         const angle = (index * 360 / axes.length) * Math.PI / 180;
@@ -329,25 +337,52 @@ function radarPlotFor(ctx: PlotPlanContext, room: { width: number; height: numbe
         const lines = [...nameLines(axis, LABEL_WRAP_FROM, ctx.measureText), `(${max % 1 === 0 ? max : max.toFixed(1)})`];
         return { sin: Math.sin(angle), cos: -Math.cos(angle), width: Math.max(...lines.map(measure)), lines: lines.length };
     });
-    const overhang = (plot: number) => {
-        const out = { left: 0, right: 0, top: 0, bottom: 0 };
+    // What the radar draws, as far as it reaches from its centre each way: the outer ring's corners
+    // (and the dots on them), and the labels set as the labels layer sets them.
+    const extent = (plot: number) => {
         const half = plot / 2;
+        const ring = half / RADAR_DOMAIN_PAD;
+        const out = { left: 0, right: 0, up: 0, down: 0 };
         for (const label of labels) {
+            out.up = Math.max(out.up, label.cos * ring + RADAR_DOT);
+            out.down = Math.max(out.down, -label.cos * ring + RADAR_DOT);
             const across = Math.abs(label.sin) < 0.15 ? label.width / 2 : label.width + 4;
             const side = label.sin > 0.15 ? 'right' : label.sin < -0.15 ? 'left' : undefined;
-            if (side) out[side] = Math.max(out[side], half * LABEL_RADIUS * Math.abs(label.sin) + across - half);
-            else for (const edge of ['left', 'right'] as const) out[edge] = Math.max(out[edge], across - half);
-            const down = Math.abs(label.cos) < 0.3 ? 13 : label.lines * 13 + 4;
-            const edge = label.cos < 0 ? 'top' : 'bottom';
-            out[edge] = Math.max(out[edge], half * LABEL_RADIUS * Math.abs(label.cos) + (Math.abs(label.cos) < 0.3 ? down / 2 : down) - half);
+            if (side) out[side] = Math.max(out[side], half * LABEL_RADIUS * Math.abs(label.sin) + across);
+            else for (const edge of ['left', 'right'] as const) out[edge] = Math.max(out[edge], across);
+            // y runs up, so a label's anchor stands |cos| above or below the middle; its first line
+            // hangs from the anchor as its baseline says, and the lines after run down from it.
+            const centred = Math.abs(label.sin) < 0.15;
+            const baseline = !centred && Math.abs(label.cos) < 0.3 ? 'middle' : label.cos < 0 ? 'bottom' : 'top';
+            const anchor = -label.cos * half * LABEL_RADIUS + (centred ? (label.cos < 0 ? -4 : 4) : 0);
+            const top = anchor - (baseline === 'bottom' ? LABEL_FONT_SIZE : baseline === 'middle' ? LABEL_FONT_SIZE / 2 : 0);
+            const bottom = top + LABEL_FONT_SIZE + (label.lines - 1) * LABEL_LINE_HEIGHT;
+            out.up = Math.max(out.up, -top);
+            out.down = Math.max(out.down, bottom);
         }
         return out;
     };
+    return (plot: number) => {
+        const half = plot / 2;
+        const e = extent(plot);
+        return {
+            left: e.left - half, right: e.right - half, top: e.up - half, bottom: e.down - half,
+            // The square's bands nothing reaches into — above a flat top edge, below a flat bottom one.
+            slackTop: Math.max(0, Math.floor(half - e.up)), slackBottom: Math.max(0, Math.floor(half - e.down)),
+        };
+    };
+}
+
+function radarPlotFor(ctx: PlotPlanContext, room: { width: number; height: number }): number {
+    const overhang = radarOverhangAt(ctx);
+    if (!overhang) return Math.min(room.width, room.height);
     const whole = Math.min(room.width, room.height);
     let plot = whole;
     for (let pass = 0; pass < 2; pass++) {
         const o = overhang(plot);
-        plot = Math.max(1, Math.min(room.width - o.left - o.right, room.height - o.top - o.bottom));
+        // A band the drawing leaves empty above or below is room the square can grow into: the
+        // plot comes in to the drawing.
+        plot = Math.max(1, Math.min(room.width - Math.max(0, o.left) - Math.max(0, o.right), room.height - o.top - o.bottom));
     }
     return Math.round(Math.max(plot, whole * RADAR_KEPT_SHARE));
 }
@@ -388,11 +423,23 @@ export const radarChartDef: ChartTemplateDef = {
         if (!ctx.table || ctx.table.length === 0 || !ctx.channelSemantics.x?.field || !ctx.channelSemantics.y?.field) return undefined;
         const size = radarSize(ctx.canvasSize);
         const faceted = ctx.channelSemantics.column?.field || ctx.channelSemantics.row?.field;
-        const panel = faceted ? Math.max(RADAR_MIN_PANEL, size)
-            : radarPlotFor(ctx, { width: ctx.canvasSize?.width || size, height: ctx.canvasSize?.height || size });
-        return { width: panel, height: panel };
+        if (faceted) { const panel = Math.max(RADAR_MIN_PANEL, size); return { width: panel, height: panel }; }
+        const panel = radarPlotFor(ctx, { width: ctx.canvasSize?.width || size, height: ctx.canvasSize?.height || size });
+        // The plot comes in to what is drawn: an odd count leaves a flat edge, and a band of the
+        // square above or below it holds nothing.
+        const o = radarOverhangAt(ctx)?.(panel);
+        return { width: panel, height: panel - (o ? o.slackTop + o.slackBottom : 0) };
     },
     planViews: radarViews,
+    // The spoke labels stand past the outer ring, outside the square plot; the polygons fill it.
+    planOverhang: (ctx, plot) => {
+        if (ctx.channelSemantics.column?.field || ctx.channelSemantics.row?.field) return undefined;
+        const overhang = radarOverhangAt(ctx);
+        if (!overhang) return undefined;
+        const o = overhang(Math.min(plot.width, plot.height));
+        const clear = (v: number) => Math.max(0, Math.ceil(v));
+        return { left: clear(o.left), right: clear(o.right), top: clear(o.top), bottom: clear(o.bottom), fills: true };
+    },
     chart: "Radar Chart",
     template: {
         description: "Radar / Spider chart",
@@ -462,8 +509,18 @@ export const radarChartDef: ChartTemplateDef = {
         }
 
         const size = ctx.plot?.width ?? radarSize(canvasSize);
+        // A plot shorter than it is wide is the square with its empty bands taken off: the y scale
+        // keeps the x scale's pixels per unit, over the part of the square still drawn.
+        const height = !columnField && !rowField ? Math.min(size, ctx.plot?.height ?? size) : size;
+        let yDomain: [number, number] | undefined;
+        if (height < size) {
+            const o = radarOverhangAt(ctx)?.(size);
+            const unit = size / 2 / RADAR_DOMAIN_PAD;
+            const bottom = RADAR_DOMAIN_PAD - Math.min(o?.slackBottom ?? 0, size - height) / unit;
+            yDomain = [-bottom, height / unit - bottom];
+        }
         const layerOpts = {
-            filled, fillOpacity, strokeWidth, domainPad: 1.18,
+            filled, fillOpacity, strokeWidth, domainPad: RADAR_DOMAIN_PAD, ...(yDomain ? { yDomain } : {}),
             ...(!columnField && !rowField && canvasSize?.width ? { room: { width: canvasSize.width, plot: size, measure: ctx.measureText } } : {}),
         };
 
@@ -473,7 +530,7 @@ export const radarChartDef: ChartTemplateDef = {
             if (layers.length === 0) { spec.mark = "point"; return; }
 
             const finalSpec: any = {
-                width: size, height: size, layer: layers,
+                width: size, height, layer: layers,
                 config: { view: { stroke: null } },
             };
             for (const key of Object.keys(spec)) delete spec[key];

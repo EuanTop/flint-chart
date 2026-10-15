@@ -84,7 +84,7 @@ const theme: ThemeSpec = {
   },
   geometry: { cell: { gap: 1.33 }, band: { cornerRadius: 0, fraction: 0.72 } },
   labels: { truncation: 'wrap' },
-  legend: { show: 'always', placement: ['top'], direction: 'horizontal', title: 'omit', align: 'start' },
+  legend: { show: 'always', placement: ['top'], direction: 'horizontal', title: 'whenAmbiguous', align: 'start' },
   // Values flush at the bar's base, reading as one column; black wherever white falls under 4.5:1 (L4).
   dataLabels: { show: 'whenTheyFit', placement: 'atMark', inkMode: 'contrastWithMark', anchor: 'start', minContrast: 4.5 },
   annotation: { axisTitles: 'whenAmbiguous', numberFormat: { thousands: 'separator' } },

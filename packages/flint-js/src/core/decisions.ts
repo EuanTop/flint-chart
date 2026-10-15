@@ -754,6 +754,8 @@ export interface LabelSizingDecision {
     /** The size band labels were fitted at, where the theme's did not fit and they shrank toward its floor. */
     fittedFontSize?: number;
     labelLineHeight?: number;
+    /** Row names past their cap, cut at `labelLimit` with an ellipsis whatever the theme's truncation. */
+    labelCut?: boolean;
     /** How names along x that did not stand flat and whole were set (`chooseXLabels`), for the renderers and the report. */
     overflow?: { step: LabelFitStep; trimmed: boolean; needed: number; band: number; shown?: string[] };
 }

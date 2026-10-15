@@ -82,7 +82,7 @@ const theme: ThemeSpec = {
     band: { fraction: 2 / 3, cornerRadius: 0 },
   },
   labels: { truncation: 'ellipsis' },
-  legend: { show: 'always', placement: ['right', 'bottom'], direction: 'vertical', title: 'omit', align: 'start' },
+  legend: { show: 'always', placement: ['right', 'bottom'], direction: 'vertical', title: 'whenAmbiguous', align: 'start' },
   dataLabels: { show: 'whenTheyFit', placement: 'outsideMark', inkMode: 'fixed' },
   annotation: { axisTitles: 'always', axisTitlePlacement: 'rotated', axisTitleGap: 12, unitsInAxisTitle: true },
   // The plot area spans the container (the layout template), so sparse bands widen to fill it.

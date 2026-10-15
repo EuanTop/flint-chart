@@ -340,11 +340,11 @@ export function chartDisplayNames(
  */
 export function encodingTitle(
     channel: string,
-    encoding: Pick<ChartEncoding, 'field' | 'aggregate'>,
+    encoding: Pick<ChartEncoding, 'field' | 'aggregate' | 'title'>,
     semantics: ChannelSemantics | undefined,
     displayNames: Record<string, string> | undefined,
     spellField: (name: string) => string,
-): { title?: string; field?: string } {
+): { title?: string | null; field?: string } {
     const name = encoding.field;
     let title: string | undefined;
     let field: string | undefined;
@@ -363,6 +363,8 @@ export function encodingTitle(
         }
     }
     if (name && displayNames?.[name] && !title) title = displayNames[name];
+    // The author's own name for the channel, or none, stands as written.
+    if (encoding.title !== undefined) return { title: encoding.title, ...(field !== undefined ? { field } : {}) };
     const unit = resolveDisplayUnit(semantics?.semanticAnnotation);
     if ((channel === 'x' || channel === 'y') && semantics?.type === 'quantitative' && unit?.placement === 'field') {
         const current = title ?? name;
@@ -371,14 +373,14 @@ export function encodingTitle(
     return { ...(title !== undefined ? { title } : {}), ...(field !== undefined ? { field } : {}) };
 }
 
-/** The text an axis prints as its title: the encoding's title, else its field unless the field is internal. */
-export function titleText(title: string | undefined, field: string | undefined): string | undefined {
+/** The text an axis prints as its title: the encoding's title (none where it is `null`), else its field unless the field is internal. */
+export function titleText(title: string | null | undefined, field: string | undefined): string | null | undefined {
     if (title !== undefined) return title;
     return field && !field.startsWith('__') ? field : undefined;
 }
 
 /** A channel's encoding title and field as the encoding builder writes them; empty when the chart has no such encoding. */
-export function channelEncoding(context: StructureContext, channel: string): { title?: string; field?: string } {
+export function channelEncoding(context: StructureContext, channel: string): { title?: string | null; field?: string } {
     const given = context.encodings[channel];
     if (!given || Array.isArray(given)) return {};
     return encodingTitle(channel, given, context.channelSemantics[channel], context.displayNames, context.spellField);

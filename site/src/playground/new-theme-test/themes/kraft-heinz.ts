@@ -70,7 +70,7 @@ const theme: ThemeSpec = {
   marks: { bandFraction: 0.58, strokeWeight: 3.5, cornerRadius: 0, interpolation: 'linear', point: { presence: 'full', size: 60, fill: 'solid' } },
   geometry: { line: { width: 3.5 }, point: { presence: 'full', size: 60, vertexSize: 60, fill: 'solid' }, band: { fraction: 0.58, cornerRadius: 0 } },
   labels: { truncation: 'ellipsis' },
-  legend: { show: 'always', placement: ['top'], direction: 'horizontal', title: 'omit', align: 'start', suppressWhenValuesPrinted: true },
+  legend: { show: 'always', placement: ['top'], direction: 'horizontal', title: 'whenAmbiguous', align: 'start', suppressWhenValuesPrinted: true },
   dataLabels: { show: 'never', inkMode: 'contrastWithMark' },
   annotation: { axisTitles: 'whenAmbiguous', unit: 'never', numberFormat: { thousands: 'separator' } },
   layout: { titleBlock: { anchor: 'start' } },

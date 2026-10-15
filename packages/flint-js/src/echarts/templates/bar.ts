@@ -75,7 +75,8 @@ function buildLocalLaneSeries(
             const g = perBand.get(cat)?.[lane];
             if (g === undefined) return '-';
             const v = valAt.get(`${cat}\u0000${g}`);
-            return v === undefined ? '-' : { value: v, itemStyle: { color: groupColor(g) } };
+            // The group this lane draws at this band, so the tooltip names it, not the lane.
+            return v === undefined ? '-' : { value: v, laneGroup: g, itemStyle: { color: groupColor(g) } };
         }),
     }));
     const legendData = globalGroups.map((g) => ({ name: g, itemStyle: { color: groupColor(g) } }));

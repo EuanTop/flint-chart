@@ -157,7 +157,7 @@ export const datawrapper: ThemePreset = {
                 "top"
             ],
             "direction": "horizontal",
-            "title": "omit"
+            "title": "whenAmbiguous"
         },
         "dataLabels": {
             "show": "whenTheyFit",

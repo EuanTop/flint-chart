@@ -73,7 +73,7 @@ const theme: ThemeSpec = {
   marks: { strokeWeight: 2, cornerRadius: 0, point: { presence: 'omit' }, slice: { gap: 0 } },
   geometry: { line: { width: 2 }, point: { presence: 'omit' }, band: { cornerRadius: 0 }, arc: { gap: 0 } },
   labels: { truncation: 'wrap' },
-  legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'omit', align: 'center' },
+  legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'whenAmbiguous', align: 'center' },
   dataLabels: { show: 'never' },
   annotation: { axisTitles: 'omit', unit: 'everyTick', numberFormat: { thousands: 'separator' } },
   layout: { titleBlock: { anchor: 'start' } },

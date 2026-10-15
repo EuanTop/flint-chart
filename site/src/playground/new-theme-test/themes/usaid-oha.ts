@@ -72,7 +72,7 @@ const theme: ThemeSpec = {
   },
   marks: { bandFraction: 0.9, strokeWeight: 2, cornerRadius: 0 },
   labels: { truncation: 'wrap' },
-  legend: { show: 'always', placement: ['seriesEnd', 'top'], direction: 'horizontal', title: 'omit', align: 'start' },
+  legend: { show: 'always', placement: ['seriesEnd', 'top'], direction: 'horizontal', title: 'whenAmbiguous', align: 'start' },
   dataLabels: { show: 'never', placement: 'outsideMark', inkMode: 'fixed' },
   annotation: { axisTitles: 'omit', unit: 'never', numberFormat: { thousands: 'separator', precision: 'auto' } },
   layout: { titleBlock: { anchor: 'start', gap: 'tight', deckGap: 'tight' } },

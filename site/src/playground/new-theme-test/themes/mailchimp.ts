@@ -69,7 +69,7 @@ const theme: ThemeSpec = {
   },
   marks: { strokeWeight: 2, interpolation: 'linear', point: { presence: 'omit' } },
   geometry: { line: { width: 2, interpolation: 'linear' }, point: { presence: 'omit' } },
-  legend: { show: 'always', placement: ['top'], direction: 'horizontal', title: 'omit', align: 'end' },
+  legend: { show: 'always', placement: ['top'], direction: 'horizontal', title: 'whenAmbiguous', align: 'end' },
   dataLabels: { show: 'never' },
   annotation: {
     axisTitles: 'omit',

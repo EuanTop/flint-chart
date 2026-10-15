@@ -47,6 +47,37 @@ export function balancedLines(text: string, count: number, fontSize: number, mea
     return lines;
 }
 
+/**
+ * Break a title to its block: each line filled to the block, as a headline is set, the words that
+ * do not fit falling to the next. Only where that leaves a widow — a last line under a third of the
+ * block — are the last two lines evened out, so no line stands alone. Even lines everywhere leave a
+ * headline narrower than its block, with a ragged edge where none was needed.
+ */
+export function filledLines(text: string, block: number, fontSize: number, measure: TitleMeasure): string[] {
+    const words = text.split(/\s+/).filter(Boolean);
+    if (words.length <= 1) return [text];
+    const lines: string[] = [];
+    let line = '';
+    for (const word of words) {
+        const candidate = line ? `${line} ${word}` : word;
+        if (line && measure(candidate, fontSize) > block) {
+            lines.push(line);
+            line = word;
+        } else {
+            line = candidate;
+        }
+    }
+    if (line) lines.push(line);
+    if (lines.length >= 2 && measure(lines[lines.length - 1], fontSize) < block * WIDOW_SHARE) {
+        const tail = balancedLines(`${lines[lines.length - 2]} ${lines[lines.length - 1]}`, 2, fontSize, measure);
+        lines.splice(lines.length - 2, 2, ...tail);
+    }
+    return lines;
+}
+
+/** A last line shorter than this share of the block is a widow, and the last two lines are evened out. */
+const WIDOW_SHARE = 1 / 3;
+
 /** The width inside the canvas the caller asked for, once the theme's padding is kept on both sides. */
 export function canvasContentWidth(layout: { canvasWidth?: number; padding?: number }): number {
     return layout.canvasWidth ? Math.max(0, layout.canvasWidth - 2 * (layout.padding ?? 0)) : 0;
@@ -61,8 +92,9 @@ export function plotHeightAfter(height: number, px: number): number {
 }
 
 /**
- * Fit a headline that runs wider than its block. It is set down a size; only one that still does
- * not fit at the smaller size is broken, over even lines, and the extra lines' height comes out of
+ * Fit a headline that runs wider than its block: set down a size where that brings it onto one line;
+ * else broken, each line filled to the block (a widow evened out), at its own size — shrinking it and
+ * breaking it too pays twice — unless a size down saves a line. The extra lines' height comes out of
  * the plot. Undefined leaves it.
  */
 export function fitHeadlineText(
@@ -71,27 +103,24 @@ export function fitHeadlineText(
     if (measure(text, fontSize) <= block) return undefined;
     const smaller = Math.max(Math.round(fontSize * MIN_HEADLINE_SCALE), deckFontSize + 1);
     if (smaller < fontSize && measure(text, smaller) <= block) return { smaller, fontSize: smaller, taken: 0 };
-    const count = Math.max(2, Math.ceil(measure(text, smaller) / block));
-    const lines = balancedLines(text, count, smaller, measure);
+    // Broken at its own size, unless a size down saves a line: then both, for the shorter block.
+    const own = filledLines(text, block, fontSize, measure);
+    const down = smaller < fontSize ? filledLines(text, block, smaller, measure) : own;
+    const size = down.length < own.length ? smaller : fontSize;
+    const lines = size === fontSize ? own : down;
     if (lines.length < 2) return undefined;
-    return {
-        smaller,
-        ...(smaller < fontSize ? { fontSize: smaller } : {}),
-        lines,
-        taken: Math.round((lines.length - 1) * smaller * 1.3),
-    };
+    return { smaller, ...(size < fontSize ? { fontSize: size } : {}), lines, taken: Math.round((lines.length - 1) * size * 1.3) };
 }
 
 /**
- * Break a deck that runs wider than its block, to the block itself; it is never set smaller. The
- * extra lines' height comes out of the plot. Undefined leaves it.
+ * Break a deck that runs wider than its block, each line filled to the block (a widow evened out);
+ * it is never set smaller. The extra lines' height comes out of the plot. Undefined leaves it.
  */
 export function fitDeckText(
     text: string, block: number, fontSize: number, measure: TitleMeasure,
 ): { lines: string[]; taken: number } | undefined {
     if (measure(text, fontSize) <= block) return undefined;
-    const count = Math.max(2, Math.ceil(measure(text, fontSize) / block));
-    const lines = balancedLines(text, count, fontSize, measure);
+    const lines = filledLines(text, block, fontSize, measure);
     if (lines.length < 2) return undefined;
     return { lines, taken: Math.round((lines.length - 1) * fontSize * 1.3) };
 }

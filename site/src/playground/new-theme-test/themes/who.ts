@@ -73,7 +73,7 @@ const theme: ThemeSpec = {
   marks: { bandFraction: 0.67, strokeWeight: 2, cornerRadius: 0 },
   geometry: { line: { width: 2 }, point: { presence: 'full', vertexSize: 20, fill: 'solid' } },
   labels: { truncation: 'ellipsis' },
-  legend: { show: 'always', placement: ['seriesEnd', 'bottom'], direction: 'horizontal', title: 'omit', align: 'center' },
+  legend: { show: 'always', placement: ['seriesEnd', 'bottom'], direction: 'horizontal', title: 'whenAmbiguous', align: 'center' },
   dataLabels: { show: 'whenTheyFit', placement: 'outsideMark', inkMode: 'matchSeries' },
   annotation: {
     axisTitles: 'omit',

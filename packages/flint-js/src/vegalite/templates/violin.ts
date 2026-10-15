@@ -131,6 +131,50 @@ function maxGroupBandwidth(table: any[], measure: string, groupby: string[]): nu
     return max;
 }
 
+/** The highest point of a Gaussian kernel density over the values, at its normal-reference bandwidth. */
+function peakDensity(values: number[]): number {
+    const n = values.length;
+    const bw = bandwidthNRD(values);
+    if (n < 2 || !(bw > 0)) return 0;
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const v of values) { if (v < lo) lo = v; if (v > hi) hi = v; }
+    const norm = n * bw * Math.sqrt(2 * Math.PI);
+    let peak = 0;
+    for (let i = 0; i <= 64; i++) {
+        const x = lo + ((hi - lo) * i) / 64;
+        let sum = 0;
+        for (const v of values) { const z = (x - v) / bw; sum += Math.exp(-0.5 * z * z); }
+        if (sum / norm > peak) peak = sum / norm;
+    }
+    return peak;
+}
+
+/** Below this share of the widest violin's peak, a violin drawn to equal area is too thin to read. */
+const THIN_VIOLIN = 0.25;
+
+/**
+ * Whether the violins are drawn to equal area — one width scale for all, so a wide one is a common
+ * value range — or each to the width of its own band. Equal area keeps widths comparable, until a
+ * group spread far wider than the rest is drawn as a hairline whose shape cannot be read: then
+ * each fills its band, and the shapes, not their widths, are compared. The author's choice holds.
+ */
+export function violinWidths(table: any[], measure: string, groupby: string[], asked?: unknown): 'area' | 'band' {
+    if (asked === 'area' || asked === 'band') return asked;
+    const groups = new Map<string, number[]>();
+    for (const row of table) {
+        const v = row?.[measure];
+        if (typeof v !== 'number' || !Number.isFinite(v)) continue;
+        const key = groupby.map((f) => String(row[f])).join('\u0000');
+        let arr = groups.get(key);
+        if (!arr) { arr = []; groups.set(key, arr); }
+        arr.push(v);
+    }
+    const peaks = [...groups.values()].map(peakDensity).filter((peak) => peak > 0);
+    if (peaks.length < 2) return 'area';
+    return Math.min(...peaks) / Math.max(...peaks) < THIN_VIOLIN ? 'band' : 'area';
+}
+
 /**
  * How a violin chart lays out its per-category panels, and the size of one panel.
  *
@@ -277,9 +321,14 @@ export const violinPlotDef: ChartTemplateDef = {
             ...(config?.showPoints === true ? ['point'] : []),
             ...(config?.showMedian === true ? ['rule'] : []),
         ];
+        // The same grouping the density transform uses: the category, then any row and colour field.
+        const row = ctx.channelSemantics.row?.field;
+        const groupby = [x.field, ...(row && row !== x.field ? [row] : []), ...(color?.field && color.field !== x.field && color.field !== row ? [color.field] : [])];
+        // Violins that each fill their band fit each panel's scale to its own shape, not to zero.
+        const band = violinWidths(ctx.table, y.field, groupby, config?.widths) === 'band';
         return {
             marks: ['area', ...extras],
-            x: { type: 'quantitative', fields: [y.field], derived: 'density', rounded: true },
+            x: { type: 'quantitative', fields: [y.field], derived: 'density', rounded: true, ...(band ? { baseline: 'data' } : {}) },
             y: { type: 'quantitative', fields: [y.field], ...(config?.showPoints === true || config?.showMedian === true ? { baseline: 'data' } : {}) },
             series: color?.field ? { field: color.field, type: color.type }
                 : { field: x.field, type: xType === 'nominal' || xType === 'ordinal' ? xType : 'nominal' },
@@ -400,6 +449,15 @@ export const violinPlotDef: ChartTemplateDef = {
             // the grid is the per-category strip, not a single oversized plot.
             spec.width = panelW;
             spec.height = panelH;
+        }
+
+        // --- Widths: one scale for all, or each its own band (see violinWidths) ---
+        if (violinWidths(ctx.table, measureField, groupby, config?.widths) === 'band') {
+            spec.resolve = { ...(spec.resolve ?? {}), scale: { ...(spec.resolve?.scale ?? {}), x: 'independent' } };
+            // A centre stack centres every shape on half the widest density of all the panels, so a
+            // scale that keeps zero still spans that width: each panel's scale is fitted to its own
+            // shape instead.
+            spec.encoding.x = { ...spec.encoding.x, scale: { ...(spec.encoding.x?.scale ?? {}), zero: false } };
         }
 
         // --- What the smoothing hides ------------------------------------
@@ -566,6 +624,16 @@ export const violinPlotDef: ChartTemplateDef = {
         { key: 'showPoints', label: 'Observations', type: 'binary', defaultValue: false },
         { key: 'showMedian', label: 'Median rule', type: 'binary', defaultValue: false },
         { key: 'showContour', label: 'Contour', type: 'binary', defaultValue: false },
+        {
+            key: 'widths', label: 'Widths', type: 'discrete',
+            options: [
+                { value: 'auto', label: 'Auto' },
+                { value: 'area', label: 'Equal area' },
+                { value: 'band', label: 'Fill band' },
+            ],
+            // `auto` draws equal areas unless a violin would be too thin to read (see violinWidths).
+            defaultValue: 'auto',
+        },
         {
             key: 'medianWidth', label: 'Median width', type: 'continuous',
             min: 0.2, max: 1, step: 0.05, defaultValue: 0.6,

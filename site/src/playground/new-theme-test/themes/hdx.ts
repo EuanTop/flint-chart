@@ -71,7 +71,7 @@ const theme: ThemeSpec = {
   },
   marks: { bandFraction: 0.6, strokeWeight: 2, cornerRadius: 0 },
   labels: { truncation: 'ellipsis' },
-  legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'omit', align: 'center' },
+  legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'whenAmbiguous', align: 'center' },
   dataLabels: { show: 'never' },
   annotation: { axisTitles: 'omit', unit: 'never', numberFormat: { thousands: 'suffix', compact: { style: 'upper', per: 'value', threshold: 1000 } } },
   layout: { titleBlock: { anchor: 'start', gap: 'tight', deckGap: 'tight' } },

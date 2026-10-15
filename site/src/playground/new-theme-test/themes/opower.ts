@@ -80,7 +80,7 @@ const theme: ThemeSpec = {
     arc: { gap: 0, order: 'largestFirst' },
   },
   labels: { truncation: 'ellipsis' },
-  legend: { show: 'always', placement: ['right', 'top'], direction: 'vertical', title: 'omit', align: 'start' },
+  legend: { show: 'always', placement: ['right', 'top'], direction: 'vertical', title: 'whenAmbiguous', align: 'start' },
   dataLabels: { show: 'never' },
   annotation: { axisTitles: 'omit', unit: 'everyTick', numberFormat: { precision: 'auto', thousands: 'separator' } },
   layout: { titleBlock: { anchor: 'start', gap: 'normal' }, density: 'airy' },

@@ -68,7 +68,7 @@ const theme: ThemeSpec = {
   marks: { bandFraction: 0.67, strokeWeight: 2 },
   geometry: { line: { width: 2 }, point: { presence: 'omit' } },
   labels: { truncation: 'ellipsis' },
-  legend: { show: 'always', placement: ['seriesEnd', 'top'], direction: 'horizontal', title: 'omit', align: 'start', suppressWhenValuesPrinted: true },
+  legend: { show: 'always', placement: ['seriesEnd', 'top'], direction: 'horizontal', title: 'whenAmbiguous', align: 'start', suppressWhenValuesPrinted: true },
   dataLabels: { show: 'whenTheyFit', placement: 'outsideMark', inkMode: 'fixed' },
   annotation: { axisTitles: 'omit', unit: 'everyTick', numberFormat: { thousands: 'suffix', precision: 'auto', compact: { style: 'upper', per: 'value', threshold: 1000 } } },
   layout: { titleBlock: { anchor: 'start', gap: 'tight', deckGap: 'tight' } },

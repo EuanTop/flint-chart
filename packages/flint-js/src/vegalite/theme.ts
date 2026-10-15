@@ -28,7 +28,7 @@ import type { AxisLabelPlan } from '../core/axis-labels.js';
 import { bandsHoldSeveral, KEY_CHANNELS, statedStacking, type BuiltFacts, type Stacking } from '../core/structure.js';
 import { canvasContentWidth, fitDeckText, fitHeadlineText, plotHeightAfter, textPx, titleMeasures } from '../core/title-fit.js';
 import { tableTextMeasurer } from '../core/text-width.js';
-import { alreadyNamed, tickUnitOf, type TitlePlan } from '../core/title-plan.js';
+import { alreadyNamed, keysBesideWidth, tickUnitOf, type TitlePlan } from '../core/title-plan.js';
 import { OWNED_AXIS_KEYS } from './owned-axis-keys.js';
 import { CONTINUOUS_BAR_STEP_FILL, coverageSizedMarks } from './templates/utils.js';
 import { LOCAL_DODGE_LANE_FILL } from './templates/bar.js';
@@ -395,7 +395,7 @@ export function realizeThemeVegaLite(
     applyMinorGrid(spec, config, d, table, say);
     // Last among the layers, so it shares the scale every other layer finished with.
     applyBaseline(spec, d, table);
-    fitTitle(spec, d, table, say, title);
+    fitTitle(spec, d, table, say, title, keysBesideWidth(legend?.layout?.footprint, legend?.layout?.offsets?.right ?? VEGA_LITE_KEY_OFFSET));
     const wrapped = applyFurniture(spec, d, rules);
 
     return wrapped ? report : report;
@@ -412,6 +412,8 @@ export function realizeThemeVegaLite(
  */
 export function realizeValueLabelsVegaLite(
     spec: any, d: DesignDecisions, table: any[] = [], title?: TitlePlan, valueLabels?: ValueLabelPlan | { refused: string },
+    keyFootprint?: Array<{ orient: string; width: number }>,
+    keyOffset = VEGA_LITE_KEY_OFFSET,
 ): ThemeReport[] {
     const report: ThemeReport[] = [];
     const say: ReportDeparture = (path, code, message) => report.push({ stage: 'realize', path, code, message });
@@ -419,7 +421,7 @@ export function realizeValueLabelsVegaLite(
     // Staying inside the size the caller asked for is the same kind of concern:
     // Vega-Lite grows the canvas to whatever one unbroken line of title needs,
     // and a long deck took a 420px chart out to 1,249px with no house in sight.
-    fitTitle(spec, d, table, say, title);
+    fitTitle(spec, d, table, say, title, keysBesideWidth(keyFootprint, keyOffset));
     return report;
 }
 
@@ -494,10 +496,18 @@ function applyTypography(config: any, d: DesignDecisions): void {
  * over even lines rather than one full line and an orphan. Broken lines are
  * taken out of the plot rather than added to the canvas.
  */
-function fitTitle(spec: any, d: DesignDecisions, table: any[], say: ReportDeparture, planned?: TitlePlan): void {
+/** Vega-Lite's offset between the plot and a key beside it, as the plan's profile measures it. */
+const VEGA_LITE_KEY_OFFSET = 18;
+
+function fitTitle(spec: any, d: DesignDecisions, table: any[], say: ReportDeparture, planned?: TitlePlan, keysBeside = 0): void {
     if (planned) {
         applyHeadlineFit(spec, d, planned.block, planned.headline, say);
         applyDeckFit(spec, planned.block, planned.deckFit, say);
+        // Vega-Lite centres the title over the plot; the plan moves it the least that keeps it within the drawing.
+        if (planned.shift && spec.title) {
+            spec.title = { ...(typeof spec.title === 'string' ? { text: spec.title } : spec.title), dx: planned.shift };
+            say('title', 'title-moved-within', `centred over the plot, the title would run past the drawing's edge, so it is moved ${Math.abs(planned.shift)}px ${planned.shift < 0 ? 'left' : 'right'}, the least that keeps it within the chart`);
+        }
         return;
     }
     // A title spans the whole graphic, not just the plot rectangle: the axis
@@ -525,7 +535,8 @@ function fitTitle(spec: any, d: DesignDecisions, table: any[], say: ReportDepart
         const ticks = axis.ticks === false ? 0 : Math.max(0, axis.tickSize ?? 5);
         gutters[side] = Math.max(gutters[side], labelWidth + Math.max(0, axis.labelPadding ?? 2) + ticks);
     });
-    const block = Math.max((plot ?? 0) + gutters.left + gutters.right, canvasContentWidth(d.layout));
+    // Keys beside the plot are within the graphic too: the title may run over them.
+    const block = Math.max((plot ?? 0) + gutters.left + gutters.right + keysBeside, canvasContentWidth(d.layout));
     if (!block || !Number.isFinite(block)) return;
     const headline = typeof spec.title === 'string' ? spec.title : spec.title?.text;
     const measure = titleMeasures(d.title, d.font, tableTextMeasurer);
@@ -652,8 +663,8 @@ function applyHeadlineFit(
         'title',
         'title-broken',
         `the headline does not fit the ${Math.round(block)}px block even at ${fit.smaller}px,`
-        + ` so it breaks over ${fit.lines.length} even lines — the height comes out of the plot,`
-        + ' not out of the canvas the caller asked for',
+        + ` so it breaks at its own size over ${fit.lines.length} lines, each filled to the block — the height`
+        + ' comes out of the plot, not out of the canvas the caller asked for',
     );
 }
 
@@ -666,8 +677,37 @@ function takeFromPlotHeight(spec: any, px: number): void {
     // The plot gives the height, never the rules a theme set around it: those keep their own.
     walk(spec, (node) => {
         if (node.__themeSynthetic) return;
-        if (typeof node.height === 'number') node.height = plotHeightAfter(node.height, px);
+        if (typeof node.height === 'number') {
+            node.height = plotHeightAfter(node.height, px);
+            fitArcsToPlot(node);
+        }
     });
+}
+
+/** The room left round a pie for its slice outlines, in px, as its template leaves it. */
+const ARC_MARGIN = 4;
+
+/**
+ * A pie or donut whose plot came out shorter than it was sized for keeps inside it: its wedges, its
+ * hole and the ring its labels ride on come in by one factor, so they still agree.
+ */
+function fitArcsToPlot(node: any): void {
+    if (typeof node.width !== 'number' || typeof node.height !== 'number') return;
+    const units: any[] = [node, ...(node.layer ?? [])].filter((unit) => unit.mark);
+    const arcs = units.filter((unit) => markTypeOf(unit.mark) === 'arc');
+    const outer = Math.max(0, ...arcs.map((unit) => normalizeMark(unit.mark)?.outerRadius).filter((r): r is number => typeof r === 'number'));
+    const cap = Math.floor(Math.min(node.width, node.height) / 2) - ARC_MARGIN;
+    if (!outer || outer <= cap || cap <= 0) return;
+    const k = cap / outer;
+    for (const unit of units) {
+        const mark = normalizeMark(unit.mark);
+        if (!mark) continue;
+        const scaled = { ...mark };
+        for (const prop of ['outerRadius', 'innerRadius', 'radius', 'radius2'] as const) {
+            if (typeof scaled[prop] === 'number') scaled[prop] = Math.round(scaled[prop] * k);
+        }
+        unit.mark = scaled;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -710,13 +750,19 @@ function applyAxes(
             say(`axes.${channel}.domain`, 'domain-not-drawn',
                 'the value scale floats — a rule under the categories would claim a base the chart does not have');
         }
+        // The index axis's line along the plot's floor reads as a base. Where the value axis does not
+        // start at zero there — the data dips below it, or the scale floats — the line is a gridline,
+        // not a base: it takes the value grid's ink and weight, and zero, where the chart crosses it,
+        // carries the base.
+        const valueAxis = d.axes[channel === 'x' ? 'y' : 'x'];
+        const floorIsGrid = domainShow && axis.indexing && valueAxis?.grid.show && valueFloorIsZero(spec, channel, table) === false;
         const themed: any = {
             grid: axis.grid.show,
             gridColor: axis.grid.color,
             gridWidth: axis.grid.width,
             domain: domainShow,
-            domainColor: axis.domain.color,
-            domainWidth: axis.domain.width,
+            domainColor: floorIsGrid ? valueAxis!.grid.color : axis.domain.color,
+            domainWidth: floorIsGrid ? valueAxis!.grid.width : axis.domain.width,
             ticks: axis.ticks.show,
             tickColor: axis.ticks.color,
             tickWidth: axis.ticks.width,
@@ -1049,6 +1095,33 @@ function lengthsFromIndexAxis(spec: any, indexChannel: 'x' | 'y'): boolean {
     return found;
 }
 
+/**
+ * Whether the value axis across from an index axis starts at zero at the plot's floor: true where
+ * it does, false where the data dips below zero or the scale floats above it, undefined where the
+ * chart has no single value axis there.
+ */
+function valueFloorIsZero(spec: any, indexChannel: 'x' | 'y', table: any[]): boolean | undefined {
+    const other = indexChannel === 'x' ? 'y' : 'x';
+    let verdict: boolean | undefined;
+    walk(spec, (node) => {
+        if (node.__themeSynthetic) return;
+        const enc = node.encoding?.[other];
+        if (!enc?.field || enc.type !== 'quantitative' || enc.bin || verdict === false) return;
+        const scale = enc.scale ?? {};
+        if (scale.reverse === true || NONLINEAR_SCALES.has(scale.type)) return;
+        const domain = Array.isArray(scale.domain) && typeof scale.domain[0] === 'number' ? scale.domain[0] as number : undefined;
+        let min = Infinity;
+        for (const row of table ?? []) {
+            const v = Number(row?.[enc.field]);
+            if (Number.isFinite(v) && v < min) min = v;
+        }
+        if (!Number.isFinite(min) && domain === undefined) return;
+        const floor = domain ?? scale.domainMin ?? (scale.zero === false ? min : Math.min(0, min));
+        verdict = floor === 0;
+    });
+    return verdict;
+}
+
 function floatingValueScale(spec: any, indexChannel: 'x' | 'y'): boolean {
     const other = indexChannel === 'x' ? 'y' : 'x';
     let floating = false;
@@ -1163,6 +1236,9 @@ function applyBaseline(spec: any, d: DesignDecisions, table: any[]): void {
         const lo = domain?.[0] ?? scale.domainMin ?? (zero ? Math.min(0, min) : min);
         const hi = domain?.[1] ?? scale.domainMax ?? (zero ? Math.max(0, max) : max);
         const atZero = !log && lo <= 0 && hi >= 0;
+        // A base is at zero: along a floor the value axis does not start at zero, the line would
+        // claim a base the chart does not have — unless the house states it strongly.
+        if (!atZero && !base.anyFloor) continue;
         const atFloor = !atZero || lo === 0;
         // The house's own zero rule is that line where the data crosses zero.
         if (atZero && min < 0 && max > 0 && d.axes[channel]?.zeroRule?.show) continue;
@@ -3252,7 +3328,8 @@ function applySeriesInk(spec: any, d: DesignDecisions, table: any[], say: Report
                 }
                 continue;
             }
-            const fold = legend ? plannedKeyFor(legend.keys, channel, enc)?.fold : undefined;
+            const planned = legend ? plannedKeyFor(legend.keys, channel, enc) : undefined;
+            const fold = planned?.fold;
             if (fold) {
                 // The plan folded the tail: the largest series keep a named ink and the small
                 // ones share the overflow ink under one "Others (N)" row of the key.
@@ -3274,6 +3351,8 @@ function applySeriesInk(spec: any, d: DesignDecisions, table: any[], say: Report
                         node.transform = (node.transform ?? []).filter((t: any) => t?.as !== '__flintArcOrder');
                         delete node.encoding.order;
                     }
+                    // The key keeps the name of the field it folds, not the working column's.
+                    if (enc.title === undefined) enc.title = planned?.field ?? field;
                     enc.field = keyField;
                     enc.type = 'nominal';
                     const domain = [...topK, othersLabel];
@@ -3534,8 +3613,10 @@ function applyRedundantChannels(spec: any, d: DesignDecisions, say: ReportDepart
         if (!series?.field) return;
         // The dashes and shapes follow the colours' order (M3): the same sort, and the same domain
         // where the colour scale states one, so series 1 is solid and filled whatever its name.
+        // And the colour key's name, so the key it merges with is not titled by a working column.
         const key = {
             field: series.field, type: series.type ?? 'nominal',
+            ...(series.title !== undefined ? { title: series.title } : {}),
             ...(series.sort !== undefined ? { sort: series.sort } : {}),
             ...(Array.isArray(series.scale?.domain) ? { scale: { domain: series.scale.domain } } : {}),
         };
@@ -3642,21 +3723,22 @@ function applyLegend(
     if (gradient) {
         config.legend.gradientLength = gradient.length;
     }
-    // A series key whose labels name themselves drops its title; a key to
-    // values keeps its own, because a number names nothing until the key says
-    // what it counts.
-    if (!l.title) {
-        walk(spec, (node) => {
-            for (const channel of ['color', 'fill', 'stroke', 'shape', 'size', 'opacity'] as const) {
-                const enc = node.encoding?.[channel];
-                if (!enc?.field || enc.legend === null) continue;
-                const key = keyOf(channel, enc);
-                if (key && !key.untitled) continue;
-                enc.legend = { ...(enc.legend ?? {}), title: null };
-            }
-        });
-        if (planned.untitled) config.legend.title = null;
-    }
+    // A key the plan leaves untitled drops its title — a series key whose labels name themselves, a
+    // key the chart makes itself — even where its template wrote one; a key to values keeps its own,
+    // because a number names nothing until the key says what it counts.
+    walk(spec, (node) => {
+        const series = node.encoding?.color ?? node.encoding?.stroke;
+        for (const channel of ['color', 'fill', 'stroke', 'shape', 'strokeDash', 'size', 'opacity'] as const) {
+            const enc = node.encoding?.[channel];
+            if (!enc?.field || enc.legend === null) continue;
+            // A shape or dash that repeats the colours merges with their key, and is titled as it is.
+            const redundant = (channel === 'shape' || channel === 'strokeDash') && series && series !== enc && series.field === enc.field;
+            const key = redundant ? keyOf(node.encoding.color ? 'color' : 'stroke', series) : keyOf(channel, enc);
+            if (key ? !key.untitled : l.title) continue;
+            enc.legend = { ...(enc.legend ?? {}), title: null };
+        }
+    });
+    if (!l.title && planned.untitled) config.legend.title = null;
     // A top key would land its last row on a flat y title; the plan stands it clear.
     if (planned.titleClearance !== undefined) {
         config.legend.offset = (config.legend.offset ?? 18) + planned.titleClearance;
@@ -3972,6 +4054,94 @@ function inkScaleOnRamp(enc: any, stops: string[], light: string, dark: string):
     };
 }
 
+/** The room kept round a pie's drawing — its outlines and its outside numbers — in px. */
+const ARC_HUG_MARGIN = 4;
+
+/**
+ * The radius of a whole pie whose numbers ride outside it, and the plot drawn round them: the
+ * largest pie whose numbers, each beside its own slice, stay within the plot it was given; the
+ * plot then shrinks to what is drawn, with the pie's centre moved to keep its place in it.
+ * Returns undefined where the slices cannot be placed (a partial circle, a radius channel), and
+ * the room is then kept all round.
+ */
+function hugArcLabels(
+    body: any, units: any[], arc: any, markDef: any, table: any[], field: string, enc: any,
+    at: { radius: number; width: number; height: number; gap: number; labelWidth: number; labelHeight: number },
+): number | undefined {
+    // Only a plot that states its own size is resized: a faceted or repeated pie keeps its cells.
+    if (typeof body.width !== 'number' || typeof body.height !== 'number' || body.facet || body.spec) return undefined;
+    if (enc.radius || enc.theta?.scale?.range || !Array.isArray(table) || !table.length) return undefined;
+    const mark = normalizeMark(arc.mark) ?? {};
+    if (mark.theta !== undefined || mark.theta2 !== undefined || mark.x !== undefined || mark.y !== undefined) return undefined;
+    const slices = arcSlices(table, field, enc);
+    if (!slices) return undefined;
+    const total = slices.reduce((sum, slice) => sum + slice.value, 0);
+    if (!(total > 0)) return undefined;
+    let start = 0;
+    const mids = slices.map((slice) => { const mid = (start + slice.value / 2) / total * 2 * Math.PI; start += slice.value; return { mid, value: slice.value }; });
+    const minArc = at.labelHeight;
+    const box = (r: number) => {
+        const out = { x1: -r, x2: r, y1: -r, y2: r };
+        const reach = r + at.gap;
+        for (const { mid, value } of mids) {
+            if (value / total * 2 * Math.PI * reach < minArc) continue;
+            const x = Math.sin(mid) * reach;
+            const y = -Math.cos(mid) * reach;
+            out.x1 = Math.min(out.x1, x - at.labelWidth / 2); out.x2 = Math.max(out.x2, x + at.labelWidth / 2);
+            out.y1 = Math.min(out.y1, y - at.labelHeight / 2); out.y2 = Math.max(out.y2, y + at.labelHeight / 2);
+        }
+        return { x1: out.x1 - ARC_HUG_MARGIN, x2: out.x2 + ARC_HUG_MARGIN, y1: out.y1 - ARC_HUG_MARGIN, y2: out.y2 + ARC_HUG_MARGIN };
+    };
+    const fits = (r: number) => { const b = box(r); return b.x2 - b.x1 <= at.width && b.y2 - b.y1 <= at.height; };
+    const floor = Math.min(at.width, at.height) / 4;
+    let r = at.radius;
+    if (!fits(r)) {
+        let low = floor, high = r;
+        for (let pass = 0; pass < 24; pass++) { const mid = (low + high) / 2; if (fits(mid)) low = mid; else high = mid; }
+        r = Math.floor(low);
+    }
+    const drawn = box(r);
+    const width = Math.min(at.width, Math.ceil(drawn.x2 - drawn.x1));
+    const height = Math.min(at.height, Math.ceil(drawn.y2 - drawn.y1));
+    // Centred in the room it is given where it has room to spare, else where its numbers put it.
+    const cx = Math.round(-drawn.x1 + (width - (drawn.x2 - drawn.x1)) / 2);
+    const cy = Math.round(-drawn.y1 + (height - (drawn.y2 - drawn.y1)) / 2);
+    const hole = typeof mark.innerRadius === 'number' && typeof mark.outerRadius === 'number' && mark.outerRadius > 0
+        ? Math.round(mark.innerRadius * r / mark.outerRadius) : mark.innerRadius;
+    for (const unit of units) {
+        if (markTypeOf(unit.mark) !== 'arc') continue;
+        const own = normalizeMark(unit.mark) ?? { type: 'arc' };
+        unit.mark = { ...own, outerRadius: r, ...(typeof hole === 'number' ? { innerRadius: hole } : {}), x: cx, y: cy };
+    }
+    Object.assign(markDef, { x: cx, y: cy });
+    body.width = width;
+    body.height = height;
+    return r;
+}
+
+/** A pie's slices in the order they are drawn from twelve o'clock, or undefined where it cannot be told. */
+function arcSlices(table: any[], field: string, enc: any): Array<{ value: number }> | undefined {
+    const key = enc.color?.field as string | undefined;
+    const sums = new Map<string, number>();
+    const rows = key ? table : table.map((row, index) => ({ ...row, __slice: index }));
+    for (const row of rows) {
+        const value = Number(row?.[field]);
+        if (!Number.isFinite(value)) continue;
+        const name = String(row?.[key ?? '__slice']);
+        sums.set(name, (sums.get(name) ?? 0) + Math.abs(value));
+    }
+    let entries = [...sums.entries()];
+    const order = enc.order;
+    if (order?.field === '__flintArcOrder' || !key) {
+        // Data order, as the template states it.
+    } else if (order?.field === field && (order.sort === 'ascending' || order.sort === 'descending')) {
+        entries = entries.sort((a, b) => order.sort === 'ascending' ? a[1] - b[1] : b[1] - a[1]);
+    } else if (!order) {
+        entries = entries.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+    } else return undefined;
+    return entries.map(([, value]) => ({ value }));
+}
+
 function labelOneBody(
     spec: any, body: any, d: DesignDecisions, table: any[], say: ReportDeparture, planned: ValueLabelPlan,
 ): any {
@@ -4105,7 +4275,9 @@ function labelOneBody(
         // drawn wedge and the label ring agree. A snug 14px gap reads as the
         // number stuck to the rim; McKinsey and its peers sit the annotation
         // clear of the arc, so the gap is generous. An arc that states its
-        // own radius is left alone.
+        // own radius keeps it unless the labels outside would leave the plot:
+        // a key above or below it stands on the plot's edge, and a label past
+        // that edge lands on the key.
         const radialOutsideGap = 22;
         const printed = measureValueLabels(
             table.map((row) => row?.[measure.field]).filter((v): v is number => typeof v === 'number' && Number.isFinite(v)),
@@ -4135,15 +4307,26 @@ function labelOneBody(
                 }
             }
         }
-        if (r !== undefined && !inside && typeof declared !== 'number'
-            && typeof w === 'number' && typeof h === 'number' && arc) {
-            const estHalfWidth = printed.widest / 2;
+        // A whole pie with its numbers outside is sized by where they fall: a number stands only
+        // beside its own slice, so the room is taken on the sides that hold one, and the plot then
+        // comes in to the drawing — no band of reserved room between the pie and what stands above it.
+        const hugged = r !== undefined && !inside && typeof w === 'number' && typeof h === 'number' && arc
+            ? hugArcLabels(body, units, arc, markDef, table, measure.field, mergedEncoding(arc, body.encoding),
+                { radius: typeof declared === 'number' ? declared : Math.min(w, h) / 2, width: w, height: h, gap: radialOutsideGap,
+                    labelWidth: printed.widest, labelHeight: (t.fontSize ?? 10) * 1.2 })
+            : undefined;
+        if (hugged !== undefined) r = hugged;
+        else if (r !== undefined && !inside && typeof w === 'number' && typeof h === 'number' && arc) {
             const halfMin = Math.min(w, h) / 2;
-            const arcOuter = Math.max(halfMin * 0.5, halfMin - (estHalfWidth + radialOutsideGap + 4));
-            if (arcOuter < r) {
-                const norm = normalizeMark(arc.mark) ?? { type: 'arc' };
-                arc.mark = { ...norm, outerRadius: Math.round(arcOuter) };
-                r = arcOuter;
+            const room = printed.widest / 2 + radialOutsideGap + 4;
+            if (typeof declared !== 'number' || r + room > halfMin) {
+                const arcOuter = Math.max(halfMin * 0.5, halfMin - room);
+                if (arcOuter < r) {
+                    const norm = normalizeMark(arc.mark) ?? { type: 'arc' };
+                    const hole = typeof norm.innerRadius === 'number' ? Math.round(norm.innerRadius * arcOuter / r) : undefined;
+                    arc.mark = { ...norm, outerRadius: Math.round(arcOuter), ...(hole !== undefined ? { innerRadius: hole } : {}) };
+                    r = arcOuter;
+                }
             }
         }
         if (r) {

@@ -76,7 +76,7 @@ const theme: ThemeSpec = {
   marks: { bandFraction: 0.67, strokeWeight: 2, cornerRadius: 0, group: { gap: '2px', spacing: 1 } },
   labels: { truncation: 'never' },
   // Scenario names are written beside the series, never in a key box.
-  legend: { show: 'always', placement: ['seriesEnd', 'inline', 'top'], direction: 'horizontal', title: 'omit', align: 'start' },
+  legend: { show: 'always', placement: ['seriesEnd', 'inline', 'top'], direction: 'horizontal', title: 'whenAmbiguous', align: 'start' },
   dataLabels: { show: 'always', placement: 'outsideMark', inkMode: 'fixed' },
   annotation: {
     axisTitles: 'omit',

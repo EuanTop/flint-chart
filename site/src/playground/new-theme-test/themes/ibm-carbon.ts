@@ -97,7 +97,7 @@ const theme: ThemeSpec = {
     band: { fraction: 0.75, cornerRadius: 0 },
   },
   labels: { truncation: 'ellipsis' },
-  legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'omit', align: 'start' },
+  legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'whenAmbiguous', align: 'start' },
   dataLabels: { show: 'never' },
   annotation: { axisTitles: 'always', axisTitlePlacement: 'rotated', unitsInAxisTitle: true, numberFormat: { thousands: 'separator' } },
   layout: { density: 'normal', titleBlock: { anchor: 'start', gap: 'normal' } },

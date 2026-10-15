@@ -77,7 +77,7 @@ const theme: ThemeSpec = {
     slice: { gap: 1, gapStyle: 'rule' },
   },
   labels: { truncation: 'never' },
-  legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'omit', align: 'start' },
+  legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'whenAmbiguous', align: 'start' },
   dataLabels: { show: 'never' },
   annotation: { axisTitles: 'omit', unit: 'never' },
   layout: { titleBlock: { anchor: 'start', gap: 'normal' }, bandStepFit: 1 },

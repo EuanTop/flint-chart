@@ -82,7 +82,7 @@ const theme: ThemeSpec = {
   },
   geometry: { line: { width: 2 }, arc: { gap: 1, gapStyle: 'rule' } },
   labels: { truncation: 'wrap' },
-  legend: { show: 'always', placement: ['inside', 'right'], direction: 'vertical', title: 'omit', align: 'start' },
+  legend: { show: 'always', placement: ['inside', 'right'], direction: 'vertical', title: 'whenAmbiguous', align: 'start' },
   dataLabels: { show: 'never', inkMode: 'fixed' },
   annotation: { axisTitles: 'always', axisTitlePlacement: 'rotated', axisTitleGap: 22, unit: 'everyTick', numberFormat: { thousands: 'separator' } },
   furniture: [

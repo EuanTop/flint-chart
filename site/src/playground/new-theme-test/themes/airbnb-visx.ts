@@ -71,7 +71,7 @@ const theme: ThemeSpec = {
   // Areas fade to clear (R12); stacked areas keep solid bands.
   geometry: { band: { fraction: 0.6, cornerRadius: 0 }, line: { width: 2 }, area: { fill: 'fade' } },
   labels: { truncation: 'ellipsis' },
-  legend: { show: 'always', placement: ['top'], direction: 'horizontal', title: 'omit', align: 'center' },
+  legend: { show: 'always', placement: ['top'], direction: 'horizontal', title: 'whenAmbiguous', align: 'center' },
   dataLabels: { show: 'never' },
   annotation: { axisTitles: 'always', axisTitlePlacement: 'rotated', unit: 'never' },
   layout: { titleBlock: { anchor: 'start' } },

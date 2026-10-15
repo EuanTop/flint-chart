@@ -193,7 +193,7 @@ export const powerbiLight: ThemePreset = {
                 "right",
                 "bottom"
             ],
-            "title": "omit",
+            "title": "whenAmbiguous",
             "gradientLength": 90,
             "suppressWhenValuesPrinted": false
         },

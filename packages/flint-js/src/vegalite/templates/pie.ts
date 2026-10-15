@@ -18,6 +18,9 @@ import { setMarkProp } from './utils';
 import type { ChartStructure } from '../../core/structure';
 
 /** A pie's outer radius and the square it is drawn in, from how many slices it has to hold. */
+/** The room left round a pie for its slice outlines, in px. */
+const PIE_MARGIN = 4;
+
 function pieLayout(
     ctx: PlotPlanContext,
     thetaField: string | undefined,
@@ -51,7 +54,7 @@ function pieLayout(
             maxStretchY: ctx.assembleOptions?.maxStretchY,
             // A hairline of room for the slice outlines: nothing is set around the pie, so the pie
             // fills its square and the title sits on it rather than a margin above it.
-            margin: 4,
+            margin: PIE_MARGIN,
         });
     return { radius, size: Math.min(canvasW, canvasH) };
 }
@@ -162,7 +165,10 @@ export const pieChartDef: ChartTemplateDef = {
             }
         }
 
-        const { radius, size } = pieLayout(ctx, thetaField, colorField);
+        const { radius: sized, size } = pieLayout(ctx, thetaField, colorField);
+        // The plot it is drawn in may come out smaller than the canvas it was sized for — a header
+        // takes its height out of the plot — and the pie stays inside it.
+        const radius = ctx.plot ? Math.max(1, Math.min(sized, Math.floor(Math.min(ctx.plot.width, ctx.plot.height) / 2) - PIE_MARGIN)) : sized;
         spec.mark = setMarkProp(spec.mark, 'outerRadius', radius);
         // Set explicit width/height — overrides config.view defaults
         spec.width = ctx.plot?.width ?? size;

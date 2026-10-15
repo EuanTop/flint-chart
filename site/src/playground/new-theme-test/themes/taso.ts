@@ -81,7 +81,7 @@ const theme: ThemeSpec = {
     band: { fraction: 0.9, cornerRadius: 0 },
   },
   labels: { truncation: 'wrap' },
-  legend: { show: 'always', placement: ['seriesEnd'], title: 'omit' },
+  legend: { show: 'always', placement: ['seriesEnd'], title: 'whenAmbiguous' },
   dataLabels: { show: 'never', placement: 'atMark', inkMode: 'contrastWithMark' },
   annotation: { axisTitles: 'whenAmbiguous', axisTitlePlacement: 'rotated', unit: 'never', numberFormat: { thousands: 'separator' } },
   layout: { titleBlock: { anchor: 'start', gap: 'normal', deckGap: 'tight' } },

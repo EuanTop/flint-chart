@@ -74,7 +74,7 @@ const theme: ThemeSpec = {
     slice: { gap: 2, gapStyle: 'rule' },
   },
   geometry: { band: { fraction: 0.9 }, arc: { gap: 2, gapStyle: 'rule', order: 'data' } },
-  legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'omit', align: 'center' },
+  legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'whenAmbiguous', align: 'center' },
   dataLabels: { show: 'always', placement: 'atMark', inkMode: 'contrastWithMark' },
   layout: { titleBlock: { anchor: 'start' } },
 };

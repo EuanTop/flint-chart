@@ -74,7 +74,7 @@ const theme: ThemeSpec = {
   },
   marks: { strokeWeight: 1.5, interpolation: 'linear', cornerRadius: 0, outline: { presence: 'omit' }, point: { presence: 'omit' } },
   labels: { truncation: 'ellipsis' },
-  legend: { show: 'always', placement: ['top', 'inside'], direction: 'horizontal', title: 'omit', align: 'start' },
+  legend: { show: 'always', placement: ['top', 'inside'], direction: 'horizontal', title: 'whenAmbiguous', align: 'start' },
   dataLabels: { show: 'never' },
   annotation: { axisTitles: 'omit', unit: 'lastTick', numberFormat: { thousands: 'separator', precision: 'auto' } },
   layout: { titleBlock: { anchor: 'start', gap: 'normal', deckGap: 'tight' } },

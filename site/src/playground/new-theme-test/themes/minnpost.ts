@@ -76,7 +76,7 @@ const theme: ThemeSpec = {
   // `minPointLength: 3` — a near-zero bar still shows as a 3px stub (M6).
   geometry: { line: { width: 4, join: 'round', cap: 'round' }, point: { presence: 'omit', size: 79 }, band: { minLength: 3 } },
   labels: { truncation: 'ellipsis' },
-  legend: { show: 'always', placement: ['top'], direction: 'horizontal', title: 'omit', align: 'center' },
+  legend: { show: 'always', placement: ['top'], direction: 'horizontal', title: 'whenAmbiguous', align: 'center' },
   dataLabels: { show: 'never' },
   annotation: { axisTitles: 'whenAmbiguous', axisTitlePlacement: 'rotated', axisTitleGap: 20, numberFormat: { thousands: 'suffix' } },
   layout: { titleBlock: { anchor: 'start', gap: 'loose' }, targetWidth: 640 },

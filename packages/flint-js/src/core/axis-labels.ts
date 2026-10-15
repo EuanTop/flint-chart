@@ -106,7 +106,7 @@ export function planAxisLabels(
         const discrete = (channel === 'x' ? layout.xNominalCount : layout.yNominalCount) > 0;
         const wrapped = Boolean(sizing.labelLines && sizing.labelValues);
         const fitted = sizing.fontSize;
-        const fittedLimit = channel === 'x' || wrapped ? sizing.labelLimit : undefined;
+        const fittedLimit = channel === 'x' || wrapped || sizing.labelCut ? sizing.labelLimit : undefined;
         const fittedLineHeight = wrapped ? sizing.labelLineHeight : undefined;
         const ruler = channel === 'x' && (facts.xRuler === true
             || declaration.resolvedTypes?.x === 'temporal' || declaration.resolvedTypes?.x === 'quantitative');
@@ -137,7 +137,7 @@ export function planAxisLabels(
         const fontSize = bandFitted ?? (crowded ? fitted : theme.fontSize);
         const twoLines = wrapped && Boolean(fittedLineHeight) && (fittedLimit ?? 0) > 0;
         // Names the choice trimmed keep its trim; otherwise a theme that never truncates draws them whole.
-        const cut = decided?.trimmed === true;
+        const cut = decided?.trimmed === true || sizing.labelCut === true;
         const limit = twoLines || cut ? fittedLimit : theme.noLimit ? 0 : fittedLimit;
         const lineHeight = twoLines ? Math.ceil(fontSize * 1.2) : fittedLineHeight;
         return {
