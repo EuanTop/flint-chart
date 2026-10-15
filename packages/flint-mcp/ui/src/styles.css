@@ -781,3 +781,299 @@ input[type="checkbox"] {
   color: var(--muted);
   opacity: 0.4;
 }
+
+/* --- board view ---
+   The frame takes the theme's paper, ink and type (read off an assembled chart
+   into the --board-* variables), so the headline and the cell headings belong
+   to the same house as the charts under them. */
+.board {
+  --board-rule: color-mix(in srgb, var(--board-muted) 28%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px 14px;
+  background: var(--board-bg);
+  color: var(--board-ink);
+  font-family: var(--board-font);
+}
+
+.board-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--board-rule);
+}
+
+.board-title {
+  margin: 0;
+  font-family: var(--board-title-font);
+  font-size: 22px;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.board-subtitle {
+  margin: 0;
+  color: var(--board-muted);
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+
+.board-status {
+  margin: 2px 0 0;
+  color: var(--warn);
+  font-size: 11.5px;
+}
+
+.board-row {
+  display: grid;
+  grid-template-rows: auto auto;
+  column-gap: 24px;
+}
+
+/* A cell spans the row's two tracks, heading and chart, so the plots of a row start on one line
+   however many lines a heading takes. */
+.board-cell {
+  min-width: 0;
+  grid-row: span 2;
+  display: grid;
+  grid-template-rows: subgrid;
+  row-gap: 8px;
+}
+
+.board-row + .board-row:not(.board-row-kpi) .board-cell {
+  padding-top: 14px;
+  border-top: 1px solid var(--board-rule);
+}
+
+.board-tab {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.board-header-ruled {
+  border-bottom-color: var(--board-ink);
+}
+
+.board-cell-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.board-cell-title {
+  margin: 0;
+  font-family: var(--board-title-font);
+  font-size: 14px;
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.board-cell-subtitle {
+  margin: 0;
+  color: var(--board-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.board-cell-chart {
+  min-width: 0;
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+.board-cell-chart .chart-interactive {
+  max-width: 100%;
+  /* FlintChart centres the chart in its box and scales an overflow about its centre; a cell
+     starts the chart under its heading, so it scales from the same corner. */
+  justify-content: flex-start !important;
+}
+
+.board-cell-chart .chart-interactive > div {
+  transform-origin: left top !important;
+}
+
+.board-cell-kpi .board-cell-chart .chart-interactive {
+  justify-content: center !important;
+}
+
+.board-cell-kpi .board-cell-chart .chart-interactive > div {
+  transform-origin: center top !important;
+}
+
+.board-cell-chart .chart-interactive > [data-flint-chart-id] {
+  max-width: 100%;
+}
+
+.board-cell-chart svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.board-empty {
+  padding: 24px 0;
+  color: var(--board-muted);
+}
+
+.board-source {
+  padding-top: 8px;
+  border-top: 1px solid var(--board-rule);
+  color: var(--board-muted);
+  font-size: 11px;
+}
+
+.board-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.board-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.board-heading-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.board-tools {
+  display: flex;
+  gap: 6px;
+  flex: none;
+  padding-top: 2px;
+}
+
+.board-tool {
+  font: inherit;
+  font-size: 12px;
+  color: var(--board-ink);
+  background: transparent;
+  border: 1px solid var(--board-rule);
+  border-radius: 4px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.board-tool:hover {
+  border-color: var(--board-muted);
+}
+
+.board-tool-primary {
+  background: var(--board-ink);
+  border-color: var(--board-ink);
+  color: var(--board-bg);
+}
+
+.board-hint {
+  margin: 2px 0 0;
+  color: var(--board-muted);
+  font-size: 12px;
+}
+
+/* --- arranged board: charts at their places on a 12-column grid --- */
+.board-grid {
+  position: relative;
+}
+
+.board-tile {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--board-rule);
+  transition: left 120ms ease, top 120ms ease, width 120ms ease, height 120ms ease;
+}
+
+.board-tile.board-cell-kpi {
+  border-top-color: transparent;
+}
+
+.board-tile-chart {
+  flex: 1;
+  min-height: 0;
+}
+
+/* A tile's chart starts under its heading; a chart planned past the box loses its bottom edge, never its legend. */
+.board-tile-chart .chart-interactive {
+  align-items: flex-start !important;
+}
+
+/* Edit mode draws its frame outside the tile's box, so no chart changes size when it starts. */
+.board-editing .board-tile {
+  outline: 1px dashed var(--board-muted);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
+.board-editing .board-tile-chart {
+  pointer-events: none;
+}
+
+.board-editing .board-tile-header {
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.board-tile-active {
+  z-index: 2;
+  transition: none;
+  outline-style: solid !important;
+  outline-color: var(--board-ink) !important;
+  background: var(--board-bg);
+}
+
+.board-tile-active .board-tile-header {
+  cursor: grabbing;
+}
+
+.board-tile-grip {
+  color: var(--board-muted);
+  font-size: 12px;
+}
+
+.board-tile-edge,
+.board-tile-corner {
+  position: absolute;
+  touch-action: none;
+  z-index: 3;
+}
+
+.board-tile-edge-right {
+  top: 0;
+  right: 0;
+  width: 10px;
+  height: 100%;
+  cursor: ew-resize;
+}
+
+.board-tile-edge-bottom {
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 10px;
+  cursor: ns-resize;
+}
+
+.board-tile-corner {
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  border-right: 2px solid var(--board-muted);
+  border-bottom: 2px solid var(--board-muted);
+  border-bottom-right-radius: 3px;
+}

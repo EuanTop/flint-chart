@@ -84,13 +84,20 @@ describe('MCP server', () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual([
+      'add_chart',
       'compile_chart',
+      'create_board',
       'create_chart_view',
       'get_flint_skill',
       'list_chart_types',
       'list_interaction_presets',
       'list_themes',
+      'read_board',
+      'remove_chart',
       'render_chart',
+      'set_board_layout',
+      'update_board',
+      'update_chart',
       'validate_chart',
     ]);
   });
@@ -100,6 +107,7 @@ describe('MCP server', () => {
       ['chart', 'flint://agent-skill'],
       ['theme', 'flint://theme-skill'],
       ['interaction', 'flint://interaction-skill'],
+      ['board', 'flint://board-skill'],
     ]) {
       const res: any = await client.callTool({ name: 'get_flint_skill', arguments: { skill } });
       const resource: any = await client.readResource({ uri });

@@ -30,18 +30,39 @@ import type { ChartAssemblyInput, ChartUpdate, ValidateResult } from 'flint-char
 
 import { VERSION } from './version.js';
 import { chartContext } from './chart-context.js';
+import {
+  BoardStore,
+  boardChartShape,
+  boardFieldsShape,
+  dropArrangement,
+  placeAddedChart,
+  boardReport,
+  boardSnapshot,
+  linksShape,
+  mergeChartArgs,
+  prepareChart,
+  type Board,
+  type BoardChartArgs,
+  type ChartOutcome,
+} from './board.js';
+import { gridProblem } from './board-layout.js';
 export { VERSION };
 
 export const AGENT_SKILL_RESOURCE_URI = 'flint://agent-skill';
 export const THEME_SKILL_RESOURCE_URI = 'flint://theme-skill';
 export const INTERACTION_SKILL_RESOURCE_URI = 'flint://interaction-skill';
+export const BOARD_SKILL_RESOURCE_URI = 'flint://board-skill';
 const AGENT_SKILL_ASSET = new URL('../assets/flint-chart-author.SKILL.md', import.meta.url);
 const THEME_SKILL_ASSET = new URL('../assets/flint-theme-author.SKILL.md', import.meta.url);
 const INTERACTION_SKILL_ASSET = new URL('../assets/flint-interaction-author.SKILL.md', import.meta.url);
+const BOARD_SKILL_ASSET = new URL('../assets/flint-board-author.SKILL.md', import.meta.url);
 
 /** URI linking the chart-view tool to its bundled UI resource. */
 export const CHART_VIEW_RESOURCE_URI = 'ui://flint-chart/chart-view.html';
 const CHART_VIEW_ASSET = new URL('../assets/flint-app.html', import.meta.url);
+
+/** URI linking the board tools to the same UI bundle, opened as the board view. */
+export const BOARD_VIEW_RESOURCE_URI = 'ui://flint-chart/board-view.html';
 
 /** Shown when the UI bundle has not been built yet (e.g. during `test`). */
 const CHART_VIEW_PLACEHOLDER = `<!DOCTYPE html><html><head><meta charset="utf-8">\
@@ -53,6 +74,7 @@ const SKILL_ASSETS = {
   chart: AGENT_SKILL_ASSET,
   theme: THEME_SKILL_ASSET,
   interaction: INTERACTION_SKILL_ASSET,
+  board: BOARD_SKILL_ASSET,
 } as const;
 export type SkillName = keyof typeof SKILL_ASSETS;
 const SKILL_NAMES = Object.keys(SKILL_ASSETS) as [SkillName, ...SkillName[]];
@@ -100,6 +122,11 @@ function readChartViewHtml(): string {
   }
 }
 
+/** The chart-view bundle, marked to open as the board view. */
+function readBoardViewHtml(): string {
+  return readChartViewHtml().replace('<head>', '<head><script>window.__FLINT_VIEW__="board"</script>');
+}
+
 export interface CreateServerOptions {
   /** Restrict which backends are exposed (default: all supported). */
   enabledBackends?: SupportedBackend[];
@@ -109,6 +136,8 @@ export interface CreateServerOptions {
    * file the agent references.
    */
   disableFileReference?: boolean;
+  /** Where boards live; a server that is rebuilt per request passes one store so boards outlive the request. */
+  boards?: BoardStore;
 }
 
 type JsonContent = { content: { type: 'text'; text: string }[]; isError?: boolean };
@@ -206,7 +235,11 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
         'Flint compiles one semantic chart spec (ChartAssemblyInput) into ' +
         'Vega-Lite, ECharts, or Chart.js. By DEFAULT, prefer create_chart_view ' +
         'to show a chart whenever the host supports MCP App UIs — it renders ' +
-        'the chart live with an editing panel. The editing panel is not ' +
+        'the chart live with an editing panel. For several charts shown together ' +
+        '(a dashboard, a comparison, an overview with its detail), call get_flint_skill ' +
+        'with skill "board", then create_board, and change that card with add_chart, ' +
+        'update_chart, remove_chart and update_board. ' +
+        'The editing panel is not ' +
         'interactivity: when the user asks for an interactive chart (hover, ' +
         'click, brush, zoom), add an interaction_spec. Fall back to render_chart for a static PNG/SVG artifact only ' +
         'when the host has no App UI support or the user explicitly wants a ' +
@@ -420,12 +453,13 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
         'Return a bundled Flint skill as markdown. Read it before you write the ' +
         'matching spec: `chart` for a ChartAssemblyInput, `theme` for a ThemeSpec, ' +
         '`interaction` for an interaction_spec, ChartUpdate layers, reading a ' +
-        'mounted chart, linking charts, or a bespoke interaction. Pass `section` ' +
+        'mounted chart, linking charts, or a bespoke interaction; `board` for a ' +
+        'create_board call: headline, chart choice, layout, links. Pass `section` ' +
         'with one "## " heading to get only that part; an unknown section lists ' +
         'the headings. The same text is served as the flint://agent-skill, ' +
-        'flint://theme-skill, and flint://interaction-skill resources.',
+        'flint://theme-skill, flint://interaction-skill, and flint://board-skill resources.',
       inputSchema: {
-        skill: z.enum(SKILL_NAMES).describe('Which skill: chart, theme, or interaction.'),
+        skill: z.enum(SKILL_NAMES).describe('Which skill: chart, theme, interaction, or board.'),
         section: z
           .string()
           .optional()
@@ -530,6 +564,248 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
           uri: CHART_VIEW_RESOURCE_URI,
           mimeType: RESOURCE_MIME_TYPE,
           text: readChartViewHtml(),
+          _meta: { ui: { permissions: { clipboardWrite: {} } } },
+        },
+      ],
+    }),
+  );
+
+  // --- board tools (MCP App: several charts in one live card) -------------
+  const boards = options.boards ?? new BoardStore();
+  const boardChart = boardChartShape(assemblyInputShape);
+  const boardFields = boardFieldsShape(assemblyInputShape.theme_spec);
+  const validateBoardChart = async (input: ChartAssemblyInput, updates: ChartUpdate[] | undefined) =>
+    validateChart(input, 'vegalite', { ...dataSourceOptions, roots: await clientRoots(), updates });
+  const boardWrite = (fn: (args: any) => Promise<{ board: Board; outcomes: ChartOutcome[]; notes?: (string | undefined)[] }>) =>
+    async (args: any) => {
+      try {
+        const { board, outcomes, notes = [] } = await fn(args);
+        const said = notes.filter((note): note is string => note !== undefined);
+        return { content: [{ type: 'text' as const, text: boardReport(board, outcomes, said) }] };
+      } catch (err) {
+        return errorResult(err);
+      }
+    };
+
+  registerAppTool(
+    server,
+    'create_board',
+    {
+      title: 'Create live board',
+      description:
+        'Open one live card that holds several Flint charts: a dashboard, a comparison, ' +
+        'an overview with its detail. The board has a headline, a deck and a source; each chart ' +
+        'is a full chart spec with an id and a layout (span, height). Links make ' +
+        'a selection on one chart emphasize the matching marks on others. The card stays ' +
+        'live: change it later with add_chart, update_chart, remove_chart and update_board, ' +
+        'which redraw this card instead of opening a new one. Use create_chart_view for a ' +
+        'single chart. Before the first board, call get_flint_skill with skill "board". ' +
+        'The result reports the layout, each chart (✓/✗ per update op), each link, and a review ' +
+        'of what the board should still fix; a chart with errors is left off the board.',
+      inputSchema: {
+        ...boardFields,
+        charts: z.array(boardChart).describe('The charts, in reading order: KPI tiles first, then the lead chart, then the charts that explain it.'),
+        links: linksShape.optional(),
+      },
+      _meta: { ui: { resourceUri: BOARD_VIEW_RESOURCE_URI } },
+    },
+    async (args: any) => {
+      try {
+        const board = boards.create({
+          title: args.title,
+          subtitle: args.subtitle,
+          source: args.source,
+          theme_spec: args.theme_spec,
+          columns: args.columns,
+        });
+        const outcomes: ChartOutcome[] = [];
+        for (const chartArgs of args.charts as BoardChartArgs[]) {
+          const { chart, outcome } = await prepareChart(chartArgs, validateBoardChart, board);
+          outcomes.push(outcome);
+          if (chart) board.charts.push(chart);
+        }
+        board.links = args.links ?? [];
+        return {
+          content: [{ type: 'text' as const, text: boardReport(board, outcomes) }],
+          _meta: { flint: { board: boardSnapshot(board) } },
+        };
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    'add_chart',
+    {
+      title: 'Add chart to board',
+      description: 'Add a chart to an open board; its card redraws with the chart at the end. An id already on the board is an error: use update_chart.',
+      inputSchema: { board_id: z.string(), chart: boardChart },
+    },
+    boardWrite(async (args) => {
+      const board = boards.get(args.board_id);
+      if (board.charts.some((chart) => chart.id === args.chart.id)) {
+        throw new Error(`Board ${board.id} already has a chart "${args.chart.id}"; call update_chart to change it.`);
+      }
+      const { chart, outcome } = await prepareChart(args.chart as BoardChartArgs, validateBoardChart, board);
+      if (chart) {
+        board.charts.push(chart);
+        placeAddedChart(board, chart);
+        boards.touch(board);
+      }
+      return { board, outcomes: [outcome] };
+    }),
+  );
+
+  server.registerTool(
+    'update_chart',
+    {
+      title: 'Update chart on board',
+      description:
+        'Change one chart on an open board; its card redraws that chart. Pass only the fields to replace ' +
+        '(chart_spec, data, interaction_spec, updates, layout, ...); each replaces the chart\'s field whole. ' +
+        'A change with errors leaves the chart as it was.',
+      inputSchema: {
+        board_id: z.string(),
+        chart_id: z.string(),
+        ...boardChart.omit({ id: true }).partial().shape,
+      },
+    },
+    boardWrite(async (args) => {
+      const board = boards.get(args.board_id);
+      const index = board.charts.findIndex((chart) => chart.id === args.chart_id);
+      if (index < 0) throw new Error(`Board ${board.id} has no chart "${args.chart_id}"; its charts: ${board.charts.map((chart) => chart.id).join(', ')}.`);
+      const { chart, outcome } = await prepareChart(mergeChartArgs(board.charts[index], args), validateBoardChart, board);
+      const notes: (string | undefined)[] = [];
+      if (chart) {
+        board.charts[index] = chart;
+        if (args.layout !== undefined) notes.push(dropArrangement(board, `layout on ${chart.id}`));
+        boards.touch(board);
+      }
+      return { board, outcomes: [outcome], notes };
+    }),
+  );
+
+  server.registerTool(
+    'remove_chart',
+    {
+      title: 'Remove chart from board',
+      description: 'Take a chart off an open board, with the links that name it.',
+      inputSchema: { board_id: z.string(), chart_id: z.string() },
+    },
+    boardWrite(async (args) => {
+      const board = boards.get(args.board_id);
+      board.charts = board.charts.filter((chart) => chart.id !== args.chart_id);
+      board.links = board.links
+        .filter((link) => link.from !== args.chart_id)
+        .map((link) => ({ ...link, to: link.to.filter((id) => id !== args.chart_id) }))
+        .filter((link) => link.to.length > 0);
+      if (board.grid) board.grid = board.grid.filter((item) => item.id !== args.chart_id);
+      boards.touch(board);
+      return { board, outcomes: [] };
+    }),
+  );
+
+  server.registerTool(
+    'update_board',
+    {
+      title: 'Update board',
+      description: 'Change an open board\'s title, subtitle, source, theme, columns, chart order, or links. Each field given replaces the board\'s.',
+      inputSchema: {
+        board_id: z.string(),
+        ...boardFields,
+        order: z.array(z.string()).optional().describe('Chart ids in the new reading order; charts left out keep their place at the end.'),
+        links: linksShape.optional(),
+      },
+    },
+    boardWrite(async (args) => {
+      const board = boards.get(args.board_id);
+      for (const key of ['title', 'subtitle', 'source', 'theme_spec', 'columns'] as const) {
+        if (args[key] !== undefined) (board as any)[key] = args[key];
+      }
+      if (args.order) {
+        const rank = (id: string) => {
+          const at = (args.order as string[]).indexOf(id);
+          return at < 0 ? Number.MAX_SAFE_INTEGER : at;
+        };
+        board.charts = [...board.charts].sort((a, b) => rank(a.id) - rank(b.id));
+      }
+      if (args.links) board.links = args.links;
+      const notes = [args.columns !== undefined || args.order ? dropArrangement(board, args.order ? 'order' : 'columns') : undefined];
+      boards.touch(board);
+      return { board, outcomes: [], notes };
+    }),
+  );
+
+  registerAppTool(
+    server,
+    'set_board_layout',
+    {
+      title: 'Set board layout',
+      description: 'For the board card only: the arrangement the reader made, as a place on a 12-column grid for every chart, or null to go back to the rows.',
+      inputSchema: {
+        board_id: z.string(),
+        version: z.number().describe('The board version the card arranged; a newer board refuses the arrangement.'),
+        grid: z.array(z.object({ id: z.string(), x: z.number(), y: z.number(), w: z.number(), h: z.number() })).nullable(),
+      },
+      _meta: { ui: { resourceUri: BOARD_VIEW_RESOURCE_URI, visibility: ['app'] } },
+    },
+    async (args: any) => {
+      try {
+        const board = boards.get(args.board_id);
+        if (args.version !== board.version) {
+          throw new Error(`Board ${board.id} is at version ${board.version}, not ${args.version}; read it again and arrange that.`);
+        }
+        if (args.grid) {
+          const problem = gridProblem(args.grid, board.charts.map((chart) => chart.id));
+          if (problem) throw new Error(`The arrangement does not fit the board: ${problem}.`);
+        }
+        board.grid = args.grid ?? undefined;
+        boards.touch(board);
+        return {
+          content: [{ type: 'text' as const, text: `version ${board.version}` }],
+          structuredContent: { version: board.version, board: boardSnapshot(board) },
+        };
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+  );
+
+  registerAppTool(
+    server,
+    'read_board',
+    {
+      title: 'Read board',
+      description: 'For the board card only: the board\'s charts and links when its version moved past `version`.',
+      inputSchema: { board_id: z.string(), version: z.number().optional() },
+      _meta: { ui: { resourceUri: BOARD_VIEW_RESOURCE_URI, visibility: ['app'] } },
+    },
+    async (args: any) => {
+      try {
+        const board = boards.get(args.board_id);
+        const unchanged = args.version === board.version;
+        return {
+          content: [{ type: 'text' as const, text: unchanged ? 'unchanged' : `version ${board.version}` }],
+          structuredContent: unchanged ? { version: board.version } : { version: board.version, board: boardSnapshot(board) },
+        };
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+  );
+
+  registerAppResource(
+    server,
+    'board-view',
+    BOARD_VIEW_RESOURCE_URI,
+    { mimeType: RESOURCE_MIME_TYPE },
+    async () => ({
+      contents: [
+        {
+          uri: BOARD_VIEW_RESOURCE_URI,
+          mimeType: RESOURCE_MIME_TYPE,
+          text: readBoardViewHtml(),
           _meta: { ui: { permissions: { clipboardWrite: {} } } },
         },
       ],
@@ -686,6 +962,21 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
           text: readInteractionSkill(),
         },
       ],
+    }),
+  );
+
+  server.registerResource(
+    'board-skill',
+    BOARD_SKILL_RESOURCE_URI,
+    {
+      title: 'Flint board-author skill',
+      description:
+        'Bundled instructions for a board of several charts in one live card: the headline, which charts, their layout, links between them, and refining the board from its report.',
+      mimeType: 'text/markdown',
+      annotations: { audience: ['assistant'], priority: 1 },
+    },
+    async (uri) => ({
+      contents: [{ uri: uri.href, mimeType: 'text/markdown', text: readSkill('board') }],
     }),
   );
 
