@@ -98,8 +98,10 @@ applies it:
 | `set-overlay`, `set-freeform-overlay` | draw a guide or a free path |
 | `set-data` | replace the rows a layer shows |
 
-Targets are either references to resolved elements, `{ visual, elements }`, or selectors by row
-key, `{ select: { key } }`. Hosts apply the same language from outside through
+Targets are references to resolved elements, `{ visual, elements }`; selectors by row key,
+`{ select: { key } }`; or, for `set-style`, sets by condition, `{ select: { where } }`, each field
+`in` a list or within a `range` as filters write it. A key and a where compile to one predicate,
+so they match by one rule. Hosts apply the same language from outside through
 `surface.applyUpdate()` and `surface.setUpdates()`, so a story step and a click produce the same
 kind of change.
 

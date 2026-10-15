@@ -609,7 +609,7 @@ function collectPresetOptions(): Record<string, { name: string; type: string; re
         'NavigationTransition': '{ duration: ms }',
         'RegionGuideOptions | false': '{ visible?, style?: { fill?, fillOpacity?, stroke?, strokeOpacity?, strokeWidth? } } | false',
         'InspectGuideOptions | false': '{ visible?, style?: { color?, opacity?, width?, fillOpacity?, haloColor?, haloOpacity?, haloWidth? } } | false',
-        'SemanticTargetSelector': '{ select: { key } }',
+        'SemanticTargetSelector': '{ select: { key } | { where } }',
         'Partial<NavigationDomainGuard>': '{ minVisibleFraction?, maxVisibleFraction?, overscrollFraction? }',
         '(string | FilterFieldOptions)[]': "(string | { field, widget?: 'auto' | 'checkboxes' | 'select' | 'range' | 'toggle', label?, all? })[]",
         'FilterPlacement': "'auto' | 'top' | 'bottom'",

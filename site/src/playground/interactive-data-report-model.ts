@@ -1,4 +1,4 @@
-import { assembleVegaLite, type ChartAssemblyInput } from 'flint-chart';
+import { assembleVegaLite, selectorPredicate, type ChartAssemblyInput } from 'flint-chart';
 import type {
   CanvasInteractionDef,
   ChartUpdateOp,
@@ -388,9 +388,11 @@ export function rowsInView(chart: ChartRows, viewportRange: { x?: Domain; y?: Do
 }
 
 function targetRows(target: UpdateTarget, chart: ChartRows): Row[] {
-  return 'select' in target
-    ? chart.rows.filter((row) => rowMatches(row, target.select.key))
-    : target.elements.flatMap((element) => elementRows(element, chart));
+  if (!('select' in target)) return target.elements.flatMap((element) => elementRows(element, chart));
+  const select = target.select;
+  if ('key' in select) return chart.rows.filter((row) => rowMatches(row, select.key));
+  const matches = selectorPredicate(target, Object.keys(select.where));
+  return matches ? chart.rows.filter((row) => matches(row)) : [];
 }
 
 /** The rows a sentence points at: the rows its targets name, plus the rows inside its viewport. */

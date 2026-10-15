@@ -65,7 +65,8 @@ export function chartStateKeys(state: ChartState): Record<ChartStateFacet, strin
 
 /**
  * Filters a renderer's change reports down to real changes. Each report is
- * compared with the last state passed on; a report that moves nothing is dropped.
+ * compared with the last state passed on; a report that moves nothing is dropped,
+ * unless it reports a reader's reset gesture.
  */
 export function createChangeFilter(initial: ChartState): (report: ChartChangeReport) => ChartChange | null {
     let previous = snapshotChartState(initial);
@@ -74,7 +75,7 @@ export function createChangeFilter(initial: ChartState): (report: ChartChangeRep
         const state = snapshotChartState(report.state);
         const keys = chartStateKeys(state);
         const changed = CHART_STATE_FACETS.filter((facet) => keys[facet] !== previousKeys[facet]);
-        if (changed.length === 0) return null;
+        if (changed.length === 0 && !report.reset) return null;
         const change: ChartChange = { ...report, state, previous, changed };
         previous = state;
         previousKeys = keys;

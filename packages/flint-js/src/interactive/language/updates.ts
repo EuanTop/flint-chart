@@ -7,6 +7,7 @@ import type {
     UpdateDomain,
     UpdateTarget,
 } from '../../core/interaction-contracts';
+import { selectorPredicate } from '../../core/target-selector';
 
 export type {
     AnnotationCandidate,
@@ -43,10 +44,7 @@ export function matchesSemanticTargetSelector(
     declaredFields: readonly string[],
     value: Readonly<Record<string, unknown>>,
 ): boolean {
-    const entries = Object.entries(selector.select.key);
-    return entries.length > 0
-        && entries.every(([field]) => declaredFields.includes(field))
-        && entries.every(([field, expected]) => Object.is(value[field], expected));
+    return selectorPredicate(selector, declaredFields)?.(value) ?? false;
 }
 
 /**

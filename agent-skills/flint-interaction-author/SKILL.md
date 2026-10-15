@@ -452,12 +452,19 @@ what the chart shows and is not a frame. Legend values belong to
 
 ### Step 3 — name targets and values
 
-A target is one of two forms:
+A target is one of three forms:
 
 ```ts
-{ select: { key: { Country: 'Japan' } } }                 // rows the chart encodes
+{ select: { key: { Country: 'Japan' } } }                 // marks with these values
+{ select: { where: { Region: { in: ['Asia', 'Europe'] }, Month: { range: ['2025-03', '2025-06'] } } } }  // a set of marks
 { visual: { kind: 'mark', role: 'mark' }, elements }      // elements from an event or the state
 ```
+
+- A `where` describes a set, in the words filters use: each field `in` a list
+  or within a `range` (ends included; `null` leaves an end open), and every
+  field must hold. Use it for a period, a band of values, or several categories
+  at once, where a key would need one target per row. Only `set-style` takes a
+  `where`; a note or an order names one mark, so it takes a key.
 
 - A selector key names fields the chart encodes (`x`, `y`, `color`, `detail`,
   `size`, …) and matches rows by equality, so `'2007'` and `2007` differ. One

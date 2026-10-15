@@ -5,6 +5,7 @@ import type { ChartAssemblyInput, ChartWarning } from '../core/types';
 import type { SemanticAnnotation } from '../core/field-semantics';
 import { CHART_UPDATE_OPS, type ChartOverlaySpec, type ChartUpdate, type ChartUpdateOp, type UpdateTarget } from '../core/interaction-contracts';
 import { temporalFieldValue } from '../core/resolve-semantics';
+import { isWhereSelector, selectorConditions, selectorPredicate, selectorText } from '../core/target-selector';
 import { overlayChannels } from '../vegalite/interactions/presentation/data-overlay';
 import { navigationAxesFor } from '../interactive/spec/admission';
 import type { CanvasInteractionDef } from '../interactive/interactions';
@@ -92,24 +93,26 @@ function comparable(chart: Chart, field: string, value: unknown): unknown {
 /** Why a target matches no mark, or undefined when it matches some. Element targets are checked at mount. */
 function targetProblem(chart: Chart, target: UpdateTarget): string | undefined {
     if (!('select' in target)) return undefined;
-    const key = target.select.key;
-    const entries = Object.entries(key);
-    if (entries.length === 0) return 'the target key is empty.';
+    const conditions = selectorConditions(target);
+    const where = isWhereSelector(target);
+    if (conditions.length === 0) return where ? 'the target\'s where is empty.' : 'the target key is empty.';
+    const empty = conditions.find(([, condition]) => 'in' in condition && condition.in.length === 0);
+    if (empty) return `the target lists no value for ${empty[0]}.`;
     const fields = chart.semantics.fields ?? [];
-    const unknown = entries.map(([field]) => field).filter((field) => !fields.includes(field));
+    const unknown = conditions.map(([field]) => field).filter((field) => !fields.includes(field));
     if (unknown.length > 0) {
         return fields.length > 0
-            ? `${unknown.join(', ')} ${unknown.length === 1 ? 'is not a field' : 'are not fields'} the marks carry; key on ${fields.join(', ')}.`
-            : `${chart.semantics.chartType ?? 'This chart'} has no marks a key can target.`;
+            ? `${unknown.join(', ')} ${unknown.length === 1 ? 'is not a field' : 'are not fields'} the marks carry; ${where ? 'select' : 'key'} on ${fields.join(', ')}.`
+            : `${chart.semantics.chartType ?? 'This chart'} has no marks a ${where ? 'condition' : 'key'} can target.`;
     }
-    const wanted = entries.map(([field, value]) => [field, comparable(chart, field, value)] as const);
-    const matches = chart.rows.some((row) =>
-        wanted.every(([field, value]) => Object.is(comparable(chart, field, row[field]), value)));
-    return matches ? undefined : `no row has ${pairs(key)}.`;
+    const matches = selectorPredicate(target, fields, (field, value) => comparable(chart, field, value))!;
+    const named = conditions.map(([field]) => field);
+    const hit = chart.rows.some((row) => matches(Object.fromEntries(named.map((field) => [field, comparable(chart, field, row[field])]))));
+    return hit ? undefined : `no row has ${selectorText(target)}.`;
 }
 
 function targetText(target: UpdateTarget): string {
-    if ('select' in target) return pairs(target.select.key);
+    if ('select' in target) return selectorText(target);
     return plural(target.elements.length, 'mark');
 }
 
@@ -233,8 +236,16 @@ function checkOp(chart: Chart, op: ChartUpdateOp): UpdateOpCheck {
 
 const isObject = (value: unknown): value is Record<string, any> =>
     !!value && typeof value === 'object' && !Array.isArray(value);
-const isTarget = (value: unknown): boolean =>
-    isObject(value) && ((isObject(value.select) && isObject(value.select.key)) || (isObject(value.visual) && Array.isArray(value.elements)));
+const isFilterValue = (value: unknown): boolean =>
+    isObject(value) && (Array.isArray(value.in) || (Array.isArray(value.range) && value.range.length === 2));
+const isSelector = (select: unknown, sets: boolean): boolean =>
+    isObject(select) && ('key' in select) !== ('where' in select) && (
+        isObject(select.key)
+        || (sets && isObject(select.where) && Object.values(select.where).every(isFilterValue)));
+/** A target that names marks; `sets` admits a `where` that describes a set of them. */
+const isTarget = (value: unknown, sets = false): boolean =>
+    isObject(value) && (isSelector(value.select, sets) || (isObject(value.visual) && Array.isArray(value.elements)));
+const isSetTarget = (value: unknown): boolean => isTarget(value, true);
 const isObjectOrNull = (value: unknown): boolean => value === null || isObject(value);
 const isName = (value: unknown): boolean => typeof value === 'string' && value.length > 0;
 
@@ -243,7 +254,7 @@ type OpShape = { shape: string; fields: Record<string, (value: unknown) => boole
 const OP_SHAPES = {
     'set-style': {
         shape: '{ op, targets: UpdateTarget[], value: StyleSpec }',
-        fields: { targets: (v: unknown) => Array.isArray(v) && v.every(isTarget), value: isObject },
+        fields: { targets: (v: unknown) => Array.isArray(v) && v.every(isSetTarget), value: isObject },
     },
     'set-annotation': {
         shape: "{ op, target: UpdateTarget, value: { text, anchor?: 'segment' | 'point' } | null }",
@@ -294,7 +305,11 @@ export function updateShapeErrors(updates: unknown, label = 'updates'): ChartWar
             const { shape, fields }: OpShape = OP_SHAPES[name as ChartUpdateOp['op']];
             const bad = Object.entries(fields).find(([field, check]) => !check((op as Record<string, unknown>)[field]));
             if (bad) {
-                const targetNote = bad[0].startsWith('target') ? ' UpdateTarget is { select: { key: { field: value } } }.' : '';
+                const targetNote = bad[0] === 'targets'
+                    ? ' A target is { select: { key: { field: value } } } for one mark, or { select: { where: { field: { in: [...] } | { range: [low, high] } } } } for a set.'
+                    : bad[0] === 'target'
+                        ? ' A target is { select: { key: { field: value } } }: this op acts on one mark, so it takes a key, not a where.'
+                        : '';
                 return fail(
                     `${entry} (${id}).ops[${opIndex}]: ${name} has a missing or malformed "${bad[0]}". Shape: ${shape}.${targetNote}`,
                 );

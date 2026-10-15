@@ -11,6 +11,7 @@ import { resolveTemporalFormat } from '../core/resolve-semantics';
 import { timeFormat, utcFormat } from 'd3-time-format';
 import type { ExternalInteractionDef, InteractionDef } from './interactions';
 import { normalizedOpacity } from './presets/utils';
+import { conditionNumber } from '../core/target-selector';
 
 export type { FilterValue } from '../core/interaction-contracts';
 
@@ -113,19 +114,8 @@ export function sameFilterValue(left: unknown, right: unknown): boolean {
     return left != null && right != null && String(left) === String(right);
 }
 
-/** A comparable number for a range end or a cell: numbers as is, dates as time, numeric strings parsed. */
-export function filterNumber(value: unknown): number {
-    if (typeof value === 'number') return value;
-    if (value instanceof Date) return value.getTime();
-    if (typeof value === 'boolean') return value ? 1 : 0;
-    if (typeof value === 'string') {
-        const trimmed = value.trim();
-        if (trimmed !== '' && !Number.isNaN(Number(trimmed))) return Number(trimmed);
-        const time = Date.parse(trimmed);
-        return Number.isNaN(time) ? Number.NaN : time;
-    }
-    return Number.NaN;
-}
+/** A comparable number for a range end or a cell: the same reading an update target's range makes. */
+export const filterNumber = conditionNumber;
 
 export function valueMatchesFilter(value: unknown, filter: FilterValue): boolean {
     if ('in' in filter) return filter.in.some((candidate) => sameFilterValue(candidate, value));

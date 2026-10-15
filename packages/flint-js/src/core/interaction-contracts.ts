@@ -78,12 +78,14 @@ export interface SemanticTargetRef {
     elements: readonly SemanticElement[];
 }
 
-export interface SemanticTargetSelector {
-    select: {
-        key: Record<string, unknown>;
-        visual?: Partial<SemanticTarget['visual']>;
-    };
-}
+/**
+ * Marks named by their values. `key` names one combination, each field equal to its value;
+ * `where` describes a set, each field `in` a list or within a `range`, and every field must hold.
+ * Ops that act on one mark (a note, an order) take a key; set-style takes either.
+ */
+export type SemanticTargetSelector =
+    | { select: { key: Record<string, unknown>; visual?: Partial<SemanticTarget['visual']> } }
+    | { select: { where: Record<string, FilterValue>; visual?: Partial<SemanticTarget['visual']> } };
 
 export type UpdateTarget = SemanticTargetRef | SemanticTargetSelector;
 
