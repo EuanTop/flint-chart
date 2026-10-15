@@ -79,7 +79,7 @@
 | `set-overlay`、`set-freeform-overlay` | 绘制引导线或自由路径 |
 | `set-data` | 替换某一层显示的行 |
 
-目标要么是对已解析元素的引用 `{ visual, elements }`，要么是按行键的选择器 `{ select: { key } }`。宿主通过 `surface.applyUpdate()` 和 `surface.setUpdates()` 从外部施加同一语言，因此叙事步骤与点击产生同类变化。
+目标可以是对已解析元素的引用 `{ visual, elements }`；按行键的选择器 `{ select: { key } }`；或者（仅限 `set-style`）按条件选取一组标记 `{ select: { where } }`，每个字段写成过滤器的形式：`in` 一个列表，或落在 `range` 之内。键与 where 编译为同一个谓词，按同一规则匹配。宿主通过 `surface.applyUpdate()` 和 `surface.setUpdates()` 从外部施加同一语言，因此叙事步骤与点击产生同类变化。
 
 ## §2.4 交互层
 

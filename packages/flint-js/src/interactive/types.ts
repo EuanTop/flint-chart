@@ -3,6 +3,7 @@ import type { ChartState, FlintInteractionEventDetail, InteractionContext, Inter
 import type { CanvasInteractionAction, CanvasInteractionEvent } from './language/events';
 import type { ChartUpdate, ChartUpdateResult } from './language/updates';
 import type { AssistedTargetingOptions } from '../core/interaction-spec';
+import type { InteractionResetGesture } from './reset';
 
 export type {
     AssistedTargetingOptions,
@@ -56,6 +57,11 @@ export interface ChartChange {
     target?: SemanticTarget | null;
     /** The gesture's geometry: a brushed range, an index value, or the viewport after a move. */
     geometry?: CanvasInteractionEvent['geometry'];
+    /**
+     * The reset gesture a reader made: a click on nothing, Escape, or a double-click. Reported even
+     * when the chart held nothing to reset, so a host that shows a selection of its own can let it go.
+     */
+    reset?: InteractionResetGesture;
     state: ChartState;
     previous: ChartState;
 }

@@ -45,13 +45,23 @@ describe('MCP server over HTTP (stateless streamable transport)', () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual([
+      'add_chart',
       'compile_chart',
+      'create_board',
       'create_chart_view',
       'get_flint_skill',
       'list_chart_types',
       'list_interaction_presets',
       'list_themes',
+      'read_board',
+      'remove_chart',
       'render_chart',
+      'restore_board',
+      'restore_chart_view',
+      'set_board_layout',
+      'set_board_theme',
+      'update_board',
+      'update_chart',
       'validate_chart',
     ]);
   });

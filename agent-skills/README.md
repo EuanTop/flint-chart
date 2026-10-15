@@ -14,6 +14,9 @@ portable chart and theme specifications.
     `interaction_spec`, the `ChartUpdate` an application or an agent applies to
     a mounted chart, reading the chart state, linking charts, and bespoke
     interactions built from a trigger and a handler.
+- [flint-board-author/SKILL.md](flint-board-author/SKILL.md) covers a board of
+    several charts in one live MCP card: the headline, which charts, their
+    layout, links between them, and refining the board from its report.
 
 ## How agents should use flint-chart
 

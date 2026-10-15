@@ -1,4 +1,5 @@
 import type { ChartAssemblyInput, ChartUpdate, ChartUpdateOp, ChartWarning, PivotSurface, UpdateCheck, UpdateOpCheck } from 'flint-chart';
+import { selectorText } from 'flint-chart';
 import type { ChartChange, ChartState, DomainCoordinate, SemanticElement } from 'flint-chart/interactive';
 
 /** The most marks the context names one by one; the text then says how many more there are. */
@@ -222,7 +223,7 @@ function emphasisLines(values: Row[], where: string | undefined): string[] {
 }
 
 function targetText(target: Annotation['target'], columns: Columns): string {
-  if ('select' in target) return pairs(target.select.key);
+  if ('select' in target) return selectorText(target);
   const values = valuesOf(target.elements, columns);
   const shared = values.length > 1 ? sharedFields(values) : values[0] ?? {};
   return Object.keys(shared).length > 0 ? pairs(shared) : plural(values.length, 'mark');

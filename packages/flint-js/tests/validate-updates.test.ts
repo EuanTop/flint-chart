@@ -44,7 +44,7 @@ describe('validateChart updates: shape', () => {
 
     it('names the first missing or malformed field of an op, with its shape', () => {
         expect(message([{ id: 'a', ops: [{ op: 'set-annotation', foo: 1 }] }])).toBe(
-            'updates[0] (a).ops[0]: set-annotation has a missing or malformed "target". Shape: { op, target: UpdateTarget, value: { text, anchor?: \'segment\' | \'point\' } | null }. UpdateTarget is { select: { key: { field: value } } }.',
+            'updates[0] (a).ops[0]: set-annotation has a missing or malformed "target". Shape: { op, target: UpdateTarget, value: { text, anchor?: \'segment\' | \'point\' } | null }. A target is { select: { key: { field: value } } }: this op acts on one mark, so it takes a key, not a where.',
         );
         expect(message([{ id: 'a', ops: [{ op: 'set-annotation', annotations: [{ kind: 'rule', x: '2022-12-01' }] }] }]))
             .toContain('missing or malformed "target"');

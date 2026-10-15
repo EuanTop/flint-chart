@@ -6,7 +6,7 @@ import { INTERACTION_PRESET_REQUIREMENTS } from 'flint-chart';
 const root = new URL('../../../', import.meta.url);
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, root)), 'utf8');
 
-const SKILLS = ['flint-chart-author', 'flint-theme-author', 'flint-interaction-author'];
+const SKILLS = ['flint-chart-author', 'flint-theme-author', 'flint-interaction-author', 'flint-board-author'];
 const interactionSkill = read('agent-skills/flint-interaction-author/SKILL.md');
 
 describe('agent skills', () => {

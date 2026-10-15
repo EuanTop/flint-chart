@@ -36,6 +36,7 @@ import type {
     UpdateTarget,
 } from '../../interactive/language/updates';
 import { matchesSemanticTargetSelector } from '../../interactive/language/updates';
+import { isWhereSelector, selectorPredicate } from '../../core/target-selector';
 import type { VegaInteractionPlan, VegaReorderAxis } from './contracts';
 import { toCanvasInteractionEvent } from '../../interactive/canvas-interaction';
 import { interactionsToReset, type InteractionResetGesture } from '../../interactive/reset';
@@ -1026,24 +1027,22 @@ export function mountVegaInteractions(
             return elements.length > 0 ? { ...target, elements } : null;
         }
 
-        const entries = Object.entries(target.select.key);
-        if (entries.length === 0) return null;
-        const selector = {
-            select: { ...target.select, key: Object.fromEntries(entries.map(([field, value]) => [field, temporalValue(field, value)])) },
-        };
+        const matches = selectorPredicate(target, plan.fields, temporalValue);
+        if (!matches) return null;
         const all = allHits();
-        let hits = all.filter((hit) => matchesSemanticTargetSelector(selector, plan.fields, hit.datum));
+        let hits = all.filter((hit) => matches(hit.datum));
+        // The final point of a line or area starts no segment, so it is found as the end of the segment before it.
+        const startKeys = new Set(all.map((hit) => hit.datum[INTERACTION_KEY]));
+        const lastPoints = (): RenderHit[] => all.flatMap((hit): RenderHit[] => {
+            const end = hit.endDatum;
+            if (!end || startKeys.has(`${String(end[INTERACTION_KEY])}${PATH_KEY_SUFFIX}`)) return [];
+            if (!matches(end)) return [];
+            return [{ ...hit, datum: { ...end, [INTERACTION_KEY]: hit.datum[INTERACTION_KEY] }, endDatum: undefined }];
+        });
         const lastPoint = hits.length === 0;
-        if (lastPoint) {
-            // The final point of a line or area starts no segment, so it is found as the end of the segment before it.
-            const startKeys = new Set(all.map((hit) => hit.datum[INTERACTION_KEY]));
-            hits = all.flatMap((hit): RenderHit[] => {
-                const end = hit.endDatum;
-                if (!end || startKeys.has(`${String(end[INTERACTION_KEY])}${PATH_KEY_SUFFIX}`)) return [];
-                if (!matchesSemanticTargetSelector(selector, plan.fields, end)) return [];
-                return [{ ...hit, datum: { ...end, [INTERACTION_KEY]: hit.datum[INTERACTION_KEY] }, endDatum: undefined }];
-            });
-        }
+        if (lastPoint) hits = lastPoints();
+        // A set holds the last points it covers beside the segments it starts.
+        else if (isWhereSelector(target)) hits = [...hits, ...lastPoints()];
         if (hits.length === 0 || !resolve) return null;
         const resolved = withSourceProvenance(resolve({
             gesture: 'rectangle',
@@ -1091,7 +1090,8 @@ export function mountVegaInteractions(
                 });
                 if (targets.length > 0 || op.targets.length === 0) ops.push({ ...op, targets });
             } else if (op.op === 'set-annotation' && op.value !== null) {
-                const target = resolveUpdateTarget(op.target);
+                // A note anchors to one mark, which a set does not name.
+                const target = 'select' in op.target && isWhereSelector(op.target) ? null : resolveUpdateTarget(op.target);
                 if (!target || target.elements.length !== 1) unresolvedTargets.push(op.target);
                 else {
                     resolvedTargets += 1;
@@ -2331,9 +2331,12 @@ export function mountVegaInteractions(
         for (const interaction of interactionsToReset(canvasInteractions, gesture)) {
             changed = resetInteraction(interaction) || changed;
         }
-        if (!changed) return;
+        if (!changed) {
+            notifyChange({ phase: 'commit', source: 'reader', reset: gesture });
+            return;
+        }
         selectedLegend = null;
-        void renderUpdates().then(() => notifyChange({ phase: 'commit', source: 'reader' }));
+        void renderUpdates().then(() => notifyChange({ phase: 'commit', source: 'reader', reset: gesture }));
     };
     onLayoutChange = () => {
         if (!regionInteraction || !retainedUpdates.has(regionInteraction.id)) return;

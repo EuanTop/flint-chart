@@ -3708,6 +3708,13 @@ describe('chart change reporting', () => {
         expect(filter({ phase: 'commit', source: 'host', state: state([{ Country: 'Chad' }]) })).toBeNull();
     });
 
+    it('passes on a reader\'s reset gesture even when it moves nothing', () => {
+        const filter = createChangeFilter(state([]));
+        const change = filter({ phase: 'commit', source: 'reader', reset: 'click-none', state: state([]) });
+        expect(change).toMatchObject({ reset: 'click-none', changed: [] });
+        expect(filter({ phase: 'commit', source: 'reader', state: state([]) })).toBeNull();
+    });
+
     it('counts an entry moving from preview to retained as a change', () => {
         const chad = [element({ Country: 'Chad' })];
         const filter = createChangeFilter(state([]));

@@ -186,7 +186,7 @@ export const updatesShape = {
                   'set-overlay { name, value: { mark, data: { values }, encodings: { x?, y?, x2?, y2? }, role, style? } | null }; ' +
                   "set-freeform-overlay { name, value: { coordinateSpace: 'plot' | 'renderer', body } | null }; " +
                   "set-data { source: 'main', value: { rows } }. " +
-                  'UpdateTarget is { select: { key: { field: value } } }.',
+                  'UpdateTarget is { select: { key: { field: value } } } for marks with those values, or, in set-style only, { select: { where: { field: { in: [...] } | { range: [low, high] } } } } for a set: a period, a band, several categories.',
               ),
           )
           .describe('The ops of this layer, applied in order.'),
