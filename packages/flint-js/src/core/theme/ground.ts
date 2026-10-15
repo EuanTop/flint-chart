@@ -652,7 +652,7 @@ const FACET_CHANNELS = ['column', 'row', 'facet'];
 // rather than a summary mark. They summarise like a box plot does, so they take
 // the same label escape — a printed value names a quantity they were chosen not
 // to reduce to. (A box plot itself is caught earlier by its `boxplot` mark.)
-const DISTRIBUTION_SHAPE_CHARTS = new Set(['Violin Plot', 'Density Plot']);
+const DISTRIBUTION_SHAPE_CHARTS = new Set(['Violin Plot', 'Density Plot', 'Ridgeline Plot', 'Marginal Plot']);
 // A table with in-row bars: every value is also printed in its own column, so
 // the bar is a secondary in-cell glyph and the category axis is a row-header
 // gutter, not a base the bars stand on.
@@ -1246,7 +1246,7 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
     // A stacked band has that room too, and more of it: the name goes *inside*
     // the band at its last reading, which is where a reader's eye already is
     // when they ask which band this is.
-    const lineFamily = ctx.markTypes.some((m) => m === 'line' || m === 'trail');
+    const lineFamily = ctx.markTypes.some((m) => m === 'line' || m === 'trail') && !signals.isSummarised;
     // A violin or density plot is an area too, but its band has no meaningful
     // last reading to hang a name on: the shape is a distribution, and its
     // right edge is an arbitrary tail near zero, not an endpoint the eye rests

@@ -25,6 +25,8 @@ import { rangeAreaChartDef } from './range-area';
 import { donutChartDef, pieChartDef } from './pie';
 import { lollipopChartDef } from './lollipop';
 import { densityPlotDef } from './density';
+import { ridgelinePlotDef } from './ridgeline';
+import { marginalPlotDef } from './marginal';
 import { violinPlotDef } from './violin';
 import { ecdfPlotDef } from './ecdf';
 import { stripPlotDef } from './jitter';
@@ -284,9 +286,9 @@ function withInjectedProperties(def: ChartTemplateDef): ChartTemplateDef {
  */
 export const vlTemplateDefs: { [key: string]: ChartTemplateDef[] } = Object.fromEntries(
     Object.entries({
-        "Points":          [scatterPlotDef, regressionDef, connectedScatterDef, rangedDotPlotDef, stripPlotDef],
+        "Points":          [scatterPlotDef, marginalPlotDef, regressionDef, connectedScatterDef, rangedDotPlotDef, stripPlotDef],
         "Bars":            [barChartDef, groupedBarChartDef, stackedBarChartDef, lollipopChartDef, waterfallChartDef, ganttChartDef, bulletChartDef],
-        "Distributions":   [histogramDef, densityPlotDef, ecdfPlotDef, violinPlotDef, boxplotDef, pyramidChartDef, candlestickChartDef],
+        "Distributions":   [histogramDef, densityPlotDef, ridgelinePlotDef, ecdfPlotDef, violinPlotDef, boxplotDef, pyramidChartDef, candlestickChartDef],
         "Lines & Areas":   [lineChartDef, sparklineDef, bumpChartDef, slopeChartDef, areaChartDef, streamgraphDef, rangeAreaChartDef],
         "Circular":        [pieChartDef, donutChartDef, roseChartDef, radarChartDef],
         "Tables & Maps":   [heatmapDef, vlCalendarHeatmapDef, barTableDef, kpiCardDef, mapDef, choroplethDef],

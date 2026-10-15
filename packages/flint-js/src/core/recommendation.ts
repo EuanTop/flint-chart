@@ -202,6 +202,8 @@ const CHART_ROLE_MAP: Record<string, ChannelRoleMap> = {
     // Histogram / Density
     'Histogram': FAMILY_HISTOGRAM,
     'Density Plot': FAMILY_DENSITY,
+    'Ridgeline Plot': FAMILY_DENSITY,
+    'Marginal Plot': FAMILY_XY_STANDARD,
     'Density Contour': FAMILY_DENSITY_2D,
     // Geographic
     'Map': FAMILY_MAP,

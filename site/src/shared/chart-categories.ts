@@ -17,6 +17,8 @@ import boxplotIcon from '../assets/chart-icons/chart-icon-box-plot.svg';
 import radarIcon from '../assets/chart-icons/chart-icon-radar.svg';
 import streamgraphIcon from '../assets/chart-icons/chart-icon-streamgraph.svg';
 import densityIcon from '../assets/chart-icons/chart-icon-density.svg';
+import ridgelineIcon from '../assets/chart-icons/chart-icon-ridgeline.svg';
+import marginalIcon from '../assets/chart-icons/chart-icon-marginal.svg';
 import violinIcon from '../assets/chart-icons/chart-icon-violin.svg';
 import ecdfIcon from '../assets/chart-icons/chart-icon-ecdf.svg';
 import lollipopIcon from '../assets/chart-icons/chart-icon-lollipop.svg';
@@ -116,6 +118,7 @@ const input = {
 const spec = assembleVegaLite(input);`,
     charts: [
       createChart('vegalite', 'scatter-plot', 'Scatter Plot', 'Scatter Plot', scatterIcon),
+      createChart('vegalite', 'marginal', 'Marginal Plot', 'Marginal Plot', marginalIcon),
       createChart('vegalite', 'connected-scatter', 'Connected Scatter Plot', 'Connected Scatter Plot', connectedScatterIcon),
       createChart('vegalite', 'regression', 'Regression', 'Regression', regressionIcon),
       createChart('vegalite', 'bar-chart', 'Bar Chart', 'Bar Chart', barIcon),
@@ -136,6 +139,7 @@ const spec = assembleVegaLite(input);`,
       createChart('vegalite', 'range-area', 'Range Area Chart', 'Range Area Chart', rangeAreaIcon),
       createChart('vegalite', 'lollipop-chart', 'Lollipop Chart', 'Lollipop Chart', lollipopIcon),
       createChart('vegalite', 'density-plot', 'Density Plot', 'Density Plot', densityIcon),
+      createChart('vegalite', 'ridgeline', 'Ridgeline Plot', 'Ridgeline Plot', ridgelineIcon),
       createChart('vegalite', 'ecdf', 'ECDF Plot', 'ECDF Plot', ecdfIcon),
       createChart('vegalite', 'violin', 'Violin Plot', 'Violin Plot', violinIcon),
       createChart('vegalite', 'candlestick-chart', 'Candlestick Chart', 'Candlestick Chart', candlestickIcon),

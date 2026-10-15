@@ -109,6 +109,7 @@ export const CHART_TRANSITIONS: Record<string, PivotTransition[]> = {
 
     // ── Two-measure relationship — M₁ × M₂ (§4.3) ──────────────────────────
     'Scatter Plot': [
+        { to: 'Marginal Plot', label: 'Margins' },
         {
             to: 'Strip Plot',
             label: 'Jitter',
@@ -138,7 +139,14 @@ export const CHART_TRANSITIONS: Record<string, PivotTransition[]> = {
         { to: 'Density Plot', label: 'Density' },
         { to: 'ECDF Plot', label: 'ECDF' },
     ],
+    'Ridgeline Plot': [
+        { to: 'Density Plot', label: 'Density' },
+    ],
+    'Marginal Plot': [
+        { to: 'Scatter Plot', label: 'Scatter' },
+    ],
     'Density Plot': [
+        { to: 'Ridgeline Plot', label: 'Ridgeline' },
         { to: 'Histogram', label: 'Histogram' },
         { to: 'ECDF Plot', label: 'ECDF' },
     ],

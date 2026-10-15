@@ -333,7 +333,9 @@ properties"). Required channels are noted.
 | `"Range Area Chart"` | x, y, y2, color, column, row | x + y + y2 required; translucent band from `y` (low) to `y2` (high), value axis fits the band (not zero) |
 | `"Violin Plot"` | x, y, color, row | x (category) + y (measure) required; mirrored KDE density per category, prop `bandwidth`; **Vega-Lite only**; a genuine `color` subgroup splits two groups or grids 3+ groups |
 | `"Streamgraph"` | x, y, color, column, row | centre-stacked areas |
-| `"Density Plot"` | x, color, column, row | prop `bandwidth` |
+| `"Density Plot"` | x, color, column, row | props `bandwidth`, `stackMode` (series stack; `layered` overlaps them), `opacity` |
+| `"Ridgeline Plot"` | x, y, color | x = measure; `color` (or a discrete `y`) names the ridges, each the KDE of x on its own baseline; a measure `y` draws each series' curve instead; props `overlap`, `order`, `tailCut`, `colorBy`, `perspective` (plans unset `skew`, `tilt`, `overlap` from the ridge count so the depth takes about 40% of the plot), `skew`, `tilt`, `valueMax`, `markAt` (`true` marks the x ticks, or a list of x values; each ridge's value is dotted and labelled, joined across ridges), `opacity`, `interpolate`, `bandwidth`; a numeric `color` keeps a gradient key; **Vega-Lite only** |
+| `"Marginal Plot"` | x, y, color, size, shape, opacity | the plot follows the axis types (measure × measure = scatter, category × measure = strip, category × category = heatmap of counts) with each axis's distribution along it (density, histogram or boxplot on a measure axis, a bar of counts on a category axis, split by `color`; density margins layer by default); props `marginal`, `stackMode`, `bandwidth`, `binCount`, `whiskerMethod`, `showOutliers`; **Vega-Lite only** |
 | `"Pie Chart"` | size, color, column, row | `size` = slice value (→ angle), `color` = category; props `innerRadius`, `sortSlices` |
 | `"Rose Chart"` | x, y, color, column, row | polar bars; props `alignment`, `padAngle`, `sortSlices` |
 | `"Radar Chart"` | x, y, color, column, row | props `filled`, `fillOpacity`, `strokeWidth` |
@@ -539,6 +541,9 @@ derived). Values are clamped to the ranges shown.
 |---|---|---|---|
 | Bar Chart | `cornerRadius` | 0–15 (0) | Round bar corners (px) |
 | Area / Stacked Bar | `stackMode` | `stacked` \| `normalize` \| `center` \| `layered` (unset) | Stacking behavior; `normalize` = 100%, `center` = streamgraph |
+| Density Plot | `stackMode` | `normalize` \| `layered` (unset = stacked) | `layered` overlaps the series, translucent |
+| Density Plot | `opacity` | 0.1–1 (0.7) | Layered series opacity |
+| Marginal Plot | `stackMode` | `stacked` (unset = layered) | Stack the density margins instead of layering them |
 | Grouped Bar / Boxplot | `dodge` | `auto` \| `local` \| `global` (`auto`) | `local` compacts sparse groups per category; `global` preserves aligned group lanes; leave `auto` unless the user requests one |
 | Line / Area / Sparkline | `interpolate` | `linear` \| `monotone` \| `step` \| `step-before` \| `step-after` \| `basis` \| `cardinal` \| `catmull-rom` (`linear`) | Curve shape |
 | Line / ECDF Plot | `showPoints` | boolean (false) | Draw point markers on the line |
@@ -552,7 +557,18 @@ derived). Values are clamped to the ranges shown.
 | Strip Plot | `pointSize` | 0–150 (0=auto) | Point size |
 | Strip Plot | `opacity` | 0–1 (0=auto) | Point opacity |
 | Histogram | `binCount` | 5–50 (10) | Number of bins |
-| Density Plot | `bandwidth` | 0.05–2 (0=auto) | Kernel bandwidth |
+| Density Plot / Ridgeline / Marginal Plot | `bandwidth` | 0.05–2 (0=auto) | Kernel bandwidth |
+| Ridgeline | `overlap` | 0.5–4 (1.8) | How many baselines up the tallest ridge reaches |
+| Ridgeline | `order` | `mean`, `reverse` (unset = as given; a quantitative series lowest at the front) | Highest mean on top, or reversed |
+| Ridgeline | `tailCut` | 0–0.2 (0) | Trim each ridge to where its density is at least this share of its peak |
+| Ridgeline | `colorBy` | `x` (unset = by series) | Fill each ridge with a ramp along x |
+| Ridgeline | `perspective` | boolean (false) | Stand the ridges on a floor seen in perspective: `skew`, `tilt`, `overlap` left unset are planned so the depth takes about 40% of the plot's width and more of its height as ridges are added; the depth names, edge and value ticks give way (along the axis, then level, then every n-th) before they touch |
+| Ridgeline | `skew` | 0–0.4 (0) | Perspective: shift the back ridges left by this share of the x range |
+| Ridgeline | `tilt` | 0–6 (0) | Perspective: the x axis rises this many baselines across its range, labels following its edge |
+| Ridgeline | `opacity` | 0.1–1 (0.5) | Ridge opacity, as the Range Area Chart; solid in perspective unless set |
+| Ridgeline | `valueMax` | number (0 = tallest peak) | Perspective: the value the full ridge height stands for, read on the back-left value axis |
+| Ridgeline | `markAt` | boolean \| number[] | Mark and label every ridge's value at the x ticks inside the range (`true`) or at these x; a dashed line joins the marks at one x across the ridges |
+| Marginal Plot | `marginal` | `density` \| `histogram` \| `boxplot` (`density`) | What each margin draws along a measure axis; a category axis gets a bar of counts |
 | Pie Chart | `innerRadius` | 0–100 (0) | Donut hole size (>0 → donut) |
 | Pie / Rose | `sortSlices` | `none` \| `descending` \| `ascending` (`none`) | Order wedges and their legend by slice value |
 | Rose Chart | `alignment` | `left` \| `center` (`left`) | Wedge alignment |

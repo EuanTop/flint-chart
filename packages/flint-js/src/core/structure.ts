@@ -4,7 +4,7 @@ import type { ChannelSemantics, ChartEncoding } from './types';
 import type { CategoryOrder } from './channel-decisions';
 
 /** Values an axis computes from its fields rather than reads from them: a measure, or the weeks and weekdays of a date. */
-export type DerivedMeasure = 'count' | 'density' | 'cumulative-share' | 'running-total' | 'fit' | 'week' | 'weekday';
+export type DerivedMeasure = 'count' | 'density' | 'cumulative-share' | 'running-total' | 'fit' | 'week' | 'weekday' | 'ridge' | 'skewed';
 
 /** What one positional axis shows. */
 export interface AxisDescription {

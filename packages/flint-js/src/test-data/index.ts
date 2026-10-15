@@ -19,6 +19,7 @@ export { seededRandom, genDates, genMonths, genYears, genNaturalDates, genCatego
 export { genScatterTests, genRegressionTests } from './scatter-tests';
 export { genBarTests, genStackedBarTests, genGroupedBarTests } from './bar-tests';
 export { genHistogramTests, genBoxplotTests, genDensityTests, genStripPlotTests } from './distribution-tests';
+export { genRidgelineTests, genMarginalScatterTests } from './ridgeline-marginal-tests';
 export { genDensityContourTests } from './density-2d-tests';
 export { genViolinTests } from './violin-tests';
 export { genLineTests } from './line-tests';
@@ -91,6 +92,7 @@ import { TestCase } from './types';
 import { genScatterTests, genRegressionTests } from './scatter-tests';
 import { genBarTests, genStackedBarTests, genGroupedBarTests, galleryBarSizingShowcase } from './bar-tests';
 import { genHistogramTests, genBoxplotTests, genDensityTests, genStripPlotTests } from './distribution-tests';
+import { genRidgelineTests, genMarginalScatterTests } from './ridgeline-marginal-tests';
 import { genDensityContourTests } from './density-2d-tests';
 import { genViolinTests } from './violin-tests';
 import { genMapTests, genChoroplethTests } from './map-tests';
@@ -173,6 +175,8 @@ export const TEST_GENERATORS: Record<string, () => TestCase[]> = {
     'ECDF Plot': genEcdfTests,
     'Lollipop Chart': genLollipopTests,
     'Density Plot': genDensityTests,
+    'Ridgeline Plot': genRidgelineTests,
+    'Marginal Plot': genMarginalScatterTests,
     'Density Contour': genDensityContourTests,
     'Candlestick Chart': genCandlestickTests,
     'Waterfall Chart': genWaterfallTests,

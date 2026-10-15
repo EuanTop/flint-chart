@@ -35,7 +35,7 @@ import { annotationCandidates, presentAnnotationUpdate, rangeAnnotationText } fr
 import { defaultBuildEncodings, setMarkProp } from './utils';
 import { skeletonStructure, withBaseline } from '../../core/structure';
 
-const interpolateConfigProperty: ChartPropertyDef = {
+export const interpolateConfigProperty: ChartPropertyDef = {
     key: 'interpolate', label: 'Curve', type: 'discrete', options: [
         { value: undefined, label: 'Default (linear)' },
         { value: 'linear', label: 'Linear' },

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Three ridges, each on its own baseline, the lower one in front -->
+  <path d="M48,100 Q78,98 98,70 Q112,52 126,56 Q140,62 160,88 Q180,100 236,100 Z" fill="#B8B8B8"/>
+  <path d="M48,100 Q78,98 98,70 Q112,52 126,56 Q140,62 160,88 Q180,100 236,100" fill="none" stroke="#363636" stroke-width="3" stroke-linecap="round"/>
+  <path d="M48,156 Q90,154 114,120 Q130,100 146,104 Q162,110 184,142 Q204,156 236,156 Z" fill="#76c6ff"/>
+  <path d="M48,156 Q90,154 114,120 Q130,100 146,104 Q162,110 184,142 Q204,156 236,156" fill="none" stroke="#363636" stroke-width="3" stroke-linecap="round"/>
+  <path d="M48,212 Q110,210 134,172 Q150,150 166,156 Q182,164 204,196 Q220,212 236,212 Z" fill="#B8B8B8"/>
+  <path d="M48,212 Q110,210 134,172 Q150,150 166,156 Q182,164 204,196 Q220,212 236,212" fill="none" stroke="#363636" stroke-width="3" stroke-linecap="round"/>
+  <!-- Baselines -->
+  <line x1="44" y1="100" x2="240" y2="100" stroke="#363636" stroke-width="3" stroke-linecap="round"/>
+  <line x1="44" y1="156" x2="240" y2="156" stroke="#363636" stroke-width="3" stroke-linecap="round"/>
+  <line x1="44" y1="212" x2="240" y2="212" stroke="#363636" stroke-width="4" stroke-linecap="round"/>
+</svg>

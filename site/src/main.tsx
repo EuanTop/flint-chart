@@ -36,6 +36,8 @@ import { TestExamples } from './playground/release-examples/test-examples';
 import { OverflowViewportLab } from './playground/OverflowViewportLab';
 import { ZoomClippingLab } from './playground/ZoomClippingLab';
 import { LayoutInspector } from './playground/LayoutInspector';
+import { LayoutPlanCompare } from './playground/LayoutPlanCompare';
+import { LayoutPlanLab } from './playground/LayoutPlanLab';
 import { FlintInteractive, InteractionGallery } from './routes/InteractionGallery';
 import { AdvancedInteractions } from './routes/AdvancedInteractions';
 import { ClickFocusLab } from './playground/ClickFocusLab';
@@ -124,6 +126,8 @@ function AppRoutes({ locale }: { locale: Locale }) {
           <Route path="overflow-viewport" element={<OverflowViewportLab />} />
           <Route path="zoom-clipping" element={<ZoomClippingLab />} />
           <Route path="layout-inspector" element={<LayoutInspector />} />
+          <Route path="layout-plan-compare" element={<LayoutPlanCompare />} />
+          <Route path="layout-plan" element={<LayoutPlanLab />} />
           <Route path="click-focus" element={<ClickFocusLab />} />
           <Route path="annotation-lab" element={<AnnotationLab />} />
           <Route path="interaction-coverage" element={<InteractionCoverageLab />} />

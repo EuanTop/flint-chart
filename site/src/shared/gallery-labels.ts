@@ -21,6 +21,8 @@ const ZH_CHART_LABELS: Record<string, string> = {
   'Range Area Chart': '区间面积图',
   'Lollipop Chart': '棒棒糖图',
   'Density Plot': '密度图',
+  'Ridgeline Plot': '山脊图',
+  'Marginal Plot': '边缘分布散点图',
   'ECDF Plot': 'ECDF 图',
   'Violin Plot': '小提琴图',
   'Candlestick Chart': 'K 线图',
