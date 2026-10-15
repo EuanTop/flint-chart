@@ -1023,9 +1023,31 @@ input[type="checkbox"] {
 }
 
 .board-editing .board-tile-header {
-  cursor: grab;
   user-select: none;
+}
+
+.board-tile-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--board-rule, var(--hairline));
+  border-radius: 4px;
+  background: var(--board-bg);
+  color: var(--board-muted);
+  cursor: grab;
   touch-action: none;
+}
+
+.board-tile-handle:hover,
+.board-tile-handle:focus-visible {
+  color: var(--board-ink);
+  border-color: var(--board-muted);
 }
 
 .board-tile-active {
@@ -1036,8 +1058,9 @@ input[type="checkbox"] {
   background: var(--board-bg);
 }
 
-.board-tile-active .board-tile-header {
+.board-tile-active .board-tile-handle {
   cursor: grabbing;
+  color: var(--board-ink);
 }
 
 .board-tile-grip {
@@ -1077,6 +1100,16 @@ input[type="checkbox"] {
   border-right: 2px solid var(--board-muted);
   border-bottom: 2px solid var(--board-muted);
   border-bottom-right-radius: 3px;
+}
+
+.board-tile-corner-left {
+  left: 0;
+  right: auto;
+  cursor: nesw-resize;
+  border-right: none;
+  border-left: 2px solid var(--board-muted);
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 3px;
 }
 
 /* A selection in a bar, the board's or a chart's: a chip per part the reader acted on, and a way

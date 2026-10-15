@@ -368,7 +368,7 @@ function useHeight<T extends HTMLElement>(): [(node: T | null) => void, number |
   return [ref, height];
 }
 
-type GridGesture = 'move' | 'right' | 'bottom' | 'corner';
+type GridGesture = 'move' | 'right' | 'bottom' | 'corner' | 'corner-left';
 
 /**
  * A chart at its place on an arranged board. While the reader drags, the chart plans again for its
@@ -432,7 +432,7 @@ function GridTile({
       data-chart-id={chart.id}
       style={box}
     >
-      <header className="board-cell-header board-tile-header" ref={measureHeader} {...(editing ? handle('move') : {})}>
+      <header className="board-cell-header board-tile-header" ref={measureHeader}>
         {title && <h2 className="board-cell-title">{title}</h2>}
         {subtitle && <p className="board-cell-subtitle">{subtitle}</p>}
         {editing && !title && !subtitle && <span className="board-tile-grip">{chart.id}</span>}
@@ -458,9 +458,15 @@ function GridTile({
       </div>
       {editing && (
         <>
+          <button type="button" className="board-tile-handle" aria-label={`Move ${title ?? chart.id}`} title="Drag to move" {...handle('move')}>
+            <svg width="10" height="14" viewBox="0 0 10 14" aria-hidden="true">
+              {[2, 7, 12].flatMap((y) => [2, 8].map((x) => <circle key={`${x}-${y}`} cx={x} cy={y} r="1.4" fill="currentColor" />))}
+            </svg>
+          </button>
           <div className="board-tile-edge board-tile-edge-right" aria-label={`Resize ${chart.id} width`} {...handle('right')} />
           <div className="board-tile-edge board-tile-edge-bottom" aria-label={`Resize ${chart.id} height`} {...handle('bottom')} />
           <div className="board-tile-corner" aria-label={`Resize ${chart.id}`} {...handle('corner')} />
+          <div className="board-tile-corner board-tile-corner-left" aria-label={`Resize ${chart.id} from the left`} {...handle('corner-left')} />
         </>
       )}
     </section>
@@ -885,7 +891,12 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
     }
     const next = { ...start };
     if (active.kind === 'right' || active.kind === 'corner') next.w = Math.min(ROW_UNITS - next.x, Math.max(minWidth(next.id), start.w + dx));
-    if (active.kind === 'bottom' || active.kind === 'corner') next.h = Math.max(minHeight(next.id), start.h + dy);
+    if (active.kind === 'corner-left') {
+      const right = start.x + start.w;
+      next.x = Math.min(right - minWidth(next.id), Math.max(0, start.x + dx));
+      next.w = right - next.x;
+    }
+    if (active.kind === 'bottom' || active.kind === 'corner' || active.kind === 'corner-left') next.h = Math.max(minHeight(next.id), start.h + dy);
     setDraft(arrangeGrid(active.start.map((item) => (item.id === active.id ? next : item)), active.id, minWidth));
   }, [colWidth, boxOf, minWidth, minHeight]);
   const onPointerUp = useCallback(() => {
@@ -983,7 +994,7 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
             {board.subtitle && <p className="board-subtitle">{board.subtitle}</p>}
           </div>
         </div>
-        {editing && <p className="board-hint">Drag a chart by its heading: dropped on a chart in its row the two swap; dropped on another row it is inserted there and the rest move down (Shift does the other). Drag an edge or corner to resize.</p>}
+        {editing && <p className="board-hint">Drag a chart by its handle at the top right: dropped on a chart in its row the two swap; dropped on another row it is inserted there and the rest move down (Shift does the other). Drag the right or bottom edge, or a bottom corner, to resize.</p>}
         {notice && <p className="board-status">{notice}</p>}
         {!live && <p className="board-status">Not live: showing the board as it was drawn.</p>}
       </header>
