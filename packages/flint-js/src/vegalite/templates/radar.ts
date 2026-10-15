@@ -199,8 +199,10 @@ function buildRadarLayers(
         data: { values: gridData.filter(d => d.__type === "spoke") },
         mark: { type: "rule", stroke: "#ddd", strokeWidth: 0.8 },
         encoding: {
-            x: { field: "__x", type: "quantitative", scale: { domain: [-domainPad, domainPad] }, axis: null },
-            y: { field: "__y", type: "quantitative", scale: { domain: opts.yDomain ?? [-domainPad, domainPad] }, axis: null },
+            // The domains as stated, not rounded out: both scales keep one pixel per unit, so the
+            // radar stays regular when its plot is shorter than it is wide.
+            x: { field: "__x", type: "quantitative", scale: { domain: [-domainPad, domainPad], nice: false, zero: false }, axis: null },
+            y: { field: "__y", type: "quantitative", scale: { domain: opts.yDomain ?? [-domainPad, domainPad], nice: false, zero: false }, axis: null },
             x2: { field: "__x2" }, y2: { field: "__y2" },
         },
     });
