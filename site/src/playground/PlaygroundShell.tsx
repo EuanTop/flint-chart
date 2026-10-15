@@ -23,7 +23,6 @@ const pages: NavEntry[] = [
       { to: 'layout-plan', label: 'Layout plan demos' },
       { to: 'overflow-viewport', label: 'Overflow viewport' },
       { to: 'zoom-clipping', label: 'Zoom clipping' },
-      { to: 'layout-plan-compare', label: 'Layout plan compare' },
       { to: 'band-stretching', label: 'Band stretching' },
       { to: 'axis-label', label: 'Axis labels' },
       { to: 'calendar-axis', label: 'Calendar axes' },
