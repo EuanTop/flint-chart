@@ -42,8 +42,9 @@ import {
 import { chartContext, type ChartGesture } from '../../src/chart-context';
 import { APP_PREVIEW_CANVAS_SIZE, usesAutoPreviewSize, withAppPreviewDefaults } from './render';
 import { boardPng } from './board-export';
+import { SelectionChips, chipText, impliedParts, partText } from './selection-chips';
 import { ActionButton, ThemeControl } from './FlintApp';
-import { LINK_LAYER, conditionUpdates, selectionParts, shownFields, type ChartLink, type LinkCondition, type LinkPart, type LinkSpec } from '../../src/link';
+import { LINK_LAYER, conditionUpdates, selectionParts, shownFields, type ChartLink, type LinkCondition, type LinkSpec } from '../../src/link';
 
 declare const __FLINT_MCP_VERSION__: string;
 
@@ -88,16 +89,6 @@ function themeName(theme: ChartAssemblyInput['theme_spec']): string {
 }
 const NO_UPDATES: readonly ChartUpdate[] = [];
 
-/** A selected value as the data writes it: a time the chart read from a date string prints as that date. */
-function valueText(value: unknown, chart: BoardChart | undefined, field: string): string {
-  const sample = ((chart?.input.data.values ?? []) as Record<string, unknown>[]).find((row) => row?.[field] != null)?.[field];
-  if (typeof value === 'number' && typeof sample === 'string') {
-    const date = new Date(value);
-    if (!Number.isNaN(date.getTime())) return date.toISOString().slice(0, sample.length <= 7 ? 7 : 10);
-  }
-  return String(value);
-}
-
 /** The board's condition with nothing in it. */
 const NO_CONDITION: LinkCondition = {};
 
@@ -118,49 +109,6 @@ interface BoardCondition {
 }
 
 const EMPTY_CONDITION: BoardCondition = { parts: NO_CONDITION, from: {}, impliedBy: {} };
-
-/** The most chips the bar shows before it folds the rest into "+N". */
-const MAX_CHIPS = 3;
-
-/**
- * The fields of one selection that another of its fields determines in the chart's rows, as each
- * country lies in one region: each maps to the field that implies it. Of two fields that determine
- * each other, the first stays shown.
- */
-function impliedParts(fields: readonly string[], rows: readonly Record<string, unknown>[]): Record<string, string> {
-  const determines = (a: string, b: string) => {
-    const seen = new Map<string, string>();
-    for (const row of rows) {
-      const key = JSON.stringify(row?.[a]);
-      const value = JSON.stringify(row?.[b]);
-      if (seen.has(key) && seen.get(key) !== value) return false;
-      seen.set(key, value);
-    }
-    return rows.length > 0;
-  };
-  const implied: Record<string, string> = {};
-  for (const b of fields) {
-    const by = fields.find((a) => a !== b && !(a in implied) && determines(a, b) && (!determines(b, a) || fields.indexOf(a) < fields.indexOf(b)));
-    if (by) implied[b] = by;
-  }
-  return implied;
-}
-
-/** A part as a short chip: `Country: 7`, `Region: Asia`, `Month: 2025-03–2025-06`. */
-function chipText(field: string, part: LinkPart, chart: BoardChart | undefined): string {
-  const named = chart?.input.field_display_names?.[field] ?? field;
-  const label = named.charAt(0).toUpperCase() + named.slice(1);
-  if ('range' in part) return `${label}: ${valueText(part.range[0], chart, field)}–${valueText(part.range[1], chart, field)}`;
-  return `${label}: ${part.in.length === 1 ? valueText(part.in[0], chart, field) : part.in.length}`;
-}
-
-/** A condition part as the reader and the model read it, dates as the data writes them. */
-function partText(field: string, part: LinkPart, chart: BoardChart | undefined): string {
-  const named = (value: unknown) => valueText(value, chart, field);
-  if ('range' in part) return `${field} from ${named(part.range[0])} to ${named(part.range[1])}`;
-  const listed = part.in.slice(0, 8).map(named).join(', ');
-  return `${field} ${part.in.length === 1 ? listed : `in ${listed}${part.in.length > 8 ? `, and ${part.in.length - 8} more` : ''}`}`;
-}
 
 /** The state without the layers other charts link in, which the board's link lines report instead. */
 function withoutLinkLayers(state: ChartState): ChartState {
@@ -735,7 +683,7 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
       if (fields.length === 0) {
         lines.push('- No selection: every chart shows all its marks.');
       } else {
-        const said = fields.map((field) => `${partText(field, now.parts[field], current.charts.find((chart) => chart.id === now.from[field]))} (selected on ${now.from[field]})`);
+        const said = fields.map((field) => `${partText(field, now.parts[field], current.charts.find((chart) => chart.id === now.from[field])?.input)} (selected on ${now.from[field]})`);
         const shown = Object.entries(current.linked).map(([id, link]) => {
           const by = shownFields(link, now.parts);
           return `${id} ${by.length > 0 ? `by ${by.join(' and ')}` : 'unaffected'}`;
@@ -995,10 +943,8 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
     .filter(([field]) => !(field in condition.impliedBy))
     .map(([field, part]) => {
       const chart = byId.get(condition.from[field]);
-      return { field, label: chipText(field, part, chart), full: partText(field, part, chart) };
+      return { field, label: chipText(field, part, chart?.input), full: partText(field, part, chart?.input) };
     });
-  const shownChips = chips.slice(0, MAX_CHIPS);
-  const moreChips = chips.slice(MAX_CHIPS);
 
   const editing = draft !== null;
   const gridHeight = grid ? Math.max(...grid.map((item) => item.y + item.h), 0) * GRID_ROW : 0;
@@ -1106,22 +1052,7 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
                 onTheme={(next) => void pickTheme(next)}
               />
             </div>
-            {chips.length > 0 && (
-              <div className="board-selection" role="status" aria-label="Selection">
-                {shownChips.map((chip) => (
-                  <span className="board-chip" key={chip.field} title={chip.full}>
-                    <span className="board-chip-text">{chip.label}</span>
-                    <button type="button" className="board-chip-clear" aria-label={`Remove ${chip.full}`} onClick={() => removePart(chip.field)}>×</button>
-                  </span>
-                ))}
-                {moreChips.length > 0 && (
-                  <span className="board-chip board-chip-more" title={moreChips.map((chip) => chip.full).join('\n')}>+{moreChips.length}</span>
-                )}
-                {chips.length > 1 && (
-                  <button type="button" className="board-selection-clear-all" onClick={clearCondition}>Clear</button>
-                )}
-              </div>
-            )}
+            <SelectionChips chips={chips} onRemove={removePart} onClear={clearCondition} />
             <span className="board-bar-fill" />
             {editing ? (
               <span className="bar-actions">

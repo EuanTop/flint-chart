@@ -57,6 +57,7 @@ describe('MCP server over HTTP (stateless streamable transport)', () => {
       'remove_chart',
       'render_chart',
       'restore_board',
+      'restore_chart_view',
       'set_board_layout',
       'set_board_theme',
       'update_board',

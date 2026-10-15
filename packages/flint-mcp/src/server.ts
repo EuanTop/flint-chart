@@ -503,6 +503,30 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
   );
 
   // --- create_chart_view (MCP App: live chart + editing panel) -----------
+  /** A create_chart_view call drawn: the report for the model, the view's payload in `_meta.flint`. */
+  const drawChartView = async (args: any) => {
+    try {
+      // The host UI renders Vega-Lite client-side and cannot read local files,
+      // so it gets the input with `data.url` read into inline `data.values`.
+      const updates = args.updates as ChartUpdate[] | undefined;
+      const { result, input } = validateChart(toAssemblyInput(args as AssemblyInputArgs), 'vegalite', {
+        ...dataSourceOptions,
+        roots: await clientRoots(),
+        updates,
+      });
+      if (!result.valid) return notDrawn(result.errors.map((e) => e.message).join('; '));
+      return {
+        content: [{ type: 'text' as const, text: chartReport(input, updates, result) }],
+        // The view's payload, with data inlined so it never sees an unreadable
+        // local data.url. `_meta` reaches the view but not the model, which
+        // reads `content` only when there is no `structuredContent`.
+        _meta: { flint: { input, ...(updates ? { updates } : {}) } },
+      };
+    } catch (err) {
+      return notDrawn(err instanceof Error ? err.message : String(err));
+    }
+  };
+
   registerAppTool(
     server,
     'create_chart_view',
@@ -531,27 +555,23 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
       inputSchema: { ...assemblyInputShape, ...updatesShape },
       _meta: { ui: { resourceUri: CHART_VIEW_RESOURCE_URI } },
     },
+    drawChartView,
+  );
+
+  registerAppTool(
+    server,
+    'restore_chart_view',
+    {
+      title: 'Restore chart view',
+      description:
+        'For the chart card only: draw the chart again from the create_chart_view arguments, ' +
+        'when a reopened conversation does not hand the card its result.',
+      inputSchema: { ...assemblyInputShape, ...updatesShape },
+      _meta: { ui: { resourceUri: CHART_VIEW_RESOURCE_URI, visibility: ['app'] } },
+    },
     async (args: any) => {
-      try {
-        // The host UI renders Vega-Lite client-side and cannot read local files,
-        // so it gets the input with `data.url` read into inline `data.values`.
-        const updates = args.updates as ChartUpdate[] | undefined;
-        const { result, input } = validateChart(toAssemblyInput(args as AssemblyInputArgs), 'vegalite', {
-          ...dataSourceOptions,
-          roots: await clientRoots(),
-          updates,
-        });
-        if (!result.valid) return notDrawn(result.errors.map((e) => e.message).join('; '));
-        return {
-          content: [{ type: 'text' as const, text: chartReport(input, updates, result) }],
-          // The view's payload, with data inlined so it never sees an unreadable
-          // local data.url. `_meta` reaches the view but not the model, which
-          // reads `content` only when there is no `structuredContent`.
-          _meta: { flint: { input, ...(updates ? { updates } : {}) } },
-        };
-      } catch (err) {
-        return notDrawn(err instanceof Error ? err.message : String(err));
-      }
+      const drawn = await drawChartView(args);
+      return { ...drawn, structuredContent: drawn._meta.flint };
     },
   );
 

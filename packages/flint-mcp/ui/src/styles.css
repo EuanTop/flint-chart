@@ -1079,8 +1079,8 @@ input[type="checkbox"] {
   border-bottom-right-radius: 3px;
 }
 
-/* The board's one selection, in the bar: a chip per part the reader acted on, each removable, and
-   a way to clear them all. It takes the room between the theme and the actions and no more. */
+/* A selection in a bar, the board's or a chart's: a chip per part the reader acted on, and a way
+   to clear it. It takes the room it needs and no more; the board's colours where there is a board. */
 .board-selection {
   flex: 0 1 auto;
   min-width: 0;
@@ -1098,10 +1098,10 @@ input[type="checkbox"] {
   gap: 2px;
   height: 22px;
   padding: 0 2px 0 8px;
-  border: 1px solid var(--board-rule);
+  border: 1px solid var(--board-rule, var(--hairline));
   border-radius: 999px;
   font-size: 11.5px;
-  color: var(--board-ink);
+  color: var(--board-ink, var(--ink));
   white-space: nowrap;
 }
 
@@ -1115,14 +1115,14 @@ input[type="checkbox"] {
 .board-chip-more {
   flex: none;
   padding: 0 8px;
-  color: var(--board-muted);
+  color: var(--board-muted, var(--muted));
 }
 
 .board-chip-clear,
 .board-selection-clear-all {
   flex: none;
   font: inherit;
-  color: var(--board-muted);
+  color: var(--board-muted, var(--muted));
   background: transparent;
   border: 0;
   cursor: pointer;
@@ -1137,8 +1137,8 @@ input[type="checkbox"] {
 }
 
 .board-chip-clear:hover {
-  color: var(--board-ink);
-  background: var(--board-rule);
+  color: var(--board-ink, var(--ink));
+  background: var(--board-rule, var(--hairline));
 }
 
 .board-selection-clear-all {
@@ -1147,7 +1147,7 @@ input[type="checkbox"] {
 }
 
 .board-selection-clear-all:hover {
-  color: var(--board-ink);
+  color: var(--board-ink, var(--ink));
   text-decoration: underline;
 }
 

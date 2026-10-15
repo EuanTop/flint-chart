@@ -96,6 +96,7 @@ describe('MCP server', () => {
       'remove_chart',
       'render_chart',
       'restore_board',
+      'restore_chart_view',
       'set_board_layout',
       'set_board_theme',
       'update_board',
@@ -589,6 +590,16 @@ describe('MCP server', () => {
         { region: 'North', revenue: 120 },
         { region: 'South', revenue: 90 },
       ]);
+      const restored: any = await dataClient.callTool({
+        name: 'restore_chart_view',
+        arguments: { ...barChart, data: { url: csvPath } },
+      });
+      expect(restored.structuredContent?.input?.data?.values).toEqual(viewInput.data.values);
+      const broken: any = await dataClient.callTool({
+        name: 'restore_chart_view',
+        arguments: { ...barChart, chart_spec: { ...barChart.chart_spec, chartType: 'No Such Chart' } },
+      });
+      expect(broken.isError).toBe(true);
     } finally {
       await dataClient.close();
       await dataServer.close();

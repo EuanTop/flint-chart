@@ -22,6 +22,8 @@ import { expressionInterpreter } from 'vega-interpreter';
 
 import { assemblePreviewSpec, renderFlintSvg, usesAutoPreviewSize, withAppPreviewDefaults } from './render';
 import { chartIconFor } from './chart-icons';
+import { SelectionChips, chipText, impliedParts, partText, type SelectionChip } from './selection-chips';
+import { selectionParts, validateLinks, type LinkCondition } from '../../src/link';
 import { chartContext, chartView, type ChartGesture } from '../../src/chart-context';
 import {
   buildPanelModel,
@@ -529,8 +531,10 @@ function OptionsBar(props: {
   onCopyPng: () => void;
   copyStatus: 'idle' | 'copying' | 'copied' | 'downloaded' | 'error';
   copyError: string | null;
+  /** What the reader selected on the chart, shown with the actions. */
+  selection?: React.ReactNode;
 }) {
-  const { input, customTheme, model, onInput, onReset, canReset, onCopyPng, copyStatus, copyError } = props;
+  const { input, customTheme, model, onInput, onReset, canReset, onCopyPng, copyStatus, copyError, selection } = props;
   const gridRef = useRef<HTMLDivElement>(null);
   const themeRef = useRef<HTMLDivElement>(null);
   const transformRef = useRef<HTMLDivElement>(null);
@@ -605,6 +609,8 @@ function OptionsBar(props: {
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(grid);
+    // The selection sits with the actions, so the controls make room as it grows and shrinks.
+    if (actionsRef.current) observer.observe(actionsRef.current);
     return () => observer.disconnect();
   }, [hasTransform, layoutKey]);
 
@@ -699,6 +705,7 @@ function OptionsBar(props: {
           </div>
         </div>
         <span className="bar-actions" ref={actionsRef}>
+          {selection}
           <ActionButton
             className="bar-reset"
             onClick={onReset}
@@ -930,17 +937,57 @@ export function FlintAppInner(props: {
     const kept = mounted ? mountWarnings : mountWarnings.filter((warning) => !UPDATE_WARNINGS.has(warning.code));
     shownWarnings.current = [...assembled.warnings, ...kept];
     const state = surface.getState();
-    if (state) sendContext(state);
+    if (state) {
+      setChartState(state);
+      sendContext(state);
+    }
   }, [assembled.warnings, sendContext, updates]);
   // Host updates also report changes; the render after them sends the context once.
   // A preview is too frequent for it.
   const handleChange = useCallback((change: ChartChange) => {
+    if (change.phase === 'commit') setChartState(change.state);
     if (change.phase !== 'commit' || change.source === 'host') return;
     if (change.interactionId) gestures.current.set(change.interactionId, { action: change.action, geometry: change.geometry });
     sendContext(change.state);
   }, [sendContext]);
   const warnings = [...assembled.warnings, ...surfaceWarnings];
   const shownError = assembled.error;
+
+  // The reader's selection as chips: what each of its kept gestures selected, by the fields the
+  // gesture is about; a field another one implies applies without a chip.
+  const [chartState, setChartState] = useState<ChartState | null>(null);
+  const linked = useMemo(() => {
+    const encodings = current.chart_spec.encodings ?? {};
+    const identityFirst = Object.entries(encodings).sort(([a], [b]) => Number(b === 'detail') - Number(a === 'detail') || Number(b === 'color') - Number(a === 'color'));
+    const fields = [...new Set(identityFirst.map(([, encoding]) => encoding)
+      .map((encoding) => (typeof encoding === 'string' ? encoding : (encoding as { field?: string } | null)?.field))
+      .filter((field): field is string => typeof field === 'string'))];
+    try {
+      return validateLinks({ chart: current }, { fields }).chart;
+    } catch {
+      return undefined;
+    }
+  }, [current]);
+  const selected = useMemo(() => {
+    if (!chartState || !linked) return { chips: [] as SelectionChip[], layers: [] as string[] };
+    const agentIds = new Set(updates.map((update) => update.id));
+    const parts: LinkCondition = {};
+    const layers: string[] = [];
+    for (const [interaction, gesture] of Object.entries(linked.gestures)) {
+      const entry = chartState.entries?.get(interaction);
+      if (gesture.hover || agentIds.has(interaction) || !entry || entry.layer !== 'retained' || entry.elements.length === 0) continue;
+      Object.assign(parts, selectionParts(entry.elements, gesture));
+      layers.push(interaction);
+    }
+    const implied = impliedParts(Object.keys(parts), (current.data.values ?? []) as Record<string, unknown>[]);
+    const chips = Object.entries(parts)
+      .filter(([field]) => !(field in implied))
+      .map(([field, part]) => ({ field, label: chipText(field, part, current), full: partText(field, part, current) }));
+    return { chips, layers };
+  }, [chartState, linked, updates, current]);
+  const clearSelection = useCallback(() => {
+    for (const layer of selected.layers) void shownSurface.current?.clearUpdate(layer);
+  }, [selected.layers]);
 
   return (
     <main
@@ -1005,12 +1052,22 @@ export function FlintAppInner(props: {
         onCopyPng={handleCopyPng}
         copyStatus={copyStatus}
         copyError={copyError}
+        selection={<SelectionChips chips={selected.chips} onClear={clearSelection} />}
       />
     </main>
   );
 }
 
 const NO_UPDATES: readonly ChartUpdate[] = [];
+
+/** How long the card waits for the call's result before it draws the chart from the call itself. */
+const RESULT_WAIT_MS = 2500;
+/** How long it waits for anything at all before it says the chart cannot be redrawn here. */
+const NOTHING_WAIT_MS = 6000;
+const NOT_REDRAWN =
+  'This chart cannot be redrawn here: the call that made it did not reach this card again, as can happen when a conversation is reopened. Ask Claude to show the chart again.';
+
+type ViewPayload = { input?: ChartAssemblyInput; updates?: ChartUpdate[]; error?: string };
 
 export function FlintApp() {
   const [input, setInput] = useState<ChartAssemblyInput | null>(null);
@@ -1019,6 +1076,9 @@ export function FlintApp() {
   const [notDrawn, setNotDrawn] = useState<string | null>(null);
   const [hostContext, setHostContext] = useState<McpUiHostContext | undefined>();
   const toolArgs = useRef<(ChartAssemblyInput & { updates?: ChartUpdate[] }) | undefined>(undefined);
+  const resultFailed = useRef(false);
+  const inputSeen = useRef(false);
+  inputSeen.current = input !== null;
 
   const { app, error } = useApp({
     appInfo: { name: 'Flint Chart', version: __FLINT_MCP_VERSION__ },
@@ -1037,10 +1097,10 @@ export function FlintApp() {
         // The view's payload is in `_meta.flint`, which the model does not read;
         // `structuredContent` is the fallback, then the raw args when they carry
         // inline rows (a local `data.url` cannot be read in the browser).
-        type Payload = { input?: ChartAssemblyInput; updates?: ChartUpdate[]; error?: string };
-        const { _meta, structuredContent } = result as { _meta?: { flint?: Payload }; structuredContent?: Payload };
+        const { _meta, structuredContent } = result as { _meta?: { flint?: ViewPayload }; structuredContent?: ViewPayload };
         const structured = _meta?.flint ?? structuredContent;
         if (result.isError) {
+          resultFailed.current = true;
           setNotDrawn(structured?.error ?? '');
           return;
         }
@@ -1058,6 +1118,40 @@ export function FlintApp() {
 
   useEffect(() => {
     if (app) setHostContext(app.getHostContext());
+  }, [app]);
+
+  // A reopened conversation may not hand the card its result again. The card then asks the server
+  // to draw the chart from the call's own arguments; with nothing to draw from, it says so.
+  useEffect(() => {
+    if (!app) return;
+    let stopped = false;
+    const redraw = async () => {
+      if (stopped || inputSeen.current || resultFailed.current) return;
+      const args = toolArgs.current;
+      if (!args?.chart_spec) return;
+      try {
+        const result = await app.callServerTool({ name: 'restore_chart_view', arguments: args as unknown as Record<string, unknown> });
+        const payload = result.structuredContent as ViewPayload | undefined;
+        if (stopped || inputSeen.current || resultFailed.current) return;
+        if (result.isError || !payload?.input) {
+          setNotDrawn(payload?.error ?? NOT_REDRAWN);
+          return;
+        }
+        setUpdates(payload.updates ?? NO_UPDATES);
+        setInput(payload.input);
+      } catch {
+        if (!stopped && !inputSeen.current) setNotDrawn(NOT_REDRAWN);
+      }
+    };
+    const first = window.setTimeout(() => void redraw(), RESULT_WAIT_MS);
+    const last = window.setTimeout(() => {
+      if (!stopped && !inputSeen.current && !resultFailed.current && !toolArgs.current) setNotDrawn(NOT_REDRAWN);
+    }, NOTHING_WAIT_MS);
+    return () => {
+      stopped = true;
+      window.clearTimeout(first);
+      window.clearTimeout(last);
+    };
   }, [app]);
 
   if (error) {
