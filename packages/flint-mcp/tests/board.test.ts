@@ -51,17 +51,21 @@ async function read(boardId: string, version?: number): Promise<any> {
 }
 
 describe('board tools', () => {
-  it('create_board opens the board view with every valid chart and reports each link', async () => {
+  it('create_board opens the board view with every valid chart and reports what each chart links', async () => {
     const result: any = await client.callTool({
       name: 'create_board',
-      arguments: { title: 'Countries', charts: [scatter, bars], links: [{ from: 'countries', to: ['by-country'], field: 'country' }] },
+      arguments: { title: 'Countries', charts: [scatter, bars], link_spec: { fields: ['country', 'region'] } },
     });
     expect(result.isError).toBeFalsy();
     expect(text(result)).toContain('2 charts (countries, by-country)');
     expect(text(result)).toContain('## countries');
-    expect(text(result)).toContain('✓ countries → by-country on country');
+    expect(text(result)).toContain('Links (fields: country, region; one selection the whole board shares):');
+    expect(text(result)).toContain('✓ countries: sends region by select; receives region; leaves out country: its marks do not carry country');
+    expect(text(result)).toContain('✓ by-country: receives country; leaves out region: its marks do not carry region');
+    expect(text(result)).toContain('sends nothing: no interaction that selects');
     const board = result._meta.flint.board;
     expect(board.charts.map((chart: any) => chart.id)).toEqual(['countries', 'by-country']);
+    expect(board.linked['by-country']).toMatchObject({ sends: [], receives: ['country'] });
     expect(board.version).toBe(1);
 
     const { tools } = await client.listTools();
@@ -71,34 +75,38 @@ describe('board tools', () => {
     expect(readTool._meta.ui.visibility).toEqual(['app']);
   });
 
-  it('flags a link whose source cannot select or whose field is missing', async () => {
+  it('marks a chart that joins no field, honours receive: false, and names an unknown chart', async () => {
     const result: any = await client.callTool({
       name: 'create_board',
-      arguments: {
-        charts: [scatter, bars],
-        links: [
-          { from: 'by-country', to: ['countries'], field: 'country' },
-          { from: 'countries', to: ['by-country'], field: 'continent' },
-        ],
-      },
+      arguments: { charts: [scatter, bars], link_spec: { fields: ['continent', 'region'], charts: { countries: { receive: false }, ghost: {} } } },
     });
-    expect(text(result)).toContain('✗ by-country → countries on country: "by-country" has no interaction that selects marks');
-    expect(text(result)).toContain('✗ countries → by-country on continent: "countries" has no field continent in its data.');
+    expect(text(result)).toContain('✓ countries: sends region by select; leaves out continent: no field continent in its data; receives nothing (receive: false)');
+    expect(text(result)).toContain('✗ by-country: not linked; leaves out continent');
+    expect(text(result)).toContain('✗ ghost: not linked; no chart "ghost" on the board');
   });
 
-  it('flags a link target whose marks do not carry the link field', async () => {
+  it('links a chart once its marks carry the field', async () => {
     const clickable = { ...bars, interaction_spec: { interactions: [{ type: 'click-highlight' }] } };
     const result: any = await client.callTool({
       name: 'create_board',
-      arguments: { charts: [scatter, clickable], links: [{ from: 'by-country', to: ['countries'], field: 'country' }] },
+      arguments: { charts: [scatter, clickable], link_spec: { fields: ['country'] } },
     });
-    expect(text(result)).toContain('✗ by-country → countries on country: "countries" cannot emphasize marks by country');
+    expect(text(result)).toContain('✗ countries: not linked; leaves out country: its marks do not carry country; encode it, on detail');
     const detailed = { ...scatter, chart_spec: { ...scatter.chart_spec, encodings: { ...scatter.chart_spec.encodings, detail: 'country' } } };
     const fixed: any = await client.callTool({
       name: 'create_board',
-      arguments: { charts: [detailed, clickable], links: [{ from: 'by-country', to: ['countries'], field: 'country' }] },
+      arguments: { charts: [detailed, clickable], link_spec: { fields: ['country'] } },
     });
-    expect(text(fixed)).toContain('✓ by-country → countries on country');
+    expect(text(fixed)).toContain('✓ countries: sends country by select; receives country');
+    expect(text(fixed)).toContain('✓ by-country: sends country by click-highlight; receives country');
+
+    const hovering = { ...detailed, interaction_spec: { interactions: [{ type: 'select' }, { type: 'hover-group-focus', options: { groupBy: 'region' } }] } };
+    const both: any = await client.callTool({
+      name: 'create_board',
+      arguments: { charts: [hovering, clickable], link_spec: { fields: ['country', 'region'] } },
+    });
+    expect(text(both)).toContain('✓ countries: sends country + region by select, region by hover-group-focus (hover); receives country, region');
+    expect(both._meta.flint.board.linked.countries.gestures['hover-group-focus']).toEqual({ preset: 'hover-group-focus', fields: ['region'], hover: true });
   });
 
   it('leaves a chart with errors off the board and says why', async () => {
@@ -142,14 +150,15 @@ describe('board tools', () => {
     expect(text(broken)).toContain('✗ not drawn');
     expect((await read(id)).board.charts[1].input.chart_spec.title).toBe('Income by country');
 
-    await client.callTool({ name: 'update_board', arguments: { board_id: id, order: ['by-country'], links: [{ from: 'countries', to: ['by-country'], field: 'country' }] } });
+    await client.callTool({ name: 'update_board', arguments: { board_id: id, order: ['by-country'], link_spec: { fields: ['country'], charts: { 'by-country': { send: false } } } } });
     const reordered = await read(id);
     expect(reordered.board.charts.map((entry: any) => entry.id)).toEqual(['by-country', 'countries']);
 
     await client.callTool({ name: 'remove_chart', arguments: { board_id: id, chart_id: 'by-country' } });
     const removed = await read(id);
     expect(removed.board.charts.map((entry: any) => entry.id)).toEqual(['countries']);
-    expect(removed.board.links).toEqual([]);
+    expect(removed.board.link_spec).toEqual({ fields: ['country'], charts: {} });
+    expect(Object.keys(removed.board.linked)).toEqual(['countries']);
   });
 
   it('tells the model to create a board when the id is unknown', async () => {

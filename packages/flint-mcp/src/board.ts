@@ -3,13 +3,14 @@
 
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
-import { validateChart, type ChartAssemblyInput, type ChartUpdate, type ValidateResult } from 'flint-chart';
+import type { ChartAssemblyInput, ChartUpdate, ValidateResult } from 'flint-chart';
 
 import { ROW_UNITS, boardColumns, boardRows, colorField, gridItemFor, gridLines, isKpi, layoutLines, sharedColorOrders, type ChartLayout, type GridItem } from './board-layout.js';
 
 /** The characters of a chart title that fit on one line per row unit, at the card's heading size. */
 const TITLE_CHARS_PER_UNIT = 7.5;
 import { chartContext } from './chart-context.js';
+import { linkLines, validateLinks, type ChartLink, type LinkSpec } from './link.js';
 import { toAssemblyInput, updatesShape, type AssemblyInputArgs } from './tools/schemas.js';
 
 /** One chart on a board: the spec with its data inline, and the agent's update layers. */
@@ -18,13 +19,6 @@ export interface BoardChart {
   input: ChartAssemblyInput;
   updates?: ChartUpdate[];
   layout?: ChartLayout;
-}
-
-/** A selection on `from` emphasizes the marks of each `to` chart that share its `field` values. */
-export interface BoardLink {
-  from: string;
-  to: string[];
-  field: string;
 }
 
 export interface Board {
@@ -43,7 +37,10 @@ export interface Board {
   grid?: GridItem[];
   version: number;
   charts: BoardChart[];
-  links: BoardLink[];
+  /** The fields the charts connect on; none when the charts stand alone. */
+  link_spec?: LinkSpec;
+  /** What each chart sends and receives under `link_spec`, checked on each write. */
+  linked?: Record<string, ChartLink>;
 }
 
 /** A chart spec as a tool argument: its id, the chart input, and its update layers. */
@@ -73,7 +70,7 @@ type Validate = (input: ChartAssemblyInput, updates: ChartUpdate[] | undefined) 
 
 export function boardChartShape(assemblyInputShape: Record<string, z.ZodTypeAny>) {
   return z.object({
-    id: z.string().describe('Names the chart on the board; add_chart, update_chart, remove_chart and links use it.'),
+    id: z.string().describe('Names the chart on the board; add_chart, update_chart, remove_chart and link_spec use it.'),
     ...assemblyInputShape,
     updates: updatesShape.updates.describe(
       'ChartUpdate layers the chart shows: state, where interaction_spec is behaviour. update_chart replaces them.',
@@ -82,15 +79,17 @@ export function boardChartShape(assemblyInputShape: Record<string, z.ZodTypeAny>
   });
 }
 
-export const linksShape = z
-  .array(
-    z.object({
-      from: z.string().describe('The chart a reader selects on; it needs an interaction that selects (select, brush-x, brush-y, click-highlight, click-group-focus, lasso-select).'),
-      to: z.array(z.string()).describe('The charts that emphasize the matching marks.'),
-      field: z.string().describe('The field the charts share; marks match on equal values. The source needs it in its data; each target must encode it on a channel (detail works when nothing else shows it).'),
-    }),
-  )
-  .describe('Links between charts on the board: what a reader selects on one chart is emphasized on the others.');
+export const linkSpecShape = z
+  .object({
+    fields: z.array(z.string()).describe(
+      'The fields the charts connect on (e.g. ["country", "region"]). A selection is about the fields its interaction selects by: a clicked mark all of them it carries, a group focus its group field, a brush its axis field. Every other chart emphasizes its marks that match on each of those fields it carries. A chart joins a field only if its marks carry it: encode it, on detail if nothing else shows it.',
+    ),
+    charts: z
+      .record(z.string(), z.object({ send: z.boolean().optional(), receive: z.boolean().optional() }))
+      .optional()
+      .describe('Per chart id: send: false keeps its selections to itself; receive: false keeps it as drawn, as an overview does.'),
+  })
+  .describe('How the charts on the board connect: by the fields they share. One selection holds at a time; a new one replaces the last.');
 
 /** The most boards a store keeps; creating one more drops the oldest. */
 export const BOARD_LIMIT = 200;
@@ -99,7 +98,7 @@ export class BoardStore {
   private boards = new Map<string, Board>();
 
   create(fields: BoardFields): Board {
-    const board: Board = { id: `board-${randomBytes(8).toString('hex')}`, ...fields, version: 1, charts: [], links: [] };
+    const board: Board = { id: `board-${randomBytes(8).toString('hex')}`, ...fields, version: 1, charts: [] };
     this.boards.set(board.id, board);
     if (this.boards.size > BOARD_LIMIT) this.boards.delete(this.boards.keys().next().value!);
     return board;
@@ -152,50 +151,11 @@ export async function prepareChart(
   };
 }
 
-const SELECTING_PRESETS = new Set(['select', 'brush-x', 'brush-y', 'click-highlight', 'click-group-focus', 'lasso-select']);
-
-function presetTypes(input: ChartAssemblyInput): string[] {
-  const entries = (input.interaction_spec as { interactions?: readonly unknown[] } | undefined)?.interactions ?? [];
-  return entries
-    .map((entry) => (typeof entry === 'string' ? entry : (entry as { type?: unknown } | null)?.type))
-    .filter((type): type is string => typeof type === 'string');
-}
-
-function sampleValue(chart: BoardChart, field: string): unknown {
-  const rows = (chart.input.data.values ?? []) as Record<string, unknown>[];
-  return rows.find((row) => row != null && row[field] !== undefined && row[field] !== null)?.[field];
-}
-
-/** Why the chart's marks cannot be emphasized by `field`, the way a link emphasizes them; undefined when they can. */
-function linkTargetProblem(chart: BoardChart, field: string): string | undefined {
-  const value = sampleValue(chart, field);
-  if (value === undefined) return `"${chart.id}" has no field ${field} in its data.`;
-  const probe: ChartUpdate = {
-    id: 'link-probe',
-    ops: [{ op: 'set-style', targets: [{ select: { key: { [field]: value } } }], value: { state: 'emphasized' } }],
-  } as ChartUpdate;
-  const op = validateChart(chart.input, 'vegalite', { updates: [probe] }).updates?.[0]?.ops[0];
-  return op && !op.ok ? `"${chart.id}" cannot emphasize marks by ${field}: ${op.reason ?? 'the update does not apply'}` : undefined;
-}
-
-/** Each link as a line: ✓ when it can work on the board's charts, else ✗ and why. */
-export function linkLines(board: Board): string[] {
-  return board.links.map((link) => {
-    const name = `${link.from} → ${link.to.join(', ')} on ${link.field}`;
-    const from = board.charts.find((chart) => chart.id === link.from);
-    if (!from) return `✗ ${name}: no chart "${link.from}" on the board.`;
-    if (!presetTypes(from.input).some((type) => SELECTING_PRESETS.has(type))) {
-      return `✗ ${name}: "${link.from}" has no interaction that selects marks; add one such as select or click-highlight to its interaction_spec.`;
-    }
-    if (sampleValue(from, link.field) === undefined) return `✗ ${name}: "${link.from}" has no field ${link.field} in its data.`;
-    for (const id of link.to) {
-      const chart = board.charts.find((entry) => entry.id === id);
-      if (!chart) return `✗ ${name}: no chart "${id}" on the board.`;
-      const problem = linkTargetProblem(chart, link.field);
-      if (problem) return `✗ ${name}: ${problem}`;
-    }
-    return `✓ ${name}`;
-  });
+/** Checks what each chart sends and receives under the board's link spec; called after each write. */
+export function relink(board: Board): void {
+  board.linked = board.link_spec
+    ? validateLinks(Object.fromEntries(board.charts.map((chart) => [chart.id, chart.input])), board.link_spec)
+    : undefined;
 }
 
 function layoutCharts(board: Board) {
@@ -268,8 +228,9 @@ export function boardReport(board: Board, outcomes: readonly ChartOutcome[], not
   for (const outcome of outcomes) {
     lines.push('', `## ${outcome.id}`, outcome.text);
   }
-  const links = linkLines(board);
-  if (links.length > 0) lines.push('', 'Links:', ...links);
+  if (board.link_spec && board.linked) {
+    lines.push('', `Links (fields: ${board.link_spec.fields.join(', ')}; one selection the whole board shares):`, ...linkLines(board.linked));
+  }
   const review = boardReview(board);
   if (review.length > 0) lines.push('', 'Review:', ...review.map((note) => `- ${note}`));
   return lines.join('\n');
@@ -280,7 +241,8 @@ export function boardSnapshot(board: Board): Board {
   return {
     ...board,
     charts: board.charts.map((chart) => ({ ...chart })),
-    links: board.links.map((link) => ({ ...link })),
+    ...(board.link_spec ? { link_spec: { ...board.link_spec } } : {}),
+    ...(board.linked ? { linked: { ...board.linked } } : {}),
     ...(board.grid ? { grid: board.grid.map((item) => ({ ...item })) } : {}),
   };
 }

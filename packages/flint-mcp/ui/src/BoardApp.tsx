@@ -15,7 +15,7 @@ import { useApp } from '@modelcontextprotocol/ext-apps/react';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import type { ChartAssemblyInput, ChartUpdate, ChartWarning, UpdateCheck } from 'flint-chart';
 import { assembleVegaLite, resolveThemeSpec, validateChart } from 'flint-chart';
-import type { ChartChange, ChartState, InteractiveChartSurface, SemanticElement } from 'flint-chart/interactive';
+import type { ChartChange, ChartState, InteractiveChartSurface } from 'flint-chart/interactive';
 import { FlintChart } from 'flint-chart/react';
 import { expressionInterpreter } from 'vega-interpreter';
 
@@ -40,6 +40,7 @@ import {
   type ChartLayout,
 } from '../../src/board-layout';
 import { chartContext, type ChartGesture } from '../../src/chart-context';
+import { LINK_LAYER, conditionUpdates, selectionParts, shownFields, type ChartLink, type LinkCondition, type LinkPart, type LinkSpec } from '../../src/link';
 
 declare const __FLINT_MCP_VERSION__: string;
 
@@ -48,12 +49,6 @@ interface BoardChart {
   input: ChartAssemblyInput;
   updates?: ChartUpdate[];
   layout?: ChartLayout;
-}
-
-interface BoardLink {
-  from: string;
-  to: string[];
-  field: string;
 }
 
 interface Board {
@@ -66,26 +61,12 @@ interface Board {
   grid?: GridItem[];
   version: number;
   charts: BoardChart[];
-  links: BoardLink[];
+  link_spec?: LinkSpec;
+  linked?: Record<string, ChartLink>;
 }
 
 const POLL_MS = 1500;
-const MUTED_OPACITY = 0.2;
-const LINK_PREFIX = 'linked-from-';
 const NO_UPDATES: readonly ChartUpdate[] = [];
-const NO_ELEMENTS: readonly SemanticElement[] = [];
-
-function fieldValues(elements: readonly SemanticElement[], field: string): unknown[] {
-  const values = new Map<string, unknown>();
-  for (const element of elements) {
-    const own = element.value?.[field];
-    const found = own !== undefined ? [own] : (element.records ?? []).map((record) => record[field]);
-    for (const value of found) {
-      if (value !== undefined && value !== null) values.set(JSON.stringify(value), value);
-    }
-  }
-  return [...values.values()];
-}
 
 /** A selected value as the data writes it: a time the chart read from a date string prints as that date. */
 function valueText(value: unknown, chart: BoardChart | undefined, field: string): string {
@@ -97,30 +78,31 @@ function valueText(value: unknown, chart: BoardChart | undefined, field: string)
   return String(value);
 }
 
-function linkUpdate(link: BoardLink, values: readonly unknown[]): ChartUpdate {
-  return {
-    id: `${LINK_PREFIX}${link.from}:${link.field}`,
-    ops: [{
-      op: 'set-style',
-      targets: values.map((value) => ({ select: { key: { [link.field]: value } } })),
-      value: { state: 'emphasized', mutedOpacity: MUTED_OPACITY },
-    }],
-  } as ChartUpdate;
+/** The board's condition with nothing in it. */
+const NO_CONDITION: LinkCondition = {};
+
+/** The parts a chart's gesture holds after the reader used it, or null when it holds no marks. */
+function gestureParts(link: ChartLink, interaction: string, state: ChartState, hover: boolean): LinkCondition | null {
+  const gesture = link.gestures[interaction];
+  if (!gesture || gesture.hover !== hover) return null;
+  const entry = state.entries?.get(interaction);
+  if (!entry || entry.elements.length === 0 || entry.layer !== (hover ? 'preview' : 'retained')) return null;
+  const parts = selectionParts(entry.elements, gesture);
+  return Object.keys(parts).length > 0 ? parts : null;
 }
 
-/** The marks a reader's own gestures retain: neither the agent's layers nor what other charts link in. */
-function readerElements(state: ChartState, chart: BoardChart | undefined): readonly SemanticElement[] {
-  const agentIds = new Set((chart?.updates ?? []).map((update) => update.id));
-  const elements = [...(state.entries ?? [])]
-    .filter(([id, entry]) => entry.layer === 'retained' && !agentIds.has(id) && !id.startsWith(LINK_PREFIX))
-    .flatMap(([, entry]) => entry.elements);
-  return elements.length > 0 ? elements : NO_ELEMENTS;
+/** A condition part as the reader and the model read it, dates as the data writes them. */
+function partText(field: string, part: LinkPart, chart: BoardChart | undefined): string {
+  const named = (value: unknown) => valueText(value, chart, field);
+  if ('range' in part) return `${field} from ${named(part.range[0])} to ${named(part.range[1])}`;
+  const listed = part.in.slice(0, 8).map(named).join(', ');
+  return `${field} ${part.in.length === 1 ? listed : `in ${listed}${part.in.length > 8 ? `, and ${part.in.length - 8} more` : ''}`}`;
 }
 
 /** The state without the layers other charts link in, which the board's link lines report instead. */
 function withoutLinkLayers(state: ChartState): ChartState {
-  if (![...(state.entries?.keys() ?? [])].some((id) => id.startsWith(LINK_PREFIX))) return state;
-  return { ...state, entries: new Map([...(state.entries ?? [])].filter(([id]) => !id.startsWith(LINK_PREFIX))) };
+  if (!state.entries?.has(LINK_LAYER)) return state;
+  return { ...state, entries: new Map([...state.entries].filter(([id]) => id !== LINK_LAYER)) };
 }
 
 const checksCache = new WeakMap<BoardChart, readonly UpdateCheck[] | undefined>();
@@ -489,8 +471,12 @@ function useStableCharts(board: Board): BoardChart[] {
 function BoardView({ app, initial, hostContext }: { app: App; initial: Board; hostContext?: McpUiHostContext }) {
   const [board, setBoard] = useState(initial);
   const [live, setLive] = useState(true);
-  // The reader's own selected marks on each chart that is the source of a link.
-  const [selections, setSelections] = useState<ReadonlyMap<string, readonly SemanticElement[]>>(new Map());
+  // The board's one selection, from the chart the reader selected on last, with the layers that hold it there.
+  // The board's one condition, and the chart each part came from, which names its values.
+  const [condition, setCondition] = useState<{ parts: LinkCondition; from: Record<string, string> }>({ parts: NO_CONDITION, from: {} });
+  // A hover previews its parts over the condition while the pointer stays.
+  const [hovered, setHovered] = useState<{ source: string; parts: LinkCondition } | null>(null);
+  const surfaces = useRef(new Map<string, InteractiveChartSurface>());
   const charts = useStableCharts(board);
   const states = useRef(new Map<string, ChartState>());
   const warnings = useRef(new Map<string, readonly ChartWarning[]>());
@@ -500,8 +486,8 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
   boardRef.current = board;
   const chartsRef = useRef(charts);
   chartsRef.current = charts;
-  const selectionsRef = useRef(selections);
-  selectionsRef.current = selections;
+  const conditionRef = useRef(condition);
+  conditionRef.current = condition;
   // While the reader arranges the board, the draft is what the card shows; polls wait until they are done.
   const [draft, setDraft] = useState<GridItem[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -544,30 +530,72 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
     };
   }, [app]);
 
-  const setSelection = useCallback((id: string, elements: readonly SemanticElement[]) => {
-    setSelections((prev) => {
-      const had = prev.get(id) ?? NO_ELEMENTS;
-      if (had === elements || (had.length === 0 && elements.length === 0)) return prev;
-      const next = new Map(prev);
-      if (elements.length > 0) next.set(id, elements);
-      else next.delete(id);
-      return next;
-    });
+  const clearCondition = useCallback(() => {
+    setCondition((current) => (Object.keys(current.parts).length === 0 ? current : { parts: NO_CONDITION, from: {} }));
   }, []);
 
+  /**
+   * Reads a gesture the reader committed. Its parts join the board's condition, a field the
+   * condition already has taking the new part; a gesture that let its marks go clears the whole
+   * condition. The chart then drops its own emphasis, so every chart shows the one condition.
+   */
+  const readSelection = useCallback((id: string, change: ChartChange) => {
+    const link = boardRef.current.linked?.[id];
+    const interaction = change.interactionId;
+    if (!link || !interaction || !link.gestures[interaction] || link.gestures[interaction].hover) return;
+    const parts = gestureParts(link, interaction, change.state, false);
+    if (!parts) {
+      clearCondition();
+      return;
+    }
+    setCondition((current) => ({
+      parts: { ...current.parts, ...parts },
+      from: { ...current.from, ...Object.fromEntries(Object.keys(parts).map((field) => [field, id])) },
+    }));
+    void surfaces.current.get(id)?.clearUpdate(interaction);
+  }, [clearCondition]);
+
+  /** Reads a hover: its parts preview over the condition while the pointer stays. */
+  const readHover = useCallback((id: string, change: ChartChange) => {
+    const link = boardRef.current.linked?.[id];
+    const interaction = change.interactionId;
+    if (!link || !interaction || !link.gestures[interaction]?.hover) return false;
+    const parts = change.phase === 'preview' ? gestureParts(link, interaction, change.state, true) : null;
+    setHovered((current) => {
+      if (!parts) return current?.source === id ? null : current;
+      return current && current.source === id && JSON.stringify(current.parts) === JSON.stringify(parts) ? current : { source: id, parts };
+    });
+    return true;
+  }, []);
+
+  // Parts on fields the board no longer connects on let go.
+  useEffect(() => {
+    const fields = new Set(board.link_spec?.fields ?? []);
+    setCondition((current) => {
+      const kept = Object.entries(current.parts).filter(([field]) => fields.has(field));
+      return kept.length === Object.keys(current.parts).length ? current : { parts: Object.fromEntries(kept), from: current.from };
+    });
+  }, [board.link_spec]);
+
+  // Escape anywhere on the card clears the condition, whichever chart has focus.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') clearCondition(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [clearCondition]);
+
   const updatesById = useMemo(() => {
+    const shown = hovered ? { ...condition.parts, ...hovered.parts } : condition.parts;
+    const linked = board.linked ? conditionUpdates(board.linked, shown) : new Map<string, ChartUpdate>();
     const result = new Map<string, readonly ChartUpdate[]>();
     for (const chart of charts) {
       const layers: ChartUpdate[] = [...(chart.updates ?? [])];
-      for (const link of board.links) {
-        if (!link.to.includes(chart.id) || link.from === chart.id) continue;
-        const values = fieldValues(selections.get(link.from) ?? NO_ELEMENTS, link.field);
-        if (values.length > 0) layers.push(linkUpdate(link, values));
-      }
+      const layer = linked.get(chart.id);
+      if (layer) layers.push(layer);
       result.set(chart.id, layers.length > 0 ? layers : NO_UPDATES);
     }
     return result;
-  }, [charts, board.links, selections]);
+  }, [charts, board.linked, condition, hovered]);
 
   const sendContext = useCallback(() => {
     const current = boardRef.current;
@@ -591,15 +619,22 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
       }).text;
       lines.push('', `## ${chart.id}`, text);
     }
-    const linkLines = current.links.map((link) => {
-      const values = fieldValues(selectionsRef.current.get(link.from) ?? NO_ELEMENTS, link.field);
-      const named = values.map((value) => valueText(value, current.charts.find((chart) => chart.id === link.from), link.field));
-      const shown = values.length > 0
-        ? `the reader's selection on ${link.from} (${link.field} ${named.slice(0, 8).join(', ')}${values.length > 8 ? `, and ${values.length - 8} more` : ''}) is emphasized on ${link.to.join(', ')}`
-        : 'no selection';
-      return `- ${link.from} → ${link.to.join(', ')} on ${link.field}: ${shown}.`;
-    });
-    if (linkLines.length > 0) lines.push('', 'Links:', ...linkLines);
+    const spec = current.link_spec;
+    if (spec && current.linked) {
+      lines.push('', `Links (fields: ${spec.fields.join(', ')}):`);
+      const now = conditionRef.current;
+      const fields = Object.keys(now.parts);
+      if (fields.length === 0) {
+        lines.push('- No selection: every chart shows all its marks.');
+      } else {
+        const said = fields.map((field) => `${partText(field, now.parts[field], current.charts.find((chart) => chart.id === now.from[field]))} (selected on ${now.from[field]})`);
+        const shown = Object.entries(current.linked).map(([id, link]) => {
+          const by = shownFields(link, now.parts);
+          return `${id} ${by.length > 0 ? `by ${by.join(' and ')}` : 'unaffected'}`;
+        });
+        lines.push(`- The board is narrowed to ${said.join(' and ')}.`, `- Each chart shows it on the fields its marks carry: ${shown.join('; ')}.`);
+      }
+    }
     if (current.grid) lines.push('', 'Layout, as the reader arranged it on a 12-column grid:', ...gridLines(current.grid));
     const text = lines.join('\n');
     if (text === lastContext.current) return;
@@ -607,25 +642,23 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
     void app.updateModelContext({ content: [{ type: 'text', text }] })
       .catch((err) => console.warn('The host declined the board context', err));
   }, [app]);
-  useEffect(() => sendContext(), [board, charts, selections, sendContext]);
+  useEffect(() => sendContext(), [board, charts, condition, sendContext]);
 
   const handleRender = useCallback((id: string, surface: InteractiveChartSurface) => {
     const state = surface.getState();
-    if (state) {
-      states.current.set(id, state);
-      // A redrawn source keeps only the selection its new surface holds.
-      if (boardRef.current.links.some((link) => link.from === id)) {
-        setSelection(id, readerElements(state, chartsRef.current.find((chart) => chart.id === id)));
-      }
-    }
+    surfaces.current.set(id, surface);
+    if (state) states.current.set(id, state);
     sendContext();
-  }, [sendContext, setSelection]);
+  }, [sendContext]);
 
   const handleWarnings = useCallback((id: string, next: readonly ChartWarning[]) => {
     warnings.current.set(id, next);
   }, []);
 
   const handleChange = useCallback((id: string, change: ChartChange) => {
+    if (change.source !== 'host' && readHover(id, change)) return;
+    // A reset on any chart lets the board's condition go everywhere.
+    if (change.source === 'reader' && change.reset) clearCondition();
     if (change.phase !== 'commit') return;
     states.current.set(id, change.state);
     if (change.source === 'host') {
@@ -637,11 +670,9 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
       if (!byChart) gestures.current.set(id, (byChart = new Map()));
       byChart.set(change.interactionId, { action: change.action, geometry: change.geometry });
     }
-    if (boardRef.current.links.some((link) => link.from === id)) {
-      setSelection(id, readerElements(change.state, chartsRef.current.find((chart) => chart.id === id)));
-    }
+    readSelection(id, change);
     sendContext();
-  }, [sendContext, setSelection]);
+  }, [sendContext, readSelection, readHover, clearCondition]);
 
   const [measureBoard, boardWidth] = useWidth<HTMLElement>();
   const rows: BoardRow[] = useMemo(() => {
@@ -830,6 +861,14 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
             </div>
           )}
         </div>
+        {Object.keys(condition.parts).length > 0 && (
+          <div className="board-selection" role="status">
+            <span className="board-selection-text">
+              {Object.entries(condition.parts).map(([field, part]) => partText(field, part, byId.get(condition.from[field]))).join(' · ')}
+            </span>
+            <button type="button" className="board-selection-clear" aria-label="Clear the selection" onClick={clearCondition}>×</button>
+          </div>
+        )}
         {editing && <p className="board-hint">Drag a chart by its heading to move it, or onto another chart to swap them. Drag an edge or corner to resize.</p>}
         {notice && <p className="board-status">{notice}</p>}
         {!live && <p className="board-status">Not live: showing the board as it was drawn.</p>}

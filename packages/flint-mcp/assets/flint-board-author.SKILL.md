@@ -1,6 +1,6 @@
 ---
 name: flint-board-author
-description: "Use when: several Flint charts should be read together in one view: a dashboard, KPI tiles over a trend, a side-by-side comparison, an overview with its detail; or a board on screen should change (add, retitle, resize, relink a chart). Produce one create_board call whose headline, chart choice, layout and links are decided, then refine it from the report."
+description: "Use when: several Flint charts should be read together in one view: a dashboard, KPI tiles over a trend, a side-by-side comparison, an overview with its detail; or a board on screen should change (add, retitle, resize, reconnect a chart). Produce one create_board call whose headline, chart choice, layout and connected fields are decided, then refine it from the report."
 ---
 
 # flint-board: several charts, one view
@@ -100,26 +100,50 @@ On a narrow card each chart takes its own row; the layout needs no second versio
 
 ## Step 5 — connect them
 
-A link makes a selection on one chart emphasize the matching marks on others:
-`{ from, to: [...], field }`. Link only where the reader's next question is
-"and where is that over there?", usually from the chart that splits by a
-category to the charts that show the same category.
+Connect the charts by the fields they share, not chart by chart:
 
-Each link needs:
+```json
+"link_spec": { "fields": ["product", "region"] }
+```
 
-- **A selecting interaction on `from`**, in its `interaction_spec`, by chart:
+The board holds one selection that every chart shares, a part per field: a
+click on Asia sets `region` to Asia, a brush over March to June then adds
+`month` from March to June, and every chart shows the marks that meet both
+parts on the fields it carries; a chart that carries neither stays as drawn.
+A new selection on a field the board already holds replaces that part. A click
+on nothing in any chart, Escape, or the selection chip under the headline
+clears the whole selection everywhere.
+
+What a selection sets comes from the interaction that made it: a click on a
+mark sets every connected field the mark carries, a series or group focus its
+group field, a brush its axis field as a range, an axis highlight that axis's
+field. A hover interaction (`hover-group-focus`, or `axis-highlight` with
+`event: "hover"`) previews its part over the selection for as long as the
+pointer stays.
+
+Connect on the fields the reader thinks in: categories with about a dozen
+values or fewer, and the dimension the board is about. A chart takes part as
+far as it can:
+
+- **It receives a field** when its marks carry it. Marks carry the fields the
+  chart encodes; when a chart shows the field nowhere else, encode it on
+  `detail` (`encodings.detail: "product"`).
+- **It sends** when it also has an interaction that selects, in its
+  `interaction_spec`; pick the one whose subject is what the reader will ask
+  about:
 
   | Chart | Interaction |
   |---|---|
   | Bar, Stacked Bar, Pie, Heatmap | `click-highlight` |
-  | Line | `click-group-focus` (a series), `brush-x` (a period) |
+  | Line | `click-group-focus` (a series), `brush-x` (a period), `hover-group-focus` (a series, on hover) |
   | Scatter Plot | `select` (drag a region) |
 
-- **`field` on every `to` chart's marks.** Marks match only on fields the chart
-  encodes. When a chart shows the field nowhere else, encode it on `detail`
-  (`encodings.detail: "product"`); the report's `✗` on a link names the fix.
+- **`charts`** sets a chart apart: `{ "trend": { "receive": false } }` keeps an
+  overview as drawn while it still sends; `send: false` keeps a chart's own
+  selections to itself.
 
-Links can run both ways; a selection does not bounce back.
+The report's `Links:` section says what each chart sends and receives, and
+why a field is left out.
 
 Colour does the quiet linking: charts that colour by the same field (on
 `color`, or `group` on a grouped bar chart) get one value order, so a value
@@ -143,13 +167,13 @@ it:
 - `Layout:` the rows as the card draws them. Check that the lead chart sits
   where the headline points and no row holds an orphan.
 - `## <id>` per chart: its encodings and each update op, `✓` or `✗`.
-- `Links:` each link, `✓` or `✗` with the fix.
+- `Links:` what each chart sends and receives, `✓`, or `✗` when it joins no field, with the fix.
 - `Review:` what the board should still fix: a missing headline, deck or chart
   title, too many tiles or charts, themes set per chart.
 
 Fix each `✗` and each review note with the narrowest call: `update_chart` for
 one chart (pass only the fields that change), `update_board` for the headline,
-theme, columns, order or links, `remove_chart` for a chart the board does not
+theme, columns, order or `link_spec`, `remove_chart` for a chart the board does not
 need. Each redraws the same card.
 
 What the reader then does on the board (selections, link emphasis) reaches the
@@ -192,16 +216,14 @@ layout.
         "subtitle": "Revenue vs gross margin, by product and region",
         "encodings": { "x": "revenue", "y": "margin", "color": "region", "detail": "product" } } }
   ],
-  "links": [
-    { "from": "by-product", "to": ["margin"], "field": "product" },
-    { "from": "trend", "to": ["by-product", "margin"], "field": "region" }
-  ]
+  "link_spec": { "fields": ["product", "region"] }
 }
 ```
 
 Rows: two KPI tiles; the trend across the row, tall; the bar chart and the
-scatter side by side. A click on a product's bar lights its points on the
-scatter; a click on a region's line lights its segments and points on both.
+scatter side by side. A click on one segment of a product's bar lights that
+product's points on the scatter and the segment's region on the trend; a click
+on a region's line lights that region on the bars and the scatter.
 
 ## Checklist
 
@@ -209,6 +231,6 @@ scatter; a click on a region's line lights its segments and points on both.
 - [ ] Three to five KPI tiles at most, up to six charts, the lead chart first after the tiles.
 - [ ] Every chart but a KPI tile has a one-line `title` and a units `subtitle`.
 - [ ] `layout` set where the default is wrong: the lead chart wide, a comparison at equal spans and heights.
-- [ ] Every link's `from` has a selecting interaction; every `to` encodes `field`.
+- [ ] `link_spec.fields` names the shared dimensions; each chart that should take part encodes them and, to send, has the interaction whose subject the reader asks about.
 - [ ] `theme_spec` on the board only.
 - [ ] The report has no `✗` and no review note left but the shared colour field.

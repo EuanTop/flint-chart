@@ -38,7 +38,8 @@ import {
   placeAddedChart,
   boardReport,
   boardSnapshot,
-  linksShape,
+  linkSpecShape,
+  relink,
   mergeChartArgs,
   prepareChart,
   type Board,
@@ -580,6 +581,7 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
     async (args: any) => {
       try {
         const { board, outcomes, notes = [] } = await fn(args);
+        relink(board);
         const said = notes.filter((note): note is string => note !== undefined);
         return { content: [{ type: 'text' as const, text: boardReport(board, outcomes, said) }] };
       } catch (err) {
@@ -595,17 +597,18 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
       description:
         'Open one live card that holds several Flint charts: a dashboard, a comparison, ' +
         'an overview with its detail. The board has a headline, a deck and a source; each chart ' +
-        'is a full chart spec with an id and a layout (span, height). Links make ' +
-        'a selection on one chart emphasize the matching marks on others. The card stays ' +
+        'is a full chart spec with an id and a layout (span, height). link_spec connects the charts ' +
+        'by the fields they share: ' +
+        'a selection on one chart emphasizes the marks that share its values on the others. The card stays ' +
         'live: change it later with add_chart, update_chart, remove_chart and update_board, ' +
         'which redraw this card instead of opening a new one. Use create_chart_view for a ' +
         'single chart. Before the first board, call get_flint_skill with skill "board". ' +
-        'The result reports the layout, each chart (✓/✗ per update op), each link, and a review ' +
+        'The result reports the layout, each chart (✓/✗ per update op), what each chart sends and receives, and a review ' +
         'of what the board should still fix; a chart with errors is left off the board.',
       inputSchema: {
         ...boardFields,
         charts: z.array(boardChart).describe('The charts, in reading order: KPI tiles first, then the lead chart, then the charts that explain it.'),
-        links: linksShape.optional(),
+        link_spec: linkSpecShape.optional(),
       },
       _meta: { ui: { resourceUri: BOARD_VIEW_RESOURCE_URI } },
     },
@@ -624,7 +627,8 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
           outcomes.push(outcome);
           if (chart) board.charts.push(chart);
         }
-        board.links = args.links ?? [];
+        board.link_spec = args.link_spec;
+        relink(board);
         return {
           content: [{ type: 'text' as const, text: boardReport(board, outcomes) }],
           _meta: { flint: { board: boardSnapshot(board) } },
@@ -690,16 +694,16 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
     'remove_chart',
     {
       title: 'Remove chart from board',
-      description: 'Take a chart off an open board, with the links that name it.',
+      description: 'Take a chart off an open board.',
       inputSchema: { board_id: z.string(), chart_id: z.string() },
     },
     boardWrite(async (args) => {
       const board = boards.get(args.board_id);
       board.charts = board.charts.filter((chart) => chart.id !== args.chart_id);
-      board.links = board.links
-        .filter((link) => link.from !== args.chart_id)
-        .map((link) => ({ ...link, to: link.to.filter((id) => id !== args.chart_id) }))
-        .filter((link) => link.to.length > 0);
+      if (board.link_spec?.charts?.[args.chart_id]) {
+        const { [args.chart_id]: _gone, ...charts } = board.link_spec.charts;
+        board.link_spec = { ...board.link_spec, charts };
+      }
       if (board.grid) board.grid = board.grid.filter((item) => item.id !== args.chart_id);
       boards.touch(board);
       return { board, outcomes: [] };
@@ -710,12 +714,12 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
     'update_board',
     {
       title: 'Update board',
-      description: 'Change an open board\'s title, subtitle, source, theme, columns, chart order, or links. Each field given replaces the board\'s.',
+      description: 'Change an open board\'s title, subtitle, source, theme, columns, chart order, or link_spec. Each field given replaces the board\'s.',
       inputSchema: {
         board_id: z.string(),
         ...boardFields,
         order: z.array(z.string()).optional().describe('Chart ids in the new reading order; charts left out keep their place at the end.'),
-        links: linksShape.optional(),
+        link_spec: linkSpecShape.nullable().optional().describe('The fields the charts connect on; null unlinks them.'),
       },
     },
     boardWrite(async (args) => {
@@ -730,7 +734,7 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
         };
         board.charts = [...board.charts].sort((a, b) => rank(a.id) - rank(b.id));
       }
-      if (args.links) board.links = args.links;
+      if (args.link_spec !== undefined) board.link_spec = args.link_spec ?? undefined;
       const notes = [args.columns !== undefined || args.order ? dropArrangement(board, args.order ? 'order' : 'columns') : undefined];
       boards.touch(board);
       return { board, outcomes: [], notes };
