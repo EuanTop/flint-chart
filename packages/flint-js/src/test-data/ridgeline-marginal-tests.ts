@@ -150,7 +150,7 @@ export function genRidgelineTests(): TestCase[] {
                 A1: { type: Type.Number, semanticType: 'Quantity', levels: [] },
             },
             encodingMap: { x: makeEncodingItem('Round'), y: makeEncodingItem('Cooperation Rate'), color: makeEncodingItem('A1') },
-            chartProperties: { perspective: true, overlap: 2.5, opacity: 0.45, valueMax: 1, markAt: [3, 7, 14] },
+            chartProperties: { perspective: true, opacity: 0.45, valueMax: 1, markAt: [3, 7, 14] },
         });
     }
 

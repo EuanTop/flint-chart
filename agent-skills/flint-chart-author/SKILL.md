@@ -334,7 +334,7 @@ properties"). Required channels are noted.
 | `"Violin Plot"` | x, y, color, row | x (category) + y (measure) required; mirrored KDE density per category, prop `bandwidth`; **Vega-Lite only**; a genuine `color` subgroup splits two groups or grids 3+ groups |
 | `"Streamgraph"` | x, y, color, column, row | centre-stacked areas |
 | `"Density Plot"` | x, color, column, row | props `bandwidth`, `stackMode` (series stack; `layered` overlaps them), `opacity` |
-| `"Ridgeline Plot"` | x, y, color | x = measure; `color` (or a discrete `y`) names the ridges, each the KDE of x on its own baseline; a measure `y` draws each series' curve instead; props `overlap`, `order`, `tailCut`, `colorBy`, `perspective` (presets `skew` 0.2, `tilt` 2.5, `overlap` 6), `skew`, `tilt`, `valueMax`, `markAt` (x values to mark on every ridge, joined across ridges), `opacity`, `interpolate`, `bandwidth`; a numeric `color` keeps a gradient key; **Vega-Lite only** |
+| `"Ridgeline Plot"` | x, y, color | x = measure; `color` (or a discrete `y`) names the ridges, each the KDE of x on its own baseline; a measure `y` draws each series' curve instead; props `overlap`, `order`, `tailCut`, `colorBy`, `perspective` (plans unset `skew`, `tilt`, `overlap` from the ridge count so the depth takes about 40% of the plot), `skew`, `tilt`, `valueMax`, `markAt` (x values to mark on every ridge, joined across ridges), `opacity`, `interpolate`, `bandwidth`; a numeric `color` keeps a gradient key; **Vega-Lite only** |
 | `"Marginal Plot"` | x, y, color, size, shape, opacity | the plot follows the axis types (measure × measure = scatter, category × measure = strip, category × category = heatmap of counts) with each axis's distribution along it (density, histogram or boxplot on a measure axis, a bar of counts on a category axis, split by `color`; density margins layer by default); props `marginal`, `stackMode`, `bandwidth`, `binCount`, `whiskerMethod`, `showOutliers`; **Vega-Lite only** |
 | `"Pie Chart"` | size, color, column, row | `size` = slice value (→ angle), `color` = category; props `innerRadius`, `sortSlices` |
 | `"Rose Chart"` | x, y, color, column, row | polar bars; props `alignment`, `padAngle`, `sortSlices` |
@@ -562,7 +562,7 @@ derived). Values are clamped to the ranges shown.
 | Ridgeline | `order` | `mean`, `reverse` (unset = as given; a quantitative series lowest at the front) | Highest mean on top, or reversed |
 | Ridgeline | `tailCut` | 0–0.2 (0) | Trim each ridge to where its density is at least this share of its peak |
 | Ridgeline | `colorBy` | `x` (unset = by series) | Fill each ridge with a ramp along x |
-| Ridgeline | `perspective` | boolean (false) | Stand the ridges on a floor seen in perspective: presets `skew` 0.2, `tilt` 2.5, `overlap` 6 unless set |
+| Ridgeline | `perspective` | boolean (false) | Stand the ridges on a floor seen in perspective: `skew`, `tilt`, `overlap` left unset are planned so the depth takes about 40% of the plot's width and more of its height as ridges are added; the depth names, edge and value ticks give way (along the axis, then level, then every n-th) before they touch |
 | Ridgeline | `skew` | 0–0.4 (0) | Perspective: shift the back ridges left by this share of the x range |
 | Ridgeline | `tilt` | 0–6 (0) | Perspective: the x axis rises this many baselines across its range, labels following its edge |
 | Ridgeline | `opacity` | 0.1–1 (0.5) | Ridge opacity, as the Range Area Chart; solid in perspective unless set |

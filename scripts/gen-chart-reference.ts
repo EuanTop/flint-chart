@@ -109,7 +109,7 @@ const PARAM_DESCRIPTIONS: Record<string, string> = {
     order: 'Which order the ridges stand in: as given (a quantitative series lowest at the front), by their mean with the highest on top, or reversed.',
     tailCut: 'Trim each ridge to where its density is at least this share of its own peak (0 = full extent).',
     colorBy: 'Fill each ridge by its series, or with a ramp along the x axis.',
-    perspective: 'Stand the ridges on a floor seen in perspective, presetting skew 0.2, tilt 2.5 and overlap 6 where they are unset.',
+    perspective: 'Stand the ridges on a floor seen in perspective; skew, tilt and overlap left unset are planned so the depth takes about 40% of the plot’s width and more of its height as ridges are added.',
     skew: 'Shift the ridges behind the front one leftwards by this share of the x range, for a perspective view.',
     tilt: 'Raise the x axis by this many baselines across its range, so the floor is seen in perspective.',
     valueMax: 'In perspective: the value a ridge’s full overlap height stands for, read on the value axis at the back-left corner (0 = the tallest peak).',

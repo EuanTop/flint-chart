@@ -120,6 +120,51 @@ describe('Ridgeline Plot in perspective', () => {
         expect(row.label).toBe('0.56');
     });
 
+    it('plans the depth to 40% of the width, and pins what is set', () => {
+        const xDomain = (properties: Record<string, any>) => ridgeLayer(assembleVegaLite(input(properties))).encoding.x.scale.domain;
+        const [from, to] = xDomain({ perspective: true });
+        // Round runs 0–14; the depth takes 40% of the domain left of it.
+        expect((0 - from) / (to - from)).toBeCloseTo(0.4, 5);
+        const pinned = xDomain({ perspective: true, skew: 0.05 });
+        expect(pinned[0]).toBeCloseTo(-6 * 0.05 * 14, 5);
+    });
+
+    it('gives the depth more of the height as ridges are added', () => {
+        const depthShare = (levels: number) => {
+            const rows = values.filter((row) => row.A1 < levels);
+            const spec: any = assembleVegaLite({ ...input({ perspective: true }), data: { values: rows } });
+            const [, top] = ridgeLayer(spec).encoding.y.scale.domain;
+            return (levels - 1) / top;
+        };
+        expect(depthShare(4)).toBeCloseTo(0.4, 2);
+        expect(depthShare(7)).toBeGreaterThan(depthShare(4));
+    });
+
+    it('lays long names level, and keeps the names a line of type apart at any size', () => {
+        const long = values.map((row) => ({ ...row, A1: `Level number ${row.A1}` }));
+        const spec: any = assembleVegaLite({ ...input({ perspective: true }), data: { values: long }, semantic_types: { A1: 'Category', Round: 'Quantity', Rate: 'Percentage' } });
+        const feet = textLayers(spec).find((layer) => layer.data.values.some((row: any) => row.label === 'Level number 0'));
+        expect(feet.mark.angle).toBeUndefined();
+        expect(feet.data.values).toHaveLength(7);
+        for (const baseSize of [{ width: 560, height: 420 }, { width: 240, height: 120 }, { width: 200, height: 60 }]) {
+            const small = input({ perspective: true });
+            small.chart_spec.baseSize = baseSize;
+            const built: any = assembleVegaLite(small);
+            const names = textLayers(built).find((layer) => layer.mark.fontWeight === 'bold' && layer.data.values.some((row: any) => row.__ridge_base === 0 && row.label === '0'));
+            const { x, y } = ridgeLayer(built).encoding;
+            const pxPerBaseline = built.config.view.continuousHeight / y.scale.domain[1];
+            const pxPerX = built.config.view.continuousWidth / (x.scale.domain[1] - x.scale.domain[0]);
+            const feet = [...names.data.values].sort((a: any, b: any) => a.__ridge_base - b.__ridge_base);
+            const gaps = feet.slice(1).map((foot: any, index: number) => {
+                const dy = (foot.__ridge_base - feet[index].__ridge_base) * pxPerBaseline;
+                const dx = (foot.__ridge_x - feet[index].__ridge_x) * pxPerX;
+                // A name along the depth axis needs its own length of it; a level one, a line of type.
+                return names.mark.angle !== undefined ? Math.hypot(dx, dy) : dy;
+            });
+            expect(Math.min(...gaps)).toBeGreaterThanOrEqual((names.mark.angle !== undefined ? 10 : 14) - 1e-6);
+        }
+    });
+
     it('keeps an opacity set in perspective', () => {
         expect(ridgeLayer(assembleVegaLite(input({ perspective: true, opacity: 0.4 }))).mark.opacity).toBe(0.4);
         expect(ridgeLayer(assembleVegaLite(input({ perspective: true }))).mark.opacity).toBe(1);
