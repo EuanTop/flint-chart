@@ -334,7 +334,7 @@ properties"). Required channels are noted.
 | `"Violin Plot"` | x, y, color, row | x (category) + y (measure) required; mirrored KDE density per category, prop `bandwidth`; **Vega-Lite only**; a genuine `color` subgroup splits two groups or grids 3+ groups |
 | `"Streamgraph"` | x, y, color, column, row | centre-stacked areas |
 | `"Density Plot"` | x, color, column, row | props `bandwidth`, `stackMode` (series stack; `layered` overlaps them), `opacity` |
-| `"Ridgeline Plot"` | x, y, color | x = measure; `color` (or a discrete `y`) names the ridges, each the KDE of x on its own baseline; a measure `y` draws each series' curve instead; props `overlap`, `order`, `tailCut`, `colorBy`, `perspective` (plans unset `skew`, `tilt`, `overlap` from the ridge count so the depth takes about 40% of the plot), `skew`, `tilt`, `valueMax`, `markAt` (x values to mark on every ridge, joined across ridges), `opacity`, `interpolate`, `bandwidth`; a numeric `color` keeps a gradient key; **Vega-Lite only** |
+| `"Ridgeline Plot"` | x, y, color | x = measure; `color` (or a discrete `y`) names the ridges, each the KDE of x on its own baseline; a measure `y` draws each series' curve instead; props `overlap`, `order`, `tailCut`, `colorBy`, `perspective` (plans unset `skew`, `tilt`, `overlap` from the ridge count so the depth takes about 40% of the plot), `skew`, `tilt`, `valueMax`, `markAt` (`true` marks the x ticks, or a list of x values; each ridge's value is dotted and labelled, joined across ridges), `opacity`, `interpolate`, `bandwidth`; a numeric `color` keeps a gradient key; **Vega-Lite only** |
 | `"Marginal Plot"` | x, y, color, size, shape, opacity | the plot follows the axis types (measure × measure = scatter, category × measure = strip, category × category = heatmap of counts) with each axis's distribution along it (density, histogram or boxplot on a measure axis, a bar of counts on a category axis, split by `color`; density margins layer by default); props `marginal`, `stackMode`, `bandwidth`, `binCount`, `whiskerMethod`, `showOutliers`; **Vega-Lite only** |
 | `"Pie Chart"` | size, color, column, row | `size` = slice value (→ angle), `color` = category; props `innerRadius`, `sortSlices` |
 | `"Rose Chart"` | x, y, color, column, row | polar bars; props `alignment`, `padAngle`, `sortSlices` |
@@ -567,7 +567,7 @@ derived). Values are clamped to the ranges shown.
 | Ridgeline | `tilt` | 0–6 (0) | Perspective: the x axis rises this many baselines across its range, labels following its edge |
 | Ridgeline | `opacity` | 0.1–1 (0.5) | Ridge opacity, as the Range Area Chart; solid in perspective unless set |
 | Ridgeline | `valueMax` | number (0 = tallest peak) | Perspective: the value the full ridge height stands for, read on the back-left value axis |
-| Ridgeline | `markAt` | number[] | Mark and label every ridge's value at these x; a dashed line joins the marks at one x across the ridges |
+| Ridgeline | `markAt` | boolean \| number[] | Mark and label every ridge's value at the x ticks inside the range (`true`) or at these x; a dashed line joins the marks at one x across the ridges |
 | Marginal Plot | `marginal` | `density` \| `histogram` \| `boxplot` (`density`) | What each margin draws along a measure axis; a category axis gets a bar of counts |
 | Pie Chart | `innerRadius` | 0–100 (0) | Donut hole size (>0 → donut) |
 | Pie / Rose | `sortSlices` | `none` \| `descending` \| `ascending` (`none`) | Order wedges and their legend by slice value |

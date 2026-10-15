@@ -165,6 +165,16 @@ describe('Ridgeline Plot in perspective', () => {
         }
     });
 
+    it('marks the inner x ticks when markAt is on, and lines the flat axis up with them', () => {
+        const columns = (spec: any) => [...new Set(dotLayer(spec).data.values.map((row: any) => row.__mark))].length;
+        const flat: any = assembleVegaLite(input({ markAt: true }));
+        const axisValues: number[] = ridgeLayer(flat).encoding.x.axis.values;
+        const marked = [...new Set(dotLayer(flat).data.values.map((row: any) => row.Round))];
+        expect(marked).toEqual(axisValues.filter((tick) => tick > 0 && tick < 14));
+        expect(columns(assembleVegaLite(input({ perspective: true, markAt: true })))).toBeGreaterThan(0);
+        expect(dotLayer(assembleVegaLite(input({ markAt: [3] }))).data.values.every((row: any) => row.Round === 3)).toBe(true);
+    });
+
     it('keeps an opacity set in perspective', () => {
         expect(ridgeLayer(assembleVegaLite(input({ perspective: true, opacity: 0.4 }))).mark.opacity).toBe(0.4);
         expect(ridgeLayer(assembleVegaLite(input({ perspective: true }))).mark.opacity).toBe(1);

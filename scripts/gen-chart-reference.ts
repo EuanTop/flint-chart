@@ -112,6 +112,7 @@ const PARAM_DESCRIPTIONS: Record<string, string> = {
     perspective: 'Stand the ridges on a floor seen in perspective; skew, tilt and overlap left unset are planned so the depth takes about 40% of the plot’s width and more of its height as ridges are added.',
     skew: 'Shift the ridges behind the front one leftwards by this share of the x range, for a perspective view.',
     tilt: 'Raise the x axis by this many baselines across its range, so the floor is seen in perspective.',
+    markAt: 'Dot and label each ridge’s value at the x ticks inside the range, joined across the ridges by a dashed line; an agent may pass a list of x values instead.',
     valueMax: 'In perspective: the value a ridge’s full overlap height stands for, read on the value axis at the back-left corner (0 = the tallest peak).',
     marginal: 'What each margin draws along its axis: a density, a histogram or a boxplot.',
     innerRadius: 'Inner radius as a percentage of the outer radius.',

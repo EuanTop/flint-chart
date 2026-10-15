@@ -34,8 +34,8 @@ import { rangeAreaChartDef, interpolateConfigProperty } from './range-area';
  * and overlap it is not given from the ridge count, so the depth keeps its share of the plot. In
  * perspective a value axis stands at the back-left corner, to `valueMax` where set, and the depth
  * axis carries the series' title.
- * `markAt: [x, …]` marks each ridge's value at those x, labels it, and joins the marks at one x
- * across the ridges with a dashed line.
+ * `markAt: true` marks each ridge's value at the x ticks, or `markAt: [x, …]` at those x: a dot
+ * labelled with the value, and a dashed line joining the dots at one x across the ridges.
  *
  * A quantitative series stands as a y axis would: the lowest at the front. A quantitative
  * colour keeps its continuous scale and shows it as a gradient legend.
@@ -80,8 +80,17 @@ function discrete(encoding: { type?: string } | undefined): boolean {
 /** The x values `markAt` names, as numbers; a single value stands for a list of one. */
 function markPositions(properties: Record<string, any> | undefined): number[] {
     const raw = properties?.markAt;
+    if (typeof raw === 'boolean') return [];
     const list = Array.isArray(raw) ? raw : raw === undefined || raw === null || raw === '' ? [] : [raw];
     return list.map(toNumber).filter(Number.isFinite);
+}
+
+/**
+ * Whether the chart marks values: at the x `markAt` names, or with `markAt: true` at the x ticks,
+ * which a numeric x has (a temporal one ticks by the calendar, which the template does not choose).
+ */
+function marksValues(properties: Record<string, any> | undefined, xType: string | undefined, skew: number): boolean {
+    return markPositions(properties).length > 0 || (properties?.markAt === true && (xType !== 'temporal' || skew > 0));
 }
 
 /** A curve's value at x, read between its two nearest points; undefined outside its span. */
@@ -444,7 +453,7 @@ export const ridgelinePlotDef: ChartTemplateDef = {
         const { skew, tilt } = perspectiveOf(ctx.chartProperties);
         const skewed = skew > 0 || tilt > 0;
         const seriesTitle = series?.field ? ctx.displayNames?.[series.field] ?? series.field : null;
-        const marked = markPositions(ctx.chartProperties).length > 0;
+        const marked = marksValues(ctx.chartProperties, x?.type, skew);
         // A quantitative colour keeps its scale, and its gradient is the chart's one key.
         const graded = series?.field && series.type === 'quantitative' && ctx.chartProperties?.colorBy !== 'x';
         const structure: ChartStructure = {
@@ -516,7 +525,7 @@ export const ridgelinePlotDef: ChartTemplateDef = {
     planOverhang: (ctx, plot) => {
         const inputs = ridgeInputs(ctx.channelSemantics, ctx.chartProperties, ctx.table);
         if (!inputs) return undefined;
-        const marked = markPositions(ctx.chartProperties).length > 0;
+        const marked = marksValues(ctx.chartProperties, ctx.channelSemantics.x?.type, inputs.skew);
         const top = marked ? LINE_HEIGHT + 3 : 0;
         if (!(inputs.skew > 0 || inputs.tilt > 0)) return top ? { left: 0, right: 0, top, bottom: 0 } : undefined;
         const measure = measureOf(ctx.measureText);
@@ -585,6 +594,20 @@ export const ridgelinePlotDef: ChartTemplateDef = {
             delete encoding.color.axis;
         }
         if (perspective) encoding.x.axis = { ...(encoding.x.axis ?? {}), grid: false };
+        // The x ticks `markAt: true` marks at: the perspective's edge ticks, set below, or on a
+        // flat x the round values whose labels fit, which the axis then shows.
+        let markTicks: number[] = [];
+        // The ends of x stand on the axes' own edges, where the names and the value axis are.
+        const inner = (ticks: number[]) => ticks.filter((tick) => tick > extent[0] && tick < extent[1]);
+        if (!perspective && ctx.chartProperties?.markAt === true && xType === 'quantitative') {
+            const plotWidth = ctx.plot?.width ?? ctx.layout.subplotWidth;
+            const pxPerX = plotWidth / (extent[1] - extent[0] || 1);
+            const measure = measureOf(ctx.measureText);
+            const ticks = spacedTicks(extent, (values) =>
+                (values[1] - values[0]) * pxPerX >= Math.max(...values.map((tick) => measure(String(tick)))) + 8);
+            encoding.x.axis = { ...(encoding.x.axis ?? {}), values: ticks };
+            markTicks = inner(ticks);
+        }
 
         // A ridge is a band from its baseline to its curve, drawn as the Range Area Chart draws
         // one: translucent, its top edge lined in its own colour. In perspective the ridges stand
@@ -628,6 +651,7 @@ export const ridgelinePlotDef: ChartTemplateDef = {
             const labels = perspectiveLabels(plot, { ridges, extent, domain, scale, top, reach }, inputs, measureOf(ctx.measureText));
             const { axisAngle, depthAngle } = labels;
             const ticks = labels.edgeTicks;
+            if (ctx.chartProperties?.markAt === true) markTicks = inner(ticks);
             const floor = [
                 ...ticks.map((tick) => line(tick, rise(tick), tick - back, depth + rise(tick))),
                 ...ridges.map((ridge) => line(ridge.span[0], ridge.baseline + rise(ridge.span[0] - ridge.shift), ridge.span[1], ridge.baseline + rise(ridge.span[1] - ridge.shift))),
@@ -729,7 +753,8 @@ export const ridgelinePlotDef: ChartTemplateDef = {
                 },
             });
         }
-        const marks = markPositions(config);
+        const named = markPositions(config);
+        const marks = named.length ? named : markTicks;
         if (marks.length) {
             // Each ridge's value at every marked x: a dot on its curve with the value beside it,
             // and dashed segments joining the dots at one x, front to back, to show the trend
@@ -799,6 +824,8 @@ export const ridgelinePlotDef: ChartTemplateDef = {
         { key: 'perspective', label: 'Perspective', type: 'binary', defaultValue: false },
         { key: 'skew', label: 'Skew', type: 'continuous', min: 0, max: 0.4, step: 0.01, defaultValue: 0 },
         { key: 'tilt', label: 'Tilt', type: 'continuous', min: 0, max: 6, step: 0.1, defaultValue: 0 },
+        // On, it marks the x ticks; an agent may name its own x values instead, as a list.
+        { key: 'markAt', label: 'Mark values', type: 'binary', defaultValue: false },
         { key: 'valueMax', label: 'Value max', type: 'continuous', min: 0, max: 1000, step: 0.1, defaultValue: 0,
           check: (ctx) => ({ applicable: perspectiveOf(ctx.chartProperties).skew > 0 || perspectiveOf(ctx.chartProperties).tilt > 0 }) },
         { key: 'bandwidth', label: 'Bandwidth', type: 'continuous', min: 0.05, max: 2, step: 0.05, defaultValue: 0,

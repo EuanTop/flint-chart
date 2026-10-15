@@ -229,6 +229,7 @@ The **Availability** column shows whether a parameter is `always` available or `
 | `perspective` | toggle | on / off | `false` | always | Stand the ridges on a floor seen in perspective; skew, tilt and overlap left unset are planned so the depth takes about 40% of the plot’s width and more of its height as ridges are added. |
 | `skew` | number | 0 – 0.4 (step 0.01) | `0` | always | Shift the ridges behind the front one leftwards by this share of the x range, for a perspective view. |
 | `tilt` | number | 0 – 6 (step 0.1) | `0` | always | Raise the x axis by this many baselines across its range, so the floor is seen in perspective. |
+| `markAt` | toggle | on / off | `false` | always | Dot and label each ridge’s value at the x ticks inside the range, joined across the ridges by a dashed line; an agent may pass a list of x values instead. |
 | `valueMax` | number | 0 – 1000 (step 0.1) | `0` | conditional | In perspective: the value a ridge’s full overlap height stands for, read on the value axis at the back-left corner (0 = the tallest peak). |
 | `bandwidth` | number | 0.05 – 2 (step 0.05) | `0` | conditional | Kernel-density bandwidth (0 = auto). |
 
