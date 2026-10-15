@@ -4602,25 +4602,24 @@ function labelOneBody(
             shared.color = colour;
             if (arc?.encoding) delete arc.encoding.color;
             if (!labelEncoding.color) labelEncoding.color = { value: markDef.color ?? d.text.primary };
-            // Vega-Lite derives the stacking order from the colour field. The
-            // label overrides that colour with its own ink, which would leave
-            // it stacking by value instead, so the order is stated outright
-            // and both layers read the same one. An arc that already orders its wedges (data order,
-            // or a value sort) keeps that order, and the labels follow it.
-            const own = arc?.encoding?.order ?? shared.order;
-            if (own) {
-                shared.order = own;
-                if (arc?.encoding) delete arc.encoding.order;
-                const field = own.field;
-                const derives = (t: any) => typeof field === 'string' && t?.as === field;
-                if (arc && arc !== host && (arc.transform ?? []).some(derives)) {
-                    host.transform = [...(host.transform ?? []), ...arc.transform.filter(derives)];
-                    arc.transform = arc.transform.filter((t: any) => !derives(t));
-                    if (arc.transform.length === 0) delete arc.transform;
-                }
-            } else {
-                shared.order = { field: colour.field, type: colour.type ?? 'nominal', sort: 'ascending' };
+        }
+        // Both layers stack in one order, stated outright: the label's text is a stack key, so a
+        // label left to itself stacks by what it prints and lands on another slice. An arc that
+        // already orders its wedges (data order, or a value sort) keeps that order, and the labels
+        // follow it; with none, the colour field orders them, as Vega-Lite would for the wedges.
+        const own = arc?.encoding?.order ?? shared.order;
+        if (own) {
+            shared.order = own;
+            if (arc?.encoding) delete arc.encoding.order;
+            const field = own.field;
+            const derives = (t: any) => typeof field === 'string' && t?.as === field;
+            if (arc && arc !== host && (arc.transform ?? []).some(derives)) {
+                host.transform = [...(host.transform ?? []), ...arc.transform.filter(derives)];
+                arc.transform = arc.transform.filter((t: any) => !derives(t));
+                if (arc.transform.length === 0) delete arc.transform;
             }
+        } else if (colour?.field) {
+            shared.order = { field: colour.field, type: colour.type ?? 'nominal', sort: 'ascending' };
         }
         host.encoding = shared;
         delete labelEncoding.theta;

@@ -77,3 +77,40 @@ describe('a pie sized by where its numbers fall', () => {
         }
     });
 });
+
+describe('a value printed on a slice', () => {
+    // Mixed order and a repeated value, so a label stacked by its own text lands elsewhere.
+    const ROWS = [['Beta', 9], ['Alpha', 40], ['Delta', 21], ['Gamma', 30], ['Epsilon', 9]].map(([Name, Share]) => ({ Name, Share }));
+    const onTheirSlices = async (encodings: Record<string, string>, chartProperties?: Record<string, unknown>) => {
+        const { _theme, _canvasFit, _legendLayout, ...vl } = assembleVegaLite({
+            data: { values: ROWS },
+            semantic_types: { Name: 'Category', Share: 'Quantity' },
+            chart_spec: { chartType: 'Pie Chart', title: 'Shares', encodings, baseSize: { width: 300, height: 300 }, ...(chartProperties ? { chartProperties } : {}) },
+            theme_spec: 'swiss',
+        } as any) as any;
+        const view = new View(parse(compile(vl).spec), { renderer: 'none' });
+        await view.runAsync();
+        const slices = new Map<string, [number, number]>();
+        const labels: Array<[string, number]> = [];
+        const walk = (item: any) => {
+            if (item.mark?.marktype === 'arc' && item.mark.role === 'mark') slices.set(item.datum.Name, [Math.min(item.startAngle, item.endAngle), Math.max(item.startAngle, item.endAngle)]);
+            if (item.mark?.marktype === 'text' && item.mark.role === 'mark' && item.opacity !== 0 && typeof item.theta === 'number') labels.push([item.datum.Name, item.theta]);
+            for (const child of item.items ?? []) walk(child);
+        };
+        walk((view as any).scenegraph().root);
+        view.finalize();
+        expect(labels.length).toBeGreaterThan(0);
+        for (const [name, theta] of labels) {
+            const [from, to] = slices.get(name)!;
+            expect(theta, name).toBeGreaterThanOrEqual(from - 1e-6);
+            expect(theta, name).toBeLessThanOrEqual(to + 1e-6);
+        }
+    };
+
+    it('sits on its own slice, whether or not a colour names the slices, in data order or sorted', async () => {
+        await onTheirSlices({ size: 'Share', color: 'Name' });
+        await onTheirSlices({ size: 'Share' });
+        await onTheirSlices({ size: 'Share' }, { sortSlices: 'ascending' });
+        await onTheirSlices({ size: 'Share', color: 'Name' }, { sortSlices: 'descending' });
+    });
+});

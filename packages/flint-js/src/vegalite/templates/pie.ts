@@ -151,6 +151,12 @@ export const pieChartDef: ChartTemplateDef = {
                 calculate: `indexof(${JSON.stringify(names)}, toString(datum[${JSON.stringify(colorField)}]))`, as: '__flintArcOrder',
             }];
             spec.encoding.order = { field: '__flintArcOrder', type: 'quantitative', sort: 'ascending' };
+        } else if ((sortSlices === undefined || sortSlices === 'none') && thetaField) {
+            // No colour names the slices: they run in row order, stated so, since anything printed
+            // on them (a text channel is a stack key) would otherwise stack by its own text and
+            // land on another slice.
+            spec.transform = [...(spec.transform ?? []), { window: [{ op: 'row_number', as: '__flintArcOrder' }] }];
+            spec.encoding.order = { field: '__flintArcOrder', type: 'quantitative', sort: 'ascending' };
         } else if (sortSlices === 'descending' || sortSlices === 'ascending') {
             spec.encoding.order = thetaField
                 ? { field: thetaField, type: 'quantitative', sort: sortSlices }
