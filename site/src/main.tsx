@@ -11,6 +11,7 @@ import { Editor } from './routes/Editor';
 import { McpServer } from './routes/McpServer';
 import { Themes } from './routes/Themes';
 import { ThemeLab as PublicThemeLab } from './routes/ThemeLab';
+import { RowNamesDemo } from './playground/RowNamesDemo';
 import { AutoLayoutPlayground } from './routes/AutoLayoutPlayground';
 import { DocSectionPage } from './routes/DocSectionPage';
 import { PlaygroundShell } from './playground/PlaygroundShell';
@@ -102,6 +103,7 @@ function AppRoutes({ locale }: { locale: Locale }) {
           {/* The theme wall graduated to the public /themes page. */}
           <Route path="theme-wall" element={<Navigate to={localePath('/themes', locale)} replace />} />
           <Route path="theme-labs" element={<ThemeLab />} />
+          <Route path="row-names" element={<RowNamesDemo />} />
           <Route path="theme-lab-r2" element={<ThemeLabR2 />} />
           <Route path="theme-lab-real" element={<ThemeLabReal />} />
           <Route path="new-theme-test" element={<NewThemeTest />} />

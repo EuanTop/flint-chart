@@ -56,6 +56,7 @@ const pages: NavEntry[] = [
       { to: 'new-theme-test', label: 'New theme test' },
       { to: 'theme-improvement', label: 'Theme improvement' },
       { to: 'label-angles', label: 'Label angles' },
+      { to: 'row-names', label: 'Names above bars' },
     ],
   },
   {

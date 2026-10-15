@@ -277,7 +277,7 @@
       "economist": "Compact print graphics with flat headlines, explanatory decks, and units repeated along the axis.",
       "nature": "Journal figures with compact panels, explicit units, and statistics placed beside fitted lines.",
       "mckinsey": "Presentation-ready charts with broad bands, prominent values, and takeaway-led headlines.",
-      "datawrapper": "Clean web graphics with narrow layouts, plain typography, and restrained rules.",
+      "datawrapper": "Clean web graphics: Roboto, a bold headline, values printed on the bars instead of a ruler, and light solid gridlines.",
       "powerbi": "Dark dashboard tiles with compact layouts, legends on the right, and emphasis on the latest value.",
       "powerbi-light": "Light dashboard tiles with a white canvas, fine gridlines, and legends on the right.",
       "swiss": "International Typographic Style with a visible grid, strong black structure, and a single red accent.",

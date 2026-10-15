@@ -813,7 +813,8 @@ describe('subtitle fitting', () => {
                 baseSize: { width: shortLabels ? 180 : 300, height: 400 },
                 ...(shortLabels ? { canvasSize: { width: 180, height: 600 } } : {}),
             },
-            theme_spec: 'datawrapper',
+            // The names stand beside their bars, in the gutter the subtitle may run over.
+            theme_spec: { extends: 'datawrapper', labels: { truncation: 'never', rowNames: 'beside' } },
         });
         expect(spec.title.subtitle.join(' ')).toBe(`${subtitle}; yoy_change_pct`);
         if (fits) expect(spec.title.subtitle).toHaveLength(1);

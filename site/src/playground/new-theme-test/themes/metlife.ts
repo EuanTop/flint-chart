@@ -72,7 +72,8 @@ const theme: ThemeSpec = {
   },
   marks: { strokeWeight: 2, cornerRadius: 0, point: { presence: 'omit' }, slice: { gap: 0 } },
   geometry: { line: { width: 2 }, point: { presence: 'omit' }, band: { cornerRadius: 0 }, arc: { gap: 0 } },
-  labels: { truncation: 'wrap' },
+  // “Horizontal bar lists: label above each bar”: names above where, beside, they would wrap or be cut.
+  labels: { truncation: 'wrap', rowNames: 'auto' },
   legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'whenAmbiguous', align: 'center' },
   dataLabels: { show: 'never' },
   annotation: { axisTitles: 'omit', unit: 'everyTick', numberFormat: { thousands: 'separator' } },
@@ -268,7 +269,7 @@ const metlife: StyleGuideTheme = {
     'Built from scratch from the Data Visualization page of design.metlife.com (read in full). The per-chart “Design specs” are Adobe XD links that could not be read, so axis, gridline and type sizes are measured off the guide’s three specimen screenshots, not taken from a spec.',
     'Stated directly: the extended palette in its prescribed datapoint order (`#0090DA`, `#333333`, `#00ACA0`, `#DB0A5B`, `#F2F2F2`, …) with the first six as the core set; MetLife blue as the single-series ink; black as the anchoring text colour; two faces — MetLife Circular for headlines, key numbers and printed values, Noto Sans for labels, keys and source; dotted light-grey horizontal rules; thin dark x and y axis lines with short ticks under the dates; `$` and thousands separators on every tick; 2px lines without markers; a square-swatch key centred under the plot; no gaps between donut segments. A `variants` entry on banded length marks prints a value at each bar end and drops the value axis, as the bar-list specimen does.',
     'Approximated: MetLife Circular is proprietary and falls back to Poppins (named after it in the stack); sizes and the `#A7A8AA` dotted rule are measured from screenshots.',
-    'Not stateable: the guide’s own specimens do not follow its written colour order (they reach for blue + green, or blue + purple + grey); `#F2F2F2` sits fifth in the order and vanishes on white; the card with its blue→green gradient rule; labels above bars on a grey track; “Total 100%” in the donut; and the uppercase label over a big key figure — see the gaps.',
+    'Not stateable: the guide’s own specimens do not follow its written colour order (they reach for blue + green, or blue + purple + grey); `#F2F2F2` sits fifth in the order and vanishes on white; the card with its blue→green gradient rule; the grey track under the bars (the names above them are `labels.rowNames`); “Total 100%” in the donut; and the uppercase label over a big key figure — see the gaps.',
   ].join('\n\n'),
   gaps: [
     {

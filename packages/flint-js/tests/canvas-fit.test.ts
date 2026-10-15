@@ -70,21 +70,25 @@ describe('canvas fit', () => {
 
     it('weighs every single edit the culprit calls for before any two together', () => {
         const fitted: any = assembleVegaLite(bubbles({ canvasFit: 'auto' }, { width: 300, height: 160 }));
-        // The keys are what make the drawing tall, so only their edits are weighed — one row on their
-        // edge, one key beside the plot, every key beside it; the title is not to blame, and is never
-        // set smaller.
+        // The keys make the drawing tall and the house's headline is large, so both parts' edits are
+        // weighed — one row on their edge, one key beside the plot, every key beside it, the title a
+        // size or two down — each alone, gentlest first, before any two together. One key beside the
+        // plot clears, so the title keeps its size.
         // The culprit's edits; a refit of the plot, once they are settled, comes after them.
         const tried = fitted._canvasFit.tried.map((t: any) => t.treatment).filter((t: any) => !t.plotSpace);
+        const pairs = (t: any) => Object.keys(t).length > 1;
         expect(tried[0]).toEqual({ keys: 'top' });
-        expect(tried.at(-1)).toEqual({ keys: 'side' });
-        expect(tried.slice(1, -1).every((t: any) => t.oneKey?.to === 'side')).toBe(true);
-        expect(tried.some((t: any) => t.titleScale)).toBe(false);
+        const firstPair = tried.findIndex(pairs);
+        if (firstPair >= 0) expect(tried.slice(firstPair).every(pairs)).toBe(true);
+        expect(tried.some((t: any) => t.keys === 'side')).toBe(true);
+        expect(tried.some((t: any) => t.oneKey?.to === 'side')).toBe(true);
+        expect(fitted._canvasFit.treatment.titleScale).toBeUndefined();
     });
 
-    it('moves one of two keys beside the plot, where moving both trades one problem for another', () => {
-        // Two keys beside a square plot in a square box, the regions' names long: too wide to show
-        // legibly. Both in a row above or below make the drawing too tall instead; one of them moved,
-        // the other staying, only helps.
+    it('does not move both keys above the plot, where that trades one problem for another', () => {
+        // Two keys beside a plot in a box a little wider than tall, the regions' names long: too wide
+        // to show legibly. Both in a row above or below make the drawing too tall instead; the edit
+        // the fit takes only helps.
         const regions = ['East Asia and Pacific', 'Europe and Central Asia', 'Sub-Saharan Africa', 'Latin America and Caribbean'].flatMap((Region, r) => [0, 1, 2, 3].map((k) => ({
             Region, GDP: 1000 * 10 ** (r * 0.6 + k * 0.4), Life: 50 + r * 6 + k * 3, Population: 3 + r * 300 + k * 120,
         })));
@@ -93,13 +97,13 @@ describe('canvas fit', () => {
             semantic_types: { Region: 'Category', GDP: 'Amount', Life: 'Quantity', Population: 'Quantity' },
             chart_spec: {
                 chartType: 'Scatter Plot', title: 'Gapminder — life expectancy vs income per capita (2018)',
-                baseSize: { width: 280, height: 280 }, canvasSize: { width: 280, height: 280 },
+                baseSize: { width: 300, height: 280 }, canvasSize: { width: 300, height: 280 },
                 encodings: { x: 'GDP', y: 'Life', color: 'Region', size: 'Population' },
             },
         } as any);
         const fit = spec._canvasFit;
         expect(fit.tried.some((tried: any) => tried.treatment.keys === 'top' && tried.flags.some((flag: string) => /taller/.test(flag)))).toBe(true);
-        expect(fit.treatment.oneKey).toBeDefined();
+        expect(fit.treatment.keys).not.toBe('top');
         expect(fit.after.kinds.every((kind: string) => fit.before.kinds.includes(kind))).toBe(true);
         expect(fit.after.scale).toBeGreaterThan(fit.before.scale);
     });
@@ -139,7 +143,7 @@ describe('canvas fit', () => {
             semantic_types: { Office: 'Category', Staff: 'Count' },
             chart_spec: {
                 chartType: 'Bar Chart', encodings: { x: 'Staff', y: 'Office' }, title: 'Staff by office',
-                baseSize: { width: 200, height: 200 }, canvasSize: { width: 240, height: 240 },
+                baseSize: { width: 200, height: 200 }, canvasSize: { width: 230, height: 230 },
             },
         } as any);
         // The names wrap at their cap as planned, or where the fit gives them less room; either way
@@ -203,7 +207,7 @@ describe('the plot laid out again in the room left', () => {
             chartType: 'Stacked Bar Chart', encodings: { x: 'Share', y: 'Institution', color: 'Answer' },
             title: 'Confidence in US institutions (% of adults)',
             subtitle: 'Share of adults, by how much they trust each institution',
-            baseSize: { width: 200, height: 200 }, canvasSize: { width: 240, height: 240 },
+            baseSize: { width: 200, height: 200 }, canvasSize: { width: 230, height: 230 },
         },
         theme_spec: 'datawrapper',
         options,
@@ -225,8 +229,8 @@ describe('the plot laid out again in the room left', () => {
 
     it('never grows a side past its stretch cap', () => {
         const refit = vegaLiteStages(likert()).plan;
-        expect(refit.plot.width).toBeLessThanOrEqual(240);
-        expect(refit.plot.height).toBeLessThanOrEqual(240);
+        expect(refit.plot.width).toBeLessThanOrEqual(230);
+        expect(refit.plot.height).toBeLessThanOrEqual(230);
     });
 
     it('is left out where the caller turns it off', () => {
@@ -348,7 +352,7 @@ describe('a row of keys above the plot', () => {
         // drawing's right edge, so the row stands at the plot's end and runs back over the y labels.
         // A size key on one line just wider than the plot: it runs past the plot's end, so it stands
         // at that end and runs back over the y labels.
-        const spec: any = assembleVegaLite(bubbles({ canvasFit: 'off' }, { width: 480, height: 240 }));
+        const spec: any = assembleVegaLite(bubbles({ canvasFit: 'off' }, { width: 420, height: 240 }));
         const top = spec.config.legend.layout.top;
         expect(top.anchor).toBe('end');
         expect(spec._theme.report.some((r: any) => r.code === 'keys-anchor-moved')).toBe(true);

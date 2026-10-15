@@ -543,6 +543,18 @@ function penguinSelectionSummary(rows: readonly Record<string, unknown>[]): stri
  */
 const SHOWCASE_CANVAS = { width: 560, height: 440 };
 
+/**
+ * A showcase chart in its house: the house's own base size, and the room the base allows it to
+ * stretch to — the house's canvas, or its base times the compiler's stretch — rather than a fixed
+ * canvas, so the spec beside it reads as one would write it.
+ */
+function inHouse<T extends { chart_spec: Record<string, unknown> }>(input: T, theme: string | undefined, themed: boolean): T {
+  const housed = withHouse(input, theme, themed);
+  if (housed === input) return input;
+  const { canvasSize: _ceiling, ...chartSpec } = housed.chart_spec;
+  return { ...housed, chart_spec: chartSpec };
+}
+
 function randomWelcomeTheme(): string {
   const themeIds = Object.keys(THEME_PRESETS);
   return themeIds[Math.floor(Math.random() * themeIds.length)] ?? 'pop';
@@ -834,7 +846,7 @@ function HeroShowcase() {
 
   const displayInput = useMemo(() => {
     if (!testCase) return null;
-    const base = withHouse(testCaseToAssemblyInput(testCase, canvasSize), activeTheme, canTheme);
+    const base = inHouse(testCaseToAssemblyInput(testCase, canvasSize), activeTheme, canTheme);
     return {
       ...base,
       chart_spec: {
@@ -1159,7 +1171,7 @@ function FlintSpecCode({
           }
         : {}),
     };
-    const withCanvas = withHouse({ ...summary, chart_spec: chartSpec }, themeId, useThemeCanvas);
+    const withCanvas = inHouse({ ...summary, chart_spec: chartSpec }, themeId, Boolean(useThemeCanvas));
     // The chart_spec's objects get one entry per line; the rest stays compact.
     const expanded = ['encodings', 'chartProperties', 'canvasSize', 'baseSize'] as const;
     const chartSpecOut: Record<string, unknown> = { ...withCanvas.chart_spec };

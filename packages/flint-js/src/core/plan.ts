@@ -12,6 +12,7 @@ import { continuousBandSpan, freeHeadroom, measureDomain, measureExtent, type Me
 import { groupPadding } from './group-gaps';
 import { planSource, type SourcePlan } from './source-plan';
 import { fitInsideLabels, planValueLabels, someLabelsOverrun, type ValueLabelPlan } from './value-label-plan';
+import { fitArcLabels } from './arc-label-fit';
 import { niceDomain, spacingRuler, type AxisRuler } from './ruler';
 import { planFurniture, rulerOverhang, type FurniturePlan } from './furniture-plan';
 import { categoryOrder, encodedType, sizeRange, type CategoryOrder } from './channel-decisions';
@@ -74,6 +75,8 @@ export interface LayoutPlan {
     rules?: { rules: ClosingRule[]; room: number; fromPlot: boolean };
     /** What the chart draws on its canvas's top edge, above its headline and beside it. */
     header?: HeaderPlan;
+    /** The names down y set each on its own line above its bar, and where in each band they and the bar stand. */
+    rowNames?: RowNamesAbove;
     /** The source line at the chart's foot, where the chart gives one. */
     source?: SourcePlan;
     layout: LayoutResult;
@@ -776,9 +779,17 @@ function fitToCanvas(plan: LayoutPlan, analysis: PlanAnalysis, context: PlanCont
         ? { index, orient: laid[index]!.orient, width: laid[index]!.width, height: laid[index]!.height, ...(key.title ? { title: key.title } : {}) }
         : undefined)).filter((key): key is NonNullable<typeof key> => Boolean(key));
     const yType = analysis.channelSemantics.y?.type;
-    const rowNamed = plan.layout.yNominalCount > 0 && (yType === 'nominal' || yType === 'ordinal');
+    // Names above their bars have the chart's width: there is no gutter to give them.
+    const rowNamed = plan.layout.yNominalCount > 0 && (yType === 'nominal' || yType === 'ordinal') && !plan.rowNames;
+    // The air in the header is no part's: blame is weighed on the title's and the keys' own height.
+    const layout = plan.legend.layout;
+    const headerAir = {
+        title: layout?.headerGap ?? 0,
+        keys: (layout?.footprint ?? []).filter((edge) => edge.orient === 'top' || edge.orient === 'bottom')
+            .reduce((sum, edge) => sum + (layout?.offsets?.[edge.orient as 'top' | 'bottom'] ?? 0), 0),
+    };
     const edits = culpritEdits(before, canvasParts(plan, analysis.channelSemantics, context, box), box, {
-        keyed, titled, named, edge, keys: keyList, rowNamed,
+        keyed, titled, named, edge, keys: keyList, rowNamed, headerAir,
     });
     // Of the edits that clear, the one that costs least: its edit, and what its result still costs
     // in reading — weighed so the result tells apart edits alike, and never makes a larger edit win
@@ -1079,6 +1090,10 @@ function planLayoutOnce(analysis: PlanAnalysis, context: PlanContext): LayoutPla
             first = planAroundPlot(prepared, pinned ?? NO_RESERVE);
         }
     }
+    // A house that sets the names of horizontal bars above them tries it once the names beside are
+    // known: where the bands can take twice their room within the stretch, the names stand above.
+    const above = rowNamesAboveTrial(first, prepared, pinned);
+    if (above) ({ prepared, first } = above);
     // Labels too wide for their band widen the bands, into the room the canvas has (L3). A label
     // whose type grows with the plot can need a little more once the plot is wider; a few passes settle it.
     const unwidened = { prepared, first };
@@ -1131,6 +1146,90 @@ function planLayoutOnce(analysis: PlanAnalysis, context: PlanContext): LayoutPla
             { rule: 'laid out again', value: `${Math.round(second.plot.width)} × ${Math.round(second.plot.height)}`, note: 'the plot is planned once more into the canvas less that room, capped at 40% of it; one pass' },
         ], `${Math.round(reserve.width)} × ${Math.round(reserve.height)} kept`)],
     };
+}
+
+/** The names down y on their own line above each bar, and where in each band they and the bar stand, in px from the band's top. */
+export interface RowNamesAbove {
+    /** The band each name and its bar share. */
+    step: number;
+    fontSize: number;
+    /** The name's height, under `top`. */
+    line: number;
+    /** Between the name and its bar. */
+    gap: number;
+    /** The bar's thickness. */
+    bar: number;
+    /** The air above the name: all the band has to spare, after the bar and a gap under it. */
+    top: number;
+    /** The width a name may run: the plot's. */
+    width: number;
+}
+
+/** The least a bar under its name is thick, in px. */
+const ROW_NAME_MIN_BAR = 6;
+/** The y band a name above its bar takes: twice the house band, by the same stretch. */
+const ROW_NAMES_ABOVE_SCALE = 2;
+
+/** A name's height, its gap to its bar, and the least air between a bar and the next name. */
+function rowNameRoom(fontSize: number): { line: number; gap: number; air: number } {
+    const gap = Math.max(2, Math.round(fontSize * 0.2));
+    // The air between one bar and the next name is at least twice a name's gap to its own bar
+    // (with the gap under the bar, three), so each name reads with the bar under it.
+    return { line: Math.ceil(fontSize), gap, air: 3 * gap };
+}
+
+/** The least band a name above its bar takes: the name, its gap, a readable bar and the air before the next. */
+export function rowNamesLeastStep(fontSize: number): number {
+    const { line, gap, air } = rowNameRoom(fontSize);
+    return line + gap + ROW_NAME_MIN_BAR + air;
+}
+
+/**
+ * A band holding a name over its bar, from its top: air, the name, a small gap, the bar as thick as
+ * the house makes a bar in half the band, and a gap. All the band has to spare is air over the name,
+ * so each name stands nearer its own bar than the one before. Undefined where the band cannot hold
+ * a name and a readable bar.
+ */
+export function rowNamesGeometry(step: number, fontSize: number, fraction: number, width: number): RowNamesAbove | undefined {
+    if (step < rowNamesLeastStep(fontSize)) return undefined;
+    const { line, gap, air } = rowNameRoom(fontSize);
+    const bar = Math.max(ROW_NAME_MIN_BAR, Math.min(step - line - gap - air, Math.round((step / ROW_NAMES_ABOVE_SCALE) * fraction)));
+    const top = step - line - gap - bar - gap;
+    return { step, fontSize, line, gap, bar, top, width: Math.round(width) };
+}
+
+/**
+ * Names above their bars, where the house sets them there and the chart is one bar to a band down
+ * y: the plan laid out again with each band twice its room, kept where the bands hold it within the
+ * stretch and each band a line and a readable bar. `auto` asks only where the names beside were cut
+ * or wrapped. Otherwise the plan with the names beside stands.
+ */
+function rowNamesAboveTrial(first: LayoutPlan, prepared: PreparedPlan, pinned: FurnitureReserve | undefined): { prepared: PreparedPlan; first: LayoutPlan } | undefined {
+    const theme = prepared.context.theme as ThemeSpec | undefined;
+    const ask = theme?.labels?.rowNames;
+    if (!ask || ask === 'beside' || prepared.options.rowNamesAbove) return undefined;
+    const { layout, structure } = first;
+    const yType = prepared.analysis.channelSemantics.y?.type;
+    const oneBarToABand = !first.composite && !layout.facet && layout.yNominalCount > 0 && layout.xNominalCount === 0
+        && layout.yStepUnit !== 'group' && (yType === 'nominal' || yType === 'ordinal')
+        && structure.marks.length > 0 && structure.marks.every((mark) => mark === 'bar')
+        && prepared.declaration.axisFlags?.y?.banded === true && prepared.declaration.axisFlags?.x?.banded !== true;
+    if (!oneBarToABand) return undefined;
+    const sizing = layout.yLabel;
+    const long = Boolean(sizing.labelCut) || (sizing.labelLines ?? []).some((lines) => lines.length > 1);
+    if (ask === 'auto' && !long) return undefined;
+    const fontSize = first.design.axes.y?.label.fontSize ?? first.axisLabelFontSize ?? 11;
+    const say = (code: string, message: string): ThemeReport => ({ stage: 'realize', path: 'labels.rowNames', code, message });
+    // The note goes with the plan it explains, so every pass laid out from it keeps it.
+    const noted = (plan: PreparedPlan, note: ThemeReport): PreparedPlan => ({ ...plan, report: [...plan.report, note] });
+    const trial = noted({ ...prepared, options: { ...prepared.options, rowNamesAbove: { scale: ROW_NAMES_ABOVE_SCALE, minStep: rowNamesLeastStep(fontSize) } } },
+        say('row-names-above', `each name stands on its own line above its bar, the full width of the chart its own${long ? ' — beside, the longest would have been cut or wrapped' : ''}`));
+    const laid = planAroundPlot(trial, pinned ?? NO_RESERVE);
+    if (!laid.layout.rowNamesAboveFit || !laid.rowNames) {
+        const note = say('row-names-beside', `the names stand beside their bars: above them, each band needs twice its room, which the canvas's stretch cannot give ${layout.yNominalCount} of them`);
+        return { prepared: noted(prepared, note), first: { ...first, report: [...first.report, note] } };
+    }
+    return { prepared: trial, first: laid };
 }
 
 /**
@@ -1272,7 +1371,8 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
                 ...(theme ? { measure: bandLabelMeasure(theme as ThemeSpec) } : {}),
                 // How x names that do not stand flat may be set, weighed by cost: the chart's ways, else the theme's, else the rule.
                 ...xLabelOverflow(theme as ThemeSpec | undefined, chartProperties, channelSemantics),
-                skip: (channel) => context.bandLabels!.skip(channel) || declaration.axisLabels?.[channel] !== undefined,
+                skip: (channel) => context.bandLabels!.skip(channel) || declaration.axisLabels?.[channel] !== undefined
+                    || (channel === 'y' && Boolean(effectiveOptions.rowNamesAbove)),
             },
         );
     }
@@ -1378,6 +1478,11 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
         geometryKinds: template.geometryKinds,
         liveLayoutSignal: options.liveLayoutSignal,
     });
+    // Names above their bars are drawn by their own layer: the axis prints none, and keeps no room for them.
+    const rowNames = effectiveOptions.rowNamesAbove && design.axes.y
+        ? rowNamesGeometry(layoutResult.yStep, design.axes.y.label.fontSize ?? axisLabelFontSize ?? 11, design.marks.bandFraction, plot.width)
+        : undefined;
+    if (rowNames && design.axes.y) design.axes.y = { ...design.axes.y, label: { ...design.axes.y.label, show: false } };
     // A canvas-fit pass may set the headline and deck smaller, never below a legible floor.
     if (treatment?.titleScale) {
         const scaled = (size: number | undefined, floor: number) => (size === undefined ? undefined : Math.max(Math.min(size, floor), Math.round(size * treatment.titleScale!)));
@@ -1489,6 +1594,21 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
         valueLabels = headroom ? { ...rest, headroom } : rest;
         const extent = domains.y?.extent;
         if (extent && headroom) domains.y = { ...domains.y!, extent: [headroom.min ?? extent[0], headroom.max ?? extent[1]] };
+    }
+    // A whole pie with its numbers outside is sized by where they fall, and its plot comes in to
+    // the drawing: the title's lines stay taken out of it.
+    if (valueLabels && !('refused' in valueLabels) && valueLabels.form === 'radial' && !valueLabels.inside && !composite) {
+        const room = { width: plot.width, height: labelLengths.y };
+        const sort = chartProperties?.sortSlices;
+        const arc = fitArcLabels({
+            design, rows: values, field: valueLabels.field, seriesField: channelSemantics.color?.field,
+            sort: sort === 'ascending' || sort === 'descending' ? sort : 'none',
+            plot: room, radius: Math.floor(Math.min(room.width, room.height) / 2) - 4,
+        });
+        if (arc) {
+            valueLabels = { ...valueLabels, arc };
+            plot.height -= room.height - arc.height;
+        }
     }
     if (valueLabels) {
         reasons.push('refused' in valueLabels
@@ -1721,6 +1841,7 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
         ...(views ? { laidOutViews: views } : {}),
         ...(ruled ? { rules: { ...ruled, fromPlot: plotGives } } : {}),
         ...(header ? { header } : {}),
+        ...(rowNames ? { rowNames } : {}),
         ...(sourcePlan ? { source: sourcePlan } : {}),
         structure,
         design,
@@ -1804,6 +1925,8 @@ function culpritEdits(
         keys?: Array<{ index: number; orient: string; width: number; height: number; title?: string }>;
         /** Whether names run down the y axis, which may wrap. */
         rowNamed?: boolean;
+        /** The gaps under the title and beside keys above or below the plot, which no part is to blame for. */
+        headerAir?: { title: number; keys: number };
     },
 ): { single: CanvasTreatment[]; paired: CanvasTreatment[] } {
     const p = parts.reserve.parts;
@@ -1813,8 +1936,10 @@ function culpritEdits(
     const tall = before.around.height > L.around * 0.95 || before.stretch < 1 / (1 + (L.stretch - 1) * 0.95) || before.drawing.height > box.height;
     const beside = has.edge === 'right' || has.edge === 'left';
     const rowEdge = has.edge === 'top' || has.edge === 'bottom' ? has.edge : undefined;
-    const title = (p.title ?? 0) + parts.chrome.top;
-    const above = title + (p.stackedKeys ?? 0) + parts.chrome.bottom + (p.flatYTitle ?? 0);
+    // Blame is weighed on what is drawn — the title's lines, the keys, a flat y title — not on the air
+    // between them or the chrome round them, which stay whichever part is edited.
+    const title = Math.max(0, (p.title ?? 0) - (has.headerAir?.title ?? 0));
+    const above = title + Math.max(0, (p.stackedKeys ?? 0) - (has.headerAir?.keys ?? 0)) + (p.flatYTitle ?? 0);
     const titleToBlame = has.titled && above > 0 && title / above >= TITLE_BLAME;
     const keysToBlame = has.keyed && (p.stackedKeys ?? 0) > 0;
     const single: CanvasTreatment[] = [];

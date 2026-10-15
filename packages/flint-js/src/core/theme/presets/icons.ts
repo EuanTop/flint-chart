@@ -116,12 +116,12 @@ export const MCKINSEY_ICON = tile(
 /** Grid ruling read straight through the bars, the way its charts are gridded. */
 export const DATAWRAPPER_ICON = tile(
     '#ffffff',
-    '#dcdcdc',
-    rule(2.6, 5.5, 13.4, '#b3b3b3') +
-        rule(2.6, 8, 13.4, '#b3b3b3') +
-        rule(2.6, 10.5, 13.4, '#b3b3b3') +
-        bars(['#18a1cd', '#e2a233', '#c04a4a'], [6.5, 8.5, 5], 2.2) +
-        rule(2.6, BASELINE, 13.4, '#333333'),
+    '#e7e7e7',
+    rule(2.6, 5.5, 13.4, '#e7e7e7') +
+        rule(2.6, 8, 13.4, '#e7e7e7') +
+        rule(2.6, 10.5, 13.4, '#e7e7e7') +
+        bars(['#18a1cd', '#c71e1d', '#fa8c00'], [6.5, 8.5, 5], 2.2) +
+        rule(2.6, BASELINE, 13.4, '#181818'),
 );
 
 /** The dark canvas, which is the whole point of the house. */

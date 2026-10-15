@@ -37,6 +37,7 @@ import { withInteractionDecorative, withInteractionLegendLabel, withInteractionT
 import { facetDropsTicks, gridOvershoot } from '../core/furniture-reserve';
 import type { ValueLabelPlan } from '../core/value-label-plan';
 import { LABEL_SIDE, measureValueLabels } from '../core/value-label-measure';
+import { RADIAL_OUTSIDE_GAP } from '../core/arc-label-fit';
 import { groupPadding } from '../core/group-gaps';
 import { pointOutlineWidth, type LayoutPlan } from '../core/plan';
 import type { FurniturePlan } from '../core/furniture-plan';
@@ -355,9 +356,9 @@ function titleOf(enc: any): string | undefined {
 
 export function realizeThemeVegaLite(
     spec: any, d: DesignDecisions, table: any[] = [],
-    planned: Partial<Pick<LayoutPlan, 'axisLabels' | 'title' | 'valueLabels' | 'furniture' | 'legend' | 'points' | 'pointSize' | 'rules'>> = {},
+    planned: Partial<Pick<LayoutPlan, 'axisLabels' | 'title' | 'valueLabels' | 'furniture' | 'legend' | 'points' | 'pointSize' | 'rules' | 'rowNames'>> = {},
 ): ThemeReport[] {
-    const { axisLabels, title, valueLabels, furniture, legend, points, pointSize, rules } = planned;
+    const { axisLabels, title, valueLabels, furniture, legend, points, pointSize, rules, rowNames } = planned;
     const report: ThemeReport[] = [];
     const say: ReportDeparture = (path, code, message) => report.push({ stage: 'realize', path, code, message });
 
@@ -395,10 +396,76 @@ export function realizeThemeVegaLite(
     applyMinorGrid(spec, config, d, table, say);
     // Last among the layers, so it shares the scale every other layer finished with.
     applyBaseline(spec, d, table);
+    // After the baseline, which it takes away: the names start where the bars do.
+    if (rowNames) placeRowNamesAbove(spec, d, table, rowNames);
     fitTitle(spec, d, table, say, title, keysBesideWidth(legend?.layout?.footprint, legend?.layout?.offsets?.right ?? VEGA_LITE_KEY_OFFSET));
     const wrapped = applyFurniture(spec, d, rules);
 
     return wrapped ? report : report;
+}
+
+/**
+ * Names on their own line above each bar, as the plan set them: the band holds the name, a small gap
+ * and the bar, so the bands carry no padding of their own; the bar is drawn at the thickness the
+ * plan gave it, and it and everything else drawn on its band — its value, a segment's number — move
+ * down together to stand under the name. The names start at the plot's left edge and run its width.
+ */
+function placeRowNamesAbove(spec: any, d: DesignDecisions, table: any[], plan: NonNullable<LayoutPlan['rowNames']>): void {
+    if (!Array.isArray(spec.layer) && spec.mark) {
+        const { mark, encoding, ...rest } = spec;
+        for (const key of Object.keys(spec)) delete spec[key];
+        Object.assign(spec, rest, { layer: [{ mark, ...(encoding ? { encoding } : {}) }] });
+    }
+    if (!Array.isArray(spec.layer)) return;
+    const banded = (enc: any) => enc?.y?.field && (enc.y.type === 'nominal' || enc.y.type === 'ordinal');
+    const bar = spec.layer.find((unit: any) => markTypeOf(unit.mark) === 'bar' && banded(mergedEncoding(unit, spec.encoding)));
+    if (!bar) return;
+    const y = mergedEncoding(bar, spec.encoding).y;
+    const field: string = y.field;
+    const centre = plan.step / 2;
+    // From the band's middle, where Vega-Lite stands what it draws on a band.
+    const barShift = Math.round(plan.top + plan.line + plan.gap + plan.bar / 2 - centre);
+    for (const unit of spec.layer) {
+        const enc = mergedEncoding(unit, spec.encoding);
+        if (!banded(enc) || enc.y.field !== field) continue;
+        const target = unit.encoding?.y ?? spec.encoding?.y;
+        if (target) {
+            target.scale = { ...(target.scale ?? {}), paddingInner: 0, paddingOuter: 0 };
+            target.axis = target.axis === null ? null : { ...(target.axis ?? {}), labels: false, ticks: false, domain: false };
+        }
+        const mark = normalizeMark(unit.mark);
+        unit.mark = {
+            ...mark,
+            ...(markTypeOf(mark) === 'bar' ? { height: plan.bar } : {}),
+            yOffset: (typeof mark.yOffset === 'number' ? mark.yOffset : 0) + barShift,
+        };
+    }
+    // The names start where the bars do: a rule up the zero line would run through every one.
+    spec.layer = spec.layer.filter((unit: any) => !(unit.__themeSynthetic && markTypeOf(unit.mark) === 'rule'
+        && unit.encoding?.x?.datum === 0 && !unit.encoding?.y));
+    const label = d.axes.y?.label;
+    const names = [...new Set(table.map((row) => row?.[field]).filter((value) => value != null))];
+    const textCase = label?.textCase;
+    spec.layer.push({
+        __themeSynthetic: true,
+        name: 'row-names',
+        data: { values: names.map((name) => ({ [field]: name, __rowName: textCase ? applyTextCase(String(name), textCase) : String(name) })) },
+        mark: {
+            type: 'text', align: 'left', baseline: 'bottom',
+            yOffset: Math.round(plan.top + plan.line - centre),
+            fontSize: plan.fontSize,
+            ...(label?.font ? { font: label.font } : {}),
+            ...(label?.fontWeight ? { fontWeight: label.fontWeight } : {}),
+            ...(label?.fontStyle ? { fontStyle: label.fontStyle } : {}),
+            ...(label?.color ? { color: label.color } : {}),
+            limit: plan.width,
+        },
+        encoding: {
+            y: { field, type: y.type, ...(y.sort !== undefined ? { sort: y.sort } : {}), axis: { title: null, labels: false, ticks: false, domain: false } },
+            x: { value: 0 },
+            text: { field: '__rowName', type: 'nominal' },
+        },
+    });
 }
 
 /**
@@ -4054,92 +4121,19 @@ function inkScaleOnRamp(enc: any, stops: string[], light: string, dark: string):
     };
 }
 
-/** The room kept round a pie's drawing — its outlines and its outside numbers — in px. */
-const ARC_HUG_MARGIN = 4;
-
 /**
- * The radius of a whole pie whose numbers ride outside it, and the plot drawn round them: the
- * largest pie whose numbers, each beside its own slice, stay within the plot it was given; the
- * plot then shrinks to what is drawn, with the pie's centre moved to keep its place in it.
- * Returns undefined where the slices cannot be placed (a partial circle, a radius channel), and
- * the room is then kept all round.
+ * A whole pie set as the plan fitted it: its radius and centre, its hole kept in proportion. The
+ * plot is the plan's, already come in to the drawing.
  */
-function hugArcLabels(
-    body: any, units: any[], arc: any, markDef: any, table: any[], field: string, enc: any,
-    at: { radius: number; width: number; height: number; gap: number; labelWidth: number; labelHeight: number },
-): number | undefined {
-    // Only a plot that states its own size is resized: a faceted or repeated pie keeps its cells.
-    if (typeof body.width !== 'number' || typeof body.height !== 'number' || body.facet || body.spec) return undefined;
-    if (enc.radius || enc.theta?.scale?.range || !Array.isArray(table) || !table.length) return undefined;
-    const mark = normalizeMark(arc.mark) ?? {};
-    if (mark.theta !== undefined || mark.theta2 !== undefined || mark.x !== undefined || mark.y !== undefined) return undefined;
-    const slices = arcSlices(table, field, enc);
-    if (!slices) return undefined;
-    const total = slices.reduce((sum, slice) => sum + slice.value, 0);
-    if (!(total > 0)) return undefined;
-    let start = 0;
-    const mids = slices.map((slice) => { const mid = (start + slice.value / 2) / total * 2 * Math.PI; start += slice.value; return { mid, value: slice.value }; });
-    const minArc = at.labelHeight;
-    const box = (r: number) => {
-        const out = { x1: -r, x2: r, y1: -r, y2: r };
-        const reach = r + at.gap;
-        for (const { mid, value } of mids) {
-            if (value / total * 2 * Math.PI * reach < minArc) continue;
-            const x = Math.sin(mid) * reach;
-            const y = -Math.cos(mid) * reach;
-            out.x1 = Math.min(out.x1, x - at.labelWidth / 2); out.x2 = Math.max(out.x2, x + at.labelWidth / 2);
-            out.y1 = Math.min(out.y1, y - at.labelHeight / 2); out.y2 = Math.max(out.y2, y + at.labelHeight / 2);
-        }
-        return { x1: out.x1 - ARC_HUG_MARGIN, x2: out.x2 + ARC_HUG_MARGIN, y1: out.y1 - ARC_HUG_MARGIN, y2: out.y2 + ARC_HUG_MARGIN };
-    };
-    const fits = (r: number) => { const b = box(r); return b.x2 - b.x1 <= at.width && b.y2 - b.y1 <= at.height; };
-    const floor = Math.min(at.width, at.height) / 4;
-    let r = at.radius;
-    if (!fits(r)) {
-        let low = floor, high = r;
-        for (let pass = 0; pass < 24; pass++) { const mid = (low + high) / 2; if (fits(mid)) low = mid; else high = mid; }
-        r = Math.floor(low);
-    }
-    const drawn = box(r);
-    const width = Math.min(at.width, Math.ceil(drawn.x2 - drawn.x1));
-    const height = Math.min(at.height, Math.ceil(drawn.y2 - drawn.y1));
-    // Centred in the room it is given where it has room to spare, else where its numbers put it.
-    const cx = Math.round(-drawn.x1 + (width - (drawn.x2 - drawn.x1)) / 2);
-    const cy = Math.round(-drawn.y1 + (height - (drawn.y2 - drawn.y1)) / 2);
-    const hole = typeof mark.innerRadius === 'number' && typeof mark.outerRadius === 'number' && mark.outerRadius > 0
-        ? Math.round(mark.innerRadius * r / mark.outerRadius) : mark.innerRadius;
+function placeArc(units: any[], markDef: any, arc: NonNullable<ValueLabelPlan['arc']>): void {
     for (const unit of units) {
         if (markTypeOf(unit.mark) !== 'arc') continue;
         const own = normalizeMark(unit.mark) ?? { type: 'arc' };
-        unit.mark = { ...own, outerRadius: r, ...(typeof hole === 'number' ? { innerRadius: hole } : {}), x: cx, y: cy };
+        const hole = typeof own.innerRadius === 'number' && typeof own.outerRadius === 'number' && own.outerRadius > 0
+            ? { innerRadius: Math.round(own.innerRadius * arc.radius / own.outerRadius) } : {};
+        unit.mark = { ...own, outerRadius: arc.radius, ...hole, x: arc.center.x, y: arc.center.y };
     }
-    Object.assign(markDef, { x: cx, y: cy });
-    body.width = width;
-    body.height = height;
-    return r;
-}
-
-/** A pie's slices in the order they are drawn from twelve o'clock, or undefined where it cannot be told. */
-function arcSlices(table: any[], field: string, enc: any): Array<{ value: number }> | undefined {
-    const key = enc.color?.field as string | undefined;
-    const sums = new Map<string, number>();
-    const rows = key ? table : table.map((row, index) => ({ ...row, __slice: index }));
-    for (const row of rows) {
-        const value = Number(row?.[field]);
-        if (!Number.isFinite(value)) continue;
-        const name = String(row?.[key ?? '__slice']);
-        sums.set(name, (sums.get(name) ?? 0) + Math.abs(value));
-    }
-    let entries = [...sums.entries()];
-    const order = enc.order;
-    if (order?.field === '__flintArcOrder' || !key) {
-        // Data order, as the template states it.
-    } else if (order?.field === field && (order.sort === 'ascending' || order.sort === 'descending')) {
-        entries = entries.sort((a, b) => order.sort === 'ascending' ? a[1] - b[1] : b[1] - a[1]);
-    } else if (!order) {
-        entries = entries.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
-    } else return undefined;
-    return entries.map(([, value]) => ({ value }));
+    Object.assign(markDef, { x: arc.center.x, y: arc.center.y });
 }
 
 function labelOneBody(
@@ -4278,7 +4272,7 @@ function labelOneBody(
         // own radius keeps it unless the labels outside would leave the plot:
         // a key above or below it stands on the plot's edge, and a label past
         // that edge lands on the key.
-        const radialOutsideGap = 22;
+        const radialOutsideGap = RADIAL_OUTSIDE_GAP;
         const printed = measureValueLabels(
             table.map((row) => row?.[measure.field]).filter((v): v is number => typeof v === 'number' && Number.isFinite(v)),
             { format: d.dataLabels.format, compact: d.dataLabels.compact, unit: d.dataLabels.unit, text: t },
@@ -4307,15 +4301,11 @@ function labelOneBody(
                 }
             }
         }
-        // A whole pie with its numbers outside is sized by where they fall: a number stands only
-        // beside its own slice, so the room is taken on the sides that hold one, and the plot then
-        // comes in to the drawing — no band of reserved room between the pie and what stands above it.
-        const hugged = r !== undefined && !inside && typeof w === 'number' && typeof h === 'number' && arc
-            ? hugArcLabels(body, units, arc, markDef, table, measure.field, mergedEncoding(arc, body.encoding),
-                { radius: typeof declared === 'number' ? declared : Math.min(w, h) / 2, width: w, height: h, gap: radialOutsideGap,
-                    labelWidth: printed.widest, labelHeight: (t.fontSize ?? 10) * 1.2 })
-            : undefined;
-        if (hugged !== undefined) r = hugged;
+        // A whole pie with its numbers outside is set as the plan fitted it, by where they fall.
+        if (planned.arc && !inside && arc) {
+            placeArc(units, markDef, planned.arc);
+            r = planned.arc.radius;
+        }
         else if (r !== undefined && !inside && typeof w === 'number' && typeof h === 'number' && arc) {
             const halfMin = Math.min(w, h) / 2;
             const room = printed.widest / 2 + radialOutsideGap + 4;

@@ -663,6 +663,13 @@ export function computeLayout(
         ? Math.max(defaultStepSize, SPARSE_FIT_BAND_CEILING)
         : Math.round(maxBandSize * Math.max(1, sizeRatio));
 
+    // Names on their own line above each bar take a band of their own: the y band starts at twice
+    // the house band and never goes under twice the least step, by the same stretch.
+    const rowScale = Math.max(1, options.rowNamesAbove?.scale ?? 1);
+    const yDefaultStep = Math.round(defaultStepSize * rowScale);
+    const yMinStep = Math.max(Math.round(minStepVal * rowScale), options.rowNamesAbove?.minStep ?? 0);
+    const yMaxStep = Math.round(maxStepSize * rowScale);
+
     const nominalCount: Record<string, number> = {
         x: 0, y: 0, column: 0, row: 0, group: 0,
     };
@@ -1157,11 +1164,11 @@ export function computeLayout(
     const elasticParamsY: ElasticStretchParams = {
         elasticity: elasticityVal,
         maxStretch: maxStretchY,
-        defaultStepSize,
+        defaultStepSize: yDefaultStep,
         bandStepFit: effectiveBandStepFit,
         bandStepFitCapacity: Math.max(1,
             (options.bandStepFitCapacityY ?? defaultChartHeight) / defaultChartHeight),
-        minStep: minStepVal,
+        minStep: yMinStep,
     };
 
     const xAxis = computeAxisStep(xTotalNominalCount, xContinuousAsDiscrete, subplotWidth, elasticParamsX);
@@ -1214,7 +1221,7 @@ export function computeLayout(
         yStepUnit = 'group';
         yStepFitted = groupAxis.fitted;
     } else if (yIsDiscrete || yContinuousAsDiscrete > 0) {
-        yStepSize = Math.max(minStepVal, Math.min(maxStepSize, yAxis.step));
+        yStepSize = Math.max(yMinStep, Math.min(yMaxStep, yAxis.step));
         yStepFitted = yAxis.fitted;
     } else {
         yStepSize = defaultStepSize;
@@ -1242,7 +1249,7 @@ export function computeLayout(
             pressed && stretched ? 'the house band would overrun the span: the span stretches by a power of the pressure, to its cap, and the step shrinks to share it'
                 : pressed ? 'the house band would overrun the span and the cap allows no stretch, so the step is the span per band'
                     : decision.fitted ? 'sparse bands grow toward the room the canvas leaves' : 'the house band fits the span and keeps its size');
-        if (step !== decision.step) stage(key, 'clamped', step, { min: minStepVal, max: maxStepSize }, 'held between the smallest readable step and the widest a band may be');
+        if (step !== decision.step) stage(key, 'clamped', step, axis === 'y' ? { min: yMinStep, max: yMaxStep } : { min: minStepVal, max: maxStepSize }, 'held between the smallest readable step and the widest a band may be');
     }
     // The step value labels need, which the plan has checked the canvas holds.
     for (const axis of ['x', 'y'] as const) {
@@ -1289,9 +1296,11 @@ export function computeLayout(
         const cap = Math.max(minStepVal, Math.floor(maxSubplotW / (xContinuousAsDiscrete + 1)));
         if (xStepSize > cap) { xStepSize = cap; stage('xStep', 'stretch budget', cap, { budget: r1(maxSubplotW), bands: xContinuousAsDiscrete + 1, stretchCap: r1(maxStretchX), allowance: fixW }, budgetNote); }
     }
+    let rowNamesAboveFit: boolean | undefined;
     if (yTotalNominalCount > 0) {
         const divisor = yStepUnit === 'group' ? nominalCount.y : yTotalNominalCount;
-        const cap = Math.max(minStepVal, Math.floor(maxSubplotH / divisor));
+        if (rowScale > 1) rowNamesAboveFit = Math.floor(maxSubplotH / divisor) >= yMinStep;
+        const cap = Math.max(yStepUnit === 'group' ? minStepVal : yMinStep, Math.floor(maxSubplotH / divisor));
         if (yStepSize > cap) { yStepSize = cap; stage('yStep', 'stretch budget', cap, { budget: r1(maxSubplotH), bands: divisor, stretchCap: r1(maxStretchY), allowance: fixH }, budgetNote); }
     }
     if (yContinuousAsDiscrete > 0) {
@@ -1471,7 +1480,8 @@ export function computeLayout(
         if (options.bandBalance !== false && !pinnedPlot && oneBanded) {
             type Sizes = { w: number; h: number; xStep: number; yStep: number };
             const xStats = xBands ? computeDiscreteLabelStats(channelSemantics.x?.field, table) : null;
-            const yStats = yBands ? computeDiscreteLabelStats(channelSemantics.y?.field, table) : null;
+            // Names standing above their bars take no room beside the plot.
+            const yStats = yBands && rowScale === 1 ? computeDiscreteLabelStats(channelSemantics.y?.field, table) : null;
             const plotW = (z: Sizes) => (xBands ? z.xStep * xBands : z.w);
             const plotH = (z: Sizes) => (yBands ? z.yStep * yBands : z.h);
             const gridW = (z: Sizes) => facetCols * plotW(z) + (facetCols - 1) * gapX;
@@ -1510,7 +1520,8 @@ export function computeLayout(
             };
             const off = (z: Sizes, range: AspectRange) => Math.abs(Math.log(shapeDivergence(shapeOf(z), range))) > 0.01;
             const panel = (total: number, n: number, gap: number) => (total - (n - 1) * gap) / n;
-            const stepCeiling = (bands: number, budget: number) => Math.min(Math.floor(budget / bands), Math.max(maxStepSize, Math.round(defaultStepSize * BALANCE_STEP_GROWTH)));
+            const stepCeiling = (bands: number, budget: number, rows = false) => Math.min(Math.floor(budget / bands),
+                rows ? Math.max(yMaxStep, Math.round(yDefaultStep * BALANCE_STEP_GROWTH)) : Math.max(maxStepSize, Math.round(defaultStepSize * BALANCE_STEP_GROWTH)));
             const floorW = Math.max(Math.round(defaultChartWidth * BALANCE_SIDE_FLOOR / facetCols), minContinuousSizeX);
             const floorH = Math.max(Math.round(defaultChartHeight * BALANCE_SIDE_FLOOR / facetRows), minContinuousSizeY);
             // The least edit by the free sides that brings the shape to the range's nearer end.
@@ -1519,7 +1530,7 @@ export function computeLayout(
                 const wide = shapeDivergence(shapeOf(z), range) > 1;
                 if (wide) {
                     const wantH = () => panel((gridW(z) + beside(z).lo) / range.hi - below(z).hi, facetRows, gapY);
-                    if (yBands) z.yStep = Math.max(z.yStep, Math.min(stepCeiling(yBands, maxSubplotH), Math.ceil(wantH() / yBands)));
+                    if (yBands) z.yStep = Math.max(z.yStep, Math.min(stepCeiling(yBands, maxSubplotH, true), Math.ceil(wantH() / yBands)));
                     else z.h = Math.max(z.h, Math.min(Math.round(maxSubplotH), Math.ceil(wantH())));
                     if (yBands && off(z, range)) z.w = Math.min(z.w, Math.max(floorW, Math.floor(panel(range.hi * (gridH(z) + below(z).hi) - beside(z).lo, facetCols, gapX))));
                 } else {
@@ -1699,6 +1710,7 @@ export function computeLayout(
         subplotHeight,
         xStep: xStepSize,
         yStep: yStepSize,
+        ...(rowNamesAboveFit !== undefined ? { rowNamesAboveFit } : {}),
         xStepUnit,
         yStepUnit,
         xStepFitted,

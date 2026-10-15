@@ -28,7 +28,8 @@ const ROWS = MONTHS.flatMap((Month, index) => ['Bananas', 'Eggs', 'Whole milk'].
 const input = (rows: Record<string, unknown>[], cornerRadius = 0): ChartAssemblyInput => ({
     data: { values: rows },
     semantic_types: { Month: 'YearMonth', Price: { semanticType: 'Price', unit: 'USD' }, Food: 'Category' },
-    theme_spec: { extends: 'datawrapper', geometry: { band: { cornerRadius } } },
+    // The ruler is kept: a live layout fits labels to the window, and cannot take an axis away and give it back.
+    theme_spec: { extends: 'datawrapper', geometry: { band: { cornerRadius } }, structure: { axis: { measure: { suppressWhenValuesPrinted: false } } } } as any,
     options: { addTooltips: false, targetBandAR: 0 },
     chart_spec: {
         chartType: 'Stacked Bar Chart',

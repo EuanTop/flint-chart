@@ -512,6 +512,14 @@ export interface ThemeLabelFit {
 
 export interface ThemeLabels {
     truncation?: 'never' | 'ellipsis' | 'wrap';
+    /**
+     * Where the names of horizontal bars stand. `beside` (the default): down the y axis, left of the
+     * bars. `above`: each on its own line over its bar, the full width of the chart theirs — the
+     * bands take twice their room, by the same stretch, and where the canvas cannot hold that the
+     * names stand beside. `auto`: above only where, beside, a name would be cut or wrapped. One bar
+     * to a band only: grouped bars and small multiples keep their names beside.
+     */
+    rowNames?: 'beside' | 'above' | 'auto';
     flush?: boolean;
     /**
      * The path category names along x take when they do not stand flat and whole. Names that fit
@@ -563,10 +571,10 @@ export interface ThemeLegend {
     align?: 'start' | 'center' | 'end' | 'spread';
     /**
      * The air around keys, in em of their labels — so it keeps its proportion to the type — and
-     * eased with the plot's size (three-quarters at a small tile, a quarter more on a large chart).
+     * eased smoothly with the plot's size (0.7 on a small tile to 1.3 on a large chart).
      * `title`: the title block to keys standing under it; `stack`: between keys one above another;
-     * `row`: between keys side by side; `plot`: a key to the plot. Unset: one rhythm through the
-     * header, half an em for `title` and `stack`; an em and a half for `row`; an em for `plot`, by
+     * `row`: between keys side by side; `plot`: a key to the plot. Unset: the header grouped by its
+     * gaps — 0.6 em for `stack`, an em for `title`, an em and a half for `row`; an em for `plot`, by
      * `layout.density`.
      */
     gaps?: { title?: number; stack?: number; row?: number; plot?: number };
@@ -762,7 +770,7 @@ export interface ThemeLayout {
          * house's whitespace personality reaching the headline. `tight` packs
          * the chart up under the title (a dense figure, a dashboard tile);
          * `loose` gives an action title room to breathe (a slide exhibit). Keys above the plot join
-         * the block: the title stands over them at the header's rhythm (`legend.gaps`), and this gap
+         * the block: the title stands an em over them (`legend.gaps.title`), and this gap
          * stands below them.
          */
         gap?: 'tight' | 'normal' | 'loose';

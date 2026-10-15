@@ -85,7 +85,8 @@ const theme: ThemeSpec = {
     band: { fraction: 0.67, cornerRadius: 3 },
     arc: { cornerRadius: 2 },
   },
-  labels: { truncation: 'ellipsis' },
+  // “category name above the bar’s start”: names above where, beside, they would be cut.
+  labels: { truncation: 'ellipsis', rowNames: 'auto' },
   legend: { show: 'always', placement: ['bottom'], direction: 'horizontal', title: 'whenAmbiguous', align: 'center' },
   dataLabels: { show: 'never', placement: 'atMark', inkMode: 'contrastWithMark' },
   annotation: { axisTitles: 'omit', unit: 'everyTick', numberFormat: { thousands: 'suffix', precision: 'one', compact: { per: 'value', threshold: 1000 } } },
@@ -315,9 +316,9 @@ const polaris: StyleGuideTheme = {
       severity: 'medium',
       probe: 'labels-above-bars',
       rule: '“Include a label on each bar. If the bar is too small, include it outside of the bar”: category name above the bar’s start, value in white inside its end; no value axis; a table past six bars.',
-      current: 'With `showTextLabels` and `inkMode: contrastWithMark` Flint already prints each value in white inside the bar end. Nothing can move the category name from the axis to above the bar, and the value axis stays under the plot.',
+      current: 'With `showTextLabels` and `inkMode: contrastWithMark` Flint already prints each value in white inside the bar end. `labels.rowNames: "auto"` moves the names above the bars where, beside, they would be cut; the value axis still stays under the plot.',
       expected: 'Six bars, each with its country above and its value in white at the end (outside for small bars).',
-      proposal: '`labels.categoryPlacement: "axis" | "aboveBar"` for horizontal bars, with `dataLabels.placement: "insideEnd"` falling back to outside.',
+      proposal: 'Names above: `labels.rowNames` (done). Left: `dataLabels.placement: "insideEnd"` falling back to outside, and no value axis.',
       flint: flintInput(theme, {
         chartType: 'Bar Chart',
         data: POPULATION.slice(0, 6),

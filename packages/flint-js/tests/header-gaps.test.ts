@@ -10,8 +10,9 @@ import { vegaLiteStages } from '../src/vegalite/assemble';
 
 /**
  * A key stands an em of its type from the plot, by the house's density; a title over keys above
- * the plot makes one header block with them, one rhythm through it, the title's own gap below.
- * Every gap eases with the plot's size, and a theme may set each.
+ * the plot makes one header block with them, grouped by its gaps — keys closest, the title further
+ * over them, the plot further again. Every gap eases smoothly with the plot's size, and a theme may
+ * set each.
  */
 
 const institutions = ['Small business', 'Scientists', 'The military', 'The police', 'The Supreme Court', 'The press', 'Congress'];
@@ -50,30 +51,52 @@ describe('key gaps', () => {
         expect(keyGap(11)).toBe(11);
         expect(keyGap(11, 'compact')).toBe(9);
         expect(keyGap(11, 'airy')).toBe(15);
-        expect(keyGap(2)).toBeGreaterThanOrEqual(6);
+        expect(keyGap(2)).toBeGreaterThanOrEqual(8);
     });
 
-    it('move the title’s gap below keys standing under it, the title half an em over them', () => {
+    it('move the title’s gap below keys standing under it, the title an em over them', () => {
         const gaps = keyGaps({ labelFontSize: 12, titled: true, topKeys: true, titleGap: 15 });
         expect(gaps.offsets.top).toBe(15);
+        expect(gaps.headerGap).toBe(12);
         expect(gaps.offsets.right).toBe(12);
         expect(gaps.headerGap).toBe(headerInnerGap(12));
         expect(keyGaps({ labelFontSize: 12, titled: false, topKeys: true, titleGap: 15 }).headerGap).toBeUndefined();
         expect(keyGaps({ labelFontSize: 12, titled: true, topKeys: false, titleGap: 15 }).offsets.top).toBe(12);
     });
 
-    it('keep one rhythm through the header: the title to the keys as one key to the next', () => {
-        for (const size of [9, 10, 11, 12, 14]) for (const side of [120, 200, 300, 450]) {
-            expect(headerInnerGap(size, side)).toBe(keyStackGap(size, side));
+    it('group the header: keys closest, the title further over them, the plot further again', () => {
+        for (const size of [9, 10, 11, 12, 14]) for (const side of [120, 200, 300, 450, 700]) {
+            const stack = keyStackGap(size, side);
+            const title = headerInnerGap(size, side);
+            expect(title).toBeGreaterThan(stack);
+            // Clearly more than a deck's own leading, at any size.
+            expect(title).toBeGreaterThanOrEqual(7);
+            for (const titleGap of [8, 14, 20, 32, 48]) {
+                const below = keyGaps({ labelFontSize: size, plotSide: side, titled: true, topKeys: true, titleGap }).offsets.top;
+                expect(below).toBeGreaterThanOrEqual(Math.round(title * 1.25) - 1);
+                expect(below).toBeLessThanOrEqual(Math.round(title * 2.5) + 1);
+            }
         }
-        expect(keyStackGap(11, 300)).toBe(6);
+        expect(keyStackGap(11, 300)).toBe(7);
+        expect(headerInnerGap(11, 300)).toBe(11);
         expect(keyRowGap(11, 300)).toBeGreaterThan(keyStackGap(11, 300));
     });
 
-    it('ease with the plot: closer on a small tile, a little more air on a large chart', () => {
-        expect(gapEase(150)).toBe(0.75);
-        expect(gapEase(300)).toBe(1);
-        expect(gapEase(600)).toBe(1.25);
+    it('hold a loose house’s title gap near the header, and lift a tight one off the plot', () => {
+        // McKinsey's loose gap — twice its headline — would float the plot off the keys.
+        expect(keyGaps({ labelFontSize: 11, plotSide: 300, titled: true, topKeys: true, titleGap: 32 }).offsets.top).toBe(28);
+        expect(keyGaps({ labelFontSize: 11, plotSide: 300, titled: true, topKeys: true, titleGap: 6 }).offsets.top).toBe(14);
+    });
+
+    it('ease with the plot: closer on a small tile, more air on a large chart, with no step', () => {
+        expect(gapEase(100)).toBeCloseTo(0.7);
+        expect(gapEase(300)).toBeCloseTo(1);
+        expect(gapEase(500)).toBeCloseTo(1.3);
+        expect(gapEase(800)).toBeCloseTo(1.3);
+        for (let side = 100; side < 500; side += 5) {
+            expect(gapEase(side + 5)).toBeGreaterThanOrEqual(gapEase(side));
+            expect(gapEase(side + 5) - gapEase(side)).toBeLessThan(0.03);
+        }
         expect(keyStackGap(11, 180)).toBeLessThan(keyStackGap(11, 300));
         expect(keyStackGap(11, 450)).toBeGreaterThan(keyStackGap(11, 300));
         expect(keyGap(11, 'normal', 180)).toBeLessThan(keyGap(11, 'normal', 450));
@@ -85,6 +108,8 @@ describe('key gaps', () => {
         expect(keyStackGap(12, 300, spec)).toBe(4);
         expect(keyRowGap(12, 300, spec)).toBe(24);
         expect(keyGap(12, 'normal', 300, spec)).toBe(6);
+        // A house's own gap to the plot stands as set, not held to the header's share.
+        expect(keyGaps({ labelFontSize: 12, plotSide: 300, spec, titled: true, topKeys: true, titleGap: 40 }).offsets.top).toBe(6);
     });
 
     it('hold an edge clear of what stands there', () => {

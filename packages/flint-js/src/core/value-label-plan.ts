@@ -2,6 +2,7 @@ import { stackedAxis, type ChartStructure } from './structure';
 import type { DesignDecisions } from './theme/types';
 import type { ChannelSemantics } from './types';
 import { insideMinValue, LABEL_GAP, measureValueLabels } from './value-label-measure';
+import type { ArcLabelFit } from './arc-label-fit';
 
 /** Mark families that carry data values, as opposed to chrome. */
 export const DATA_MARKS = new Set([
@@ -41,6 +42,8 @@ export interface ValueLabelPlan {
      * label and print it past the end; no `minValue` means every bar holds its label.
      */
     insideFit?: { minValue?: number; overflow?: { end?: number; start?: number } };
+    /** A whole pie with its numbers outside: its radius and centre, sized by where the numbers fall. */
+    arc?: ArcLabelFit;
 }
 
 export interface ValueLabelInputs {

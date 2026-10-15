@@ -453,6 +453,11 @@ export interface LayoutResult {
     /** Whether each step was blended toward the room the plot has (`bandStepFit`), so it moves with what that room reserves. */
     xStepFitted?: boolean;
     yStepFitted?: boolean;
+    /**
+     * Where the names stand above their bars: whether the y bands, held to their least step, stay
+     * within the stretch the canvas allows.
+     */
+    rowNamesAboveFit?: boolean;
 
     /** Number of banded continuous items on each axis (0 if not banded-continuous) */
     xContinuousAsDiscrete: number;
@@ -1551,6 +1556,12 @@ export interface AssembleOptions {
      * bands for their labels.
      */
     labelStep?: { x?: number; y?: number };
+    /**
+     * Internal: the names down y stand on their own line above each bar. The y band starts at
+     * `scale` times the house band, never under `scale` times the least step nor `minStep` — a
+     * name's line, its bar and the air between — by the same stretch.
+     */
+    rowNamesAbove?: { scale: number; minStep?: number };
     /**
      * What the layout does when the chart will not read well in its canvas: the title, keys, labels
      * and chrome taking the chart area's room, the drawing overflowing its box past legibility, or
