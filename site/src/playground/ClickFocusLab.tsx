@@ -64,7 +64,7 @@ import { navigationDemoCases } from './navigation-demo-data';
 import './click-focus-lab.css';
 
 export type InteractionMode = 'click-highlight' | 'click-group-focus' | 'annotate' | 'select' | 'select-stateful'
-  | 'linked-brush' | 'hover-group-focus'
+  | 'linked-brush' | 'hover-group-focus' | 'hover-group-focus-highlight' | 'hover-group-focus-spotlight'
   | 'brush-x' | 'brush-y' | 'brush-angle' | 'brush-x-stateful' | 'brush-y-stateful' | 'brush-angle-stateful'
   | 'navigate' | 'drag-reorder'
   | 'lasso' | 'inspect' | 'inspect-index'
@@ -136,7 +136,9 @@ function modeInteractions(
   switch (mode) {
     case 'click-highlight': return [clickHighlight({ targets: ['mark', 'legend', 'discreteAxis'] })];
     case 'click-group-focus': return [clickGroupFocus({ groupBy })];
-    case 'hover-group-focus': return groupBy ? [hoverGroupFocus({ groupBy })] : [];
+    case 'hover-group-focus': return groupBy ? [hoverGroupFocus({ groupBy, emphasis: 'auto' })] : [];
+    case 'hover-group-focus-highlight': return groupBy ? [hoverGroupFocus({ groupBy, emphasis: 'highlight' })] : [];
+    case 'hover-group-focus-spotlight': return groupBy ? [hoverGroupFocus({ groupBy, emphasis: 'spotlight' })] : [];
     case 'annotate': return [clickAnnotate()];
     case 'select': return [rectangleSelect({ mode: 'ephemeral' })];
     case 'select-stateful': return [rectangleSelect({ mode: 'stateful' })];
@@ -211,7 +213,9 @@ function modeSpec(
   switch (mode) {
     case 'click-highlight': return { interactions: [entry('click-highlight', { targets: ['mark', 'legend', 'discreteAxis'] })] };
     case 'click-group-focus': return { interactions: [entry('click-group-focus', groupBy ? { groupBy } : undefined)] };
-    case 'hover-group-focus': return { interactions: groupBy ? [entry('hover-group-focus', { groupBy })] : [] };
+    case 'hover-group-focus': return { interactions: groupBy ? [entry('hover-group-focus', { groupBy, emphasis: 'auto' })] : [] };
+    case 'hover-group-focus-highlight': return { interactions: groupBy ? [entry('hover-group-focus', { groupBy, emphasis: 'highlight' })] : [] };
+    case 'hover-group-focus-spotlight': return { interactions: groupBy ? [entry('hover-group-focus', { groupBy, emphasis: 'spotlight' })] : [] };
     case 'annotate': return { interactions: [entry('click-annotate')] };
     case 'select': return { interactions: [entry('select', { mode: 'ephemeral' })] };
     case 'select-stateful': return { interactions: [entry('select', { mode: 'stateful' })] };
@@ -844,6 +848,18 @@ const GALLERY_VARIANTS: Partial<Record<InteractionMode, {
         hint: 'The region stays after the drag: move or resize it, or click outside to clear it.' },
     ],
   }])),
+  'hover-group-focus': {
+    label: 'Emphasis',
+    option: 'emphasis',
+    choices: [
+      { mode: 'hover-group-focus', label: 'Auto', value: 'auto',
+        hint: 'A line is drawn wider and the rest stay as drawn; points, bars, and slices dim the rest.' },
+      { mode: 'hover-group-focus-highlight', label: 'Highlight', value: 'highlight',
+        hint: 'The hovered group takes its marks\' hover cue; the rest stay as drawn.' },
+      { mode: 'hover-group-focus-spotlight', label: 'Spotlight', value: 'spotlight',
+        hint: 'The hovered group takes its cue and the rest dim.' },
+    ],
+  },
   'context-menu': {
     label: 'Gesture',
     option: 'gesture',

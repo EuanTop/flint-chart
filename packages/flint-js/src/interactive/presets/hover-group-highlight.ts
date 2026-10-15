@@ -24,7 +24,16 @@ export function createHoverGroupFocusInteraction(options: HoverGroupFocusEngineO
                 ...event.target,
                 elements: expandElementsByFields(event.target.elements, context.available, options.groupBy),
             };
-            return emphasisUpdate(id, event, target, dimOpacity, context);
+            // A renderer that does not say how its groups stand out keeps the receding default.
+            const emphasis = options.emphasis === undefined || options.emphasis === 'auto'
+                ? context.groupHoverEmphasis ?? 'spotlight'
+                : options.emphasis;
+            if (emphasis === 'spotlight') return emphasisUpdate(id, event, target, dimOpacity, context);
+            if (target.elements.length === 0) return null;
+            return {
+                id,
+                ops: [{ op: 'set-style', targets: [{ visual: target.visual, elements: target.elements }], value: { state: 'highlighted' } }],
+            };
         },
     };
 }

@@ -217,6 +217,7 @@ The **Availability** column shows whether a parameter is `always` available or `
 | `showPoints` | toggle | on / off | `false` | always | Overlay point markers on the line. |
 | `showMedian` | toggle | on / off | `false` | always | Median rule |
 | `showContour` | toggle | on / off | `false` | always | Contour |
+| `widths` | choice | `auto` (Auto), `area` (Equal area), `band` (Fill band) | `auto` | always | Widths |
 | `medianWidth` | number | 0.2 – 1 (step 0.05) | `0.6` | conditional | Median width |
 | `independentYAxis` | toggle | on / off | `false` | conditional | Use independent y-scales for facets. |
 

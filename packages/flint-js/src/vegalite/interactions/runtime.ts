@@ -58,6 +58,7 @@ import {
     isPickable,
     normalizeVegaElementEvent,
     nearestInteractiveSceneItem,
+    sceneItemsUnder,
     nearestSceneItem,
     pathHoverPresentationKey,
     pickBounds,
@@ -688,11 +689,15 @@ export function mountVegaInteractions(
     const changePhase = (phase: 'start' | 'preview' | 'commit' | 'cancel'): ChartChangeReport['phase'] =>
         phase === 'start' ? 'preview' : phase;
     const selectedElements = new Map<string, import('../../core/interaction-semantics').SemanticElement>();
+    // The selected marks the chart emphasizes, receding the rest; a highlighted mark is reported
+    // as selected but leaves the rest as drawn.
+    const emphasizedRenderKeys = new Set<string>();
     const hiddenKeys = new Set<string>();
     const retainedLegendTargets = new Map<string, SemanticTarget>();
     let selectedLegend: LegendHitIdentity | null = null;
     let hoveredLegend: LegendHitIdentity | null = null;
     let hoveredPathKeys = new Set<string>();
+    let hoveredMarkKeys = new Set<string>();
     let suppressClick = false;
     let regionDragging = false;
     const inspectSeriesLocks = new Map<string, unknown>();
@@ -836,8 +841,8 @@ export function mountVegaInteractions(
     const navigationController = plan.geoNavigation
         ? createVegaGeoNavigationController(view, plan.navigationAxes ?? {}, plan.geoLevels, plan.geoPreProjection)
         : createVegaNavigationController(view, plan.navigationAxes ?? {});
-    const selectedKeys = (): Set<string> => new Set(selectedElements.keys());
-    const renderPathFocus = (): void => focusOverlay.render(selectedKeys(), hoveredPathKeys);
+    const selectedKeys = (): Set<string> => new Set(emphasizedRenderKeys);
+    const renderPathFocus = (): void => focusOverlay.render(selectedKeys(), hoveredPathKeys, hoveredMarkKeys);
     const renderLegendRange = (): void => legendRangeOverlay.render(selectedLegend, hoveredLegend);
     renderPathFocus();
 
@@ -852,12 +857,12 @@ export function mountVegaInteractions(
     });
     const withSourceProvenance = (target: SemanticTarget | null): SemanticTarget | null =>
         enrichTargetWithSourceProvenance(target, plan);
-    /** The render keys an update emphasizes or focuses. */
+    /** The render keys an update emphasizes, focuses or highlights. */
     const emphasizedKeys = (update: ChartUpdate | undefined): Set<string> => {
         const keys = new Set<string>();
         for (const op of update?.ops ?? []) {
             if (op.op !== 'set-style'
-                || (op.value.state !== 'emphasized' && op.value.state !== 'focused')) continue;
+                || (op.value.state !== 'emphasized' && op.value.state !== 'focused' && op.value.state !== 'highlighted')) continue;
             for (const target of op.targets) {
                 if ('select' in target) continue;
                 for (const element of target.elements) {
@@ -959,6 +964,7 @@ export function mountVegaInteractions(
             resolveNavigation: navigationController.resolve,
             categoryField: plan.categoryField,
             seriesField: plan.seriesField,
+            groupHoverEmphasis: plan.groupHoverEmphasis,
             legendDomains,
             categoryAxis: reorderAxis?.axis,
             categoryOrder,
@@ -1184,6 +1190,7 @@ export function mountVegaInteractions(
         let emptyEmphasisActive = false;
         const freeformOverlays = new Map<string, import('../../core/interaction-contracts').FreeformOverlaySpec>();
         selectedElements.clear();
+        emphasizedRenderKeys.clear();
         hiddenKeys.clear();
         const reorderAxes = plan.reorderAxes ?? (plan.reorderAxis ? [plan.reorderAxis] : []);
         for (const axis of reorderAxes) view.signal(axis.signal, null);
@@ -1252,6 +1259,9 @@ export function mountVegaInteractions(
                         for (const element of target.elements) {
                             for (const key of semanticElementRenderKeys(element)) {
                                 if (op.value.state === 'emphasized' || op.value.state === 'focused') {
+                                    selectedElements.set(key, element);
+                                    emphasizedRenderKeys.add(key);
+                                } else if (op.value.state === 'highlighted' && !selectedElements.has(key)) {
                                     selectedElements.set(key, element);
                                 }
                                 const style = Object.fromEntries(
@@ -1722,6 +1732,10 @@ export function mountVegaInteractions(
     let hoverActive = false;
     let lastHoverTarget: SemanticTarget | null = null;
     let lastHoverPoint: import('../../interactive/interactions').PlotPoint | null = null;
+    // What the hover last showed, and the target that showed it: a pointer still on one of those
+    // marks keeps it, so crossing another series's mark drawn over it does not flip the hover.
+    let shownKeys = new Set<string>();
+    let shownTarget: SemanticTarget | null = null;
     let hoverClearTimer: ReturnType<typeof setTimeout> | undefined;
     const setHover = async (
         keys: readonly string[],
@@ -1735,6 +1749,7 @@ export function mountVegaInteractions(
         if (signature === hoveredKeys) return;
         hoveredKeys = signature;
         hoveredPathKeys = new Set(next.filter((key) => key.endsWith(PATH_KEY_SUFFIX)));
+        hoveredMarkKeys = new Set(next.filter((key) => !key.endsWith(PATH_KEY_SUFFIX)));
         hoveredLegend = legend;
         const renderedItems = hoveredPathKeys.size > 0 ? sceneItems(view) : [];
         const presentationKeys = [...new Set(next.map(
@@ -1789,6 +1804,8 @@ export function mountVegaInteractions(
         targetFeedbackOverlay.clear();
         lastHoverTarget = null;
         lastHoverPoint = null;
+        shownKeys = new Set();
+        shownTarget = null;
         void setHover([]);
         if (hoverCueActive) {
             hoverCueActive = false;
@@ -1893,7 +1910,23 @@ export function mountVegaInteractions(
         const reorderAxes = plan.reorderAxes ?? (plan.reorderAxis ? [plan.reorderAxis] : []);
         const reorderEligible = !!hovered && !!elementDragInteraction
             && eligibleReorderAxesForHit(reorderAxes, hovered).length > 0;
-        const directResolved = resolveTarget('hover', normalized.role, normalized.event.hits);
+        let directResolved = resolveTarget('hover', normalized.role, normalized.event.hits);
+        // Hysteresis: the topmost mark is not always the one the reader is following. While a mark
+        // of what is shown is still under the pointer, the hover stays on it; it moves only once
+        // the pointer has left those marks.
+        if (directResolved && shownTarget && shownKeys.size > 0
+            && !directResolved.elements.flatMap(semanticElementRenderKeys).some((key) => shownKeys.has(key))) {
+            const space = coordinateSpace();
+            const plotPoint = { x: rootPoint.x - space.originX, y: rootPoint.y - space.originY };
+            const stillOn = sceneItemsUnder(view, plotPoint).some((under) => {
+                const at = normalizeVegaElementEvent(
+                    view, under, point, 'preview', interactionModifiers(event), plan.legendFields, plan.rangeLegendChannels, rootPoint,
+                );
+                return (resolveTarget('hover', at.role, at.event.hits)?.elements ?? [])
+                    .flatMap(semanticElementRenderKeys).some((key) => shownKeys.has(key));
+            });
+            if (stillOn) directResolved = shownTarget;
+        }
         let resolved = directResolved;
         if (!resolved && hoverTolerance > 0 && lastHoverTarget && lastHoverPoint
             && Math.hypot(rootPoint.x - lastHoverPoint.x, rootPoint.y - lastHoverPoint.y) <= hoverTolerance) {
@@ -1924,10 +1957,12 @@ export function mountVegaInteractions(
                 modifiers: normalized.event.modifiers,
             }, interaction.eventSource), interactionContext);
             return preview?.ops.flatMap((op) => op.op === 'set-style'
-                && (op.value.state === 'emphasized' || op.value.state === 'focused')
+                && (op.value.state === 'emphasized' || op.value.state === 'focused' || op.value.state === 'highlighted')
                 ? op.targets.flatMap((target) => 'select' in target ? [] : target.elements)
                 : []) ?? [];
         });
+        shownKeys = new Set(presentationElements.flatMap(semanticElementRenderKeys));
+        shownTarget = resolved;
         const hoverDispatched = markHoverInteractions.filter((candidate) =>
             markHoverPresentationInteractions.includes(candidate));
         for (const interaction of hoverDispatched) {

@@ -1,3 +1,4 @@
+import * as vega from 'vega';
 import type { PlotPoint } from '../../../interactive/interactions';
 import type { VegaInteractionPlan } from '../contracts';
 import {
@@ -76,7 +77,8 @@ export function selectionBoundarySegments(
 }
 
 export interface FocusOverlayController {
-    render(selected: ReadonlySet<string>, hoveredPathKeys: ReadonlySet<string>): void;
+    /** `hoveredKeys` are the hovered marks that are not paths: the points a drawn line passes through. */
+    render(selected: ReadonlySet<string>, hoveredPathKeys: ReadonlySet<string>, hoveredKeys?: ReadonlySet<string>): void;
     destroy(): void;
 }
 
@@ -119,15 +121,27 @@ export function createFocusOverlay({
         stroke?: string;
         strokeWidth: number;
     }>();
+    // A point's outline while not hovered: redrawn over a hovered line, the line is its cue.
+    const symbolVisuals = new Map<string, { stroke?: unknown; strokeWidth?: unknown }>();
     Object.assign(focusLayer.style, {
         position: 'absolute', inset: '0', zIndex: '3', width: '100%', height: '100%',
         pointerEvents: 'none', overflow: 'hidden',
     });
 
-    const render = (selected: ReadonlySet<string>, hoveredPathKeys: ReadonlySet<string>): void => {
+    const render = (
+        selected: ReadonlySet<string>,
+        hoveredPathKeys: ReadonlySet<string>,
+        hoveredKeys: ReadonlySet<string> = new Set(),
+    ): void => {
         focusLayer.replaceChildren();
         const scene = sceneItems(view);
         for (const item of scene) {
+            if (item.mark?.marktype === 'symbol') {
+                const key = renderHit(item)?.datum[INTERACTION_KEY];
+                if (typeof key === 'string' && !hoveredKeys.has(key)) {
+                    symbolVisuals.set(key, { stroke: item.stroke, strokeWidth: item.strokeWidth });
+                }
+            }
             if (!item.interactionGeometry) continue;
             const hit = renderHit(item);
             const key = hit?.datum[INTERACTION_KEY];
@@ -242,9 +256,12 @@ export function createFocusOverlay({
                 shape.setAttribute('fill', 'none');
                 shape.setAttribute('stroke', hoverStyle?.stroke ?? visual?.stroke ?? item.stroke ?? '#4c78a8');
                 const authoredWidth = visual?.strokeWidth ?? item.strokeWidth ?? 2;
+                // A hovered line is drawn at least half again as wide as it stands, so the cue
+                // still shows on a theme whose lines are already as wide as the hover width.
                 shape.setAttribute('stroke-width', String(
-                    hoverStyle?.strokeWidth
-                    ?? authoredWidth * (selectionStyle?.strokeWidthMultiplier ?? 1),
+                    hoverStyle?.strokeWidth !== undefined
+                        ? Math.max(hoverStyle.strokeWidth, authoredWidth * 1.5)
+                        : authoredWidth * (selectionStyle?.strokeWidthMultiplier ?? 1),
                 ));
                 shape.setAttribute('stroke-linecap', 'round');
             } else {
@@ -269,6 +286,35 @@ export function createFocusOverlay({
             }
             clipTo(shape, item);
             focusLayer.append(shape);
+        }
+        // A line drawn here covers the points it passes through on the canvas below, so the points
+        // of the same marks are drawn again over it, in their own paint: the line is their cue.
+        if (items.some((item) => item.interactionGeometry.kind === 'segment')) {
+            const symbolMark = (vega as any).Marks?.symbol;
+            for (const item of symbolMark ? scene : []) {
+                const key = renderHit(item)?.datum[INTERACTION_KEY];
+                if (item.mark?.marktype !== 'symbol' || typeof key !== 'string'
+                    || !(selected.has(key) || hoveredKeys.has(key))
+                    || item.interactionVisibility === 'hidden') continue;
+                const idle = symbolVisuals.get(key);
+                const paint: Record<string, any> = { ...item, ...(idle ? { stroke: idle.stroke, strokeWidth: idle.strokeWidth } : {}) };
+                const point = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                symbolMark.attr((name: string, value: unknown) => {
+                    if (value != null) point.setAttribute(name, String(value));
+                }, { ...item, x: item.x + space.originX, y: item.y + space.originY });
+                point.setAttribute('fill', paint.fill ?? 'none');
+                point.setAttribute('stroke', paint.stroke ?? 'none');
+                for (const [attribute, value] of [
+                    ['fill-opacity', paint.fillOpacity],
+                    ['stroke-opacity', paint.strokeOpacity],
+                    ['stroke-width', paint.strokeWidth],
+                    ['opacity', paint.opacity],
+                ] as const) {
+                    if (typeof value === 'number') point.setAttribute(attribute, String(value));
+                }
+                clipTo(point, item);
+                focusLayer.append(point);
+            }
         }
         if (boundarySegments.length > 0) {
             const boundaryStyle = plan.selectionBoundary ?? {

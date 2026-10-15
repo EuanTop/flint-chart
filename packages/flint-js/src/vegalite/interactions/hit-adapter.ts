@@ -1182,6 +1182,19 @@ export function normalizeVegaElementEvent(
 }
 
 /** Nearest item to a plot point, for pointer acquisition that does not require a direct hit. */
+/**
+ * The marks drawn under a point: a line or an area within half its stroke of it, any other mark
+ * containing it. Every one, not only the topmost.
+ */
+export function sceneItemsUnder(view: any, plotPoint: PlotPoint): any[] {
+    return sceneItems(view).filter((item) => {
+        if (!item?.bounds || !isPickable(item) || item.datum?.[INTERACTION_ROLE] === 'legend-label') return false;
+        const path = item.mark?.marktype === 'line' || item.mark?.marktype === 'area';
+        const reach = path ? Math.max(1, (typeof item.strokeWidth === 'number' ? item.strokeWidth : 1) / 2) : 0.5;
+        return distanceToItem(plotPoint, item) <= reach;
+    });
+}
+
 export function nearestItemByBounds(
     items: readonly any[],
     point: PlotPoint,

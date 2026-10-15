@@ -154,7 +154,12 @@ function instrumentNode(
     const type = markType(node.mark);
     const selectable = !!type && SUPPORTED_SPEC_MARKS.has(type) && selectableMarks.has(type);
     const provenance = node[INTERACTION_PROVENANCE] as InteractionProvenance | undefined;
-    if (provenance?.role === 'decorative') return false;
+    if (provenance?.role === 'decorative') {
+        // Chrome drawn from the chart's rows — a panel's floor rule keeps its first one — must not
+        // carry that row's identity: keyed upstream, it would answer the pointer as the data point.
+        node.transform = [...(Array.isArray(node.transform) ? node.transform : []), { calculate: 'null', as: INTERACTION_KEY }];
+        return false;
+    }
     const textLabel = provenance?.role === 'text-label';
     const legendLabel = provenance?.role === 'legend-label';
     if (!selectable && !textLabel && !legendLabel) return false;
@@ -539,6 +544,8 @@ export function addVegaLiteInteractions(
         rangeProvenance: templateSemantics.rangeProvenance ?? [],
         categoryField: templateSemantics.categoryField,
         seriesField: templateSemantics.seriesField,
+        // A line drawn wider stands out on its own; a point's ring or a bar's contrast step does not.
+        groupHoverEmphasis: templateSemantics.renderHoverStyles?.line ? 'highlight' : 'spotlight',
         resolveGroupValue: templateSemantics.resolveGroupValue,
         legendFields: templateSemantics.legendFields,
         axisFields: templateSemantics.axisFields,
@@ -813,7 +820,27 @@ function applyCompiledHoverStyles(
             ? `datum.${INTERACTION_KEY} + '${PATH_KEY_SUFFIX}'`
             : `datum.${INTERACTION_KEY}`;
         const hoverTest = `indata('${HOVER_STORE}', 'key', ${hoverKey})`;
-        for (const [channel, value] of Object.entries(style)) {
+        // A hover outline is drawn at the width of the outline the mark already has: a wider one
+        // reaches past the mark's bounds, and a legend or a title laid out from the drawing's
+        // bounds would move with every hover at the edge.
+        // A mark with no stroke of its own takes a transparent one, which its width already counts.
+        const idleWidth = idleConstant(update.strokeWidth ?? mark.encode?.enter?.strokeWidth ?? { value: defaultStrokeWidth(mark.type) });
+        const hoverStyle: Record<string, unknown> = typeof style.strokeWidth === 'number' && idleWidth !== undefined && idleWidth > 0
+            ? { ...style, strokeWidth: idleWidth }
+            : { ...style };
+        // A hollow point is drawn by its outline, so recolouring the outline would grey the point out
+        // as if it were muted; it fills with its own colour instead.
+        const idleStroke = lastEntry(update.stroke ?? mark.encode?.enter?.stroke);
+        const idleFill = lastEntry(update.fill ?? mark.encode?.enter?.fill);
+        if (mark.type === 'symbol' && hoverStyle.stroke !== undefined && idleStroke
+            && (idleFill?.value === 'transparent' || idleFill?.value === 'none')) {
+            const { test: _test, ...colour } = idleStroke as Record<string, unknown>;
+            const existingFill = update.fill ?? mark.encode?.enter?.fill;
+            update.fill = [{ test: hoverTest, ...colour }, ...(Array.isArray(existingFill) ? existingFill : [existingFill])];
+            delete hoverStyle.stroke;
+            delete hoverStyle.fill;
+        }
+        for (const [channel, value] of Object.entries(hoverStyle)) {
             if (channel === 'opacity' && (value === 'contrast' || value === 'spotlight')) {
                 const currentOpacity = Array.isArray(update.opacity) ? update.opacity : [update.opacity];
                 if (value === 'spotlight' && currentOpacity.some((entry: any) =>
@@ -840,7 +867,7 @@ function applyCompiledHoverStyles(
                 channel === 'stroke'
                     ? { value: mark.type === 'line' || mark.type === 'rule' ? 'black' : 'transparent' }
                     : channel === 'strokeWidth'
-                    ? { value: mark.type === 'line' ? 2 : mark.type === 'rule' ? 1 : mark.type === 'symbol' ? 1.5 : 0 }
+                    ? { value: defaultStrokeWidth(mark.type) }
                     : undefined
             );
             if (existing === undefined) continue;
@@ -850,6 +877,23 @@ function applyCompiledHoverStyles(
             ];
         }
     }
+}
+
+/** The width Vega strokes a mark at when it states none. */
+function defaultStrokeWidth(type: string): number {
+    return type === 'line' ? 2 : type === 'rule' ? 1 : type === 'symbol' ? 1.5 : 0;
+}
+
+/** An encoding's entry when nothing tests it: its last one. */
+function lastEntry(encoding: unknown): Record<string, any> | undefined {
+    const last = Array.isArray(encoding) ? encoding[encoding.length - 1] : encoding;
+    return last && typeof last === 'object' ? last as Record<string, any> : undefined;
+}
+
+/** An encoding's value when nothing tests it: its last entry, where that is a constant number. */
+function idleConstant(encoding: unknown): number | undefined {
+    const value = lastEntry(encoding)?.value;
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
 function applyCompiledStyleChannels(marks: Record<string, any>[]): void {

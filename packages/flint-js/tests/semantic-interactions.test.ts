@@ -1993,7 +1993,9 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it('compiles template hover paint into native mark encodings', async () => {
-        for (const [mark, renderMark, width] of [['rect', 'rect', 1.5], ['circle', 'symbol', 2]] as const) {
+        // A mark with an outline of its own is outlined at that width on hover — recoloured, never
+        // wider — so the hover never reaches past the mark's bounds; a bar has none, and takes the paint's.
+        for (const [mark, renderMark, width, drawn] of [['rect', 'rect', 1.5, 1.5], ['circle', 'symbol', 2, 1.5]] as const) {
             const spec: Record<string, any> = {
                 data: { values: [{ X: 'A', Y: 2 }] },
                 mark,
@@ -2016,12 +2018,14 @@ describe('Vega-Lite semantic interactions', () => {
             await view.runAsync();
             const item = sceneItems(view).find((candidate) => candidate.datum[INTERACTION_KEY]);
             const key = item?.datum[INTERACTION_KEY];
+            const idleBounds = item && { x1: item.bounds.x1, x2: item.bounds.x2 };
             view.change(HOVER_STORE, changeset().insert([{ key }]));
             await view.runAsync();
             const hovered = sceneItems(view).find((candidate) => candidate.datum[INTERACTION_KEY] === key);
 
             expect(hovered?.stroke).toBe('#59636d');
-            expect(hovered?.strokeWidth).toBe(width);
+            expect(hovered?.strokeWidth).toBe(drawn);
+            if (mark === 'circle') expect({ x1: hovered?.bounds.x1, x2: hovered?.bounds.x2 }).toEqual(idleBounds);
         }
     });
 
@@ -2284,8 +2288,14 @@ describe('Vega-Lite semantic interactions', () => {
             expect(styled.length).toBeGreaterThan(0);
             for (const mark of styled) {
                 expect(JSON.stringify(mark.encode.update.opacity)).toContain(HOVER_STORE);
-                expect(JSON.stringify(mark.encode.update.stroke)).toContain(MUTED_HOVER_STROKE);
                 expect(JSON.stringify(mark.encode.update.strokeWidth)).toContain(HOVER_STORE);
+                // An outlier is a hollow point: its outline keeps its colour and the hover fills it.
+                if (markType === 'symbol') {
+                    expect(JSON.stringify(mark.encode.update.stroke)).not.toContain(MUTED_HOVER_STROKE);
+                    expect(JSON.stringify(mark.encode.update.fill)).toContain(HOVER_STORE);
+                } else {
+                    expect(JSON.stringify(mark.encode.update.stroke)).toContain(MUTED_HOVER_STROKE);
+                }
             }
         }
     });

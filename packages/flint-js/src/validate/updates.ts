@@ -176,6 +176,7 @@ function overlayText(name: string, spec: ChartOverlaySpec): string {
 const STATE_VERBS: Record<string, string> = {
     emphasized: 'emphasizes',
     focused: 'focuses',
+    highlighted: 'highlights',
     muted: 'mutes',
     normal: 'resets the style of',
 };

@@ -211,6 +211,14 @@ export interface LinkedBrushOptions extends Omit<SelectOptions, 'mode'> {
 export interface HoverGroupFocusOptions {
     id?: string;
     groupBy: string | readonly string[];
+    /**
+     * How the hovered group stands out. 'highlight' gives it its mark's hover cue and leaves the
+     * other groups as drawn; 'spotlight' also dims the other groups to `dimOpacity`; 'auto'
+     * highlights a group drawn as a line and spotlights points, bars, and slices.
+     * Defaults to 'auto'.
+     */
+    emphasis?: 'auto' | 'highlight' | 'spotlight';
+    /** The other groups' opacity under 'spotlight'. Defaults to 0.25. */
     dimOpacity?: number;
     /** Nearest-mark hover radius in renderer pixels. Defaults to 8. */
     tolerance?: number;

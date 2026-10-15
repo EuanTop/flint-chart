@@ -65,6 +65,7 @@ export interface VegaInteractionPlan {
     rowIndexed?: boolean;
     categoryField?: string;
     seriesField?: string;
+    groupHoverEmphasis?: InteractionContext['groupHoverEmphasis'];
     resolveGroupValue?: InteractionContext['resolveGroupValue'];
     legendFields?: Readonly<Record<string, string>>;
     axisFields?: Partial<Record<'x' | 'y', { field: string; type: string }>>;

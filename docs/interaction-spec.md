@@ -46,7 +46,7 @@ State is not part of the spec. What the chart shows now, an emphasis, a note, a 
 |---|---|---|---|
 | `click-highlight` | Clicks a mark, legend item, or axis label to emphasise it and mute the rest. | elements | click-none, escape |
 | `click-group-focus` | Clicks a mark to emphasise every mark in its group (`groupBy`). | elements | click-none, escape |
-| `hover-group-focus` | Hovers a mark to preview its group (`groupBy` required). | elements | none |
+| `hover-group-focus` | Hovers a mark to bring out its group (`groupBy` required). `emphasis`: `"auto"` (default) widens a line and dims the rest of a point, bar, or slice chart; `"highlight"` never dims; `"spotlight"` always does. | elements | none |
 | `click-annotate` | Clicks a mark to pin an annotation with its value. | elements | click-none, escape |
 | `context-activate` | Right-clicks or long-presses to hand the host a context target. | elements | none |
 | `long-press` | Holds a mark to activate it. | elements | click-none, escape |

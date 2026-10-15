@@ -97,7 +97,7 @@ out.
 | **Single one thing out** | | | | |
 | `click-highlight` | Clicks a mark, a legend item, or an axis label; it stays emphasised and the rest mute. Shift-click adds. | Which mark, series, or category is this one? | elements | click-none, escape |
 | `click-group-focus` | Clicks a mark; every mark in its group stays emphasised. `groupBy` names the group field. | Which marks belong with this one? | elements | click-none, escape |
-| `hover-group-focus` | Hovers a mark; its group previews until the pointer leaves. `groupBy` names the group field. | Which marks belong with this one, at a glance? | elements | none |
+| `hover-group-focus` | Hovers a mark; its group stands out until the pointer leaves. `groupBy` names the group field; `emphasis` is `"auto"` (a line widens and the rest stay as drawn; points, bars, and slices dim the rest), `"highlight"`, or `"spotlight"`. | Which marks belong with this one, at a glance? | elements | none |
 | `axis-highlight` | Clicks (or with `event: "hover"`, hovers) a discrete axis label; that category's marks emphasise. | Which marks share this row or column? | discrete axis | click-none, escape |
 | **Read values** | | | | |
 | `inspect` | Moves over the plot; a guide follows the pointer and the nearest mark on the chosen axes reads out. `mode` picks the axes and a comparison (`"x>"` reads every mark past the pointer). | What is at this x, this y, or beyond it? | elements | none |

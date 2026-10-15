@@ -1762,9 +1762,32 @@ describe('interaction definitions', () => {
             available: [...target.elements, linked, { value: {}, records: [{ Country: 'Germany', Year: 2007 }] }],
         };
 
-        expect(semanticUpdate(interaction, target, context, { phase: 'preview' })?.ops[0]).toMatchObject({
+        const highlighted = {
+            op: 'set-style',
+            targets: [{ visual: target.visual, elements: [target.elements[0], linked] }],
+            value: { state: 'highlighted' },
+        };
+        const spotlighted = {
             targets: [{ elements: [target.elements[0], linked] }],
             value: { state: 'emphasized', mutedOpacity: 0.25 },
+        };
+        // 'auto' follows how the chart says its groups stand out, and recedes the rest when it does not say.
+        expect(semanticUpdate(interaction, target, { ...context, groupHoverEmphasis: 'highlight' }, { phase: 'preview' })?.ops[0])
+            .toEqual(highlighted);
+        expect(semanticUpdate(interaction, target, { ...context, groupHoverEmphasis: 'spotlight' }, { phase: 'preview' })?.ops[0])
+            .toMatchObject(spotlighted);
+        expect(semanticUpdate(interaction, target, context, { phase: 'preview' })?.ops[0]).toMatchObject(spotlighted);
+        // An explicit emphasis overrides the chart's.
+        expect(semanticUpdate(
+            hoverGroupFocus({ groupBy: 'Country', emphasis: 'highlight' }),
+            target, { ...context, groupHoverEmphasis: 'spotlight' }, { phase: 'preview' },
+        )?.ops[0]).toEqual(highlighted);
+        expect(semanticUpdate(
+            hoverGroupFocus({ groupBy: 'Country', emphasis: 'spotlight', dimOpacity: 0.4 }),
+            target, { ...context, groupHoverEmphasis: 'highlight' }, { phase: 'preview' },
+        )?.ops[0]).toMatchObject({
+            targets: [{ elements: [target.elements[0], linked] }],
+            value: { state: 'emphasized', mutedOpacity: 0.4 },
         });
         expect(semanticUpdate(interaction, target, context, { phase: 'commit' })).toBeNull();
         expect(interaction.eventSource.targetTolerance).toBe(8);

@@ -139,7 +139,11 @@ export interface StyleSpec {
     fill?: string;
     stroke?: string;
     strokeWidth?: number;
-    state?: 'normal' | 'focused' | 'emphasized' | 'muted';
+    /**
+     * `emphasized` and `focused` recede everything else to `mutedOpacity`. `highlighted` gives the
+     * targets their mark's hover cue and leaves the rest as drawn.
+     */
+    state?: 'normal' | 'focused' | 'emphasized' | 'highlighted' | 'muted';
     mutedOpacity?: number;
 }
 
@@ -381,6 +385,11 @@ export interface InteractionContext extends ChartState {
     ) => NavigationUpdate | null;
     readonly categoryField?: string;
     readonly seriesField?: string;
+    /**
+     * How a hovered group best stands out in this chart: 'highlight' where its own cue carries it
+     * (a line drawn wider), 'spotlight' where the rest must recede (points, bars, slices).
+     */
+    readonly groupHoverEmphasis?: 'highlight' | 'spotlight';
     readonly legendDomains?: Readonly<Record<string, readonly unknown[]>>;
     readonly categoryAxis?: 'x' | 'y';
     readonly reorderAxes?: readonly {

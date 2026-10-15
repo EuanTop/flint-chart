@@ -116,7 +116,7 @@ The chart owns its state. A host reads it instead of replaying the gestures, so 
 
 | Field | Holds |
 |---|---|
-| `selected` | The marks the chart emphasizes or focuses now, previews included |
+| `selected` | The marks the chart emphasizes, focuses or highlights now, previews included |
 | `entries` | The same marks per update id, with `layer: 'retained' \| 'preview'` |
 | `hidden` | The legend values a toggle hides, as `{ channel, value }` |
 | `viewport` | The domain the plot shows after a pan or zoom, with level and focus on a map |
@@ -836,13 +836,17 @@ interface StyleSpec {
     fill?: string;
     stroke?: string;
     strokeWidth?: number;
-    state?: 'normal' | 'focused' | 'emphasized' | 'muted';
+    state?: 'normal' | 'focused' | 'emphasized' | 'highlighted' | 'muted';
     mutedOpacity?: number;
 }
 ```
 
 Operators are plain JSON. Presets and applications construct object literals directly;
 there are no trivial operator factory functions.
+
+`emphasized` and `focused` recede every other mark to `mutedOpacity`. `highlighted` gives its
+targets their mark's hover cue (a wider line drawn in front, an outline, a contrast step) and
+leaves every other mark as drawn.
 
 The renderer has two inputs:
 
@@ -1038,8 +1042,11 @@ clickGroupFocus({ groupBy: 'Quadrant' });
 This keeps grouping serializable and reusable by other chart semantics. Event-relative or otherwise
 custom interaction logic belongs in a custom `handle`, which can emit the existing style updates.
 
-`hoverGroupFocus({ groupBy: 'Country' })` provides the transient counterpart. Its preview
-clears on pointer exit and does not replace retained click or brush state. Assisted acquisition
+`hoverGroupFocus({ groupBy: 'Country' })` provides the transient counterpart. `emphasis`
+sets how the hovered group stands out: `'highlight'` gives it its marks' hover cue and leaves
+the other groups as drawn, `'spotlight'` also dims them to `dimOpacity`, and `'auto'` (the
+default) highlights a group drawn as a line and spotlights points, bars, and slices, whose own
+cue cannot carry a scattered group. A hollow point's cue fills it with its own colour. Its preview clears on pointer exit and does not replace retained click or brush state. Assisted acquisition
 finds a nearby mark within the preset's default 6-pixel radius. Separately, the default 8-pixel
 `tolerance` keeps the last resolved cohort stable across narrow gaps; set it to zero to disable
 that gap retention.

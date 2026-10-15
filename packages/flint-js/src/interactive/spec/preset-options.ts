@@ -34,7 +34,8 @@ export const INTERACTION_PRESET_OPTIONS: Readonly<Record<InteractionPresetType, 
     ],
     'hover-group-focus': [
         { name: "groupBy", type: "string | string[]", required: true, note: "" },
-        { name: "dimOpacity", type: "number", required: false, note: "" },
+        { name: "emphasis", type: "'auto' | 'highlight' | 'spotlight'", required: false, note: "How the hovered group stands out. 'highlight' gives it its mark's hover cue and leaves the other groups as drawn; 'spotlight' also dims the other groups to `dimOpacity`; 'auto' highlights a group drawn as a line and spotlights points, bars, and slices. Defaults to 'auto'." },
+        { name: "dimOpacity", type: "number", required: false, note: "The other groups' opacity under 'spotlight'. Defaults to 0.25." },
         { name: "tolerance", type: "number", required: false, note: "Nearest-mark hover radius in renderer pixels. Defaults to 8." },
     ],
     'click-annotate': [
