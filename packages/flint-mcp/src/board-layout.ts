@@ -15,8 +15,8 @@ export interface ChartLayout {
   height?: ChartHeight;
 }
 
-/** The chart height of each tier, in pixels, below the cell heading. */
-export const HEIGHT_PX: Record<ChartHeight, number> = { compact: 132, standard: 280, tall: 420 };
+/** The most a chart in a row of each tier may take, in pixels, below the cell heading; it takes less when its plan needs less. */
+export const HEIGHT_PX: Record<ChartHeight, number> = { compact: 180, standard: 340, tall: 468 };
 
 /** The units a row is divided into. */
 export const ROW_UNITS = 12;
@@ -64,8 +64,12 @@ export function chartSpan(chart: LayoutChart, columns: number): number {
 
 /** The narrowest cell a chart is planned into before the board drops a column. */
 export const MIN_CELL_WIDTH = 340;
-/** The narrowest a KPI tile draws without shrinking. */
-export const MIN_TILE_WIDTH = 220;
+/**
+ * The narrowest a KPI tile is given before tiles wrap to a second row. A KPI Card draws at least
+ * ~230 px wide whatever its room, so a narrower tile is scaled down; a row of tiles reads better
+ * slightly smaller than wrapped into large pairs.
+ */
+export const MIN_TILE_WIDTH = 140;
 /** The gap between cells of a row, in pixels. */
 export const CELL_GAP = 24;
 /** The card width from which a time series alone in its row takes a tall row. */
@@ -238,9 +242,10 @@ const overlaps = (a: GridItem, b: GridItem) =>
 const sharesRows = (a: GridItem, b: GridItem) => a.y < b.y + b.h && b.y < a.y + a.h;
 
 /**
- * The board after the reader changed one chart: a neighbour beside it gives up or takes width to
- * keep the row full, whatever still overlaps moves down, every other chart floats up as far as it
- * can, and a chart left with room beside it widens into it. The changed chart stays where it was put.
+ * The board after the reader changed one chart: a neighbour it grows into gives up that width when
+ * it can keep its least, whatever still overlaps moves down, and every other chart floats up as far
+ * as it can. No chart is widened on its own: the sizes the reader set stay, and room left beside a
+ * chart stays open until the reader fills it.
  */
 export function arrangeGrid(items: readonly GridItem[], activeId: string, minWidth: (id: string) => number): GridItem[] {
   const active = { ...items.find(({ id }) => id === activeId)! };
@@ -271,10 +276,6 @@ export function arrangeGrid(items: readonly GridItem[], activeId: string, minWid
       if (!settled.some((entry) => overlaps(entry, { ...item, y }))) { item.y = y; break; }
     }
     settled.push(item);
-  }
-  for (const item of settled.slice(1)) {
-    while (item.x + item.w < ROW_UNITS && !settled.some((entry) => overlaps(entry, { ...item, w: item.w + 1 }))) item.w += 1;
-    while (item.x > 0 && !settled.some((entry) => overlaps(entry, { ...item, x: item.x - 1, w: item.w + 1 }))) { item.x -= 1; item.w += 1; }
   }
   return items.map(({ id }) => settled.find((entry) => entry.id === id)!);
 }

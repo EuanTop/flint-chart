@@ -54,7 +54,10 @@ six charts. More than that is two boards.
 Pick the lead chart, the one the headline is about, and put it first after the
 KPI tiles. The charts after it explain it: a breakdown, a ranking, a relation.
 
-Give each chart its own data, aggregated to what it draws. A KPI tile takes
+Give each chart its own data, aggregated to what it draws: a bar, a slice or
+a cell is one row. Rows that repeat a category (monthly rows under a by-product
+bar) draw as a stack of thin slices; sum them first, or set the measure's
+`aggregate: "sum"`. A KPI tile takes
 one row: `{ metric, value, goal }`. It prints `value` as given and draws
 progress only when `value` and `goal` are both numbers, so pass them in the
 units the reader reads and name the unit in `metric`:

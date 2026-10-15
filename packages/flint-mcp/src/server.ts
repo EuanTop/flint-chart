@@ -36,6 +36,7 @@ import {
   boardFieldsShape,
   dropArrangement,
   placeAddedChart,
+  themeName,
   boardReport,
   boardSnapshot,
   linkSpecShape,
@@ -577,6 +578,25 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
   const boardFields = boardFieldsShape(assemblyInputShape.theme_spec);
   const validateBoardChart = async (input: ChartAssemblyInput, updates: ChartUpdate[] | undefined) =>
     validateChart(input, 'vegalite', { ...dataSourceOptions, roots: await clientRoots(), updates });
+  /** A new board from create_board arguments: each chart checked, the ones with errors left off. */
+  const buildBoard = async (args: any): Promise<{ board: Board; outcomes: ChartOutcome[] }> => {
+    const board = boards.create({
+      title: args.title,
+      subtitle: args.subtitle,
+      source: args.source,
+      theme_spec: args.theme_spec,
+      columns: args.columns,
+    });
+    const outcomes: ChartOutcome[] = [];
+    for (const chartArgs of args.charts as BoardChartArgs[]) {
+      const { chart, outcome } = await prepareChart(chartArgs, validateBoardChart, board);
+      outcomes.push(outcome);
+      if (chart) board.charts.push(chart);
+    }
+    board.link_spec = args.link_spec;
+    relink(board);
+    return { board, outcomes };
+  };
   const boardWrite = (fn: (args: any) => Promise<{ board: Board; outcomes: ChartOutcome[]; notes?: (string | undefined)[] }>) =>
     async (args: any) => {
       try {
@@ -614,21 +634,7 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
     },
     async (args: any) => {
       try {
-        const board = boards.create({
-          title: args.title,
-          subtitle: args.subtitle,
-          source: args.source,
-          theme_spec: args.theme_spec,
-          columns: args.columns,
-        });
-        const outcomes: ChartOutcome[] = [];
-        for (const chartArgs of args.charts as BoardChartArgs[]) {
-          const { chart, outcome } = await prepareChart(chartArgs, validateBoardChart, board);
-          outcomes.push(outcome);
-          if (chart) board.charts.push(chart);
-        }
-        board.link_spec = args.link_spec;
-        relink(board);
+        const { board, outcomes } = await buildBoard(args);
         return {
           content: [{ type: 'text' as const, text: boardReport(board, outcomes) }],
           _meta: { flint: { board: boardSnapshot(board) } },
@@ -727,6 +733,10 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
       for (const key of ['title', 'subtitle', 'source', 'theme_spec', 'columns'] as const) {
         if (args[key] !== undefined) (board as any)[key] = args[key];
       }
+      const themeNote = args.theme_spec !== undefined && board.reader_theme
+        ? `The reader's theme (${themeName(board.reader_theme.theme)}) was replaced: theme_spec sets the board's theme again.`
+        : undefined;
+      if (args.theme_spec !== undefined) board.reader_theme = undefined;
       if (args.order) {
         const rank = (id: string) => {
           const at = (args.order as string[]).indexOf(id);
@@ -735,10 +745,73 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
         board.charts = [...board.charts].sort((a, b) => rank(a.id) - rank(b.id));
       }
       if (args.link_spec !== undefined) board.link_spec = args.link_spec ?? undefined;
-      const notes = [args.columns !== undefined || args.order ? dropArrangement(board, args.order ? 'order' : 'columns') : undefined];
+      const notes = [args.columns !== undefined || args.order ? dropArrangement(board, args.order ? 'order' : 'columns') : undefined, themeNote];
       boards.touch(board);
       return { board, outcomes: [], notes };
     }),
+  );
+
+  registerAppTool(
+    server,
+    'restore_board',
+    {
+      title: 'Restore board',
+      description:
+        'For the board card only: hand back a board this server no longer holds, as after a restart. ' +
+        'Pass the board the card holds, kept under its own id, or the create_board arguments it was made from.',
+      inputSchema: {
+        board: z.record(z.string(), z.any()).optional().describe('The board as the card holds it, with its id.'),
+        create: z.record(z.string(), z.any()).optional().describe('The create_board arguments, when the card holds no board.'),
+      },
+      _meta: { ui: { resourceUri: BOARD_VIEW_RESOURCE_URI, visibility: ['app'] } },
+    },
+    async (args: any) => {
+      try {
+        let board: Board;
+        if (args.board?.id && Array.isArray(args.board.charts)) {
+          board = boards.has(args.board.id) ? boards.get(args.board.id) : boards.restore(args.board as Board);
+          relink(board);
+        } else if (args.create && Array.isArray(args.create.charts)) {
+          board = (await buildBoard(args.create)).board;
+        } else {
+          throw new Error('Nothing to restore: pass the board or the create_board arguments.');
+        }
+        return {
+          content: [{ type: 'text' as const, text: `version ${board.version}` }],
+          structuredContent: { version: board.version, board: boardSnapshot(board) },
+        };
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+  );
+
+  registerAppTool(
+    server,
+    'set_board_theme',
+    {
+      title: 'Set board theme',
+      description: 'For the board card only: the theme the reader picked for every chart, or reset to go back to the agent\'s.',
+      inputSchema: {
+        board_id: z.string(),
+        theme: z.union([z.string(), z.record(z.string(), z.any()), z.null()]).optional().describe('A preset id, a ThemeSpec, or null for Flint\'s default.'),
+        reset: z.boolean().optional().describe('Go back to the agent\'s theme.'),
+      },
+      _meta: { ui: { resourceUri: BOARD_VIEW_RESOURCE_URI, visibility: ['app'] } },
+    },
+    async (args: any) => {
+      try {
+        const board = boards.get(args.board_id);
+        board.reader_theme = args.reset ? undefined : { theme: args.theme ?? null };
+        boards.touch(board);
+        return {
+          content: [{ type: 'text' as const, text: `version ${board.version}` }],
+          structuredContent: { version: board.version, board: boardSnapshot(board) },
+        };
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
   );
 
   registerAppTool(

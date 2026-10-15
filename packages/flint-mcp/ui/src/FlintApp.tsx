@@ -370,7 +370,7 @@ const THEME_CHOICES: ThemeChoice[] = [
  * and giving them different shapes would suggest they are different kinds of
  * control.
  */
-function ThemeControl(props: {
+export function ThemeControl(props: {
   themeSpec: ThemeValue;
   customTheme?: Exclude<ThemeValue, string | undefined>;
   onTheme: (theme: ThemeValue) => void;
@@ -448,7 +448,7 @@ function ThemeControl(props: {
   );
 }
 
-function ActionButton(props: {
+export function ActionButton(props: {
   label: string;
   className?: string;
   disabled?: boolean;

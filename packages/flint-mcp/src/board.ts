@@ -35,6 +35,11 @@ export interface Board {
   columns?: number;
   /** Where each chart sits once the reader arranged the board; the rows of `columns` and `layout` until then. */
   grid?: GridItem[];
+  /**
+   * The theme the reader picked for every chart, over the board's and the charts' own; `theme`
+   * null is Flint's default. Absent while the reader keeps the agent's theme.
+   */
+  reader_theme?: { theme: ChartAssemblyInput['theme_spec'] | null };
   version: number;
   charts: BoardChart[];
   /** The fields the charts connect on; none when the charts stand alone. */
@@ -102,6 +107,19 @@ export class BoardStore {
     this.boards.set(board.id, board);
     if (this.boards.size > BOARD_LIMIT) this.boards.delete(this.boards.keys().next().value!);
     return board;
+  }
+
+  /** Whether the store holds the board. */
+  has(id: string): boolean {
+    return this.boards.has(id);
+  }
+
+  /** Takes back a board a card still holds, under its own id, as a server that restarted lost it. */
+  restore(board: Board): Board {
+    const kept: Board = { ...board, charts: board.charts ?? [], version: board.version ?? 1 };
+    this.boards.set(kept.id, kept);
+    if (this.boards.size > BOARD_LIMIT) this.boards.delete(this.boards.keys().next().value!);
+    return kept;
   }
 
   get(id: string): Board {
@@ -187,6 +205,30 @@ export function dropArrangement(board: Board, why: string): string | undefined {
   return `The reader's arrangement was dropped: ${why} sets the board's rows again.`;
 }
 
+/** Chart types that draw one mark per row, so rows that repeat a category stack as slices. */
+const ROW_MARKS = new Set(['Bar Chart', 'Stacked Bar Chart', 'Grouped Bar Chart', 'Bar Table', 'Lollipop Chart', 'Pie Chart', 'Heatmap']);
+
+/**
+ * Why a chart draws one mark per row where the reader expects one per category: several rows share
+ * every category it encodes and no channel sums them. Undefined when each category has one row.
+ */
+function stackedRepeats(input: ChartAssemblyInput): string | undefined {
+  const { chartType, encodings = {} } = input.chart_spec as { chartType: string; encodings?: Record<string, unknown> };
+  if (!ROW_MARKS.has(chartType)) return undefined;
+  const fieldOf = (value: unknown) => (typeof value === 'string' ? value : (value as { field?: string } | undefined)?.field);
+  const aggregated = Object.values(encodings).some((value) => typeof value === 'object' && value !== null && 'aggregate' in (value as object));
+  if (aggregated) return undefined;
+  const rows = (input.data.values ?? []) as Record<string, unknown>[];
+  const fields = Object.values(encodings).map(fieldOf).filter((field): field is string => !!field);
+  const categories = fields.filter((field) => rows.some((row) => typeof row?.[field] === 'string'));
+  const measure = fields.find((field) => !categories.includes(field) && rows.some((row) => typeof row?.[field] === 'number'));
+  if (categories.length === 0 || !measure) return undefined;
+  const keys = new Set(rows.map((row) => JSON.stringify(categories.map((field) => row?.[field]))));
+  if (keys.size === rows.length) return undefined;
+  const channel = Object.entries(encodings).find(([, value]) => fieldOf(value) === measure)?.[0] ?? 'x';
+  return `draws ${rows.length} rows as ${keys.size} ${categories.join(' × ')} groups, so each mark is a stack of slices, one per row: sum the rows first, or set encodings.${channel}.aggregate to "sum" (update_chart).`;
+}
+
 /** What the board should still fix to read well; each note says the fix. */
 export function boardReview(board: Board): string[] {
   const notes: string[] = [];
@@ -203,6 +245,10 @@ export function boardReview(board: Board): string[] {
     return title && title.length > limit ? [`${chart.id} (${title.length} characters, about ${limit} fit)`] : [];
   });
   if (long.length > 0) notes.push(`Chart titles that wrap at their width: ${long.join(', ')}; shorten each to one line and move detail to its subtitle (update_chart).`);
+  for (const chart of board.charts) {
+    const stacked = stackedRepeats(chart.input);
+    if (stacked) notes.push(`${chart.id} ${stacked}`);
+  }
   const kpis = board.charts.filter((chart) => isKpi(chart.input.chart_spec.chartType)).length;
   if (kpis > 6) notes.push(`${kpis} KPI tiles: keep the three to five numbers the reader acts on.`);
   if (board.charts.length - kpis > 8) notes.push(`${board.charts.length - kpis} charts: a board reads best with up to six; split it or remove the least used.`);
@@ -217,6 +263,14 @@ export function boardReview(board: Board): string[] {
   return notes;
 }
 
+/** A theme as the model reads it: its preset id, a custom theme's label, or Flint's default. */
+export function themeName(theme: ChartAssemblyInput['theme_spec'] | null): string {
+  if (theme === undefined || theme === null) return 'Flint default';
+  if (typeof theme === 'string') return theme;
+  const custom = theme as { label?: string; id?: string; extends?: string };
+  return custom.label ?? custom.id ?? (custom.extends ? `custom (${custom.extends})` : 'custom');
+}
+
 /** The board as the model reads it after a write. */
 export function boardReport(board: Board, outcomes: readonly ChartOutcome[], notes: readonly string[] = []): string {
   const lines = [
@@ -224,6 +278,9 @@ export function boardReport(board: Board, outcomes: readonly ChartOutcome[], not
     'The board card redraws from this board: change it with add_chart, update_chart, remove_chart and update_board, never a new create_board. What the reader does on it reaches you with their next message.',
   ];
   if (notes.length > 0) lines.push('', ...notes);
+  if (board.reader_theme) {
+    lines.push('', `The reader picked the theme ${themeName(board.reader_theme.theme)} for every chart; keep it. Passing theme_spec on update_board replaces their pick.`);
+  }
   if (board.charts.length > 0) lines.push('', 'Layout:', ...boardLayoutLines(board));
   for (const outcome of outcomes) {
     lines.push('', `## ${outcome.id}`, outcome.text);
@@ -244,6 +301,7 @@ export function boardSnapshot(board: Board): Board {
     ...(board.link_spec ? { link_spec: { ...board.link_spec } } : {}),
     ...(board.linked ? { linked: { ...board.linked } } : {}),
     ...(board.grid ? { grid: board.grid.map((item) => ({ ...item })) } : {}),
+    ...(board.reader_theme ? { reader_theme: { ...board.reader_theme } } : {}),
   };
 }
 

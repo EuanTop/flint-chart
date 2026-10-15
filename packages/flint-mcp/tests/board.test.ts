@@ -243,6 +243,61 @@ describe('board tools', () => {
     expect((await read(id)).board.grid).toBeUndefined();
   });
 
+  it('keeps the theme the reader picks until the agent sets the board\'s theme', async () => {
+    const created: any = await client.callTool({ name: 'create_board', arguments: { title: 'T', subtitle: 'S', theme_spec: 'economist', charts: [scatter, bars] } });
+    const id = boardIdOf(created);
+    const picked: any = await client.callTool({ name: 'set_board_theme', arguments: { board_id: id, theme: 'nyt' } });
+    expect(picked.structuredContent.board.reader_theme).toEqual({ theme: 'nyt' });
+    const added: any = await client.callTool({ name: 'add_chart', arguments: { board_id: id, chart: { ...bars, id: 'more' } } });
+    expect(text(added)).toContain('The reader picked the theme nyt for every chart; keep it.');
+
+    const plain: any = await client.callTool({ name: 'set_board_theme', arguments: { board_id: id, theme: null } });
+    expect(plain.structuredContent.board.reader_theme).toEqual({ theme: null });
+    const back: any = await client.callTool({ name: 'set_board_theme', arguments: { board_id: id, reset: true } });
+    expect(back.structuredContent.board.reader_theme).toBeUndefined();
+
+    await client.callTool({ name: 'set_board_theme', arguments: { board_id: id, theme: 'swiss' } });
+    const replaced: any = await client.callTool({ name: 'update_board', arguments: { board_id: id, theme_spec: 'datawrapper' } });
+    expect(text(replaced)).toContain("The reader's theme (swiss) was replaced: theme_spec sets the board's theme again.");
+    expect((await read(id)).board.reader_theme).toBeUndefined();
+  });
+
+  it('flags a chart that stacks repeated rows as slices, and not once it sums them', async () => {
+    const monthly = [1, 2, 3].flatMap((month) => rows.map((row) => ({ ...row, month })));
+    const sliced = { id: 'sliced', data: { values: monthly }, chart_spec: { chartType: 'Bar Chart', title: 'GDP', encodings: { y: 'country', x: 'gdp', color: 'region' } } };
+    const result: any = await client.callTool({ name: 'create_board', arguments: { title: 'T', subtitle: 'S', charts: [sliced] } });
+    expect(text(result)).toContain('sliced draws 12 rows as 4 country × region groups, so each mark is a stack of slices, one per row: sum the rows first, or set encodings.x.aggregate to "sum"');
+    const summed = { ...sliced, chart_spec: { ...sliced.chart_spec, encodings: { y: 'country', x: { field: 'gdp', aggregate: 'sum' }, color: 'region' } } };
+    const fixed: any = await client.callTool({ name: 'create_board', arguments: { title: 'T', subtitle: 'S', charts: [summed] } });
+    expect(text(fixed)).not.toContain('stack of slices');
+  });
+
+  it('takes back a board a restarted server lost, under its own id, and builds one from the call', async () => {
+    const created: any = await client.callTool({ name: 'create_board', arguments: { title: 'T', subtitle: 'S', charts: [scatter, bars] } });
+    const snapshot = created._meta.flint.board;
+    const restarted = createServer();
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    await restarted.connect(serverSide);
+    const fresh = new Client({ name: 'after-restart', version: '0.0.0' });
+    await fresh.connect(clientSide);
+    try {
+      const lost: any = await fresh.callTool({ name: 'update_chart', arguments: { board_id: snapshot.id, chart_id: 'by-country', chart_spec: { ...bars.chart_spec, title: 'X' } } });
+      expect(lost.isError).toBe(true);
+      const back: any = await fresh.callTool({ name: 'restore_board', arguments: { board: snapshot } });
+      expect(back.structuredContent.board.id).toBe(snapshot.id);
+      const updated: any = await fresh.callTool({ name: 'update_chart', arguments: { board_id: snapshot.id, chart_id: 'by-country', chart_spec: { ...bars.chart_spec, title: 'X' } } });
+      expect(updated.isError).toBeFalsy();
+      expect(text(updated)).toContain('Chart "X"');
+      const rebuilt: any = await fresh.callTool({ name: 'restore_board', arguments: { create: { title: 'Again', charts: [scatter] } } });
+      expect(rebuilt.structuredContent.board.charts.map((chart: any) => chart.id)).toEqual(['countries']);
+      const nothing: any = await fresh.callTool({ name: 'restore_board', arguments: {} });
+      expect(nothing.isError).toBe(true);
+    } finally {
+      await fresh.close();
+      await restarted.close();
+    }
+  });
+
   it('serves the board view as the chart bundle marked for the board', async () => {
     const { contents } = await client.readResource({ uri: BOARD_VIEW_RESOURCE_URI });
     expect(contents[0].mimeType).toContain('mcp-app');

@@ -791,7 +791,11 @@ input[type="checkbox"] {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 18px 20px 14px;
+  padding:
+    calc(18px + var(--inset-top, 0px))
+    calc(20px + var(--inset-right, 0px))
+    calc(14px + var(--inset-bottom, 0px))
+    calc(20px + var(--inset-left, 0px));
   background: var(--board-bg);
   color: var(--board-ink);
   font-family: var(--board-font);
@@ -891,6 +895,7 @@ input[type="checkbox"] {
   /* FlintChart centres the chart in its box and scales an overflow about its centre; a cell
      starts the chart under its heading, so it scales from the same corner. */
   justify-content: flex-start !important;
+  align-items: flex-start !important;
 }
 
 .board-cell-chart .chart-interactive > div {
@@ -1005,10 +1010,6 @@ input[type="checkbox"] {
   min-height: 0;
 }
 
-/* A tile's chart starts under its heading; a chart planned past the box loses its bottom edge, never its legend. */
-.board-tile-chart .chart-interactive {
-  align-items: flex-start !important;
-}
 
 /* Edit mode draws its frame outside the tile's box, so no chart changes size when it starts. */
 .board-editing .board-tile {
@@ -1078,34 +1079,105 @@ input[type="checkbox"] {
   border-bottom-right-radius: 3px;
 }
 
-/* The board's one selection, under the headline: what every chart is narrowed to, and a way out. */
+/* The board's one selection, in the bar: a chip per part the reader acted on, each removable, and
+   a way to clear them all. It takes the room between the theme and the actions and no more. */
 .board-selection {
-  align-self: flex-start;
+  flex: 0 1 auto;
+  min-width: 0;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  margin-top: 6px;
-  padding: 2px 4px 2px 10px;
-  border: 1px solid var(--board-rule);
-  border-radius: 999px;
-  font-size: 12px;
-  color: var(--board-ink);
+  gap: 4px;
+  overflow: hidden;
 }
 
-.board-selection-clear {
+.board-chip {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 22px;
+  padding: 0 2px 0 8px;
+  border: 1px solid var(--board-rule);
+  border-radius: 999px;
+  font-size: 11.5px;
+  color: var(--board-ink);
+  white-space: nowrap;
+}
+
+.board-chip-text {
+  min-width: 0;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.board-chip-more {
+  flex: none;
+  padding: 0 8px;
+  color: var(--board-muted);
+}
+
+.board-chip-clear,
+.board-selection-clear-all {
+  flex: none;
   font: inherit;
-  font-size: 14px;
-  line-height: 1;
   color: var(--board-muted);
   background: transparent;
   border: 0;
-  border-radius: 999px;
-  width: 20px;
-  height: 20px;
   cursor: pointer;
 }
 
-.board-selection-clear:hover {
+.board-chip-clear {
+  font-size: 13px;
+  line-height: 1;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+}
+
+.board-chip-clear:hover {
   color: var(--board-ink);
   background: var(--board-rule);
+}
+
+.board-selection-clear-all {
+  font-size: 11.5px;
+  padding: 0 4px;
+}
+
+.board-selection-clear-all:hover {
+  color: var(--board-ink);
+  text-decoration: underline;
+}
+
+/* The board's own bar, under the board as the chart card's is under its chart: the theme for every
+   chart on the left, the layout and export on the right. */
+.board-bar {
+  margin-top: 4px;
+  padding: 6px 0 0;
+  color: var(--board-muted);
+}
+
+.board-bar .optionsbar-grid {
+  gap: 6px;
+}
+
+.board-bar-fill {
+  flex: 1;
+}
+
+.board-bar .bar-link {
+  color: var(--board-muted);
+}
+
+.board-bar .bar-link:hover {
+  color: var(--board-ink);
+  background: var(--board-rule);
+}
+
+.board-bar .bar-link:disabled {
+  opacity: 0.35;
+  cursor: default;
+  background: transparent;
 }

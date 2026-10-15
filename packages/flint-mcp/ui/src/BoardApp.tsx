@@ -40,6 +40,9 @@ import {
   type ChartLayout,
 } from '../../src/board-layout';
 import { chartContext, type ChartGesture } from '../../src/chart-context';
+import { APP_PREVIEW_CANVAS_SIZE, usesAutoPreviewSize, withAppPreviewDefaults } from './render';
+import { boardPng } from './board-export';
+import { ActionButton, ThemeControl } from './FlintApp';
 import { LINK_LAYER, conditionUpdates, selectionParts, shownFields, type ChartLink, type LinkCondition, type LinkPart, type LinkSpec } from '../../src/link';
 
 declare const __FLINT_MCP_VERSION__: string;
@@ -59,6 +62,7 @@ interface Board {
   theme_spec?: ChartAssemblyInput['theme_spec'];
   columns?: number;
   grid?: GridItem[];
+  reader_theme?: { theme: ChartAssemblyInput['theme_spec'] | null };
   version: number;
   charts: BoardChart[];
   link_spec?: LinkSpec;
@@ -66,6 +70,22 @@ interface Board {
 }
 
 const POLL_MS = 1500;
+
+const EXPORT_LABEL = {
+  idle: 'Copy board as PNG',
+  working: 'Copying the board…',
+  copied: 'Board copied',
+  downloaded: 'Board downloaded',
+  error: 'Could not export the board',
+} as const;
+
+/** A theme as the model reads it: its preset id, a custom theme's label, or the default. */
+function themeName(theme: ChartAssemblyInput['theme_spec']): string {
+  if (theme === undefined) return 'Flint default';
+  if (typeof theme === 'string') return theme;
+  const custom = theme as { label?: string; id?: string; extends?: string };
+  return custom.label ?? custom.id ?? (custom.extends ? `custom (${custom.extends})` : 'custom');
+}
 const NO_UPDATES: readonly ChartUpdate[] = [];
 
 /** A selected value as the data writes it: a time the chart read from a date string prints as that date. */
@@ -89,6 +109,49 @@ function gestureParts(link: ChartLink, interaction: string, state: ChartState, h
   if (!entry || entry.elements.length === 0 || entry.layer !== (hover ? 'preview' : 'retained')) return null;
   const parts = selectionParts(entry.elements, gesture);
   return Object.keys(parts).length > 0 ? parts : null;
+}
+
+interface BoardCondition {
+  parts: LinkCondition;
+  from: Record<string, string>;
+  impliedBy: Record<string, string>;
+}
+
+const EMPTY_CONDITION: BoardCondition = { parts: NO_CONDITION, from: {}, impliedBy: {} };
+
+/** The most chips the bar shows before it folds the rest into "+N". */
+const MAX_CHIPS = 3;
+
+/**
+ * The fields of one selection that another of its fields determines in the chart's rows, as each
+ * country lies in one region: each maps to the field that implies it. Of two fields that determine
+ * each other, the first stays shown.
+ */
+function impliedParts(fields: readonly string[], rows: readonly Record<string, unknown>[]): Record<string, string> {
+  const determines = (a: string, b: string) => {
+    const seen = new Map<string, string>();
+    for (const row of rows) {
+      const key = JSON.stringify(row?.[a]);
+      const value = JSON.stringify(row?.[b]);
+      if (seen.has(key) && seen.get(key) !== value) return false;
+      seen.set(key, value);
+    }
+    return rows.length > 0;
+  };
+  const implied: Record<string, string> = {};
+  for (const b of fields) {
+    const by = fields.find((a) => a !== b && !(a in implied) && determines(a, b) && (!determines(b, a) || fields.indexOf(a) < fields.indexOf(b)));
+    if (by) implied[b] = by;
+  }
+  return implied;
+}
+
+/** A part as a short chip: `Country: 7`, `Region: Asia`, `Month: 2025-03–2025-06`. */
+function chipText(field: string, part: LinkPart, chart: BoardChart | undefined): string {
+  const named = chart?.input.field_display_names?.[field] ?? field;
+  const label = named.charAt(0).toUpperCase() + named.slice(1);
+  if ('range' in part) return `${label}: ${valueText(part.range[0], chart, field)}–${valueText(part.range[1], chart, field)}`;
+  return `${label}: ${part.in.length === 1 ? valueText(part.in[0], chart, field) : part.in.length}`;
 }
 
 /** A condition part as the reader and the model read it, dates as the data writes them. */
@@ -170,6 +233,15 @@ function boardStyle(theme: ChartAssemblyInput['theme_spec']): BoardStyle {
   }
 }
 
+/** The chart with its heading lifted out to the cell, as the chart card plans it for a room up to `height` tall. */
+function roomSpec(input: ChartAssemblyInput, height: number): ChartAssemblyInput {
+  const { title: _title, subtitle: _subtitle, ...chartSpec } = input.chart_spec;
+  return withAppPreviewDefaults(
+    { ...input, theme_spec: withoutFurniture(input.theme_spec), chart_spec: chartSpec },
+    { width: APP_PREVIEW_CANVAS_SIZE.width, height },
+  );
+}
+
 /** The theme without its branding marks, which the board draws once on its frame. */
 function withoutFurniture(theme: ChartAssemblyInput['theme_spec']): ChartAssemblyInput['theme_spec'] {
   if (theme === undefined) return theme;
@@ -177,7 +249,7 @@ function withoutFurniture(theme: ChartAssemblyInput['theme_spec']): ChartAssembl
 }
 
 /** The widest a KPI tile is planned, so a tile alone in a wide cell stays a tile. */
-const MAX_TILE_WIDTH = 320;
+const MAX_TILE_WIDTH = 260;
 
 /** The chart as a cell draws it: its heading taken out to the cell, sized to the cell's room. */
 function cellSpec(input: ChartAssemblyInput, width: number, height: number): ChartAssemblyInput {
@@ -248,27 +320,16 @@ function BoardCell({
   onChange: (id: string, change: ChartChange) => void;
   onWarnings: (id: string, warnings: readonly ChartWarning[]) => void;
 }) {
+  // A KPI tile is laid out at its tile's width; it draws its own minimum, scaled down to fit.
   const [measure, width] = useWidth<HTMLDivElement>();
-  const [fit, setFit] = useState<Fit | null>(null);
-  const current = fit && fit.input === input && fit.width === width && fit.height === height ? fit : null;
+  // Any other chart is sized as the chart card sizes one: its theme's footprint, the cell's width as
+  // the room it may stretch into, and the row's height as the most it may take. The spec does not
+  // carry the width, so a resize lays the chart out again in place and keeps what the reader did.
   const spec = useMemo(
-    () => (width ? cellSpec(input, Math.max(MIN_PLAN_WIDTH, width - (current?.over.width ?? 0)), Math.max(MIN_PLAN_HEIGHT, height - (current?.over.height ?? 0))) : null),
-    [input, width, height, current?.over.width, current?.over.height],
+    () => (kpi ? (width ? cellSpec(input, width, height) : null) : roomSpec(input, height)),
+    [kpi, input, width, height],
   );
-  const settled = current !== null;
-  const handleRender = useCallback((surface: InteractiveChartSurface) => {
-    if (!width) return;
-    if (!current) {
-      // The plan sizes the plot; what the chart draws around it comes on top. Plan once more with
-      // the room less what the first plan overshot; a chart still over is scaled down after that.
-      const svg = surface.element.querySelector('svg');
-      const drawn = { width: Number(svg?.getAttribute('width')) || 0, height: Number(svg?.getAttribute('height')) || 0 };
-      const over = { width: Math.max(0, Math.ceil(drawn.width - width)), height: Math.max(0, Math.ceil(drawn.height - height)) };
-      setFit({ input, width, height, over: over.width > 1 || over.height > 1 ? over : { width: 0, height: 0 } });
-      if (over.width > 1 || over.height > 1) return;
-    }
-    onRender(chart.id, surface);
-  }, [chart.id, onRender, current, input, width, height]);
+  const handleRender = useCallback((surface: InteractiveChartSurface) => onRender(chart.id, surface), [chart.id, onRender]);
   const handleChange = useCallback((change: ChartChange) => onChange(chart.id, change), [chart.id, onChange]);
   const handleWarnings = useCallback((warnings: readonly ChartWarning[]) => onWarnings(chart.id, warnings), [chart.id, onWarnings]);
   const { title, subtitle } = input.chart_spec;
@@ -282,7 +343,7 @@ function BoardCell({
         {title && <h2 className="board-cell-title">{title}</h2>}
         {subtitle && <p className="board-cell-subtitle">{subtitle}</p>}
       </header>
-      <div className="board-cell-chart" ref={measure} style={{ minHeight: height, visibility: settled ? undefined : 'hidden' }}>
+      <div className="board-cell-chart" ref={kpi ? measure : undefined}>
         {spec && (
           <FlintChart
             className="chart-interactive"
@@ -292,7 +353,7 @@ function BoardCell({
             expressionInterpreter={expressionInterpreter}
             chartId={`flint-board-${chart.id}`}
             width="100%"
-            fit="scale-down"
+            fit={!kpi && usesAutoPreviewSize(input) ? 'relayout' : 'scale-down'}
             fallback={<span className="chart-pending">Rendering…</span>}
             onRender={handleRender}
             onChange={handleChange}
@@ -305,12 +366,19 @@ function BoardCell({
 }
 
 /** Each chart's input as the board draws it: the board's theme where it sets none, and shared colours in one order. */
-function useDrawInputs(charts: readonly BoardChart[], theme: ChartAssemblyInput['theme_spec']): Map<string, ChartAssemblyInput> {
+function useDrawInputs(
+  charts: readonly BoardChart[],
+  theme: ChartAssemblyInput['theme_spec'],
+  /** The reader chose the theme for the whole board, over any chart's own. */
+  everyChart: boolean,
+): Map<string, ChartAssemblyInput> {
   const cache = useRef(new Map<string, { chart: BoardChart; key: string; input: ChartAssemblyInput }>());
   return useMemo(() => {
     const themed = charts.map((chart) => ({
       chart,
-      input: chart.input.theme_spec !== undefined || theme === undefined ? chart.input : { ...chart.input, theme_spec: theme },
+      input: everyChart
+        ? { ...chart.input, theme_spec: theme }
+        : chart.input.theme_spec !== undefined || theme === undefined ? chart.input : { ...chart.input, theme_spec: theme },
     }));
     const orders = sharedColorOrders(themed.map(({ input }) => input));
     const next = new Map<string, { chart: BoardChart; key: string; input: ChartAssemblyInput }>();
@@ -328,7 +396,7 @@ function useDrawInputs(charts: readonly BoardChart[], theme: ChartAssemblyInput[
     }
     cache.current = next;
     return new Map([...next].map(([id, entry]) => [id, entry.input]));
-  }, [charts, theme]);
+  }, [charts, theme, everyChart]);
 }
 
 /** The space between arranged charts, below each one. */
@@ -473,7 +541,12 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
   const [live, setLive] = useState(true);
   // The board's one selection, from the chart the reader selected on last, with the layers that hold it there.
   // The board's one condition, and the chart each part came from, which names its values.
-  const [condition, setCondition] = useState<{ parts: LinkCondition; from: Record<string, string> }>({ parts: NO_CONDITION, from: {} });
+  // A theme picked in the bar shows at once; the board the server returns then carries it.
+  const [pendingTheme, setPendingTheme] = useState<{ theme: ChartAssemblyInput['theme_spec'] | null } | 'reset' | null>(null);
+  const [exportStatus, setExportStatus] = useState<'idle' | 'working' | 'copied' | 'downloaded' | 'error'>('idle');
+  // The board's one condition, the chart each part came from, which names its values, and the parts
+  // another part of the same selection implies (a country's region), applied but not shown.
+  const [condition, setCondition] = useState<BoardCondition>(EMPTY_CONDITION);
   // A hover previews its parts over the condition while the pointer stays.
   const [hovered, setHovered] = useState<{ source: string; parts: LinkCondition } | null>(null);
   const surfaces = useRef(new Map<string, InteractiveChartSurface>());
@@ -504,6 +577,7 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
       return;
     }
     let stopped = false;
+    const restoredRef = { current: null as string | null };
     const poll = async () => {
       if (stopped || editingRef.current || document.visibilityState !== 'visible') return;
       try {
@@ -513,7 +587,21 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
         });
         if (stopped || editingRef.current) return;
         if (result.isError) {
-          setLive(false);
+          // The server lost the board, as after a restart: hand it back under its own id, once.
+          if (restoredRef.current === boardRef.current.id) {
+            setLive(false);
+            return;
+          }
+          restoredRef.current = boardRef.current.id;
+          const restored = await app.callServerTool({ name: 'restore_board', arguments: { board: boardRef.current } });
+          const back = (restored.structuredContent as { board?: Board } | undefined)?.board;
+          if (stopped) return;
+          if (restored.isError || !back) {
+            setLive(false);
+            return;
+          }
+          setLive(true);
+          setBoard(back);
           return;
         }
         setLive(true);
@@ -531,7 +619,7 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
   }, [app]);
 
   const clearCondition = useCallback(() => {
-    setCondition((current) => (Object.keys(current.parts).length === 0 ? current : { parts: NO_CONDITION, from: {} }));
+    setCondition((current) => (Object.keys(current.parts).length === 0 ? current : EMPTY_CONDITION));
   }, []);
 
   /**
@@ -548,12 +636,32 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
       clearCondition();
       return;
     }
-    setCondition((current) => ({
-      parts: { ...current.parts, ...parts },
-      from: { ...current.from, ...Object.fromEntries(Object.keys(parts).map((field) => [field, id])) },
-    }));
+    const rows = (chartsRef.current.find((chart) => chart.id === id)?.input.data.values ?? []) as Record<string, unknown>[];
+    const implied = impliedParts(Object.keys(parts), rows);
+    setCondition((current) => {
+      const kept = Object.fromEntries(Object.entries(current.impliedBy).filter(([field, by]) => !(field in parts) && !(by in parts)));
+      return {
+        parts: { ...current.parts, ...parts },
+        from: { ...current.from, ...Object.fromEntries(Object.keys(parts).map((field) => [field, id])) },
+        impliedBy: { ...kept, ...implied },
+      };
+    });
     void surfaces.current.get(id)?.clearUpdate(interaction);
   }, [clearCondition]);
+
+  /** Lets one shown part go, with the parts it implied. */
+  const removePart = useCallback((field: string) => {
+    setCondition((current) => {
+      const gone = new Set([field, ...Object.entries(current.impliedBy).filter(([, by]) => by === field).map(([hidden]) => hidden)]);
+      const parts = Object.fromEntries(Object.entries(current.parts).filter(([key]) => !gone.has(key)));
+      if (Object.keys(parts).length === 0) return EMPTY_CONDITION;
+      return {
+        parts,
+        from: Object.fromEntries(Object.entries(current.from).filter(([key]) => !gone.has(key))),
+        impliedBy: Object.fromEntries(Object.entries(current.impliedBy).filter(([key, by]) => !gone.has(key) && !gone.has(by))),
+      };
+    });
+  }, []);
 
   /** Reads a hover: its parts preview over the condition while the pointer stays. */
   const readHover = useCallback((id: string, change: ChartChange) => {
@@ -573,7 +681,7 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
     const fields = new Set(board.link_spec?.fields ?? []);
     setCondition((current) => {
       const kept = Object.entries(current.parts).filter(([field]) => fields.has(field));
-      return kept.length === Object.keys(current.parts).length ? current : { parts: Object.fromEntries(kept), from: current.from };
+      return kept.length === Object.keys(current.parts).length ? current : { ...current, parts: Object.fromEntries(kept) };
     });
   }, [board.link_spec]);
 
@@ -635,6 +743,7 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
         lines.push(`- The board is narrowed to ${said.join(' and ')}.`, `- Each chart shows it on the fields its marks carry: ${shown.join('; ')}.`);
       }
     }
+    if (current.reader_theme) lines.push('', `The reader picked the theme ${themeName(current.reader_theme.theme ?? undefined)} for every chart, over ${themeName(current.theme_spec)}.`);
     if (current.grid) lines.push('', 'Layout, as the reader arranged it on a 12-column grid:', ...gridLines(current.grid));
     const text = lines.join('\n');
     if (text === lastContext.current) return;
@@ -679,8 +788,30 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
     const layoutCharts = charts.map((chart) => ({ id: chart.id, chartType: chart.input.chart_spec.chartType, layout: chart.layout }));
     return boardRows(layoutCharts, boardColumns(layoutCharts, board.columns), boardWidth ?? undefined);
   }, [charts, board.columns, boardWidth]);
-  const drawInputs = useDrawInputs(charts, board.theme_spec);
-  const style = useMemo(() => boardStyle(board.theme_spec), [board.theme_spec]);
+  const readerTheme = pendingTheme === 'reset' ? undefined : pendingTheme ?? board.reader_theme;
+  const theme = readerTheme ? readerTheme.theme ?? undefined : board.theme_spec;
+  const drawInputs = useDrawInputs(charts, theme, readerTheme !== undefined);
+  const pickTheme = useCallback(async (next: ChartAssemblyInput['theme_spec']) => {
+    const reset = JSON.stringify(next ?? null) === JSON.stringify(boardRef.current.theme_spec ?? null);
+    setPendingTheme(reset ? 'reset' : { theme: next ?? null });
+    try {
+      const result = await app.callServerTool({
+        name: 'set_board_theme',
+        arguments: reset ? { board_id: boardRef.current.id, reset: true } : { board_id: boardRef.current.id, theme: next ?? null },
+      });
+      const saved = (result.structuredContent as { board?: Board } | undefined)?.board;
+      if (saved && !result.isError) {
+        setBoard(saved);
+        setPendingTheme(null);
+        return;
+      }
+    } catch {
+      // The pick stays on this card below.
+    }
+    // The server did not keep it (one started before set_board_theme, say): the card still shows it.
+    setNotice('The theme could not be saved on the board; it shows here until the card reloads.');
+  }, [app]);
+  const style = useMemo(() => boardStyle(theme), [theme]);
   // The page behind the board takes its paper, so a dark theme has no light edge.
   useEffect(() => {
     document.documentElement.style.background = style.background;
@@ -777,7 +908,7 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
     const dy = Math.round((event.clientY - active.y) / GRID_ROW);
     const start = active.start.find(({ id }) => id === active.id)!;
     if (active.kind === 'move') {
-      // Over another chart, the two trade places; over open board, the chart moves there.
+      // Over another chart, the two trade places or the dragged one is inserted there; over open board, it moves there.
       const origin = gridRef.current?.getBoundingClientRect();
       const over = origin && active.start.find((item) => {
         if (item.id === active.id) return false;
@@ -786,8 +917,18 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
         const py = event.clientY - origin.top;
         return px >= box.left && px <= box.left + box.width && py >= box.top && py <= box.top + box.height;
       });
-      if (over) {
+      // Within a row the two trade places; onto another row the dragged chart is inserted there.
+      // Shift does the other.
+      const sameRow = !!over && over.y < start.y + start.h && start.y < over.y + over.h;
+      if (over && sameRow !== event.shiftKey) {
         setDraft(swapGrid(active.start, active.id, over.id, minWidth));
+        return;
+      }
+      if (over) {
+        // Dropped on a chart, the dragged one takes its place there and the rest move down.
+        const col = Math.floor((event.clientX - origin!.left) / (colWidth + CELL_GAP));
+        const placed = { ...start, x: Math.min(ROW_UNITS - start.w, Math.max(0, col)), y: over.y };
+        setDraft(arrangeGrid(active.start.map((item) => (item.id === active.id ? placed : item)), active.id, minWidth));
         return;
       }
       const moved = { ...start, x: Math.min(ROW_UNITS - start.w, Math.max(0, start.x + dx)), y: Math.max(0, start.y + dy) };
@@ -812,13 +953,60 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
     return settledBoxes.current.get(item.id)!;
   };
 
+  const boardElement = useRef<HTMLElement | null>(null);
+  const exportBoard = useCallback(async () => {
+    const root = boardElement.current;
+    if (!root) return;
+    setExportStatus('working');
+    const png = boardPng(root);
+    png.catch(() => undefined);
+    try {
+      if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+        // A promised blob keeps the click's permission to write while the board is drawn.
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
+        setExportStatus('copied');
+        return;
+      }
+    } catch {
+      // Clipboard images denied: the host may still take a download.
+    }
+    try {
+      if (!app.getHostCapabilities()?.downloadFile) throw new Error('no download');
+      const bytes = new Uint8Array(await (await png).arrayBuffer());
+      let binary = '';
+      for (const byte of bytes) binary += String.fromCharCode(byte);
+      const result = await app.downloadFile({
+        contents: [{ type: 'resource', resource: { uri: 'file:///flint-board.png', mimeType: 'image/png', blob: btoa(binary) } }],
+      });
+      setExportStatus(result.isError ? 'error' : 'downloaded');
+    } catch (err) {
+      console.error('The board could not be exported', err);
+      setExportStatus('error');
+    }
+  }, [app]);
+  useEffect(() => {
+    if (exportStatus === 'idle' || exportStatus === 'working') return;
+    const handle = window.setTimeout(() => setExportStatus('idle'), 2500);
+    return () => window.clearTimeout(handle);
+  }, [exportStatus]);
+
+  // One chip per part the reader acted on; parts another part implies apply without a chip.
+  const chips = Object.entries(condition.parts)
+    .filter(([field]) => !(field in condition.impliedBy))
+    .map(([field, part]) => {
+      const chart = byId.get(condition.from[field]);
+      return { field, label: chipText(field, part, chart), full: partText(field, part, chart) };
+    });
+  const shownChips = chips.slice(0, MAX_CHIPS);
+  const moreChips = chips.slice(MAX_CHIPS);
+
   const editing = draft !== null;
   const gridHeight = grid ? Math.max(...grid.map((item) => item.y + item.h), 0) * GRID_ROW : 0;
 
   return (
     <main
       className={editing ? 'board board-editing' : 'board'}
-      ref={measureBoard}
+      ref={(node) => { boardElement.current = node; measureBoard(node); }}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
@@ -828,10 +1016,11 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
         '--board-muted': style.muted,
         '--board-font': style.font,
         '--board-title-font': style.titleFont,
-        paddingTop: hostContext?.safeAreaInsets?.top,
-        paddingRight: hostContext?.safeAreaInsets?.right,
-        paddingBottom: hostContext?.safeAreaInsets?.bottom,
-        paddingLeft: hostContext?.safeAreaInsets?.left,
+        // The host's safe area adds to the board's own margin; a host that sends 0 leaves the margin.
+        '--inset-top': `${hostContext?.safeAreaInsets?.top ?? 0}px`,
+        '--inset-right': `${hostContext?.safeAreaInsets?.right ?? 0}px`,
+        '--inset-bottom': `${hostContext?.safeAreaInsets?.bottom ?? 0}px`,
+        '--inset-left': `${hostContext?.safeAreaInsets?.left ?? 0}px`,
       } as CSSProperties}
     >
       <header className={style.furniture.some((mark) => mark.kind === 'headerRule') ? 'board-header board-header-ruled' : 'board-header'}>
@@ -847,29 +1036,8 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
             {board.title && <h1 className="board-title">{board.title}</h1>}
             {board.subtitle && <p className="board-subtitle">{board.subtitle}</p>}
           </div>
-          {charts.length > 0 && (
-            <div className="board-tools" role="group" aria-label="Arrange the board">
-              {editing ? (
-                <>
-                  {board.grid && <button type="button" className="board-tool" onClick={() => void save(null)}>Reset</button>}
-                  <button type="button" className="board-tool" onClick={() => setDraft(null)}>Cancel</button>
-                  <button type="button" className="board-tool board-tool-primary" onClick={() => void save(draft)}>Done</button>
-                </>
-              ) : (
-                <button type="button" className="board-tool" onClick={startEditing}>Edit layout</button>
-              )}
-            </div>
-          )}
         </div>
-        {Object.keys(condition.parts).length > 0 && (
-          <div className="board-selection" role="status">
-            <span className="board-selection-text">
-              {Object.entries(condition.parts).map(([field, part]) => partText(field, part, byId.get(condition.from[field]))).join(' · ')}
-            </span>
-            <button type="button" className="board-selection-clear" aria-label="Clear the selection" onClick={clearCondition}>×</button>
-          </div>
-        )}
-        {editing && <p className="board-hint">Drag a chart by its heading to move it, or onto another chart to swap them. Drag an edge or corner to resize.</p>}
+        {editing && <p className="board-hint">Drag a chart by its heading: dropped on a chart in its row the two swap; dropped on another row it is inserted there and the rest move down (Shift does the other). Drag an edge or corner to resize.</p>}
         {notice && <p className="board-status">{notice}</p>}
         {!live && <p className="board-status">Not live: showing the board as it was drawn.</p>}
       </header>
@@ -928,14 +1096,89 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
         </div>
       )}
       {board.source && <footer className="board-source">{board.source}</footer>}
+      {charts.length > 0 && (
+        <div className="optionsbar board-bar" role="toolbar" aria-label="Board options">
+          <div className="optionsbar-grid">
+            <div className="optionsbar-pinned">
+              <ThemeControl
+                themeSpec={theme}
+                customTheme={typeof board.theme_spec === 'object' ? board.theme_spec : undefined}
+                onTheme={(next) => void pickTheme(next)}
+              />
+            </div>
+            {chips.length > 0 && (
+              <div className="board-selection" role="status" aria-label="Selection">
+                {shownChips.map((chip) => (
+                  <span className="board-chip" key={chip.field} title={chip.full}>
+                    <span className="board-chip-text">{chip.label}</span>
+                    <button type="button" className="board-chip-clear" aria-label={`Remove ${chip.full}`} onClick={() => removePart(chip.field)}>×</button>
+                  </span>
+                ))}
+                {moreChips.length > 0 && (
+                  <span className="board-chip board-chip-more" title={moreChips.map((chip) => chip.full).join('\n')}>+{moreChips.length}</span>
+                )}
+                {chips.length > 1 && (
+                  <button type="button" className="board-selection-clear-all" onClick={clearCondition}>Clear</button>
+                )}
+              </div>
+            )}
+            <span className="board-bar-fill" />
+            {editing ? (
+              <span className="bar-actions">
+                <button type="button" className="board-tool" onClick={() => setDraft(null)}>Cancel</button>
+                <button type="button" className="board-tool board-tool-primary" onClick={() => void save(draft)}>Done</button>
+              </span>
+            ) : (
+              <span className="bar-actions">
+                <ActionButton label="Edit layout" onClick={startEditing}>
+                  <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
+                    <rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" fill="none" stroke="currentColor" strokeWidth="1.3" />
+                    <rect x="9" y="1.5" width="5.5" height="5.5" rx="1" fill="none" stroke="currentColor" strokeWidth="1.3" />
+                    <rect x="1.5" y="9" width="13" height="5.5" rx="1" fill="none" stroke="currentColor" strokeWidth="1.3" />
+                  </svg>
+                </ActionButton>
+                <ActionButton label="Reset layout" className="bar-reset" disabled={!board.grid} onClick={() => void save(null)}>
+                  <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M4 5.5H1.5V3" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M2 5.5A6 6 0 1 1 2.8 11" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                  </svg>
+                </ActionButton>
+                <ActionButton label={EXPORT_LABEL[exportStatus]} disabled={exportStatus === 'working'} onClick={() => void exportBoard()}>
+                  {exportStatus === 'copied' || exportStatus === 'downloaded' ? (
+                    <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
+                      <path d="M3.5 8.5 6.5 11.5 12.5 4.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  ) : (
+                    <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
+                      <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.3" />
+                      <path d="M3.5 10.5 A1.5 1.5 0 0 1 2.5 9.5 V3 A1.5 1.5 0 0 1 4 1.5 H10.5 A1.5 1.5 0 0 1 11.5 2.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                    </svg>
+                  )}
+                </ActionButton>
+              </span>
+            )}
+          </div>
+        </div>
+      )}
     </main>
   );
 }
+
+/** How long the card waits for the call's result before it rebuilds the board from the call itself. */
+const RESULT_WAIT_MS = 2500;
+/** How long it waits for anything at all before it says the board cannot be redrawn here. */
+const NOTHING_WAIT_MS = 6000;
+const NOT_REDRAWN =
+  'This board cannot be redrawn here: the call that made it did not reach this card again, as can happen when a conversation is reopened. Ask Claude to show the board again.';
 
 export function BoardApp() {
   const [board, setBoard] = useState<Board | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [hostContext, setHostContext] = useState<McpUiHostContext | undefined>();
+  const toolArgs = useRef<Record<string, unknown> | undefined>(undefined);
+  const resultSeen = useRef(false);
+  const boardSeen = useRef(false);
+  boardSeen.current = board !== null;
 
   const { app, error } = useApp({
     appInfo: { name: 'Flint Board', version: __FLINT_MCP_VERSION__ },
@@ -945,7 +1188,11 @@ export function BoardApp() {
       app.onteardown = async () => ({});
       app.onerror = (err) => console.error(err);
       app.onhostcontextchanged = (params) => setHostContext((prev) => ({ ...prev, ...params }));
+      app.ontoolinput = (params) => {
+        toolArgs.current = params?.arguments as Record<string, unknown> | undefined;
+      };
       app.ontoolresult = (result) => {
+        resultSeen.current = true;
         const { _meta, content } = result as { _meta?: { flint?: { board?: Board } }; content?: { type: string; text?: string }[] };
         if (result.isError) {
           setFailed(content?.find((part) => part.type === 'text')?.text ?? '');
@@ -962,6 +1209,40 @@ export function BoardApp() {
 
   useEffect(() => {
     if (app) setHostContext(app.getHostContext());
+  }, [app]);
+
+  // A reopened conversation may not hand the card its result again, or hand it without the board.
+  // The card then asks the server to build the board from the call's own arguments; with nothing to
+  // build from, it says so instead of waiting.
+  useEffect(() => {
+    if (!app) return;
+    let stopped = false;
+    const rebuild = async () => {
+      if (stopped || boardSeen.current) return;
+      const args = toolArgs.current;
+      if (!args || !Array.isArray(args.charts)) {
+        if (resultSeen.current) setFailed(NOT_REDRAWN);
+        return;
+      }
+      try {
+        const result = await app.callServerTool({ name: 'restore_board', arguments: { create: args } });
+        const back = (result.structuredContent as { board?: Board } | undefined)?.board;
+        if (stopped || boardSeen.current) return;
+        if (result.isError || !back) setFailed(NOT_REDRAWN);
+        else setBoard(back);
+      } catch {
+        if (!stopped && !boardSeen.current) setFailed(NOT_REDRAWN);
+      }
+    };
+    const first = window.setTimeout(() => void rebuild(), RESULT_WAIT_MS);
+    const last = window.setTimeout(() => {
+      if (!stopped && !boardSeen.current && !toolArgs.current) setFailed(NOT_REDRAWN);
+    }, NOTHING_WAIT_MS);
+    return () => {
+      stopped = true;
+      window.clearTimeout(first);
+      window.clearTimeout(last);
+    };
   }, [app]);
 
   if (error) {
