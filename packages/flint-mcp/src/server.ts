@@ -22,14 +22,17 @@ import {
   buildAssemblyInputShape,
   toAssemblyInput,
   updatesShape,
+  viewShape,
+  type ChartView,
   SUPPORTED_BACKENDS,
   type SupportedBackend,
   type AssemblyInputArgs,
 } from './tools/schemas.js';
 import type { ChartAssemblyInput, ChartUpdate, ValidateResult } from 'flint-chart';
+import { drawsAsTable } from 'flint-chart';
 
 import { VERSION } from './version.js';
-import { chartContext } from './chart-context.js';
+import { OPENS_AS_TABLE, chartContext } from './chart-context.js';
 import {
   BoardStore,
   boardChartShape,
@@ -515,12 +518,15 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
         updates,
       });
       if (!result.valid) return notDrawn(result.errors.map((e) => e.message).join('; '));
+      const view = args.view as ChartView | undefined;
+      const opensAsTable = view === 'table' && !drawsAsTable(input.chart_spec.chartType);
+      const report = chartReport(input, updates, result) + (opensAsTable ? `\n${OPENS_AS_TABLE}` : '');
       return {
-        content: [{ type: 'text' as const, text: chartReport(input, updates, result) }],
+        content: [{ type: 'text' as const, text: report }],
         // The view's payload, with data inlined so it never sees an unreadable
         // local data.url. `_meta` reaches the view but not the model, which
         // reads `content` only when there is no `structuredContent`.
-        _meta: { flint: { input, ...(updates ? { updates } : {}) } },
+        _meta: { flint: { input, ...(updates ? { updates } : {}), ...(opensAsTable ? { view } : {}) } },
       };
     } catch (err) {
       return notDrawn(err instanceof Error ? err.message : String(err));
@@ -552,7 +558,7 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
         'report of the chart: its encodings, interactions, and each update op as ' +
         'applied (✓) or not and why (✗); fix a ✗ and call again, or tell the user. ' +
         'What the user then does on the chart reaches you with their next message.',
-      inputSchema: { ...assemblyInputShape, ...updatesShape },
+      inputSchema: { ...assemblyInputShape, ...updatesShape, ...viewShape },
       _meta: { ui: { resourceUri: CHART_VIEW_RESOURCE_URI } },
     },
     drawChartView,
@@ -566,7 +572,7 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
       description:
         'For the chart card only: draw the chart again from the create_chart_view arguments, ' +
         'when a reopened conversation does not hand the card its result.',
-      inputSchema: { ...assemblyInputShape, ...updatesShape },
+      inputSchema: { ...assemblyInputShape, ...updatesShape, ...viewShape },
       _meta: { ui: { resourceUri: CHART_VIEW_RESOURCE_URI, visibility: ['app'] } },
     },
     async (args: any) => {

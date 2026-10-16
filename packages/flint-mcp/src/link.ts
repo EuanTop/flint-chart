@@ -9,7 +9,7 @@
  *
  * Framework-free, so the server checks a link spec before anything mounts and the card runs it.
  */
-import { validateChart, type ChartAssemblyInput, type ChartUpdate } from 'flint-chart';
+import { drawsAsTable, validateChart, type ChartAssemblyInput, type ChartUpdate } from 'flint-chart';
 
 /** One field's part of the board's condition. */
 export type LinkPart = { in: unknown[] } | { range: [unknown, unknown] };
@@ -151,6 +151,7 @@ export function validateLinks(inputs: Record<string, ChartAssemblyInput>, spec: 
     }
     const sends = [...new Set(Object.values(gestures).flatMap((gesture) => gesture.fields))];
     if (role.send === false) notes.push('sends nothing (send: false)');
+    else if (drawsAsTable(input.chart_spec.chartType)) notes.push('sends nothing: a Table does not send selections');
     else if (sends.length === 0 && carried.length > 0 && Object.keys(gestures).length === 0 && !notes.some((note) => note.includes('not connected'))) {
       notes.push('sends nothing: no interaction that selects; add one such as click-highlight or select');
     }

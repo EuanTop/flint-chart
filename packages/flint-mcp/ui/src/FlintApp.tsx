@@ -15,15 +15,17 @@ import { useApp } from '@modelcontextprotocol/ext-apps/react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ChartAssemblyInput, ChartOption, ChartUpdate, ChartWarning } from 'flint-chart';
-import { THEME_PRESETS, DEFAULT_THEME_ICON, getChartTransform, validateChart } from 'flint-chart';
+import { THEME_PRESETS, DEFAULT_THEME_ICON, drawsAsTable, getChartTransform, validateChart } from 'flint-chart';
 import type { ChartChange, ChartState, InteractiveChartSurface } from 'flint-chart/interactive';
-import { FlintChart } from 'flint-chart/react';
+import { FlintChart, FlintTable } from 'flint-chart/react';
 import { expressionInterpreter } from 'vega-interpreter';
 
 import { assemblePreviewSpec, renderFlintSvg, usesAutoPreviewSize, withAppPreviewDefaults } from './render';
 import { chartIconFor } from './chart-icons';
 import { SelectionChips, chipText, impliedParts, partText, type SelectionChip } from './selection-chips';
-import { selectionParts, validateLinks, type LinkCondition } from '../../src/link';
+import { VIEW_SWITCH_LABEL, ViewSwitchIcon, useChartTable, type CellView } from './chart-table-view';
+import { tablePng } from './table-export';
+import { conditionUpdates, selectionParts, validateLinks, type LinkCondition } from '../../src/link';
 import { chartContext, chartView, type ChartGesture } from '../../src/chart-context';
 import {
   buildPanelModel,
@@ -533,8 +535,11 @@ function OptionsBar(props: {
   copyError: string | null;
   /** What the reader selected on the chart, shown with the actions. */
   selection?: React.ReactNode;
+  /** The view the switch shows; undefined for a chart type that is a table, which has no other view. */
+  view?: CellView;
+  onView: (view: CellView) => void;
 }) {
-  const { input, customTheme, model, onInput, onReset, canReset, onCopyPng, copyStatus, copyError, selection } = props;
+  const { input, customTheme, model, onInput, onReset, canReset, onCopyPng, copyStatus, copyError, selection, view, onView } = props;
   const gridRef = useRef<HTMLDivElement>(null);
   const themeRef = useRef<HTMLDivElement>(null);
   const transformRef = useRef<HTMLDivElement>(null);
@@ -706,6 +711,14 @@ function OptionsBar(props: {
         </div>
         <span className="bar-actions" ref={actionsRef}>
           {selection}
+          {view && (
+            <ActionButton
+              onClick={() => onView(view === 'chart' ? 'table' : 'chart')}
+              label={VIEW_SWITCH_LABEL[view]}
+            >
+              <ViewSwitchIcon view={view} />
+            </ActionButton>
+          )}
           <ActionButton
             className="bar-reset"
             onClick={onReset}
@@ -743,13 +756,18 @@ export function FlintAppInner(props: {
   app: App;
   input: ChartAssemblyInput;
   updates?: readonly ChartUpdate[];
+  /** The view the agent opened the chart in. */
+  initialView?: CellView;
   hostContext?: McpUiHostContext;
 }) {
-  const { app, input, updates = NO_UPDATES, hostContext } = props;
+  const { app, input, updates = NO_UPDATES, initialView = 'chart', hostContext } = props;
   const [current, setCurrent] = useState<ChartAssemblyInput>(input);
   const [surfaceWarnings, setSurfaceWarnings] = useState<readonly ChartWarning[]>([]);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copying' | 'copied' | 'downloaded' | 'error'>('idle');
   const [copyError, setCopyError] = useState<string | null>(null);
+  const [view, setView] = useState<CellView>(initialView);
+  useEffect(() => setView(initialView), [initialView]);
+  const tableType = drawsAsTable(current.chart_spec.chartType);
   // The width the chart actually has. Rendering into the real width means the
   // finished SVG is shown at 1:1 rather than being scaled down to fit, which
   // is what otherwise shrinks every label below the app's own chrome. Height
@@ -829,12 +847,17 @@ export function FlintAppInner(props: {
     [current.chart_spec, input.chart_spec, current.theme_spec, input.theme_spec],
   );
 
+  const previewInput = useMemo(() => withAppPreviewDefaults(current), [current]);
+  const table = useChartTable(previewInput, tableType ? 'table' : view);
+
   const handleCopyPng = useCallback(async () => {
     setCopyStatus('copying');
     setCopyError(null);
-    // The screen shows the live chart, so the image is rendered only when asked for.
-    const png = renderFlintSvg(current, undefined, chartWidth ? { width: chartWidth } : undefined)
-      .then((result) => result.png);
+    // The screen shows the live chart, so the image is rendered only when asked for; a table is drawn as it shows.
+    const shownTable = table ? document.querySelector<HTMLElement>('.chart .flint-table') : null;
+    const png = shownTable
+      ? tablePng(shownTable)
+      : renderFlintSvg(current, undefined, chartWidth ? { width: chartWidth } : undefined).then((result) => result.png);
     png.catch(() => undefined);
     let clipboardError: unknown;
     try {
@@ -880,12 +903,11 @@ export function FlintAppInner(props: {
       setCopyError(err instanceof Error ? err.message : 'PNG export failed');
       setCopyStatus('error');
     }
-  }, [app, current, chartWidth]);
+  }, [app, current, chartWidth, table]);
 
   // The live chart takes the frame width itself: as the ceiling when the preview
   // picks the size, scaled down when the spec states its own.
   const autoSize = usesAutoPreviewSize(current);
-  const previewInput = useMemo(() => withAppPreviewDefaults(current), [current]);
   // Each send replaces the model context, so every send carries the whole chart:
   // after each build (mount, new updates, panel edit) and each committed gesture.
   const lastContext = useRef<string | null>(null);
@@ -902,7 +924,7 @@ export function FlintAppInner(props: {
     }
   }, [input]);
   const shownView = useMemo(() => chartView(current, model), [current, model]);
-  const sendContext = useCallback((state: ChartState) => {
+  const sendContext = useCallback((state?: ChartState) => {
     const context = chartContext({
       state,
       agent: input,
@@ -914,6 +936,7 @@ export function FlintAppInner(props: {
       warnings: shownWarnings.current,
       drawnUpdates: drawnUpdates.current,
       gestures: gestures.current,
+      table,
     });
     if (context.text === lastContext.current) return;
     lastContext.current = context.text;
@@ -921,7 +944,11 @@ export function FlintAppInner(props: {
       content: [{ type: 'text', text: context.text }],
       structuredContent: context.data,
     }).catch((err) => console.warn('The host declined the chart context', err));
-  }, [app, input, current, agentView, shownView, updates, checks]);
+  }, [app, input, current, agentView, shownView, updates, checks, table]);
+  useEffect(() => {
+    const state = shownSurface.current?.getState() ?? undefined;
+    if (state || tableType) sendContext(state);
+  }, [table, tableType, sendContext]);
   const handleRender = useCallback(async (surface: InteractiveChartSurface) => {
     const mounted = shownSurface.current !== surface;
     if (mounted) {
@@ -969,7 +996,7 @@ export function FlintAppInner(props: {
     }
   }, [current]);
   const selected = useMemo(() => {
-    if (!chartState || !linked) return { chips: [] as SelectionChip[], layers: [] as string[] };
+    if (!chartState || !linked) return { chips: [] as SelectionChip[], layers: [] as string[], parts: {} as LinkCondition };
     const agentIds = new Set(updates.map((update) => update.id));
     const parts: LinkCondition = {};
     const layers: string[] = [];
@@ -983,8 +1010,12 @@ export function FlintAppInner(props: {
     const chips = Object.entries(parts)
       .filter(([field]) => !(field in implied))
       .map(([field, part]) => ({ field, label: chipText(field, part, current), full: partText(field, part, current) }));
-    return { chips, layers };
+    return { chips, layers, parts };
   }, [chartState, linked, updates, current]);
+  const tableUpdates = useMemo(() => {
+    const reader = linked ? conditionUpdates({ chart: linked }, selected.parts).get('chart') : undefined;
+    return reader ? [...updates, reader] : updates;
+  }, [linked, selected.parts, updates]);
   const clearSelection = useCallback(() => {
     for (const layer of selected.layers) void shownSurface.current?.clearUpdate(layer);
   }, [selected.layers]);
@@ -1009,25 +1040,32 @@ export function FlintAppInner(props: {
           // The frame is always mounted, so its size is known before the first
           // render and the chart can be assembled to fit it straight away.
           <div
-            className="chart"
+            className={tableType ? 'chart chart-table' : table ? 'chart view-table' : 'chart'}
             ref={measureChartBox}
             style={surface ? { background: surface } : undefined}
           >
-            {/* CSP-safe Vega: host webviews forbid eval. */}
-            <FlintChart
-              className="chart-interactive"
-              spec={previewInput}
-              updates={updates.length > 0 ? updates : undefined}
-              renderer="svg"
-              expressionInterpreter={expressionInterpreter}
-              chartId="flint-chart-view"
-              width="100%"
-              fit={autoSize ? 'relayout' : 'scale-down'}
-              fallback={<span className="chart-pending">Rendering…</span>}
-              onWarnings={setSurfaceWarnings}
-              onRender={handleRender}
-              onChange={handleChange}
-            />
+            {tableType ? (
+              table && <FlintTable table={table} updates={tableUpdates} />
+            ) : (
+              <>
+                {/* CSP-safe Vega: host webviews forbid eval. */}
+                <FlintChart
+                  className="chart-interactive"
+                  spec={previewInput}
+                  updates={updates.length > 0 ? updates : undefined}
+                  renderer="svg"
+                  expressionInterpreter={expressionInterpreter}
+                  chartId="flint-chart-view"
+                  width="100%"
+                  fit={autoSize ? 'relayout' : 'scale-down'}
+                  fallback={<span className="chart-pending">Rendering…</span>}
+                  onWarnings={setSurfaceWarnings}
+                  onRender={handleRender}
+                  onChange={handleChange}
+                />
+                {table && <FlintTable table={table} updates={tableUpdates} />}
+              </>
+            )}
           </div>
         )}
 
@@ -1053,6 +1091,8 @@ export function FlintAppInner(props: {
         copyStatus={copyStatus}
         copyError={copyError}
         selection={<SelectionChips chips={selected.chips} onClear={clearSelection} />}
+        view={tableType ? undefined : view}
+        onView={setView}
       />
     </main>
   );
@@ -1067,11 +1107,12 @@ const NOTHING_WAIT_MS = 6000;
 const NOT_REDRAWN =
   'This chart cannot be redrawn here: the call that made it did not reach this card again, as can happen when a conversation is reopened. Ask Claude to show the chart again.';
 
-type ViewPayload = { input?: ChartAssemblyInput; updates?: ChartUpdate[]; error?: string };
+type ViewPayload = { input?: ChartAssemblyInput; updates?: ChartUpdate[]; view?: CellView; error?: string };
 
 export function FlintApp() {
   const [input, setInput] = useState<ChartAssemblyInput | null>(null);
   const [updates, setUpdates] = useState<readonly ChartUpdate[]>(NO_UPDATES);
+  const [view, setView] = useState<CellView | undefined>();
   // The reason a rejected call drew nothing; the card keeps it, since a fix opens a new card.
   const [notDrawn, setNotDrawn] = useState<string | null>(null);
   const [hostContext, setHostContext] = useState<McpUiHostContext | undefined>();
@@ -1110,6 +1151,7 @@ export function FlintApp() {
           : args?.chart_spec && Array.isArray(args.data?.values) ? args : undefined;
         if (!next) return;
         setUpdates(structured?.updates ?? args?.updates ?? NO_UPDATES);
+        setView(structured?.view);
         setNotDrawn(null);
         setInput(next);
       };
@@ -1138,6 +1180,7 @@ export function FlintApp() {
           return;
         }
         setUpdates(payload.updates ?? NO_UPDATES);
+        setView(payload.view);
         setInput(payload.input);
       } catch {
         if (!stopped && !inputSeen.current) setNotDrawn(NOT_REDRAWN);
@@ -1172,5 +1215,5 @@ export function FlintApp() {
   }
   if (!input) return <div className="status">Waiting for chart data…</div>;
 
-  return <FlintAppInner app={app} input={input} updates={updates} hostContext={hostContext} />;
+  return <FlintAppInner app={app} input={input} updates={updates} initialView={view} hostContext={hostContext} />;
 }

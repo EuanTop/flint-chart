@@ -3,9 +3,11 @@
 
 /**
  * The board as one PNG, drawn as it looks: its paper, the theme's tab, the headline and the cell
- * headings in their own type, the rules between rows, and every chart's SVG at its place. The
+ * headings in their own type, the rules between rows, and every chart's SVG or table at its place. The
  * controls (the bar, the selection chip, edit outlines) are left out.
  */
+
+import { drawTable } from './table-export';
 
 const SCALE = 2;
 const TEXT = '.board-title, .board-subtitle, .board-cell-title, .board-cell-subtitle, .board-source';
@@ -93,12 +95,14 @@ export async function boardPng(root: HTMLElement): Promise<Blob> {
   }
 
   for (const svg of root.querySelectorAll<SVGSVGElement>('.board-cell-chart svg')) {
-    if (svg.parentElement?.closest('svg')) continue;
+    if (svg.parentElement?.closest('svg') || getComputedStyle(svg).visibility === 'hidden') continue;
     const rect = svg.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) continue;
     const { x, y } = at(rect);
     ctx.drawImage(await svgImage(svg), x, y, rect.width, rect.height);
   }
+
+  for (const table of root.querySelectorAll<HTMLElement>('.board-cell-chart .flint-table')) drawTable(ctx, table, origin);
 
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('The board could not be exported'))), 'image/png');

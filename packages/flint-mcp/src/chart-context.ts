@@ -1,5 +1,5 @@
-import type { ChartAssemblyInput, ChartUpdate, ChartUpdateOp, ChartWarning, PivotSurface, UpdateCheck, UpdateOpCheck } from 'flint-chart';
-import { selectorText } from 'flint-chart';
+import type { ChartAssemblyInput, ChartTable, ChartUpdate, ChartUpdateOp, ChartWarning, PivotSurface, UpdateCheck, UpdateOpCheck } from 'flint-chart';
+import { drawsAsTable, selectorText } from 'flint-chart';
 import type { ChartChange, ChartState, DomainCoordinate, SemanticElement } from 'flint-chart/interactive';
 
 /** The most marks the context names one by one; the text then says how many more there are. */
@@ -35,6 +35,9 @@ export function chartView(
 /** The `chartProperties` keys the transform controls write; the view reports them. */
 const VIEW_KEYS = new Set(['chartType', 'arrange', 'pivot']);
 
+/** What the report says of a chart the agent opens as its table. */
+export const OPENS_AS_TABLE = 'Opens as the table of the rows it draws; the reader can switch to the chart.';
+
 export interface ChartContextSource {
   /** What the drawn chart holds; absent before it is drawn, when the report is the checks alone. */
   state?: ChartState;
@@ -54,6 +57,8 @@ export interface ChartContextSource {
   drawnUpdates?: readonly ChartUpdate[];
   /** The last committed gesture of each reader interaction, by interaction id. */
   gestures?: ReadonlyMap<string, ChartGesture>;
+  /** The chart's table, when the reader shows the chart as one. */
+  table?: ChartTable | null;
 }
 
 export interface ChartContext {
@@ -333,6 +338,13 @@ export function chartContext(source: ChartContextSource): ChartContext {
   lines.push(`Encodings: ${encodingsText(shown)}.`);
   const interactions = interactionsText(shown);
   if (interactions) lines.push(`Interactions: ${interactions}.`);
+  const table = source.table;
+  if (table) {
+    const cut = table.total > table.rows.length ? ` (the chart draws ${table.rows.length} of ${table.total})` : '';
+    const computed = table.computes.length > 0 ? `; the chart computes its ${table.computes.join(', ')} from these rows` : '';
+    const shownAs = drawsAsTable(spec.chartType) ? 'A table of' : 'Shown as a table:';
+    lines.push(`${shownAs} ${table.rows.length} rows${cut}, columns ${table.columns.map((column) => column.title).join(', ')}${computed}.`);
+  }
 
   const leftOut = new Map(warnings.flatMap((warning) => (warning.update ? [[warning.update.id, warning.update] as const] : [])));
   const drawnKeys = new Set((source.drawnUpdates ?? []).map((update) => JSON.stringify(update)));
@@ -374,6 +386,7 @@ export function chartContext(source: ChartContextSource): ChartContext {
     data: {
       chartType: shownView.chartType,
       ...(shownView.arrange ? { view: shownView.arrange } : {}),
+      ...(table ? { shownAs: 'table', table: { columns: table.columns.map(({ field, title }) => ({ field, title })), rows: table.rows.length, total: table.total, computes: table.computes } } : {}),
       title: spec.title,
       theme: themeName(shown),
       encodings: Object.fromEntries(Object.entries(spec.encodings ?? {}).map(([channel, encoding]) => [channel, fieldsOf(encoding)])),

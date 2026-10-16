@@ -167,6 +167,17 @@ export function buildAssemblyInputShape(disableFileReference = false) {
 export const assemblyInputShape = buildAssemblyInputShape(false);
 
 /** The `updates` argument: ChartUpdate layers the view applies at open, beside the chart input. */
+/** The view a chart opens in: the chart, or the table of what it draws. */
+export type ChartView = 'chart' | 'table';
+
+/** The view a chart opens in: the chart, or the table of what it draws. A table chart type is a table either way. */
+export const viewShape = {
+  view: z
+    .enum(['chart', 'table'])
+    .optional()
+    .describe('Open the chart as its table of the rows it draws ("table"), or as the chart ("chart", the default). The reader can switch between the two; to draw a table without a chart, use chartType "Table" instead.'),
+};
+
 export const updatesShape = {
   updates: z
     .array(

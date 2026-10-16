@@ -4,14 +4,15 @@
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import type { ChartAssemblyInput, ChartUpdate, ValidateResult } from 'flint-chart';
+import { drawsAsTable } from 'flint-chart';
 
 import { ROW_UNITS, boardColumns, boardRows, colorField, gridItemFor, gridLines, isKpi, layoutLines, sharedColorOrders, type ChartLayout, type GridItem } from './board-layout.js';
 
 /** The characters of a chart title that fit on one line per row unit, at the card's heading size. */
 const TITLE_CHARS_PER_UNIT = 7.5;
-import { chartContext } from './chart-context.js';
+import { OPENS_AS_TABLE, chartContext } from './chart-context.js';
 import { linkLines, validateLinks, type ChartLink, type LinkSpec } from './link.js';
-import { toAssemblyInput, updatesShape, type AssemblyInputArgs } from './tools/schemas.js';
+import { toAssemblyInput, updatesShape, viewShape, type AssemblyInputArgs, type ChartView } from './tools/schemas.js';
 
 /** One chart on a board: the spec with its data inline, and the agent's update layers. */
 export interface BoardChart {
@@ -19,6 +20,8 @@ export interface BoardChart {
   input: ChartAssemblyInput;
   updates?: ChartUpdate[];
   layout?: ChartLayout;
+  /** The view the cell opens in; the reader's switch holds until the agent sets it again. */
+  view?: ChartView;
 }
 
 export interface Board {
@@ -49,7 +52,7 @@ export interface Board {
 }
 
 /** A chart spec as a tool argument: its id, the chart input, and its update layers. */
-export type BoardChartArgs = AssemblyInputArgs & { id: string; updates?: ChartUpdate[]; layout?: ChartLayout };
+export type BoardChartArgs = AssemblyInputArgs & { id: string; updates?: ChartUpdate[]; layout?: ChartLayout; view?: ChartView };
 
 /** The board fields create_board and update_board set. */
 export type BoardFields = Pick<Board, 'title' | 'subtitle' | 'source' | 'theme_spec' | 'columns'>;
@@ -81,6 +84,7 @@ export function boardChartShape(assemblyInputShape: Record<string, z.ZodTypeAny>
       'ChartUpdate layers the chart shows: state, where interaction_spec is behaviour. update_chart replaces them.',
     ),
     layout: layoutShape.optional(),
+    ...viewShape,
   });
 }
 
@@ -154,17 +158,19 @@ export async function prepareChart(
   validate: Validate,
   board: Pick<Board, 'theme_spec'>,
 ): Promise<{ chart?: BoardChart; outcome: ChartOutcome }> {
-  const { id, updates, layout, ...rest } = args;
+  const { id, updates, layout, view, ...rest } = args;
   const own = toAssemblyInput(rest as AssemblyInputArgs);
   const { result, input } = await validate(withBoardTheme(own, board), updates);
   if (!result.valid) {
     return { outcome: { id, drawn: false, text: `✗ not drawn: ${result.errors.map((e) => e.message).join('; ')}` } };
   }
-  const report = chartContext({ agent: input, shown: input, updates, checks: result.updates, warnings: result.warnings }).text;
+  const opensAsTable = view === 'table' && !drawsAsTable(input.chart_spec.chartType);
+  const report = chartContext({ agent: input, shown: input, updates, checks: result.updates, warnings: result.warnings }).text
+    + (opensAsTable ? `\n${OPENS_AS_TABLE}` : '');
   // The board's theme stays the board's: a later update_board theme reaches every chart that set none.
   const stored = { ...input, theme_spec: own.theme_spec };
   return {
-    chart: { id, input: stored, ...(updates ? { updates } : {}), ...(layout ? { layout } : {}) },
+    chart: { id, input: stored, ...(updates ? { updates } : {}), ...(layout ? { layout } : {}), ...(opensAsTable ? { view } : {}) },
     outcome: { id, drawn: true, text: report },
   };
 }
@@ -315,6 +321,7 @@ export function mergeChartArgs(chart: BoardChart, patch: Partial<BoardChartArgs>
     ...chart.input,
     ...(chart.updates ? { updates: chart.updates } : {}),
     ...(chart.layout ? { layout: chart.layout } : {}),
+    ...(chart.view ? { view: chart.view } : {}),
   } as unknown as BoardChartArgs;
   const next: Record<string, unknown> = { ...base };
   for (const key of CHART_INPUT_KEYS) {
@@ -322,5 +329,6 @@ export function mergeChartArgs(chart: BoardChart, patch: Partial<BoardChartArgs>
   }
   if (patch.updates !== undefined) next.updates = patch.updates;
   if (patch.layout !== undefined) next.layout = patch.layout;
+  if (patch.view !== undefined) next.view = patch.view;
   return next as BoardChartArgs;
 }

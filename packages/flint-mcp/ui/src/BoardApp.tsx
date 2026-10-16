@@ -13,10 +13,10 @@
 import type { App, McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import { useApp } from '@modelcontextprotocol/ext-apps/react';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
-import type { ChartAssemblyInput, ChartUpdate, ChartWarning, UpdateCheck } from 'flint-chart';
-import { assembleVegaLite, resolveThemeSpec, validateChart } from 'flint-chart';
+import type { ChartAssemblyInput, ChartTable, ChartUpdate, ChartWarning, UpdateCheck } from 'flint-chart';
+import { assembleVegaLite, drawsAsTable, resolveThemeSpec, validateChart } from 'flint-chart';
 import type { ChartChange, ChartState, InteractiveChartSurface } from 'flint-chart/interactive';
-import { FlintChart } from 'flint-chart/react';
+import { FlintChart, FlintTable } from 'flint-chart/react';
 import { expressionInterpreter } from 'vega-interpreter';
 
 import {
@@ -43,6 +43,7 @@ import { chartContext, type ChartGesture } from '../../src/chart-context';
 import { APP_PREVIEW_CANVAS_SIZE, usesAutoPreviewSize, withAppPreviewDefaults } from './render';
 import { boardPng } from './board-export';
 import { SelectionChips, chipText, impliedParts, partText } from './selection-chips';
+import { ViewSwitch, useCellViews, useChartTable, type CellView } from './chart-table-view';
 import { ActionButton, ThemeControl } from './FlintApp';
 import { LINK_LAYER, conditionUpdates, selectionParts, shownFields, type ChartLink, type LinkCondition, type LinkSpec } from '../../src/link';
 
@@ -254,6 +255,9 @@ function BoardCell({
   height,
   kpi,
   updates,
+  view,
+  onView,
+  onTable,
   onRender,
   onChange,
   onWarnings,
@@ -264,6 +268,9 @@ function BoardCell({
   height: number;
   kpi: boolean;
   updates: readonly ChartUpdate[];
+  view: CellView;
+  onView: (id: string, view: CellView) => void;
+  onTable: (id: string, table: ChartTable | null) => void;
   onRender: (id: string, surface: InteractiveChartSurface) => void;
   onChange: (id: string, change: ChartChange) => void;
   onWarnings: (id: string, warnings: readonly ChartWarning[]) => void;
@@ -280,6 +287,8 @@ function BoardCell({
   const handleRender = useCallback((surface: InteractiveChartSurface) => onRender(chart.id, surface), [chart.id, onRender]);
   const handleChange = useCallback((change: ChartChange) => onChange(chart.id, change), [chart.id, onChange]);
   const handleWarnings = useCallback((warnings: readonly ChartWarning[]) => onWarnings(chart.id, warnings), [chart.id, onWarnings]);
+  const table = useCellTable(chart.id, spec, view, onTable);
+  const tableType = drawsAsTable(input.chart_spec.chartType);
   const { title, subtitle } = input.chart_spec;
   return (
     <section
@@ -290,9 +299,14 @@ function BoardCell({
       <header className="board-cell-header">
         {title && <h2 className="board-cell-title">{title}</h2>}
         {subtitle && <p className="board-cell-subtitle">{subtitle}</p>}
+        {!tableType && <ViewSwitch view={view} onView={(next) => onView(chart.id, next)} name={title ?? chart.id} />}
       </header>
-      <div className="board-cell-chart" ref={kpi ? measure : undefined}>
-        {spec && (
+      <div
+        className={cellBodyClass('board-cell-chart', tableType, table)}
+        style={tableType ? { height } : undefined}
+        ref={kpi ? measure : undefined}
+      >
+        {!tableType && spec && (
           <FlintChart
             className="chart-interactive"
             spec={spec}
@@ -308,9 +322,28 @@ function BoardCell({
             onWarnings={handleWarnings}
           />
         )}
+        {table && <FlintTable table={table} updates={updates} />}
       </div>
     </section>
   );
+}
+
+/** A cell body's classes: a chart type that is a table fills it; a chart shown as its table lays the table over the chart. */
+function cellBodyClass(base: string, tableType: boolean, table: ChartTable | null): string {
+  return tableType ? `${base} table-cell` : table ? `${base} view-table` : base;
+}
+
+/** The cell's table while it shows one, reported to the board as it changes. */
+function useCellTable(
+  id: string,
+  input: ChartAssemblyInput | null,
+  view: CellView,
+  onTable: (id: string, table: ChartTable | null) => void,
+): ChartTable | null {
+  const table = useChartTable(input, view);
+  useEffect(() => onTable(id, table), [id, table, onTable]);
+  useEffect(() => () => onTable(id, null), [id, onTable]);
+  return table;
 }
 
 /** Each chart's input as the board draws it: the board's theme where it sets none, and shared colours in one order. */
@@ -383,6 +416,9 @@ function GridTile({
   editing,
   active,
   updates,
+  view,
+  onView,
+  onTable,
   onGesture,
   onRender,
   onChange,
@@ -396,6 +432,9 @@ function GridTile({
   editing: boolean;
   active: boolean;
   updates: readonly ChartUpdate[];
+  view: CellView;
+  onView: (id: string, view: CellView) => void;
+  onTable: (id: string, table: ChartTable | null) => void;
   onGesture: (kind: GridGesture, id: string, event: ReactPointerEvent<HTMLElement>) => void;
   onRender: (id: string, surface: InteractiveChartSurface) => void;
   onChange: (id: string, change: ChartChange) => void;
@@ -426,6 +465,8 @@ function GridTile({
   const handleWarnings = useCallback((warnings: readonly ChartWarning[]) => onWarnings(chart.id, warnings), [chart.id, onWarnings]);
   const { title, subtitle } = input.chart_spec;
   const handle = (kind: GridGesture) => ({ onPointerDown: (event: ReactPointerEvent<HTMLElement>) => onGesture(kind, chart.id, event) });
+  const table = useCellTable(chart.id, spec, view, onTable);
+  const tableType = drawsAsTable(input.chart_spec.chartType);
   return (
     <section
       className={['board-tile', kpi ? 'board-cell-kpi' : '', active ? 'board-tile-active' : ''].filter(Boolean).join(' ')}
@@ -436,9 +477,13 @@ function GridTile({
         {title && <h2 className="board-cell-title">{title}</h2>}
         {subtitle && <p className="board-cell-subtitle">{subtitle}</p>}
         {editing && !title && !subtitle && <span className="board-tile-grip">{chart.id}</span>}
+        {!editing && !tableType && <ViewSwitch view={view} onView={(next) => onView(chart.id, next)} name={title ?? chart.id} />}
       </header>
-      <div className="board-cell-chart board-tile-chart">
-        {measuredHeader !== null && (
+      <div
+        className={cellBodyClass('board-cell-chart board-tile-chart', tableType, table)}
+        style={tableType ? { height: chartHeight } : undefined}
+      >
+        {!tableType && measuredHeader !== null && (
           <FlintChart
             className="chart-interactive"
             spec={spec}
@@ -455,6 +500,7 @@ function GridTile({
             onWarnings={handleWarnings}
           />
         )}
+        {table && <FlintTable table={table} updates={updates} />}
       </div>
       {editing && (
         <>
@@ -505,8 +551,10 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
   const [hovered, setHovered] = useState<{ source: string; parts: LinkCondition } | null>(null);
   const surfaces = useRef(new Map<string, InteractiveChartSurface>());
   const charts = useStableCharts(board);
+  const { viewOf, setView } = useCellViews(charts);
   const states = useRef(new Map<string, ChartState>());
   const warnings = useRef(new Map<string, readonly ChartWarning[]>());
+  const tables = useRef(new Map<string, ChartTable>());
   const gestures = useRef(new Map<string, Map<string, ChartGesture>>());
   const lastContext = useRef<string | null>(null);
   const boardRef = useRef(board);
@@ -678,6 +726,7 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
         warnings: warnings.current.get(chart.id),
         drawnUpdates: chart.updates,
         gestures: gestures.current.get(chart.id),
+        table: tables.current.get(chart.id),
       }).text;
       lines.push('', `## ${chart.id}`, text);
     }
@@ -706,6 +755,11 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
       .catch((err) => console.warn('The host declined the board context', err));
   }, [app]);
   useEffect(() => sendContext(), [board, charts, condition, sendContext]);
+  const handleTable = useCallback((id: string, table: ChartTable | null) => {
+    if (table) tables.current.set(id, table);
+    else tables.current.delete(id);
+    sendContext();
+  }, [sendContext]);
 
   const handleRender = useCallback((id: string, surface: InteractiveChartSurface) => {
     const state = surface.getState();
@@ -1017,6 +1071,9 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
                 editing={editing}
                 active={activeId === item.id}
                 updates={updatesById.get(item.id) ?? NO_UPDATES}
+                view={viewOf(chart)}
+                onView={setView}
+                onTable={handleTable}
                 onGesture={onGesture}
                 onRender={handleRender}
                 onChange={handleChange}
@@ -1042,6 +1099,9 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
                     height={HEIGHT_PX[row.height]}
                     kpi={cell.kpi}
                     updates={updatesById.get(cell.id) ?? NO_UPDATES}
+                    view={viewOf(chart)}
+                    onView={setView}
+                    onTable={handleTable}
                     onRender={handleRender}
                     onChange={handleChange}
                     onWarnings={handleWarnings}

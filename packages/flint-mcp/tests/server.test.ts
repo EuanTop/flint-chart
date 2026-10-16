@@ -324,6 +324,20 @@ describe('MCP server', () => {
     expect(viewOff.content[0].text).toContain('✗ overlay "goal"');
   });
 
+  it('create_chart_view opens a chart as its table when asked, and draws a Table chart type as a table', async () => {
+    const data = { values: [{ region: 'East', revenue: 120 }, { region: 'West', revenue: 90 }] };
+    const bars = { data, chart_spec: { chartType: 'Bar Chart', encodings: { x: 'region', y: 'revenue' } } };
+    const asTable: any = await client.callTool({ name: 'create_chart_view', arguments: { ...bars, view: 'table' } });
+    expect(asTable.content[0].text).toContain('Opens as the table of the rows it draws');
+    expect(asTable._meta.flint.view).toBe('table');
+    const asChart: any = await client.callTool({ name: 'create_chart_view', arguments: bars });
+    expect(asChart._meta.flint.view).toBeUndefined();
+    const table: any = await client.callTool({ name: 'create_chart_view', arguments: { data, chart_spec: { chartType: 'Table', encodings: {} }, view: 'table' } });
+    expect(table.isError).toBeFalsy();
+    expect(table.content[0].text).not.toContain('Opens as the table');
+    expect(table._meta.flint.view).toBeUndefined();
+  });
+
   it('create_chart_view draws nothing for an invalid spec', async () => {
     const res: any = await client.callTool({
       name: 'create_chart_view',

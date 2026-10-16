@@ -1200,11 +1200,13 @@ input[type="checkbox"] {
   flex: 1;
 }
 
-.board-bar .bar-link {
+.board-bar .bar-link,
+.board-view-switch {
   color: var(--board-muted);
 }
 
-.board-bar .bar-link:hover {
+.board-bar .bar-link:hover,
+.board-view-switch:hover {
   color: var(--board-ink);
   background: var(--board-rule);
 }
@@ -1213,4 +1215,57 @@ input[type="checkbox"] {
   opacity: 0.35;
   cursor: default;
   background: transparent;
+}
+
+/* A chart shown as its table: the chart stays laid out under it, hidden, and the table takes its box. */
+.view-table {
+  position: relative;
+}
+
+.view-table > .chart-interactive {
+  visibility: hidden;
+}
+
+.view-table > .flint-table {
+  position: absolute;
+  inset: 0;
+}
+
+/* A chart type that is a table takes the frame's width and grows to its rows, up to the chart's cap. */
+.table-cell > .flint-table {
+  height: 100%;
+}
+
+.chart.chart-table {
+  align-items: stretch;
+}
+
+.chart-table > .flint-table {
+  width: 100%;
+  max-height: var(--chart-max-height);
+}
+
+/* The switch sits at the end of a board cell's heading, shown on hover or focus and while on. */
+.board-cell-header {
+  position: relative;
+}
+
+.board-view-switch {
+  position: absolute;
+  top: -2px;
+  right: 0;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.board-cell:hover .board-view-switch,
+.board-tile:hover .board-view-switch,
+.board-view-switch:focus-visible,
+.board-view-switch[aria-pressed="true"] {
+  opacity: 1;
+}
+
+.board-cell-header:has(.board-view-switch) {
+  padding-right: 26px;
 }

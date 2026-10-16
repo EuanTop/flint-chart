@@ -243,6 +243,29 @@ describe('board tools', () => {
     expect((await read(id)).board.grid).toBeUndefined();
   });
 
+  it('holds a Table of rows and a chart opened as its table, and a change of view keeps the reader\'s arrangement', async () => {
+    const table = { id: 'list', data: { values: rows }, chart_spec: { chartType: 'Table', title: 'Countries', encodings: {} } };
+    const created: any = await client.callTool({
+      name: 'create_board',
+      arguments: { title: 'T', subtitle: 'S', charts: [table, { ...bars, view: 'table' }], link_spec: { fields: ['country'] } },
+    });
+    expect(text(created)).toContain('Opens as the table of the rows it draws');
+    expect(text(created)).toContain('list: receives country');
+    const id = boardIdOf(created);
+    expect((await read(id)).board.charts.map((chart: any) => chart.view)).toEqual([undefined, 'table']);
+
+    const grid = [{ id: 'list', x: 0, y: 0, w: 12, h: 17 }, { id: 'by-country', x: 0, y: 17, w: 6, h: 17 }];
+    await client.callTool({ name: 'set_board_layout', arguments: { board_id: id, version: 1, grid } });
+    const back: any = await client.callTool({ name: 'update_chart', arguments: { board_id: id, chart_id: 'by-country', view: 'chart' } });
+    expect(text(back)).toContain('Arranged by the reader');
+    const board = (await read(id)).board;
+    expect(board.grid).toEqual(grid);
+    expect(board.charts.find((chart: any) => chart.id === 'by-country').view).toBeUndefined();
+
+    const encoded: any = await client.callTool({ name: 'add_chart', arguments: { board_id: id, chart: { ...table, id: 'bad', chart_spec: { chartType: 'Table', encodings: { x: 'country' } } } } });
+    expect(text(encoded)).toContain('Table takes no encodings');
+  });
+
   it('keeps the theme the reader picks until the agent sets the board\'s theme', async () => {
     const created: any = await client.callTool({ name: 'create_board', arguments: { title: 'T', subtitle: 'S', theme_spec: 'economist', charts: [scatter, bars] } });
     const id = boardIdOf(created);
