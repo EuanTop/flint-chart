@@ -453,6 +453,20 @@ export function resolveFormat(
     }
 }
 
+/**
+ * The format a field's value prints in full, as a tooltip or a table cell shows it: its tooltip
+ * format, else its axis format, else the data's own precision. Undefined prints the value as
+ * written, as a year is.
+ */
+export function fullValueFormat(
+    semantics: { format?: FormatSpec; tooltipFormat?: FormatSpec; semanticAnnotation?: SemanticAnnotation },
+    values: number[],
+): FormatSpec | undefined {
+    const semanticType = semantics.semanticAnnotation?.semanticType ?? '';
+    if (semanticType === 'Year' || semanticType === 'Decade') return undefined;
+    return semantics.tooltipFormat ?? semantics.format ?? { pattern: precisionFormat(values) };
+}
+
 // =============================================================================
 // §5  DEFAULT VIS TYPE
 // =============================================================================

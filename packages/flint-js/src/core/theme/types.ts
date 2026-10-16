@@ -1486,6 +1486,12 @@ export interface DesignDecisions {
     statistics?: { show: string[]; placement: 'panel' | 'caption' } & ResolvedText;
     /** The KPI's big number, when the house states the display role; its size stays fitted to the tile. */
     display?: ResolvedText;
+    /**
+     * A chart read as a table: headings in the axis-title role and cells in the axis-label role at
+     * the theme's own sizes, since a table takes the room it needs, and the rules under the
+     * headings and between rows.
+     */
+    table: { header: ResolvedText; cell: ResolvedText; headerRule: string; rule: string };
     /** How a source line is drawn, when the chart gives one. */
     source: ResolvedSource;
     furniture: ThemeFurniture[];

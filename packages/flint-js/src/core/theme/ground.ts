@@ -595,6 +595,20 @@ export function tokenToPx(size: SizeToken | undefined): number | undefined {
     return Number.isFinite(n) ? n : undefined;
 }
 
+/** A type role as drawn: its family (else the theme's body family), size for the room, weight, style, ink and case. */
+function resolveTextRole(
+    theme: ThemeSpec, role: TypeRole | undefined, fallbackSize: number, fallbackColor: string, availableWidth: number,
+): ResolvedText {
+    return {
+        font: role?.family ?? themeBodyFamily(theme),
+        fontSize: resolveThemeFontSize(theme, role?.size, fallbackSize, availableWidth),
+        fontWeight: fontWeightOf(role?.weight),
+        fontStyle: role?.style === 'italic' ? 'italic' : undefined,
+        color: role?.color ?? fallbackColor,
+        ...(role?.case && role.case !== 'asIs' ? { textCase: role.case } : {}),
+    };
+}
+
 export function resolveThemeFontSize(theme: ThemeSpec, size: SizeToken | undefined, fallback: number, availableWidth: number): number {
     const targetWidth = theme.layout?.targetWidth ?? 300;
     const scale = clamp(Math.pow((availableWidth || targetWidth) / targetWidth, 0.3), 0.85, 1.2);
@@ -905,16 +919,8 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
     const available = ctx.layout.subplotWidth || ctx.canvasSize.width || targetWidth;
     const bodyFamily = themeBodyFamily(theme);
 
-    function resolveType(role: TypeRole | undefined, fallbackSize: number, fallbackColor: string): ResolvedText {
-        return {
-            font: role?.family ?? bodyFamily,
-            fontSize: resolveThemeFontSize(theme, role?.size, fallbackSize, available),
-            fontWeight: fontWeightOf(role?.weight),
-            fontStyle: role?.style === 'italic' ? 'italic' : undefined,
-            color: role?.color ?? fallbackColor,
-            ...(role?.case && role.case !== 'asIs' ? { textCase: role.case } : {}),
-        };
-    }
+    const resolveType = (role: TypeRole | undefined, fallbackSize: number, fallbackColor: string): ResolvedText =>
+        resolveTextRole(theme, role, fallbackSize, fallbackColor, available);
 
     const axisLabelText = resolveType(theme.type?.axisLabel, 10, text.secondary);
     const axisTitleText = resolveType(theme.type?.axisTitle, 10, text.secondary);
@@ -2111,6 +2117,12 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
             : undefined,
         furniture: theme.furniture ?? [],
         ...(displayText ? { display: displayText } : {}),
+        table: {
+            header: resolveTextRole(theme, theme.type?.axisTitle, 11, text.secondary, 0),
+            cell: resolveTextRole(theme, theme.type?.axisLabel, 11, text.primary, 0),
+            headerRule: theme.ink?.structure?.axis ?? mixHex(plot, foreground, 0.5),
+            rule: theme.ink?.structure?.grid ?? mixHex(plot, foreground, 0.12),
+        },
         source: sourceDesign,
         bound: {
             measureChannels: bindings.measureChannels,

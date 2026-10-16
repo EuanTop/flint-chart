@@ -554,3 +554,5 @@ export const FlintChart = forwardRef<FlintChartHandle, FlintChartProps>(function
         createElement('div', { ref: scalerRef, style: scalerStyle },
             createElement('div', { ref: hostRef, style: hostStyle })));
 });
+
+export { FlintTable, MAX_TABLE_ROWS, emphasizedRows, nextSort, sortedRows, tableNotes, type FlintTableProps, type TableSort } from './table';

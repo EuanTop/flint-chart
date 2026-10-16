@@ -185,12 +185,12 @@ function validateEncodings(
         throw new Error('input.chart_spec.encodings must be a channel-to-encoding object');
     }
     const entries = Object.entries(encodings);
-    if (entries.length === 0) {
+    const template = backend ? TEMPLATE_LOOKUP[backend]?.(chartType) : undefined;
+    if (entries.length === 0 && template?.channels.length !== 0) {
         throw new Error('input.chart_spec.encodings must bind at least one channel');
     }
 
     if (backend) {
-        const template = TEMPLATE_LOOKUP[backend]?.(chartType);
         if (!template) return;
         validateEncodingsAgainstTemplate(chartType, backend, template, encodings);
     }
@@ -220,6 +220,9 @@ function validateEncodingsAgainstTemplate(
     encodings: Record<string, unknown>,
 ): void {
     const allowed = new Set(template.channels ?? []);
+    if (allowed.size === 0 && Object.keys(encodings).length > 0) {
+        throw new Error(`${chartType} takes no encodings (encodings: {}); it shows the fields of data.values in their order, so shape the rows to what it should show`);
+    }
     for (const channel of Object.keys(encodings)) {
         if (!allowed.has(channel)) {
             throw new Error(

@@ -39,6 +39,7 @@ import { radarChartDef } from './radar';
 import { roseChartDef } from './rose';
 import { mapDef, choroplethDef } from './map';
 import { kpiCardDef } from './kpi-card';
+import { tableDef } from './table';
 import { vlCalendarHeatmapDef } from './calendar';
 
 /**
@@ -259,7 +260,7 @@ const VALUE_LABEL_CHARTS = new Set([
 function withInjectedProperties(def: ChartTemplateDef): ChartTemplateDef {
     const hasFacetChannels = def.channels?.some(ch => ch === 'column' || ch === 'row');
     const supportsFacetAxisControl = hasFacetChannels && def.chart !== 'Sparkline';
-    const isPosition = def.markCognitiveChannel === 'position';
+    const isPosition = def.markCognitiveChannel === 'position' && def.channels.some((channel) => channel === 'x' || channel === 'y');
     const wantsAxisDtype = AXIS_DTYPE_CHARTS.has(def.chart);
     const extra: ChartPropertyDef[] = [
         ...(supportsFacetAxisControl ? FACET_AXIS_PROPERTIES : []),
@@ -291,7 +292,7 @@ export const vlTemplateDefs: { [key: string]: ChartTemplateDef[] } = Object.from
         "Distributions":   [histogramDef, densityPlotDef, ridgelinePlotDef, ecdfPlotDef, violinPlotDef, boxplotDef, pyramidChartDef, candlestickChartDef],
         "Lines & Areas":   [lineChartDef, sparklineDef, bumpChartDef, slopeChartDef, areaChartDef, streamgraphDef, rangeAreaChartDef],
         "Circular":        [pieChartDef, donutChartDef, roseChartDef, radarChartDef],
-        "Tables & Maps":   [heatmapDef, vlCalendarHeatmapDef, barTableDef, kpiCardDef, mapDef, choroplethDef],
+        "Tables & Maps":   [heatmapDef, vlCalendarHeatmapDef, barTableDef, kpiCardDef, tableDef, mapDef, choroplethDef],
     }).map(([category, defs]) => [category, defs.map(withInjectedProperties)]),
 );
 
@@ -305,6 +306,11 @@ export const vlAllTemplateDefs: ChartTemplateDef[] = Object.values(vlTemplateDef
  */
 export function vlGetTemplateDef(chartType: string): ChartTemplateDef | undefined {
     return vlAllTemplateDefs.find(t => t.chart === chartType);
+}
+
+/** Whether a host with a page draws the chart type as a table rather than its compiled spec. */
+export function drawsAsTable(chartType: string): boolean {
+    return vlGetTemplateDef(chartType)?.drawnAs === 'table';
 }
 
 /**

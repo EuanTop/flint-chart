@@ -383,8 +383,8 @@ describe('accessible navigation tree', () => {
         view.finalize();
     });
 
-    it('reaches every Vega-Lite chart type, with a type and content on every element', async () => {
-        const chartTypes = [...new Set(vlAllTemplateDefs.map((definition) => definition.chart))];
+    it('reaches every Vega-Lite chart type drawn as a chart, with a type and content on every element', async () => {
+        const chartTypes = [...new Set(vlAllTemplateDefs.filter((definition) => definition.drawnAs !== 'table').map((definition) => definition.chart))];
         let covered = 0;
         for (const chartType of chartTypes) {
             const testCase = Object.values(TEST_GENERATORS).flatMap((generate) => generate())

@@ -4,7 +4,9 @@
  * `{ range: [low, high] }`. A key is the `where` whose every field is `in` one value, so both
  * compile to one predicate and match by one rule.
  */
+import type { SemanticAnnotation } from './field-semantics';
 import type { FilterValue, SemanticTargetSelector } from './interaction-contracts';
+import { temporalFieldValue } from './resolve-semantics';
 
 /** Each field's condition, a key's values read as one-value sets. */
 export function selectorConditions(selector: SemanticTargetSelector): [string, FilterValue][] {
@@ -60,6 +62,33 @@ export function selectorPredicate(
         };
     });
     return (value) => tests.every((test) => test(value));
+}
+
+/** How a chart reads its rows' values: the fields it reads as time, and the semantic types that parse them. */
+export interface RowComparison {
+    temporalFields: readonly string[];
+    semanticTypes: Record<string, string | SemanticAnnotation>;
+}
+
+/** A value as the chart compares it: a field it reads as time by its time in epoch ms, the rest as written. */
+export function comparableValue(comparison: RowComparison, field: string, value: unknown): unknown {
+    return comparison.temporalFields.includes(field) ? temporalFieldValue(field, value, comparison.semanticTypes) : value;
+}
+
+/**
+ * The selector as a test on data rows as the author wrote them, each value compared as the chart
+ * compares it; null where {@link selectorPredicate} is.
+ */
+export function selectorRowTest(
+    selector: SemanticTargetSelector,
+    declaredFields: readonly string[],
+    comparison: RowComparison,
+): ((row: Readonly<Record<string, unknown>>) => boolean) | null {
+    const compare = (field: string, value: unknown) => comparableValue(comparison, field, value);
+    const test = selectorPredicate(selector, declaredFields, compare);
+    if (!test) return null;
+    const named = selectorConditions(selector).map(([field]) => field);
+    return (row) => test(Object.fromEntries(named.map((field) => [field, compare(field, row[field])])));
 }
 
 function cell(value: unknown): string {

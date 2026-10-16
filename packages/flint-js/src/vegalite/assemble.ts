@@ -56,6 +56,7 @@ import type { ThemeReport } from '../core/theme/types';
 import { declaredInteractionCapabilities, type InteractionCapability } from '../core/interaction-spec';
 import { analysisReadsProperty, analyzeChart, type ChartAnalysis } from '../core/analyze';
 import { planLayout, type BackendLayoutProfile, type LayoutPlan, type PlanContext } from '../core/plan';
+import { chartTable, type ChartTable } from '../core/chart-table';
 import { groupDodge } from '../core/band-dodge';
 import { applyPivot, type PivotSurface, type TransformSurface } from '../core/pivot';
 import { vlGetTemplateDef } from './templates';
@@ -448,6 +449,7 @@ function instantiateVegaLite(
         canvasSize,
         semanticTypes,
         chartType,
+        ...(fieldDisplayNames ? { fieldDisplayNames } : {}),
         assembleOptions: effectiveOptions,
         geometry: chartGeometry,
         measureText: familyMeasure(
@@ -674,7 +676,7 @@ function emitVegaLite(input: ChartAssemblyInput, prepared: VegaLitePreparation, 
                 return !!encoding?.field && (encoding.type === 'quantitative' || encoding.type === 'temporal');
             })
             : [];
-    const templateSemantics = chartTemplate.semanticInteractions?.({ resolvedEncodings }) ?? {
+    const templateSemantics = chartTemplate.semanticInteractions?.({ resolvedEncodings, encodings, channelSemantics }) ?? {
         fields: [],
         provenanceFields: undefined,
         temporalProvenanceFields: undefined,
@@ -933,6 +935,13 @@ export function vegaLiteTitleFits(input: ChartAssemblyInput): { planned: unknown
         own: fitted(emitVegaLite(input, prepared, analysis, { ...plan, title: undefined }).spec),
         composite: plan.composite,
     };
+}
+
+/** The rows the chart draws as a table, titled, printed and styled as the Vega-Lite chart draws them. */
+export function vegaLiteTable(input: ChartAssemblyInput): ChartTable {
+    const prepared = prepareVegaLite(input);
+    const analysis = analyzeChart(input, prepared.template, prepared.chartProperties, vlGetTemplateDef);
+    return chartTable(input, analysis, planLayout(analysis, vegaLitePlanContext(input, prepared, analysis)));
 }
 
 /** A chart's analysis, plan and compiled spec, for checks that compare the plan with what the backend draws. */

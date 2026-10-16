@@ -49,6 +49,7 @@ export { genDateTests, genDateYearTests, genDateMonthTests, genDateYearMonthTest
 export { genSemanticContextTests, genSnapToBoundTests } from './semantic-tests';
 export { genMapTests, genChoroplethTests } from './map-tests';
 export { genGanttTests, genBulletTests, genKpiCardTests } from './gantt-bullet-tests';
+export { genTableTests } from './table-tests';
 export {
     OMNI_VIZ_ROWS,
     OMNI_VIZ_LEVELS,
@@ -97,6 +98,7 @@ import { genDensityContourTests } from './density-2d-tests';
 import { genViolinTests } from './violin-tests';
 import { genMapTests, genChoroplethTests } from './map-tests';
 import { genGanttTests, genBulletTests, genKpiCardTests } from './gantt-bullet-tests';
+import { genTableTests } from './table-tests';
 import { genLineTests } from './line-tests';
 import { genSparklineTests } from './sparkline-tests';
 import { genBumpChartTests } from './line-area-tests';
@@ -190,6 +192,7 @@ export const TEST_GENERATORS: Record<string, () => TestCase[]> = {
     'Gantt Chart': genGanttTests,
     'Bullet Chart': genBulletTests,
     'KPI Card': genKpiCardTests,
+    'Table': genTableTests,
     'Facet: Columns': genFacetColumnTests,
     'Facet: Rows': genFacetRowTests,
     'Facet: Cols+Rows': genFacetColRowTests,

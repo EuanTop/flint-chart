@@ -9,8 +9,8 @@ describe('Vega-Lite templates declare their interaction support', () => {
         expect(missing).toEqual([]);
     });
 
-    it('every template resolves marks to data elements', () => {
-        const without = vlAllTemplateDefs.filter((def) => !def.interactionSupport?.elements).map((def) => def.chart);
+    it('every template drawn as a chart resolves marks to data elements', () => {
+        const without = vlAllTemplateDefs.filter((def) => def.drawnAs !== 'table' && !def.interactionSupport?.elements).map((def) => def.chart);
         expect(without).toEqual([]);
     });
 

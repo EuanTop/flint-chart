@@ -40,10 +40,10 @@ describe('supportedInteractionPresets', () => {
         expect(supportedInteractionPresets(undefined)).toEqual([]);
     });
 
-    it('every preset is supported by at least one chart type, and every chart type supports at least one preset', () => {
+    it('every preset is supported by at least one chart type, and every type drawn as a chart supports at least one preset', () => {
         const union = new Set(vlAllTemplateDefs.flatMap((template) => supportedInteractionPresets(template.interactionSupport)));
         expect([...INTERACTION_PRESET_TYPES].filter((type) => !union.has(type))).toEqual([]);
-        const empty = vlAllTemplateDefs.filter((template) => supportedInteractionPresets(template.interactionSupport).length === 0);
+        const empty = vlAllTemplateDefs.filter((template) => template.drawnAs !== 'table' && supportedInteractionPresets(template.interactionSupport).length === 0);
         expect(empty.map((template) => template.chart)).toEqual([]);
     });
 });

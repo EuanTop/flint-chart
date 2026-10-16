@@ -393,6 +393,7 @@ export function realizeThemeVegaLite(
     applyGradientFills(spec, d, table, say);
     applyTypeCase(spec, config, d, table, say);
     applyDisplayType(spec, d);
+    applyTableStyle(spec, d);
     applyMinorGrid(spec, config, d, table, say);
     // Last among the layers, so it shares the scale every other layer finished with.
     applyBaseline(spec, d, table);
@@ -4977,6 +4978,28 @@ function applyDisplayType(spec: any, d: DesignDecisions): void {
         if (t.fontWeight != null) mark.fontWeight = t.fontWeight;
         if (t.fontStyle) mark.fontStyle = t.fontStyle;
         if (t.color) { mark.fill = t.color; delete mark.color; }
+        node.mark = mark;
+    });
+}
+
+/** The layers a Table's static grid tags (`__tableRole`), in the table roles of the design: headings, cells and rules. */
+function applyTableStyle(spec: any, d: DesignDecisions): void {
+    walk(spec, (node) => {
+        const role = node.__tableRole;
+        if (!role) return;
+        const mark = normalizeMark(node.mark);
+        if (role === 'rule' || role === 'header-rule') {
+            mark.stroke = role === 'rule' ? d.table.rule : d.table.headerRule;
+        } else {
+            const t = role === 'header' ? d.table.header : d.table.cell;
+            if (t.font ?? d.font) mark.font = t.font ?? d.font;
+            if (t.fontSize) mark.fontSize = Math.max(11, t.fontSize);
+            if (t.fontWeight != null) mark.fontWeight = t.fontWeight;
+            if (t.fontStyle) mark.fontStyle = t.fontStyle;
+            mark.fill = t.color ?? (role === 'header' ? d.text.secondary : d.text.primary);
+            delete mark.color;
+        }
+        delete node.__tableRole;
         node.mark = mark;
     });
 }

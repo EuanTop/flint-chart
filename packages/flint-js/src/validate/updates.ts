@@ -5,7 +5,7 @@ import type { ChartAssemblyInput, ChartWarning } from '../core/types';
 import type { SemanticAnnotation } from '../core/field-semantics';
 import { CHART_UPDATE_OPS, type ChartOverlaySpec, type ChartUpdate, type ChartUpdateOp, type UpdateTarget } from '../core/interaction-contracts';
 import { temporalFieldValue } from '../core/resolve-semantics';
-import { isWhereSelector, selectorConditions, selectorPredicate, selectorText } from '../core/target-selector';
+import { isWhereSelector, selectorConditions, selectorRowTest, selectorText, type RowComparison } from '../core/target-selector';
 import { overlayChannels } from '../vegalite/interactions/presentation/data-overlay';
 import { navigationAxesFor } from '../interactive/spec/admission';
 import type { CanvasInteractionDef } from '../interactive/interactions';
@@ -83,11 +83,8 @@ function chartOf(input: ChartAssemblyInput, assembled: unknown, interactions: re
     };
 }
 
-/** A value as the chart compares it: temporal fields as epoch ms, the rest as given. */
-function comparable(chart: Chart, field: string, value: unknown): unknown {
-    return chart.semantics.temporalProvenanceFields?.includes(field)
-        ? temporalFieldValue(field, value, chart.semanticTypes)
-        : value;
+function comparisonOf(chart: Chart): RowComparison {
+    return { temporalFields: chart.semantics.temporalProvenanceFields ?? [], semanticTypes: chart.semanticTypes };
 }
 
 /** Why a target matches no mark, or undefined when it matches some. Element targets are checked at mount. */
@@ -105,9 +102,8 @@ function targetProblem(chart: Chart, target: UpdateTarget): string | undefined {
             ? `${unknown.join(', ')} ${unknown.length === 1 ? 'is not a field' : 'are not fields'} the marks carry; ${where ? 'select' : 'key'} on ${fields.join(', ')}.`
             : `${chart.semantics.chartType ?? 'This chart'} has no marks a ${where ? 'condition' : 'key'} can target.`;
     }
-    const matches = selectorPredicate(target, fields, (field, value) => comparable(chart, field, value))!;
-    const named = conditions.map(([field]) => field);
-    const hit = chart.rows.some((row) => matches(Object.fromEntries(named.map((field) => [field, comparable(chart, field, row[field])]))));
+    const matches = selectorRowTest(target, fields, comparisonOf(chart))!;
+    const hit = chart.rows.some(matches);
     return hit ? undefined : `no row has ${selectorText(target)}.`;
 }
 

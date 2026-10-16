@@ -622,6 +622,9 @@ export interface InstantiateContext {
     /** Chart type name */
     chartType: string;
 
+    /** The names the chart prints for fields, where the author gave some. */
+    fieldDisplayNames?: Record<string, string>;
+
     /** Assembly options (layout tuning parameters from the caller) */
     assembleOptions?: AssembleOptions;
 
@@ -1012,6 +1015,9 @@ export interface ChartTemplateDef {
     /** Template-owned semantic resolution and chart-specific presentation. */
     semanticInteractions?: (context: {
         resolvedEncodings: Readonly<Record<string, any>>;
+        /** The encodings as Flint resolved them, before any backend spelling, and their semantics. */
+        encodings: Readonly<Record<string, ChartEncoding>>;
+        channelSemantics: Readonly<Record<string, ChannelSemantics>>;
     }) => {
         fields: string[];
         provenanceFields?: readonly string[];
@@ -1056,6 +1062,18 @@ export interface ChartTemplateDef {
         table: any[],
         chartProperties?: Record<string, any>,
     ) => LayoutDeclaration;
+
+    /**
+     * How a host with a page draws the chart: `table` draws its rows as a table (FlintTable)
+     * rather than the compiled spec, which stays the static rendering.
+     */
+    drawnAs?: 'table';
+
+    /**
+     * How the chart's table orders its columns: `by-role` (the default) puts categories and dates
+     * before measures, `as-given` keeps the order the encodings name the fields.
+     */
+    tableColumns?: 'by-role' | 'as-given';
 
     /**
      * Optional encoding-normalization hook.
