@@ -438,6 +438,7 @@ Generated from the templates by `npm run gen:reference`. Do not edit the table b
 | Stacked Bar Chart | ✓ | cartesian | x, y | ✓ | ✓ | ✓ |  |
 | Streamgraph | ✓ | cartesian | x, y | ✓ | ✓ | ✓ | ✓ |
 | Strip Plot | ✓ | cartesian | x, y | ✓ | ✓ | ✓ |  |
+| Table |  |  |  |  |  |  |  |
 | Violin Plot | ✓ | cartesian |  |  | ✓ | ✓ |  |
 | Waterfall Chart | ✓ | cartesian | x, y | rect marks | ✓ | ✓ |  |
 <!-- interaction-support:end -->

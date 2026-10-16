@@ -6,7 +6,7 @@ The Vega-Lite backend serves as Flint's reference implementation and offers the 
 
 ## What this page covers
 
-This reference lists the 38 chart types currently supported by the Vega-Lite backend, grouped into 6 categories. Each chart entry shows:
+This reference lists the 39 chart types currently supported by the Vega-Lite backend, grouped into 6 categories. Each chart entry shows:
 
 - **Encoding channels** — the visual roles accepted in `chart_spec.encodings`, such as `x`, `y`, `color`, `size`, `column`, or `row`.
 - **Options** — template-specific `chart_spec.chartProperties` keys, including control type, domain, default, availability, and description.
@@ -478,10 +478,12 @@ The **Availability** column shows whether a parameter is `always` available or `
 | `layout` | choice | `horizontal` (Horizontal), `vertical` (Vertical), `grid` (Grid) | `grid` | always | Layout |
 | `style` | toggle | on / off | `true` | always | Card style |
 | `behindThreshold` | number | 0 – 1 (step 0.05) | `0.5` | conditional | Behind threshold |
-| `logScale_x` | toggle | on / off | `false` | conditional | Use a log/symlog scale on the x-axis. |
-| `logScale_y` | toggle | on / off | `false` | conditional | Use a log/symlog scale on the y-axis. |
-| `includeZero_x` | toggle | on / off | `false` | conditional | Anchor the x-axis at zero. |
-| `includeZero_y` | toggle | on / off | `false` | conditional | Anchor the y-axis at zero. |
+
+### Table
+
+**Encoding channels:** _none_
+
+_No template-specific parameters._
 
 ### ![](chart-icon-world-map.svg) Map
 
@@ -492,10 +494,6 @@ The **Availability** column shows whether a parameter is `always` available or `
 | `region` | choice | `auto` (Auto-detect), `us` (United States), `world` (World) | `auto` | always | Region |
 | `projection` | choice | `default` (Default), `mercator` (Mercator), `equalEarth` (Equal Earth), `orthographic` (Orthographic (Globe)), `stereographic` (Stereographic), `conicEqualArea` (Conic Equal Area), `conicEquidistant` (Conic Equidistant), `azimuthalEquidistant` (Azimuthal Equidistant), `mollweide` (Mollweide) | `default` | conditional | Projection |
 | `projectionCenter` | choice | Default _(default)_, `0,0` (World (Atlantic) [0, 0]), `150,0` (World (Pacific) [150, 0]), `105,35` (China [105, 35]), `-98,39` (USA [-98, 39]), `10,50` (Europe [10, 50]), `138,36` (Japan [138, 36]), `78,22` (India [78, 22]), `-52,-14` (Brazil [-52, -14]), `134,-25` (Australia [134, -25]), `100,60` (Russia [100, 60]), `20,0` (Africa [20, 0]), `45,28` (Middle East [45, 28]), `115,5` (Southeast Asia [115, 5]), `-60,-15` (South America [-60, -15]), `-100,45` (North America [-100, 45]), `-2,54` (UK [-2, 54]), `10,51` (Germany [10, 51]), `2,47` (France [2, 47]), `128,36` (Korea [128, 36]) | — | conditional | Center |
-| `logScale_x` | toggle | on / off | `false` | conditional | Use a log/symlog scale on the x-axis. |
-| `logScale_y` | toggle | on / off | `false` | conditional | Use a log/symlog scale on the y-axis. |
-| `includeZero_x` | toggle | on / off | `false` | conditional | Anchor the x-axis at zero. |
-| `includeZero_y` | toggle | on / off | `false` | conditional | Anchor the y-axis at zero. |
 
 ### ![](chart-icon-us-map.svg) Choropleth
 

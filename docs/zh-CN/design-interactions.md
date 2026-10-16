@@ -315,6 +315,7 @@ options.interactions ──► compose ────────────┤
 | Stacked Bar Chart | ✓ | cartesian | x, y | ✓ | ✓ | ✓ |  |
 | Streamgraph | ✓ | cartesian | x, y | ✓ | ✓ | ✓ | ✓ |
 | Strip Plot | ✓ | cartesian | x, y | ✓ | ✓ | ✓ |  |
+| Table |  |  |  |  |  |  |  |
 | Violin Plot | ✓ | cartesian |  |  | ✓ | ✓ |  |
 | Waterfall Chart | ✓ | cartesian | x, y | rect 标记 | ✓ | ✓ |  |
 <!-- interaction-support:end -->

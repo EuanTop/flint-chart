@@ -55,6 +55,10 @@ First decide which workflow the user is asking for:
   framed range. It is a list of ChartUpdate layers, state not behaviour; the
   shapes are in `flint://interaction-skill` under "Update the chart". To change an
   open chart, call `create_chart_view` again with the same input and new `updates`.
+- **DO** pass `view: "table"` to `create_chart_view` when the user wants to see
+  a chart's numbers: the card opens on the table of the rows the chart draws,
+  and the reader can switch to the chart. When the user wants records listed and
+  no chart at all, use `chartType: "Table"` instead.
 - **Project integration, only when the user asks for code:** add Flint to an
   app, notebook, script, or agentic product, install/import the library, and
   call an assembler in code. Keep the same `ChartAssemblyInput` contract, then
@@ -342,6 +346,7 @@ properties"). Required channels are noted.
 | `"Candlestick Chart"` | x, open, high, low, close, column, row | OHLC all required |
 | `"Bar Table"` | y, x, color, column, row | compact bars + value labels |
 | `"KPI Card"` | metric, value, goal | big-number tile; prop `behindThreshold` |
+| `"Table"` | none (`encodings: {}`) | the rows as given, one column per field in row order; shape `data.values` to the rows and fields to list, name columns with `field_display_names`; numbers and dates print by `semantic_types`; receives links and `updates`, sends no selection |
 | `"Map"` | longitude, latitude, color, size, opacity | bubble map; props `region`, `projection` |
 | `"Choropleth"` | id, color, detail | `id` = geographic key |
 

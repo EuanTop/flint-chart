@@ -45,6 +45,7 @@ six charts. More than that is two boards.
 | How are we doing on the numbers we steer by? | `KPI Card` per number, with `goal` when there is a target |
 | How did it move over time? | `Line Chart` (few series), `Area Chart` (parts of a total) |
 | Which is largest, how do they rank? | `Bar Chart` sorted by value, `Bar Table` for many rows with labels |
+| Which records are behind it? | `Table`: the rows as given, one column per field, `encodings: {}` |
 | What is it made of? | `Stacked Bar Chart`, or `Pie Chart` with `innerRadius` for up to five parts |
 | How do two measures relate? | `Scatter Plot` |
 | Where? | `Choropleth`, `Map` |
@@ -100,6 +101,11 @@ not KPI tiles). Charts fill rows in the order given:
 | Many small series | one `Sparkline` chart, `height: compact` or `standard` |
 
 On a narrow card each chart takes its own row; the layout needs no second version.
+
+**`view: "table"`** on a chart opens its cell on the table of the rows the chart
+draws; the reader can switch it back. Use it when the numbers matter more than
+the shape. Changing `view` with `update_chart` keeps the reader's arrangement.
+A `Table` is a table either way.
 
 ## Step 5 — connect them
 
