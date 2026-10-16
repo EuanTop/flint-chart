@@ -46,3 +46,22 @@ describe('the layout a mounted chart reports', () => {
         expect(departures).toEqual([]);
     }, 300_000);
 });
+
+describe('the plot a single-view session reports', () => {
+    // A figure label and a source line take their height from the plot where it gives it; the plot
+    // the session reports is the one Vega lays out.
+    it('is the plot Vega lays out, with a header and a source line', async () => {
+        const departures: string[] = [];
+        for (const { section, testCase, theme, input } of generatedVegaLiteCases()) {
+            if (!['nyt', 'economist', 'datawrapper'].includes(theme as string)) continue;
+            const session = openVegaLiteSession({ ...input, chart_spec: { ...input.chart_spec, label: 'Chart 1', source: 'Source: Somewhere official' } });
+            if (!session.plot) continue;
+            const view = new View(parse(compile(session.spec as any).spec as any), { renderer: 'none' });
+            await view.runAsync();
+            const height = view.signal('height');
+            view.finalize();
+            if (Math.abs(session.plot.height - height) > 0.5) departures.push(`${section} | ${testCase.title} | ${theme}: ${session.plot.height} reported, ${height} drawn`);
+        }
+        expect(departures).toEqual([]);
+    }, 120_000);
+});

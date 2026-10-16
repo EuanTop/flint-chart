@@ -62,7 +62,7 @@ import { vlGetTemplateDef } from './templates';
 import { getRegistryEntry } from '../core/type-registry';
 import type { SemanticAnnotation } from '../core/field-semantics';
 import { resolveBaseSize, withCanvasSize } from '../core/compute-layout';
-import { gapOf, type ViewNode } from '../core/views';
+import { gapOf, plotViews, type ViewNode } from '../core/views';
 import { plotHeightAfter } from '../core/title-fit';
 import { inWindow, positionOf } from '../core/window';
 import { vegaLiteSort } from './sort';
@@ -963,8 +963,13 @@ export function vegaLiteHonour(input: ChartAssemblyInput): PlanDeparture[] {
     return vegaLiteDepartures(plan, spec, plotAsPlanned, fields);
 }
 
-/** The plot's height once a broken title and a theme's closing rules have taken theirs from it. */
+/**
+ * The plot's height as drawn: the plan's drawn view, once a broken title, a theme's closing rules,
+ * the header and the source line have taken theirs from it where the plot gives them.
+ */
 function drawnHeight(plan: LayoutPlan): number {
+    const [view] = plan.views ? plotViews(plan.views) : [];
+    if (view) return view.height;
     const titled = heightAfterTitle(plan.plot.height, plan.title);
     return plan.rules?.fromPlot ? plotHeightAfter(titled, plan.rules.room) : titled;
 }
