@@ -5601,29 +5601,26 @@ function applySeriesEndLabels(
 
     // Both the series name and its final value want the same few pixels. The
     // house answer is not to stack them but to say them once: "Japan 84.5".
-    const merged = Boolean(valueLayer) && valueLayer.encoding?.text?.field === value.field;
+    const printsEndValues = Boolean(valueLayer) && valueLayer.encoding?.text?.field === value.field;
+    const merged = printsEndValues || d.legend.endValue === true;
     const transform: any[] = [...rank, { filter: 'datum.__seriesEndRank === 1' }];
     let textField = seriesField;
     if (merged) {
         const v = `datum[${JSON.stringify(value.field)}]`;
-        const shown = printedNumber(v, d.dataLabels.format, d.dataLabels.compact);
+        // In the unit the value labels write it in: "AMZN 190%", "Japan $84.5".
+        const shown = withUnitExpr(printedNumber(v, d.dataLabels.format, d.dataLabels.compact), d.dataLabels.unit);
         transform.push({
             calculate: `datum[${JSON.stringify(seriesField)}] + ' ' + ${shown}`,
             as: '__seriesEndLabel',
         });
         textField = '__seriesEndLabel';
         // …and the value layer must stop printing the point that is now named.
-        valueLayer.transform = [...rank, { filter: 'datum.__seriesEndRank !== 1' }];
+        if (printsEndValues) valueLayer.transform = [...rank, { filter: 'datum.__seriesEndRank !== 1' }];
     }
 
     let labelValue = value;
     if (layout?.maxDisplacement && layout.maxDisplacement > 0.5) {
-        const series = `datum[${JSON.stringify(seriesField)}]`;
-        let adjusted = `datum[${JSON.stringify(value.field)}]`;
-        for (const [name, number] of layout.adjustedValues) {
-            adjusted = `${series} === ${JSON.stringify(name)} ? ${number} : (${adjusted})`;
-        }
-        transform.push({ calculate: adjusted, as: '__seriesEndLabelValue' });
+        transform.push(...packEndLabels(value.field, layout));
         labelValue = { ...value, field: '__seriesEndLabelValue' };
     }
     if (t.textCase) {
@@ -5668,6 +5665,33 @@ function applySeriesEndLabels(
     // own that edge now, so the surviving key steps down to the foot of the
     // plot, where it has the width to itself.
     if (secondaryEdge) relocateSecondaryLegends(spec, secondaryEdge);
+}
+
+/**
+ * Keep the names at the line ends a line apart, computed by the chart from the rows it draws rather
+ * than fixed at build: rows replaced after the chart is drawn (a re-indexed series) move their names
+ * with them. From the top name down, each stands at its own value or a line below the name above,
+ * whichever is lower — `min` over the names above of `value + rank × gap`, less its own `rank × gap`.
+ * Where the plan has no gap to go by, the positions it packed stand.
+ */
+function packEndLabels(valueField: string, layout: SeriesEndLayout): any[] {
+    const v = `datum[${JSON.stringify(valueField)}]`;
+    if (!(layout.gap && layout.gap > 0)) {
+        return [{ calculate: `${v}`, as: '__seriesEndLabelValue' }];
+    }
+    // Top to bottom: largest first, or smallest first on a reversed scale.
+    const down = layout.reverse ? 'ascending' : 'descending';
+    const step = layout.reverse ? -layout.gap : layout.gap;
+    return [
+        { window: [{ op: 'row_number', as: '__seriesEndRow' }], sort: [{ field: valueField, order: down }] },
+        { calculate: `${v} + (datum.__seriesEndRow - 1) * ${step}`, as: '__seriesEndReach' },
+        {
+            window: [{ op: layout.reverse ? 'max' : 'min', field: '__seriesEndReach', as: '__seriesEndBound' }],
+            sort: [{ field: valueField, order: down }],
+            frame: [null, 0],
+        },
+        { calculate: `datum.__seriesEndBound - (datum.__seriesEndRow - 1) * ${step}`, as: '__seriesEndLabelValue' },
+    ];
 }
 
 /**

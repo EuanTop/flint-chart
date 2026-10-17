@@ -7,6 +7,12 @@ import type { ChannelSemantics } from './types';
 export interface SeriesEndLayout {
     adjustedValues: Map<unknown, number>;
     maxDisplacement: number;
+    /**
+     * One line of label in value units, and whether larger values sit lower (a reversed scale): what
+     * the chart needs to keep its names apart itself when its rows are replaced after it is drawn.
+     */
+    gap?: number;
+    reverse?: boolean;
 }
 
 /** Where the chart names its series: the theme's placement, or the next it ranked where that cannot stand. */
@@ -169,7 +175,14 @@ function seriesEndLayout(inputs: SeriesEndInputs, seriesField: string): { layout
     if (maxDisplacement > fontSize) {
         return { reason: `series-end labels need ${Math.round(maxDisplacement)}px of dodge, more than one line of text` };
     }
-    return { layout: { adjustedValues: new Map(packed.map((entry) => [entry.series, fromPixel(entry.placed)])), maxDisplacement } };
+    return {
+        layout: {
+            adjustedValues: new Map(packed.map((entry) => [entry.series, fromPixel(entry.placed)])),
+            maxDisplacement,
+            gap: separation / plotHeight * valueSpan,
+            reverse: value.reverse,
+        },
+    };
 }
 
 /**

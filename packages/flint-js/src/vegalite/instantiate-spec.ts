@@ -545,6 +545,14 @@ function vlApplyFieldContext(
                     }
                 }
             }
+            // A key to values reads its numbers the way an axis on the same field would: a ramp of
+            // percentage changes is labelled "−20%", not "−0.20".
+            if ((cs.format?.pattern || cs.format?.abbreviate) && (ch === 'color' || ch === 'size')
+                && enc.type === 'quantitative' && !enc.bin && enc.legend !== null
+                && !enc.legend?.format && !enc.legend?.labelExpr) {
+                const expr = formatSpecToLabelExpr(cs.format);
+                enc.legend = { ...(enc.legend ?? {}), ...(expr ? { labelExpr: expr } : { format: cs.format.pattern }) };
+            }
 
             // ── 2. Tooltip format ──
             // Tooltip formatting is handled via VL's tooltip encoding with format.
@@ -707,8 +715,14 @@ function temporalPlanSettings(settings: Record<string, unknown>): Record<string,
     return kept;
 }
 
-function axisPropertiesOf({ labels: _labels, ...axis }: TemporalTickPlan): Omit<TemporalTickPlan, 'labels'> {
-    return axis;
+/**
+ * The axis properties a tick plan writes. The tick count is the plan's own: Vega-Lite states
+ * `ceil(width / 40)` by default, and Vega strides explicit values down to a count, so a plot
+ * narrower than the plan expected would keep every other tick — and drop the January that names
+ * the year.
+ */
+function axisPropertiesOf({ labels: _labels, ...axis }: TemporalTickPlan): Omit<TemporalTickPlan, 'labels'> & { tickCount: number } {
+    return { ...axis, tickCount: axis.values.length };
 }
 
 export function temporalAxisPlanInputs(encoding: object): TemporalAxisPlanInputs | undefined {

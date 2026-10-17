@@ -492,7 +492,9 @@ export const mapDef: ChartTemplateDef = {
  * (optional) = an explicit display name for tooltips (defaults to the `id`
  * field so the user always sees a readable label).
  */
-function buildChoroplethJoin(spec: any, ctx: any, resolver: GeoResolver): void {
+function buildChoroplethJoin(
+    spec: any, ctx: any, resolver: (value: unknown) => unknown, featureKey = 'id',
+): void {
     const idField: string | undefined = ctx.resolvedEncodings.id?.field;
     const colorEnc = ctx.resolvedEncodings.color;
     const valueField: string | undefined = colorEnc?.field;
@@ -511,7 +513,7 @@ function buildChoroplethJoin(spec: any, ctx: any, resolver: GeoResolver): void {
                 layer.transform = [
                     ...(layer.transform ?? []),
                     {
-                        lookup: 'id',
+                        lookup: featureKey,
                         from: { data: { name: GEO_JOIN_DATASET }, key: '__geo_id', fields: lookupFields },
                     },
                 ];
@@ -520,7 +522,7 @@ function buildChoroplethJoin(spec: any, ctx: any, resolver: GeoResolver): void {
             spec.transform = [
                 ...(spec.transform ?? []),
                 {
-                    lookup: 'id',
+                    lookup: featureKey,
                     from: { data: { values: joined }, key: '__geo_id', fields: lookupFields },
                 },
             ];
@@ -536,6 +538,86 @@ function buildChoroplethJoin(spec: any, ctx: any, resolver: GeoResolver): void {
     if (labelField) tooltip.push({ field: labelField, type: 'nominal' });
     if (valueField) tooltip.push({ field: valueField, type: colorEnc?.type ?? 'quantitative' });
     if (tooltip.length) spec.encoding.tooltip = tooltip;
+}
+
+/** One level of a choropleth over the caller's own geography: its regions, and the zoom it shows at. */
+interface CustomChoroplethLevel extends GeoLevel {
+    url: string;
+    /** The TopoJSON object holding the level's regions; unset, `url` is a GeoJSON FeatureCollection. */
+    feature?: string;
+}
+
+/**
+ * The caller's own geography, read from two chart properties: `levels`, each
+ * `{ value, url, feature?, enter?, exit? }` coarsest first (one level draws a
+ * plain choropleth), and `baseMapUrl`, a GeoJSON FeatureCollection drawn
+ * beneath them as land without data. Rows join a level's regions by the id
+ * channel against `featureKey` (default the feature's `id`), as given: no
+ * gazetteer is consulted, so the keys are the caller's own.
+ */
+function customChoroplethLevels(chartProperties: Record<string, any> | undefined): CustomChoroplethLevel[] | undefined {
+    const declared = chartProperties?.levels;
+    if (!Array.isArray(declared) || declared.length === 0) return undefined;
+    const levels = declared.flatMap((level: any): CustomChoroplethLevel[] => {
+        if (!level || typeof level !== 'object' || typeof level.value !== 'string' || typeof level.url !== 'string') return [];
+        return [{
+            name: level.value,
+            url: level.url,
+            ...(typeof level.feature === 'string' ? { feature: level.feature } : {}),
+            ...(typeof level.enter === 'number' ? { enter: level.enter } : {}),
+            ...(typeof level.exit === 'number' ? { exit: level.exit } : {}),
+        }];
+    });
+    return levels.length === declared.length ? levels : undefined;
+}
+
+/** The land a custom choropleth stands on, and the fill it gives a region without a value. */
+const CUSTOM_NO_DATA = '#e3e3e3';
+
+/**
+ * Draw a choropleth over the caller's geography. Each level is its own layer,
+ * gated behind the level signal like the US map's states and counties; with
+ * one level there is nothing to gate. The projection defaults to Mercator,
+ * which reads a single country without the bend of a world projection.
+ */
+function configureCustomChoropleth(spec: any, levels: CustomChoroplethLevel[], chartProperties: Record<string, any> | undefined): void {
+    const type = chartProperties?.projection;
+    spec.projection = { type: typeof type === 'string' && type !== 'default' ? type : 'mercator' };
+    const mark = typeof spec.mark === 'object' ? spec.mark : { type: 'geoshape' };
+    delete spec.mark;
+    delete spec.data;
+    const gated = levels.length > 1;
+    if (gated) {
+        spec.params = [{ name: GEO_LEVEL_SIGNAL, value: levels[0].name }];
+        spec._geoLevels = {
+            signal: GEO_LEVEL_SIGNAL,
+            levels: levels.map(({ name, enter, exit }) => ({
+                name,
+                ...(enter !== undefined ? { enter } : {}),
+                ...(exit !== undefined ? { exit } : {}),
+            })),
+        };
+    }
+    spec.data = { name: GEO_JOIN_DATASET };
+    spec.layer = levels.map((level, index) => ({
+        data: level.feature
+            ? { url: level.url, format: { type: 'topojson', feature: level.feature } }
+            : { url: level.url, format: { type: 'json', property: 'features' } },
+        ...(gated ? { transform: [{ filter: geoLevelGate(GEO_LEVEL_SIGNAL, level.name) }] } : {}),
+        // Finer levels draw thinner borders, so a county map is not all edges.
+        mark: { ...mark, type: 'geoshape', stroke: 'white', strokeWidth: Math.max(0.15, 0.6 / (index + 1)) },
+    }));
+}
+
+/** Put the land without data beneath the levels: a region the rows do not name reads as land, not as a hole. */
+function addCustomBaseMap(spec: any, url: unknown): void {
+    if (typeof url !== 'string' || !url || !Array.isArray(spec.layer)) return;
+    spec.layer.unshift(withInteractionDecorative({
+        data: { url, format: { type: 'json', property: 'features' } },
+        mark: { type: 'geoshape', stroke: 'white', strokeWidth: 0.5 },
+        // The levels' colour and tooltip sit on the spec and reach every layer; the land states its own.
+        encoding: { color: { value: CUSTOM_NO_DATA }, tooltip: null },
+    }));
 }
 
 export const choroplethDef: ChartTemplateDef = {
@@ -584,6 +666,15 @@ export const choroplethDef: ChartTemplateDef = {
     },
     instantiate: (spec, ctx) => {
         const idField = ctx.resolvedEncodings.id?.field;
+        const custom = customChoroplethLevels(ctx.chartProperties);
+        if (custom) {
+            configureCustomChoropleth(spec, custom, ctx.chartProperties);
+            drawAtPlannedSize(spec, ctx);
+            const featureKey = typeof ctx.chartProperties?.featureKey === 'string' ? ctx.chartProperties.featureKey : 'id';
+            buildChoroplethJoin(spec, ctx, (value) => (value == null ? undefined : String(value)), featureKey);
+            addCustomBaseMap(spec, ctx.chartProperties?.baseMapUrl);
+            return;
+        }
         const scope = choroplethScope(ctx, idField);
 
         const requestedLevel = ctx.chartProperties?.level;

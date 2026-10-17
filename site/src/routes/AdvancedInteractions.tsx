@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  BarChart3, Braces, Brush, ChevronRight, Crosshair, Globe, Link2, Map as MapIcon, MessageSquare, MousePointerClick,
+  BarChart3, Braces, Brush, ChevronRight, Crosshair, Globe, Layers, Link2, Map as MapIcon, MessageSquare, MousePointerClick,
   Move, Pencil, PenLine, Play, Route, ScrollText, ShoppingBasket, Sigma, SquareDashed, Thermometer, TrendingUp, ZoomIn,
   type LucideIcon,
 } from 'lucide-react';
@@ -95,8 +95,17 @@ function CaseCode({ title, source }: { title: string; source: string }) {
 
 const SECTIONS: { title: string; cases: Case[] }[] = [
   {
-    title: 'Zoom and focus',
+    title: 'Maps',
     cases: [
+      {
+        id: 'turn-the-globe',
+        title: 'Turn the globe',
+        icon: Globe,
+        body: 'How much warmer 2016–2025 was than 1951–1980, country by country. Drag to turn the globe: the country facing you is the focus, edged on the map and read out beside it with its warming stripes since 1940. Look north, then south: the northern land warmed about twice as much.',
+        credit: { label: 'Copernicus Climate Change Service ERA5, processed by Our World in Data (contains modified Copernicus Climate Change Service information)', url: 'https://ourworldindata.org/grapher/annual-temperature-anomalies' },
+        demo: <GlobeWarmingStage />,
+        code: globeSource,
+      },
       {
         id: 'zoom-into-counties',
         title: 'Zoom into counties',
@@ -107,28 +116,25 @@ const SECTIONS: { title: string; cases: Case[] }[] = [
         code: mapSource,
       },
       {
-        id: 'china-aging',
-        title: 'Where China\u2019s population is aging',
-        icon: Globe,
+        id: 'china-shrinking',
+        title: 'China grew, most of its counties shrank',
+        icon: Layers,
         body: <>
-          Zoom from provinces to prefectures and county units. Population totals and population-weighted
-          shares aged 65+ cover 30 provinces, 343 prefectural units, and 2,668 county units. Aggregates cover
-          included counties, not full-region totals; age-data coverage is reported in tooltips. Base map:
-          DataV.GeoAtlas province boundaries (100000_full), Alibaba Cloud.
+          China grew by 5.6% between the 2010 and 2020 censuses, and only six provinces shrank, yet more than
+          half of its counties lost people. Zoom from provinces to prefectures to counties to watch the totals
+          come apart: the province in the middle of the map reports how many of its counties shrank, and
+          hovering any region reads it out. Counts cover counties matched across both censuses, not
+          official full-region totals. Base map: DataV.GeoAtlas province boundaries (100000_full), Alibaba Cloud.
         </>,
-        credit: { label: '2020 census compilation by Lei Dong and colleagues', url: 'https://github.com/leiii/census' },
+        credit: { label: '2010 and 2020 census panel by Lei Dong and colleagues, matched to 2020 boundaries', url: 'https://github.com/leiii/census' },
         demo: <ChinaSemanticZoomStage />,
         code: chinaSource,
       },
-      {
-        id: 'turn-the-globe',
-        title: 'Turn the globe',
-        icon: Globe,
-        body: 'How much warmer 2016–2025 was than 1951–1980, country by country. Drag to turn the globe: the country facing you is the focus, edged on the map and read out beside it with its warming stripes since 1940. Look north, then south: the northern land warmed about twice as much.',
-        credit: { label: 'Copernicus Climate Change Service ERA5, processed by Our World in Data (contains modified Copernicus Climate Change Service information)', url: 'https://ourworldindata.org/grapher/annual-temperature-anomalies' },
-        demo: <GlobeWarmingStage />,
-        code: globeSource,
-      },
+    ],
+  },
+  {
+    title: 'Zoom and focus',
+    cases: [
       {
         id: 'food-basket',
         title: 'Food basket price navigator',
@@ -165,7 +171,7 @@ const SECTIONS: { title: string; cases: Case[] }[] = [
         id: 'index-cursor',
         title: 'Re-index from any date',
         icon: Crosshair,
-        body: 'Re-index the same stock series against a movable date while an overlay owns the pointer and the reference marker. Sampled AAPL, AMZN, GOOG, IBM, and MSFT prices from the D3/Vega index-chart reference dataset, 2013-2017.',
+        body: 'Re-index the same stock series against the date under the pointer: Flint\u2019s inspect guide marks the date, and the host re-indexes the rows and names the date above the chart. Sampled AAPL, AMZN, GOOG, IBM, and MSFT prices from the D3/Vega index-chart reference dataset, 2013-2017.',
         demo: <IndexChartStage />,
         code: indexSource,
       },

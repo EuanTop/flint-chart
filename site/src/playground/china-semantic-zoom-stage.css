@@ -1,0 +1,72 @@
+.china-change-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 14px;
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .china-change-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.china-change-side {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.china-change-readout {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 150px;
+  padding: 12px;
+  border: 1px solid #e6eaed;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+.china-change-kicker {
+  color: #8a949c;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.china-change-place {
+  color: #22292e;
+  font-size: 17px;
+  line-height: 1.25;
+}
+
+.china-change-parent,
+.china-change-people,
+.china-change-counties,
+.china-change-hint {
+  color: #67727c;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.china-change-value {
+  color: #2f6b9a;
+  font-size: 24px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.china-change-readout[data-change='down'] .china-change-value {
+  color: #b4472c;
+}
+
+.china-change-counties {
+  color: #3a444c;
+  font-weight: 600;
+}
+
+.china-change-hint {
+  margin: 0;
+}

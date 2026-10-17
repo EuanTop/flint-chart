@@ -316,3 +316,25 @@ describe('the country gazetteer covers the world map', () => {
     expect(buildChoropleth(rows, 'st', 'v').feature).toBe('states');
   });
 });
+
+describe('a colour key formats its numbers like an axis would', () => {
+  it('labels a ramp of percentage changes as percentages', () => {
+    const spec: any = assembleVegaLite({
+      data: { values: [{ Country: 'Norway', Change: -0.2 }, { Country: 'Brazil', Change: 0.1 }] },
+      // The stated domain tells a fraction from percentage points, as it does for an axis.
+      semantic_types: { Country: 'Country', Change: { semanticType: 'PercentageChange', intrinsicDomain: [-1, 1] } },
+      chart_spec: { chartType: 'Choropleth', encodings: { id: 'Country', color: 'Change' }, chartProperties: { region: 'world' } },
+    } as any);
+    const legend = spec.encoding.color.legend;
+    expect(legend.format ?? legend.labelExpr).toMatch(/%/);
+  });
+
+  it('leaves a key on a plain count alone', () => {
+    const spec: any = assembleVegaLite({
+      data: { values: [{ State: 'CA', N: 3 }, { State: 'TX', N: 5 }] },
+      semantic_types: { State: 'State', N: 'Count' },
+      chart_spec: { chartType: 'Choropleth', encodings: { id: 'State', color: 'N' } },
+    } as any);
+    expect(spec.encoding.color.legend?.format ?? '').not.toMatch(/%/);
+  });
+});

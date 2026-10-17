@@ -109,7 +109,7 @@ out.
 | `brush-angle` | Drags an angular sector on a pie, donut, rose, or radar; the slices in it emphasise. | Which adjacent slices make up this share? | elements, angular region | click-none, escape |
 | `linked-brush` | Drags a region; the groups inside emphasise in every chart that mounts the same preset. `groupBy` names the shared field. | Where are these groups in the other charts? | elements, cartesian region | click-none, escape |
 | **Move the view** | | | | |
-| `navigate` | Drags to pan; wheels or pinches to zoom a continuous axis. `axes` limits it; `pan: false` leaves the plot drag free. | What is in this part of the range, closer? | navigation | double-click |
+| `navigate` | Drags to pan; wheels or pinches to zoom a continuous axis. `axes` limits it; `pan: false` leaves the plot drag free. On a map it moves the projection; on a globe (a world Choropleth with `projection: "orthographic"`) a drag turns the sphere and the zoom stays centred. On a map, `geometry.domain.focus` names the region at the centre. | What is in this part of the range, closer? | navigation | double-click |
 | `brush-zoom` | Drags a rectangle; the chart flies into it. | What is in this box, closer? | navigation | double-click, escape |
 | **Reduce or rearrange** | | | | |
 | `legend-toggle` | Clicks a legend item; its series hides or returns. Hidden series are a setting and survive every reset. | What does the chart look like without this series? | discrete legend | none |
@@ -469,7 +469,7 @@ type FilterValue =
 | Drag along a path | press, then drag | One `dragTrigger()` definition and one layer. At `start` on a mark it returns the mark's path as a `set-overlay` `line` with `interactive: true, projectable: true` and `order`, plus `set-data` for the current position. On `preview` and `commit` with `geometry.projection` it returns the same two ops for the pointer's position. `intrinsicDomain` on the x and y fields holds the axes still across the swaps. |
 | Freehand stroke | draw | The rows to guess form their own series, and a mount update sets `opacity: 0` on that series, which keeps the axis. `lassoTrigger('contain', false)` with `plot: { cursor: 'draw' }` is the pen: `geometry.domain.points` become the rows of a `set-overlay` line. An `externalInteraction` reveals the truth as an overlay, then the host clears the hide. |
 | Chart-level zoom | wheel | When the layout itself must change (bar step, ticks, domain), filter the rows and `mountChart` again in a hidden layer; swap on `ready`. No preset re-lays out. |
-| Semantic zoom on a map | navigate | A Choropleth with `level: 'auto'` or a Map with `levelField` and `levels`, `navigate()`, and `set-viewport { region: { key } }` with a `transition` to fly into a region. Navigation events carry `geometry.domain.level` and `focus`. |
+| Semantic zoom on a map | navigate | A Choropleth with `level: 'auto'` (US states, then counties) or with your own `levels: [{ value, url, feature?, enter?, exit? }]` (one GeoJSON or TopoJSON object per level, rows joined on the feature `id` or `featureKey`, `baseMapUrl` drawn beneath as land without data), or a Map with `levelField` and `levels`; `navigate()`, and `set-viewport { region: { key } }` with a `transition` to fly into a region. Navigation events carry `geometry.domain.level` and `focus` (the coarsest region under the centre). A hover reaches the host through a hover affordance (`hover: 'target'`); a handler that returns `null` leaves the map as drawn. |
 
 Host-drawn detail, the shape of it:
 

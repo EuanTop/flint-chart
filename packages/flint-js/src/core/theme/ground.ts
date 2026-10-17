@@ -2065,6 +2065,7 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
             ...(legendSpec.arrangement ? { arrangement: legendSpec.arrangement } : {}),
             ...(legendSpec.titlePosition ? { titlePosition: legendSpec.titlePosition } : {}),
             ...(legendSpec.align ? { align: legendSpec.align } : {}),
+            ...(legendSpec.endValue ? { endValue: true } : {}),
             ...(legendSpec.gaps ? { gaps: legendSpec.gaps } : {}),
         },
         dataLabels: {

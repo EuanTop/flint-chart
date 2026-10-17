@@ -603,6 +603,12 @@ export interface ThemeLegend {
     suppressWhenAxisNames?: boolean;
     /** The legend restates a number already printed in every mark — delete it. */
     suppressWhenValuesPrinted?: boolean;
+    /**
+     * Names at the line ends also say where each line ends — "Japan 84.5" — in the value labels'
+     * number format. They follow the rows the chart draws, so a chart whose rows are replaced
+     * (re-indexed, filtered) keeps its names honest.
+     */
+    endValue?: boolean;
 }
 
 export interface ThemeDataLabels {
@@ -1288,6 +1294,8 @@ export interface ResolvedLegend {
     arrangement?: ThemeLegend['arrangement'];
     titlePosition?: ThemeLegend['titlePosition'];
     align?: ThemeLegend['align'];
+    /** Series-end names carry the series' last value. */
+    endValue?: boolean;
     gaps?: ThemeLegend['gaps'];
 }
 
