@@ -29,6 +29,27 @@ import {
     type InteractiveChartSurface,
 } from '../interactive';
 
+export type {
+    AxisTargetValue,
+    CanvasInteractionEvent,
+    ChartChange,
+    ChartState,
+    ChartUpdate,
+    ChartUpdateApplyOptions,
+    ChartUpdateResult,
+    DomainCoordinate,
+    DomainGeometry,
+    DomainValue,
+    FlintInteractionEventDetail,
+    InteractionDef,
+    InteractiveBackend,
+    InteractiveChartSurface,
+    LegendDomain,
+    LegendTargetValue,
+    SemanticElement,
+    SemanticTarget,
+} from '../interactive';
+
 export type FlintChartInteractions =
     | readonly InteractionDef[]
     | ((fromSpec: readonly InteractionDef[]) => readonly InteractionDef[]);

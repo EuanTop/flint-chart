@@ -306,10 +306,13 @@ interface CanvasInteractionEvent {
 
 - `target.elements[i].value` holds the mark's encoded values, derived fields
   included; `records` holds the source rows when the runtime can prove them. A
-  region target lists every mark inside. A legend hit has `value.field` and
-  `value.domain.value`.
-- `geometry.domain` is inverted through the plot's scales: a temporal axis
-  gives `Date` values; a discrete axis gives the category.
+  region target lists every mark inside. A legend hit's `value` is a
+  `LegendTargetValue`: `{ channel, field, domain: { kind: 'value', value } }`,
+  or `{ kind: 'interval', start, end }` on a continuous legend. An axis-label
+  hit's `value` is an `AxisTargetValue`: `{ axis, field, value }`.
+- `geometry.domain` is inverted through the plot's scales: a brush on a time
+  axis gives `domain.x = { kind: 'interval', start: Date, end: Date }`, a linear
+  axis gives numbers, a discrete axis gives the category.
 - `description` arrives on `focus-element` while `accessible-navigation` walks
   the chart: what the focused element is (`type`, such as "Bar") and what it
   represents (`content`), with the spoken `text`. The walk's emphasis reports
@@ -318,6 +321,116 @@ interface CanvasInteractionEvent {
   `projectable: true`: `segment.start.value` and `segment.end.value` are the
   overlay rows on each side of the pointer and `segment.t` the fraction between
   them.
+
+**The types.** `flint-chart/interactive` exports these, and `flint-chart/react`
+re-exports them. `onChange` receives a `ChartChange`: the gesture's own
+`target` and `geometry`, and the chart's `state` after it. Generated from the
+source by `npm run gen:reference`:
+
+<!-- event-types:start -->
+```ts
+interface ChartChange {
+  // `preview` while a gesture runs, `commit` for a committed change, `cancel` when a gesture ends with none.
+  phase: ChartChangePhase;
+  // `host` for `updates`, `applyUpdate`, `clearUpdate` and `dispatch`; always `commit`.
+  source: ChartChangeSource;
+  changed: ChartStateFacet[];
+  // The interaction behind the change: a reader's gesture, or an external interaction run by `dispatch`.
+  interactionId?: string;
+  action?: CanvasInteractionAction;
+  // The gesture's own hit: the hovered point, or the marks at an inspected index.
+  target?: SemanticTarget | null;
+  // The gesture's geometry: a brushed range, an index value, or the viewport after a move.
+  geometry?: CanvasInteractionEvent['geometry'];
+  // The reset gesture a reader made: a click on nothing, Escape, or a double-click. Reported even when the chart held nothing to reset, so a host that shows a selection of its own can let it go.
+  reset?: InteractionResetGesture;
+  state: ChartState;
+  previous: ChartState;
+}
+
+interface ChartState {
+  chartType: string;
+  // The marks the chart emphasizes or focuses now, previews included.
+  selected: SemanticElement[];
+  // The emphasized marks of each update, by update id; `selected` is their union.
+  entries?: ReadonlyMap<string, ChartStateEntry>;
+  // The legend values a toggle hides now.
+  hidden?: ChartHiddenValue[];
+  // The domain the plot shows now, when the chart navigates.
+  viewport?: DomainGeometry;
+  // The category window of each rail.
+  windows?: Partial<Record<'x' | 'y', ChartCategoryWindow>>;
+  categoryOrder?: unknown[];
+  // The notes the chart holds now, previews included; `inView` tells which ones it draws.
+  annotations?: ChartAnnotation[];
+  // The active filter of each field, set by filter controls; absent fields show every value.
+  filters?: Readonly<Record<string, FilterValue>>;
+}
+
+interface SemanticTarget {
+  visual: {
+    kind: 'mark' | 'path' | 'region' | 'widget' | 'handle' | 'legend' | 'axis' | 'chart' | 'title' | 'header';
+    role: string;
+  };
+  elements: SemanticElement[];
+}
+
+interface SemanticElement {
+  // Values represented by the mark's channels, or by a semantic control such as a legend item.
+  value: Record<string, unknown>;
+  // Contributing input records when provenance is available; zero or many may support one value.
+  records?: Record<string, unknown>[];
+}
+
+interface LegendTargetValue {
+  channel?: string;
+  field?: string;
+  // The entry's value on a reader's hit; read `domain`, which every legend target carries.
+  value?: unknown;
+  domain: LegendDomain;
+}
+
+type LegendDomain =
+  | { kind: 'value'; value: unknown }
+  | { kind: 'interval'; start?: number; end?: number };
+
+interface AxisTargetValue {
+  axis: 'x' | 'y';
+  field: string;
+  value: unknown;
+}
+
+interface DomainGeometry {
+  x?: DomainCoordinate;
+  y?: DomainCoordinate;
+  points?: DomainPoint[];
+  // The detail level a multi-level projected chart draws for this viewport.
+  level?: string;
+  // On a multi-level projected chart, the coarsest-level region under the plot centre: its feature id and properties plus the joined row fields.
+  focus?: Record<string, unknown>;
+}
+
+type DomainCoordinate =
+  | { kind: 'value'; value: DomainValue }
+  | { kind: 'interval'; start: DomainValue; end: DomainValue };
+
+type DomainValue = number | Date | string;
+
+interface DomainPoint {
+  x?: DomainValue;
+  y?: DomainValue;
+}
+
+interface ChartHiddenValue {
+  channel: string;
+  value: unknown;
+}
+
+type FilterValue =
+  | { in: unknown[] }
+  | { range: [unknown, unknown] };
+```
+<!-- event-types:end -->
 - `context` is the chart state plus `available`, every drawn mark, for
   building refs, and `selected`, the current emphasis, for a toggle rule.
 

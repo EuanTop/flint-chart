@@ -29,14 +29,16 @@ export type LegendDomain =
 export interface LegendTargetValue extends Record<string, unknown> {
     channel?: string;
     field?: string;
+    /** The entry's value on a reader's hit; read `domain`, which every legend target carries. */
+    value?: unknown;
     domain: LegendDomain;
 }
 
-    export interface AxisTargetValue extends Record<string, unknown> {
-        axis: 'x' | 'y';
-        field: string;
-        value: unknown;
-    }
+export interface AxisTargetValue extends Record<string, unknown> {
+    axis: 'x' | 'y';
+    field: string;
+    value: unknown;
+}
 
 /** A semantic subject: its visual role plus represented values and provenance. */
 export interface SemanticTarget {
@@ -294,13 +296,16 @@ export interface NavigationRequest {
 
 export type NavigationUpdate = Extract<ChartUpdateOp, { op: 'set-viewport' }>;
 
+/** A data value read back from the plot's scales: a number, a Date on a time axis, a category on a discrete one. */
+export type DomainValue = number | Date | string;
+
 export type DomainCoordinate =
-    | { kind: 'value'; value: unknown }
-    | { kind: 'interval'; start: unknown; end: unknown };
+    | { kind: 'value'; value: DomainValue }
+    | { kind: 'interval'; start: DomainValue; end: DomainValue };
 
 export interface DomainPoint {
-    x?: unknown;
-    y?: unknown;
+    x?: DomainValue;
+    y?: DomainValue;
 }
 
 export interface DomainGeometry {

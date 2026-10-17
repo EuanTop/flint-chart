@@ -27,11 +27,16 @@ export type {
     ViewportState,
 } from './types';
 export type {
+    AxisTargetValue,
     ChartAnnotation,
     ChartCategoryWindow,
     ChartHiddenValue,
     ChartState,
     ChartStateEntry,
+    DomainPoint,
+    DomainValue,
+    LegendDomain,
+    LegendTargetValue,
 } from '../core/interaction-contracts';
 export type {
     GestureGuideController,
