@@ -11,6 +11,7 @@ export default defineConfig({
     'excel/index': 'src/excel/index.ts',
     'image-charts/index': 'src/image-charts/index.ts',
     'validate/index': 'src/validate/index.ts',
+    'validate/links': 'src/validate/links.ts',
     'interactive/index': 'src/interactive/index.ts',
     'render/index': 'src/render/index.ts',
     'react/index': 'src/react/index.ts',
@@ -31,5 +32,6 @@ export default defineConfig({
   external: [
     'vega', 'vega-lite', 'vega-tooltip', 'echarts', 'chart.js', 'plotly.js', 'plotly.js-dist-min', 'react',
     '../vegalite/interactive', '../echarts/interactive', '../chartjs/interactive', '../plotly/interactive',
+    '../validate/links',
   ],
 });

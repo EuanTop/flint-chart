@@ -836,29 +836,62 @@ is the path for a host that draws its own response to a gesture.
 
 ### Link charts, and drive a chart over time
 
-Each chart decides what a shared payload means to it; the host owns the wiring.
+`linkCharts` links mounted charts on the fields they share. A selection on one
+chart (a click, a brush, a group focus, a hover) becomes one condition, a part
+per field; every chart emphasizes the marks that meet it, the source included,
+through one `linked-selection` layer; a reset on any chart clears it everywhere.
 
 ```ts
-import { clickHighlight, externalInteraction } from 'flint-chart/interactive';
+import { linkCharts, mountChart, clickHighlight, brushX } from 'flint-chart/interactive';
 
+const link = linkCharts({
+  bars: { input: barsInput, surface: mountChart(barsEl, barsInput, { backend: 'vegalite', interactions: [clickHighlight()] }) },
+  trend: { input: trendInput, surface: mountChart(trendEl, trendInput, { backend: 'vegalite', interactions: [brushX()] }) },
+}, { fields: ['region', 'month'] });
+for (const [id, chart] of Object.entries(await link.links)) console.log(id, chart.notes); // what each chart left out
+link.onCondition(({ condition }) => table.filter(condition)); // { region: { in: ['Asia'] }, month: { range: [start, end] } }
+// link.clear(); link.destroy();
+```
+
+```tsx
+import { FlintChart, useLinkedCharts } from 'flint-chart/react';
+
+const link = useLinkedCharts({ bars: barsInput, trend: trendInput }, { fields: ['region', 'month'] });
+<FlintChart spec={barsInput} {...link.chart('bars')} />;
+<FlintChart spec={trendInput} {...link.chart('trend', { onChange: setPageState, updates: myUpdates })} />;
+// the chart's own onChange, onRender and updates go through chart(id, own); a prop after the spread replaces the link's
+// link.condition.condition is the same condition; filtered rows in `spec` keep it
+```
+
+- A chart receives a field when its marks carry it (encode it, on `detail` if
+  nothing else shows it), and sends through each selecting interaction whose
+  subject includes a connected field. `{ charts: { trend: { receive: false } } }`
+  keeps a chart as drawn; `send: false` keeps its selections to itself.
+- The link emphasizes; it never filters or re-aggregates. To filter, read the
+  condition (`onCondition`, `link.condition`) and give each chart its rows:
+  beside `linkCharts`, a `set-data` update (a new spec remounts the chart, and
+  the link holds the old surface); beside `useLinkedCharts`, a `spec` with the
+  filtered rows.
+- `setUpdates` replaces every layer, the link's included, until the condition
+  next changes; use `applyUpdate` and `clearUpdate` beside a link.
+- `linkCharts` checks the charts with the validator, loaded on first use; pass
+  `{ links }` from `validateLinks` (`flint-chart/validate`) to skip that load.
+
+For a link `linkCharts` does not express (a payload each chart reads its own
+way), wire `onChange` to an `externalInteraction` on the other charts:
+
+```ts
 const linked = externalInteraction<{ countries: string[] }>({
   id: 'linked',
   handle: ({ countries }) => ({
     id: 'linked',
-    ops: countries.length > 0
-      ? [{ op: 'set-style', targets: countries.map((c) => ({ select: { key: { Country: c } } })),
-           value: { state: 'emphasized' } }]
-      : [{ op: 'set-style', targets: [], value: { state: 'normal' } }],
+    ops: [{ op: 'set-style', targets: [{ select: { where: { Country: { in: countries } } } }], value: { state: 'emphasized' } }],
   }),
 });
-// mount every chart with `interactions: [clickHighlight({ targets: ['mark'] }), linked]`, then:
-for (const [id, source] of surfaces) {
-  source.onChange(({ phase, interactionId, target }) => {
-    if (phase !== 'commit' || !interactionId) return;       // host writes carry no id: no loop
-    const countries = (target?.elements ?? []).map((element) => String(element.value.Country));
-    for (const [other, surface] of surfaces) if (other !== id) void surface.dispatch('linked', { countries });
-  });
-}
+source.onChange(({ phase, interactionId, state }) => {
+  if (phase !== 'commit' || !interactionId) return;       // host writes carry no id: no loop
+  void other.dispatch('linked', { countries: state.selected.map((element) => String(element.value.Country)) });
+});
 ```
 
 `dispatch` is also how an application drives a chart over time: a playback
@@ -991,38 +1024,20 @@ unresolved, and the agent fixes the spelling before it describes the chart.
 ### Code: two linked charts
 
 Two bar charts share a `Country` field: GDP per country, and population per
-country. A click on one emphasizes the same country on the other.
+country. A click on one emphasizes the same country on both.
 
 ```ts
-import { mountChart, clickHighlight, externalInteraction } from 'flint-chart/interactive';
+import { mountChart, clickHighlight, linkCharts } from 'flint-chart/interactive';
 
-const linked = externalInteraction<{ countries: string[] }>({
-  id: 'linked',
-  handle: ({ countries }) => ({
-    id: 'linked',
-    ops: [countries.length > 0
-      ? { op: 'set-style', targets: countries.map((c) => ({ select: { key: { Country: c } } })), value: { state: 'emphasized' } }
-      : { op: 'set-style', targets: [], value: { state: 'normal' } }],
-  }),
-});
-
-const surfaces = new Map([
-  ['gdp', mountChart(gdpEl, gdpInput, { backend: 'vegalite', interactions: [clickHighlight({ targets: ['mark'] }), linked] })],
-  ['population', mountChart(popEl, popInput, { backend: 'vegalite', interactions: [clickHighlight({ targets: ['mark'] }), linked] })],
-]);
-for (const [id, source] of surfaces) {
-  source.onChange(({ phase, interactionId, state }) => {
-    if (phase !== 'commit' || interactionId !== 'click-highlight') return;
-    const countries = state.selected.map((element) => String(element.value.Country));
-    for (const [other, surface] of surfaces) if (other !== id) void surface.dispatch('linked', { countries });
-  });
-}
+const mount = (el: HTMLElement, input: ChartAssemblyInput) =>
+  ({ input, surface: mountChart(el, input, { backend: 'vegalite', interactions: [clickHighlight({ targets: ['mark'] })] }) });
+const link = linkCharts({ gdp: mount(gdpEl, gdpInput), population: mount(popEl, popInput) }, { fields: ['Country'] });
 ```
 
-A `click-none` reset on the source reports a commit with no `interactionId`,
-so the guard also covers it; to mirror the reset, drop the `interactionId`
-test and keep the `phase` test. The dispatch is a host write, which carries no
-`interactionId`, so the other chart never dispatches back.
+The clicked chart drops its own emphasis once the link shows the condition, so
+both charts show one selection. A `click-none`, Escape, or double-click on
+either chart clears it on both; the link's own writes are host changes, so no
+chart echoes them back.
 
 ### Bespoke: a rule over the brushed box
 

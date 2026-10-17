@@ -404,6 +404,8 @@ function checkSpecUpdates(
 }
 
 export type { UpdateCheck, UpdateOpCheck } from './updates';
+export { validateLinks } from './links';
+export type { ChartLink, LinkCondition, LinkGesture, LinkPart, LinkSpec } from '../interactive/link';
 
 /**
  * Validate a {@link ChartAssemblyInput} for a backend: report warnings/errors,

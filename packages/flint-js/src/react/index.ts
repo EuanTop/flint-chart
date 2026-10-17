@@ -1,6 +1,7 @@
 import {
     createElement,
     forwardRef,
+    useCallback,
     useEffect,
     useImperativeHandle,
     useLayoutEffect,
@@ -12,11 +13,18 @@ import {
 } from 'react';
 import type { ChartAssemblyInput, ChartWarning } from '../core/types';
 import {
+    conditionUpdates,
+    createLinkState,
     isCanvasInteraction,
     isFilterControls,
+    loadLinks,
     mountChart,
     resolveInteractionSpec,
     type CanvasInteractionDef,
+    type ChartLink,
+    type LinkSnapshot,
+    type LinkSpec,
+    type LinkState,
     type ChartChange,
     type ChartUpdate,
     type ChartUpdateApplyOptions,
@@ -46,9 +54,12 @@ export type {
     InteractiveChartSurface,
     LegendDomain,
     LegendTargetValue,
+    LinkCondition,
+    LinkPart,
     SemanticElement,
     SemanticTarget,
 } from '../interactive';
+export type { ChartLink, LinkSnapshot, LinkSpec };
 
 export type FlintChartInteractions =
     | readonly InteractionDef[]
@@ -575,5 +586,101 @@ export const FlintChart = forwardRef<FlintChartHandle, FlintChartProps>(function
         createElement('div', { ref: scalerRef, style: scalerStyle },
             createElement('div', { ref: hostRef, style: hostStyle })));
 });
+
+/** One chart's part in `useLinkedCharts`, merged into its own props: its `updates` go after the host's. */
+export interface LinkedChartProps {
+    onChange: (change: ChartChange) => void;
+    onRender: (chart: InteractiveChartSurface) => void;
+    updates: readonly ChartUpdate[];
+}
+
+export interface LinkedCharts {
+    /**
+     * The props a chart takes part with, by the id it has in `inputs`. Pass the chart's own
+     * `onChange`, `onRender` and `updates` here: props set after the spread replace the link's.
+     */
+    chart(id: string, own?: Partial<LinkedChartProps>): LinkedChartProps;
+    /** The committed condition, the chart each part came from, and what the charts show. */
+    condition: LinkSnapshot;
+    /** What each chart sends and receives, and why anything is left out; null until checked. */
+    links: Record<string, ChartLink> | null;
+    clear(): void;
+}
+
+const NO_LINK_UPDATES: readonly ChartUpdate[] = [];
+const NO_SNAPSHOT: LinkSnapshot = { condition: {}, from: {}, shown: {} };
+
+/** What decides a chart's part in a link: its encodings, interactions and columns, not its rows. */
+function linkKey(input: ChartAssemblyInput): string {
+    const rows = (input.data as { values?: Record<string, unknown>[] } | undefined)?.values;
+    return JSON.stringify([input.chart_spec, input.interaction_spec ?? null, input.semantic_types ?? null, Object.keys(rows?.[0] ?? {})]);
+}
+
+/**
+ * Links `<FlintChart>`s on the fields they share, as `linkCharts` links mounted surfaces. The
+ * condition survives remounts, because each chart re-applies its `updates`, and new rows, so a
+ * host may filter by it.
+ */
+export function useLinkedCharts(inputs: Record<string, ChartAssemblyInput>, spec: LinkSpec): LinkedCharts {
+    const key = `${JSON.stringify(spec)}\n${Object.entries(inputs).map(([id, input]) => `${id}=${linkKey(input)}`).join('\n')}`;
+    const latest = useRef({ inputs, spec });
+    latest.current = { inputs, spec };
+    const [state, setState] = useState<LinkState | null>(null);
+    const [snapshot, setSnapshot] = useState<LinkSnapshot>(NO_SNAPSHOT);
+    const stateRef = useRef(state);
+    stateRef.current = state;
+    const surfaces = useRef(new Map<string, InteractiveChartSurface>());
+    const handlers = useRef(new Map<string, Pick<LinkedChartProps, 'onChange' | 'onRender'>>());
+    const owners = useRef(new Map<string, Partial<LinkedChartProps>>());
+
+    useEffect(() => {
+        let stale = false;
+        void loadLinks(latest.current.inputs, latest.current.spec).then((links) => {
+            if (stale) return;
+            const next = createLinkState(links, stateRef.current?.snapshot());
+            setState(next);
+            setSnapshot(next.snapshot());
+        });
+        return () => {
+            stale = true;
+        };
+    }, [key]);
+
+    const updates = useMemo(() => {
+        const layers = state ? conditionUpdates(state.links, snapshot.shown) : new Map<string, ChartUpdate>();
+        return new Map([...layers].map(([id, layer]) => [id, [layer] as readonly ChartUpdate[]]));
+    }, [state, snapshot]);
+
+    const chart = useCallback((id: string, own?: Partial<LinkedChartProps>): LinkedChartProps => {
+        owners.current.set(id, own ?? {});
+        let handler = handlers.current.get(id);
+        if (!handler) {
+            handler = {
+                onChange: (change) => {
+                    owners.current.get(id)?.onChange?.(change);
+                    const current = stateRef.current;
+                    if (!current) return;
+                    const { changed, dropOwn } = current.read(id, change);
+                    if (dropOwn) void surfaces.current.get(id)?.clearUpdate(dropOwn);
+                    if (changed) setSnapshot(current.snapshot());
+                },
+                onRender: (surface) => {
+                    surfaces.current.set(id, surface);
+                    owners.current.get(id)?.onRender?.(surface);
+                },
+            };
+            handlers.current.set(id, handler);
+        }
+        const layer = updates.get(id) ?? NO_LINK_UPDATES;
+        return { ...handler, updates: own?.updates?.length ? [...own.updates, ...layer] : layer };
+    }, [updates]);
+
+    const clear = useCallback(() => {
+        const current = stateRef.current;
+        if (current?.clear()) setSnapshot(current.snapshot());
+    }, []);
+
+    return { chart, condition: snapshot, links: state?.links ?? null, clear };
+}
 
 export { FlintTable, MAX_TABLE_ROWS, emphasizedRows, nextSort, sortedRows, tableNotes, type FlintTableProps, type TableSort } from './table';
