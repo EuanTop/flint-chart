@@ -44,14 +44,16 @@
     "about": {
       "google-material": "简洁的产品界面风格：以紫色为主的 Material 配色、浅色网格线、宽松的字体和柔和的圆角图形。",
       "microsoft-fluent": "Fluent 的沉稳企业风格：以蓝色为主的配色、Segoe 字体、安静的坐标轴和紧凑的图例，适合仪表板。",
-      "peoples-daily": "报纸编辑风格：红色报头线、衬线标题、克制的用色以及底部的数据来源。"
+      "peoples-daily": "报纸编辑风格：红色报头线、衬线标题、克制的用色以及底部的数据来源。",
+      "mondrian": "蒙德里安的新造型主义：红、黄、蓝色块由粗黑线分隔，铺在米白底上；只用水平线和垂直线（连折线也走阶梯），配以方正的风格派字体。"
     },
     "customDraft": "你的草稿",
     "playTitle": "试一试",
     "demos": {
       "google-material": "Google Material",
       "microsoft-fluent": "Microsoft Fluent",
-      "peoples-daily": "人民日报"
+      "peoples-daily": "人民日报",
+      "mondrian": "蒙德里安"
     },
     "editorAria": "自定义主题编辑器",
     "formatJson": "格式化 JSON",

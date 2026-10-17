@@ -143,6 +143,14 @@ function keyExpression(fields: readonly string[]): string {
         .join(` + '|' + `);
 }
 
+/** Dots, whichever glyph draws them: a house that redraws a template's circles as squares keeps them selectable. */
+const DOT_MARKS = new Set(['point', 'circle', 'square']);
+
+function isSelectable(type: string, selectableMarks: ReadonlySet<string>): boolean {
+    if (selectableMarks.has(type)) return true;
+    return DOT_MARKS.has(type) && [...DOT_MARKS].some((dot) => selectableMarks.has(dot));
+}
+
 function instrumentNode(
     node: Record<string, any>,
     inherited: Record<string, any>,
@@ -152,7 +160,7 @@ function instrumentNode(
     selectableMarks: ReadonlySet<string>,
 ): boolean {
     const type = markType(node.mark);
-    const selectable = !!type && SUPPORTED_SPEC_MARKS.has(type) && selectableMarks.has(type);
+    const selectable = !!type && SUPPORTED_SPEC_MARKS.has(type) && isSelectable(type, selectableMarks);
     const provenance = node[INTERACTION_PROVENANCE] as InteractionProvenance | undefined;
     if (provenance?.role === 'decorative') {
         // Chrome drawn from the chart's rows — a panel's floor rule keeps its first one — must not
@@ -407,7 +415,7 @@ function addLocalKeyTransforms(
     if (provenance?.role === 'decorative') return;
     // A composition can hoist `data` to an ancestor, so a unit is keyed on its
     // own mark rather than on owning a data source.
-    if (type && SUPPORTED_SPEC_MARKS.has(type) && selectableMarks.has(type)) {
+    if (type && SUPPORTED_SPEC_MARKS.has(type) && isSelectable(type, selectableMarks)) {
         spec.transform = [
             ...(Array.isArray(spec.transform) ? spec.transform : []),
             ...keyTransforms(fields),

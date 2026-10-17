@@ -304,6 +304,22 @@ describe('Vega-Lite semantic interactions', () => {
         expect((update.ops[0] as any).value.candidates[0]).toEqual({ connection: 'center', priority: 0 });
     });
 
+    it('keeps a Regression\u2019s dots selectable when a house redraws its circles as squares', async () => {
+        const values = [1, 2, 3, 4, 5].map((x) => ({ x, y: x * 2 + (x % 2) }));
+        const spec = assembleVegaLite({
+            data: { values },
+            semantic_types: { x: 'Quantity', y: 'Quantity' },
+            chart_spec: { chartType: 'Regression', encodings: { x: 'x', y: 'y' } },
+            theme_spec: { id: 'squares', geometry: { point: { shape: 'square' } } },
+        } as never) as any;
+        const { compiled } = instrument(spec);
+        const view = new View(parse(compiled), { renderer: 'none' });
+        await view.runAsync();
+        const dots = sceneItems(view).filter((item) => item.mark.marktype === 'symbol' && item.datum?.[INTERACTION_KEY] != null);
+        expect(dots.length).toBe(values.length);
+        expect(dots.every((item) => item.shape === 'square')).toBe(true);
+    });
+
     it('preserves source provenance through an assembled histogram plan', async () => {
         const sourceRecords = [1.7, 1.9, 2.1, 2.4, 3.1, 3.4].map((duration) => ({
             'Duration (min)': duration,

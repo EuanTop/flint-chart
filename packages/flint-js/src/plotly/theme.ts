@@ -36,6 +36,7 @@ import { chooseLabelStep, DEFAULT_LABEL_OVERFLOW, TURNED_LABEL_LIMIT } from '../
 import type { LabelFitStep } from '../core/theme/types';
 import type {
     DesignDecisions,
+    PointShape,
     ThemeReport,
     ReportDeparture,
     ResolvedAxis,
@@ -1491,6 +1492,11 @@ function drawnBarWidth(figure: any, bars: any[]): number {
         / Math.max(1, grouped) * (grouped > 1 ? 1 - (layout.bargroupgap ?? 0) : 1);
 }
 
+/** Plotly's marker symbols for the house's glyphs. */
+const PLOTLY_POINT_SHAPE: Record<PointShape, string> = {
+    circle: 'circle', square: 'square', diamond: 'diamond', triangle: 'triangle-up', cross: 'cross',
+};
+
 function applyMarks(figure: any, d: DesignDecisions, table: any[], say: ReportDeparture): void {
     const layout = figure.layout;
     const m = d.marks;
@@ -1612,6 +1618,13 @@ function applyMarks(figure: any, d: DesignDecisions, table: any[], say: ReportDe
             if (size != null && (secondary || trace.marker?.size == null)) {
                 trace.marker = { ...(trace.marker ?? {}), size: diameterOf(size) };
             }
+            // A shape the trace already carries is the chart's own encoding, and stands.
+            if (m.point?.shape && trace.marker?.symbol == null) {
+                trace.marker = { ...(trace.marker ?? {}), symbol: PLOTLY_POINT_SHAPE[m.point.shape] };
+            }
+            if (m.point?.opacity != null && trace.marker?.opacity == null) {
+                trace.marker = { ...(trace.marker ?? {}), opacity: m.point.opacity };
+            }
             if (m.point?.haloColor && m.point.haloWidth) {
                 trace.marker = {
                     ...(trace.marker ?? {}),
@@ -1638,7 +1651,10 @@ function applyMarks(figure: any, d: DesignDecisions, table: any[], say: ReportDe
                 trace.mode = String(trace.mode ?? 'lines').includes('markers')
                     ? trace.mode
                     : `${trace.mode ?? 'lines'}+markers`;
-                trace.marker = { ...(trace.marker ?? {}), size: dot };
+                trace.marker = {
+                    ...(trace.marker ?? {}), size: dot,
+                    ...(m.point.shape && trace.marker?.symbol == null ? { symbol: PLOTLY_POINT_SHAPE[m.point.shape] } : {}),
+                };
             } else {
                 say('marks.point.show', 'dots-stand-down', 'dots left off — the points sit closer together than a dot is wide');
             }
@@ -2094,6 +2110,9 @@ function applyLegend(figure: any, d: DesignDecisions, say: ReportDeparture): num
         }
         return 0;
     }
+
+    // Plotly draws each entry from its trace's own marker or line; it has no symbol of its own to set.
+    if (l.swatch) say('legend.swatch', 'swatch-unsupported', `Plotly draws each key entry from its trace — the \`${l.swatch}\` swatch is not drawn`);
 
     addWaterfallLegendProxies(figure);
     addFactoredLineLegendProxies(figure, d);

@@ -185,9 +185,12 @@ Each rule reaches only the marks it names:
 - `geometry.band.opacity` — the fill of bars (areas keep `geometry.area.opacity`). `geometry.band.outlineInk: "series"` edges each bar in its own series ink.
 - `geometry.band.minLength` — a non-zero bar shorter than this many px is drawn as a stub of that length; zero stays empty.
 - `geometry.point.density` — which lines keep their dots: `countable` (up to 12 readings, the default), `all`, or `sparse` (readings at least 20px apart). A house with hollow dots also gets hollow end markers.
+- `geometry.point.shape` — the glyph every dot is drawn as: `circle` (the default), `square`, `diamond`, `triangle` or `cross`. It reaches a scatter's points, a line's vertices, a dumbbell's ends and the end markers. A chart that encodes shape keeps its encoding, and the house's glyph is the first shape its scale hands out. `geometry.point.opacity` (0–1) sets how opaque dots are; unset, Vega-Lite draws a scatter's dots at 0.7. A chart's own `opacity` property still wins.
 - `geometry.arc.order` (`data` or `largestFirst`), `startAngle` (degrees clockwise from 12 o'clock) and `hole` (a share of the radius). Pies run in the data's order by default, as their key does; a chart's own `sortSlices` wins.
 
 Dashes and marker shapes follow the colour order, so the first series is solid and keeps the first shape.
+
+The house's curve (`geometry.line.interpolation`, else `geometry.area.interpolation`) reaches areas as well as lines, so an area's fill and its edge always take the same curve.
 
 ## Axis labels
 
@@ -250,9 +253,11 @@ A colour ramp beside the plot runs no longer than the plot is tall, down to abou
 
 `legend.title` decides whether a key carries its field's name: `always`, or `whenAmbiguous` (the default), under which a house leaves the name off only where the chart proves the reader does not need it — a title not needed costs a line, a title needed and missing leaves the colours unread. A key to values is always titled. A key naming categories is left untitled on proof only: the headline or deck already names the field (`Three species, three clusters` over a Species key); an axis on the same field prints its title; the chart makes the key itself (a waterfall's `total`, `increase`, `decrease`); or every value proves one closed kind — month or weekday names, quarters, years, dates, country names, US state names, continents, never codes like `US` or `CA` — under a field name that says no more than that kind (`Country` or `country_name` over country names, not `Origin`). A semantic type is not proof: what the reader sees is the values and the name. Everything else is titled. An author who wants a key untitled, or named otherwise, says so on the encoding: `title: null`, or `title: "Penguin"`. Whether the reader gets the name is not a house's choice, so the older `omit` is read as `whenAmbiguous` and reported (`legend-title-omit-read-as-when-ambiguous`).
 
+`legend.swatch` sets the symbol beside each name in a key to categories: `auto` (the default) takes it from the mark — a square for bars, a stroke for lines, the dot's own glyph for points; `square`, `circle` or `line` draws that symbol for every mark. A key whose entries are shapes or sizes keeps its own symbols. Vega-Lite only; Plotly draws each entry from its trace and reports `swatch-unsupported`.
+
 ## Gridlines and rules
 
-Every rule a house draws — each grid, the zero rule, the baseline — is a `Presence` or, where the house says more, an object:
+Every rule a house draws — each grid, the zero rule, the baseline, the frame round the plot — is a `Presence` or, where the house says more, an object:
 
 ```ts
 structure: {
@@ -265,6 +270,7 @@ structure: {
     layer: 'behind',                                     // or 'front': both grids over the marks; a grid may state its own `layer`
   },
   baseline: { presence: 'full', weight: 2 },
+  frame: { presence: 'full', weight: 3 },                // round the plot; a dash is drawn by Vega-Lite only
 }
 ```
 

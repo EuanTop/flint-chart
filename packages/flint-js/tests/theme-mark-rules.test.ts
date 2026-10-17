@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { compile } from 'vega-lite';
 import { parse, View } from 'vega';
-import { assembleVegaLite } from '../src';
+import { assemblePlotly, assembleVegaLite } from '../src';
 
 const nodes = (spec: any, type: string): any[] => {
     const out: any[] = [];
@@ -212,5 +212,157 @@ describe('M3: dashes and shapes follow the colours’ order', () => {
         const line = nodes(spec, 'line')[0];
         const enc = { ...(spec.encoding ?? {}), ...(line.encoding ?? {}) };
         expect(enc.strokeDash.sort).toEqual(enc.color.sort);
+    });
+});
+
+describe('the house curve reaches areas as well as lines', () => {
+    it('steps a stacked area’s fill with its edge, so the two never part', () => {
+        const spec = stackedArea({ id: 'step', geometry: { line: { interpolation: 'step' }, area: { edge: 'full', edgeWidth: 2 } } });
+        expect(spec.config.area.interpolate).toBe('step');
+        expect(spec.config.line.interpolate).toBe('step');
+        const vg = compile(spec).spec as any;
+        expect(vg.config.style.area.interpolate).toBe('step');
+        expect(vg.config.style.line.interpolate).toBe('step');
+        // No mark states a curve of its own over the house's.
+        expect(JSON.stringify(vg.marks)).not.toMatch(/"interpolate":\{"value":"(?!step)/);
+    });
+
+    it('leaves areas on their default curve where the house states none', () => {
+        expect(stackedArea({ id: 'plain' }).config.area?.interpolate).toBeUndefined();
+    });
+});
+
+describe('a house’s glyph for its dots (`geometry.point.shape`)', () => {
+    const PTS = [{ a: 1, b: 2, g: 'x' }, { a: 2, b: 3, g: 'y' }, { a: 3, b: 1, g: 'x' }, { a: 4, b: 4, g: 'y' }];
+    const scatter = (theme: unknown, encodings: Record<string, string> = { x: 'a', y: 'b', color: 'g' }) => assembleVegaLite({
+        data: { values: PTS }, semantic_types: { a: 'Quantity', b: 'Quantity', g: 'Category' },
+        chart_spec: { chartType: 'Scatter Plot', encodings },
+        theme_spec: theme,
+    } as any) as any;
+    const SQUARE = { id: 'sq', geometry: { point: { shape: 'square' } } };
+
+    it('draws every dot of a scatter as the house’s glyph, filled as a circle was', () => {
+        const spec = scatter(SQUARE);
+        expect(nodes(spec, 'circle')).toHaveLength(0);
+        const dots = nodes(spec, 'point').filter((n: any) => !n.__themeSynthetic);
+        expect(dots.length).toBeGreaterThan(0);
+        for (const dot of dots) {
+            expect(dot.mark.shape).toBe('square');
+            expect(dot.mark.filled).not.toBe(false);
+        }
+        expect(spec.config.point.shape).toBe('square');
+    });
+
+    it('keeps a chart’s own shape encoding, and gives its first shape to the house glyph', () => {
+        const spec = scatter({ id: 'd', geometry: { point: { shape: 'diamond' } } }, { x: 'a', y: 'b', shape: 'g' });
+        const dot = nodes(spec, 'point').find((n: any) => n.encoding?.shape);
+        expect(dot).toBeDefined();
+        expect(dot.mark.shape).toBeUndefined();
+        expect(spec.config.range.symbol[0]).toBe('diamond');
+        expect(new Set(spec.config.range.symbol).size).toBe(spec.config.range.symbol.length);
+    });
+
+    it('changes nothing for a circle, or a house that says nothing', () => {
+        for (const theme of [{ id: 'c', geometry: { point: { shape: 'circle' } } }, { id: 'none' }]) {
+            const spec = scatter(theme);
+            expect(spec.config.point?.shape).toBeUndefined();
+            expect(spec.config.range?.symbol).toBeUndefined();
+        }
+    });
+
+    it('draws Plotly’s markers in the glyph too', () => {
+        const fig = assemblePlotly({
+            data: { values: PTS }, semantic_types: { a: 'Quantity', b: 'Quantity', g: 'Category' },
+            chart_spec: { chartType: 'Scatter Plot', encodings: { x: 'a', y: 'b', color: 'g' } },
+            theme_spec: { id: 'tri', geometry: { point: { shape: 'triangle' } } },
+        } as any) as any;
+        const markers = fig.data.filter((t: any) => String(t.mode ?? '').includes('markers'));
+        expect(markers.length).toBeGreaterThan(0);
+        for (const trace of markers) expect(trace.marker.symbol).toBe('triangle-up');
+    });
+});
+
+describe('a house’s key swatch (`legend.swatch`)', () => {
+    const symbolTypes = (spec: any): string[] => {
+        const vg = compile(spec).spec as any;
+        return (vg.legends ?? []).map((l: any) => l.symbolType);
+    };
+
+    it('draws the stated symbol for every entry of a key to categories', () => {
+        const spec = stackedArea({ id: 'sq', legend: { swatch: 'square' } });
+        expect(symbolTypes(spec)).toEqual(['square']);
+        expect(symbolTypes(stackedBars({ id: 'ln', legend: { swatch: 'line' } }))).toEqual(['stroke']);
+    });
+
+    it('leaves the mark’s own symbol under `auto`', () => {
+        expect(symbolTypes(stackedArea({ id: 'auto', legend: { swatch: 'auto' } }))).toEqual(symbolTypes(stackedArea({ id: 'none' })));
+    });
+
+    it('reports that Plotly cannot draw it', () => {
+        const fig = assemblePlotly({
+            data: { values: MIX }, semantic_types: { Year: 'Category', Source: 'Category', TWh: 'Quantity' },
+            chart_spec: { chartType: 'Stacked Bar Chart', encodings: { x: 'Year', y: 'TWh', color: 'Source' } },
+            theme_spec: { id: 'sq', legend: { swatch: 'square' } },
+        } as any) as any;
+        expect(fig._theme.report.some((r: any) => r.path === 'legend.swatch')).toBe(true);
+    });
+});
+
+describe('a frame with its own weight (`structure.frame`)', () => {
+    it('draws a rule object at its stated weight, ink and dash', () => {
+        const spec = stackedArea({ id: 'f', structure: { frame: { presence: 'full', weight: 4, color: '#123456', dash: [4, 2] } } });
+        expect(spec.config.view.stroke).toBe('#123456');
+        expect(spec.config.view.strokeWidth).toBe(4);
+        expect(spec.config.view.strokeDash).toEqual([4, 2]);
+    });
+
+    it('still reads a bare presence, and draws nothing where the house omits it', () => {
+        const framed = stackedArea({ id: 'p', ink: { structure: { frame: '#000000' } }, structure: { frame: 'full' } });
+        expect(framed.config.view.stroke).toBe('#000000');
+        expect(framed.config.view.strokeDash).toBeUndefined();
+        expect(stackedArea({ id: 'o', structure: { frame: 'omit' } }).config.view.stroke).toBeNull();
+    });
+});
+
+describe('how opaque a house’s dots are (`geometry.point.opacity`)', () => {
+    const PTS = [{ a: 1, b: 2, g: 'x', n: 5 }, { a: 2, b: 3, g: 'y', n: 50 }, { a: 3, b: 1, g: 'x', n: 500 }];
+    const bubbles = (theme: unknown, chartProperties?: Record<string, unknown>) => assembleVegaLite({
+        data: { values: PTS }, semantic_types: { a: 'Quantity', b: 'Quantity', g: 'Category', n: 'Quantity' },
+        chart_spec: { chartType: 'Scatter Plot', encodings: { x: 'a', y: 'b', color: 'g', size: 'n' }, ...(chartProperties ? { chartProperties } : {}) },
+        theme_spec: theme,
+    } as any) as any;
+    const symbolOpacity = (spec: any): number[] => {
+        const vg = compile(spec).spec as any;
+        const out: number[] = [];
+        const visit = (marks: any[] = []) => {
+            for (const m of marks) {
+                if (m.type === 'symbol') {
+                    const o = m.encode?.update?.opacity?.value;
+                    if (typeof o === 'number') out.push(o);
+                }
+                visit(m.marks);
+            }
+        };
+        visit(vg.marks);
+        return out;
+    };
+
+    it('draws the dots at the stated opacity instead of Vega-Lite’s 0.7', () => {
+        expect(symbolOpacity(bubbles({ id: 'none' }))).toContain(0.7);
+        const spec = bubbles({ id: 'solid', geometry: { point: { opacity: 1 } } });
+        expect(symbolOpacity(spec)).not.toContain(0.7);
+        const style = (compile(spec).spec as any).config.style;
+        expect(style.circle.opacity).toBe(1);
+    });
+
+    it('keeps the opacity on dots it redraws in the house’s glyph', () => {
+        const spec = bubbles({ id: 'sq', geometry: { point: { opacity: 1, shape: 'square' } } });
+        expect(symbolOpacity(spec)).not.toContain(0.7);
+        expect((compile(spec).spec as any).config.style.point.opacity).toBe(1);
+    });
+
+    it('yields to a chart that states its own opacity', () => {
+        const spec = bubbles({ id: 'solid', geometry: { point: { opacity: 1 } } }, { opacity: 0.4 });
+        expect(symbolOpacity(spec)).toContain(0.4);
     });
 });

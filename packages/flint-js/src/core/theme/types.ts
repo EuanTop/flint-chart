@@ -329,7 +329,11 @@ export interface ThemeStructure {
         /** `front` draws both grids over the marks (white rules cutting the bars); default `behind`. A grid may state its own. Vega-Lite only. */
         layer?: 'behind' | 'front';
     };
-    frame?: Presence;
+    /**
+     * The rule round the plot: a presence, or one with its own weight, dash and ink, so a house
+     * whose frame is as heavy as its grid can say so. Dashes are drawn by Vega-Lite only.
+     */
+    frame?: RuleSpec;
     /** The rule the marks stand on (A7): a presence, or one with its own weight, dash and ink. */
     baseline?: RuleSpec;
 }
@@ -436,6 +440,10 @@ export interface ThemeMarks {
          */
         secondarySize?: number;
         fill?: 'solid' | 'hollow';
+        /** The glyph every dot is drawn as; see {@link PointShape}. */
+        shape?: PointShape;
+        /** How opaque a dot is, 0–1; unset, the renderer's own. */
+        opacity?: number;
         /**
          * The ink of a line's vertex dots: the series' own ink (the default), the house's text ink
          * (dark dots on coloured lines), or a colour the house names. A scatter's dots are the
@@ -491,6 +499,13 @@ export interface ThemeMarks {
      */
     texture?: { pattern?: 'vary' | 'hatch'; patterns?: TexturePattern[]; ink?: 'darker' | 'white'; spacing?: number };
 }
+
+/**
+ * The glyph a house draws a dot as — a scatter's points, a line's vertices, a dumbbell's ends —
+ * wherever the chart does not encode shape itself. Where it does, the house's shape is the first
+ * the shape scale hands out. Unset, a dot is a circle.
+ */
+export type PointShape = 'circle' | 'square' | 'diamond' | 'triangle' | 'cross';
 
 /** A fill pattern the texture channel draws; `solid` is a plain fill in the series ink. */
 export type TexturePattern = 'solid' | 'diagonal' | 'antidiagonal' | 'horizontal' | 'vertical' | 'cross' | 'dots';
@@ -562,7 +577,13 @@ export interface ThemeLegend {
      * stands on, from three to five — each symbol clearly larger than the last.
      */
     maxSwatches?: number;
-    swatch?: 'auto';
+    /**
+     * The symbol beside each name in a key to categories: `auto` (default) takes it from the mark —
+     * a square for bars, a stroke for lines, the dot's own shape for points; `square`, `circle` or
+     * `line` (a short stroke) draw that symbol for every mark. A key whose entries are shapes (a
+     * shape channel) or sizes keeps its own symbols. Vega-Lite only.
+     */
+    swatch?: 'auto' | 'square' | 'circle' | 'line';
     /** Several keys above or below the plot: side by side, or one above another. A preference: it gives way where the keys would overflow. */
     arrangement?: 'row' | 'stack';
     /** A key's title above its entries, or before them on their line, above or below the plot. A preference. */
@@ -860,6 +881,14 @@ export interface PointGeometry {
      */
     vertexSize?: number;
     fill?: 'solid' | 'hollow';
+    /** The glyph every dot is drawn as: `circle` (default), `square`, `diamond`, `triangle` or `cross`. */
+    shape?: PointShape;
+    /**
+     * How opaque a dot is, 0–1. Unset, the renderer's own: Vega-Lite draws a scatter's dots at 0.7
+     * so overlaps show through. A house whose marks are flat planes states 1. A chart's own
+     * `opacity` property still wins.
+     */
+    opacity?: number;
     /** The ink of a line's vertex dots: `series` (default), `text`, or a colour. */
     ink?: 'series' | 'text' | string;
     outlineWidth?: number;
@@ -1253,6 +1282,8 @@ export interface ResolvedLegend {
     gradientLength?: number;
     /** The most entries a key to values may spend. */
     maxSwatches?: number;
+    /** A symbol the house states for every entry of a key to categories; unset, the mark's own. */
+    swatch?: 'square' | 'circle' | 'line';
     /** How several keys stand, as the theme prefers; unset leaves it to the plan. */
     arrangement?: ThemeLegend['arrangement'];
     titlePosition?: ThemeLegend['titlePosition'];
@@ -1355,6 +1386,10 @@ export interface ResolvedMarks {
         /** Set only where the house sized path vertices apart from its primary dots. */
         vertexSize?: number;
         filled?: boolean;
+        /** Set only where the house named a glyph other than the circle. */
+        shape?: PointShape;
+        /** Set only where the house stated how opaque its dots are. */
+        opacity?: number;
         /** A fixed ink for a line's vertex dots; unset, they take the series' ink. */
         ink?: string;
         /** Which lines keep their dots. */

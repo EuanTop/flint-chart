@@ -14,7 +14,7 @@
  * Runs LAST, after `vlApplyLayoutToSpec`, which builds `spec.config` wholesale.
  */
 
-import type { DesignDecisions, ReportDeparture, ResolvedText, ThemeReport } from '../core/theme/types.js';
+import type { DesignDecisions, PointShape, ReportDeparture, ResolvedText, ThemeReport } from '../core/theme/types.js';
 import type { HeaderPlan } from '../core/header-plan.js';
 import type { SourcePlan } from '../core/source-plan.js';
 import { RULE_GAP } from '../core/rule-plan.js';
@@ -394,6 +394,9 @@ export function realizeThemeVegaLite(
     applyTypeCase(spec, config, d, table, say);
     applyDisplayType(spec, d);
     applyTableStyle(spec, d);
+    applyPointOpacity(config, d);
+    applyPointShape(spec, config, d);
+    applyLegendSwatch(spec, d);
     applyMinorGrid(spec, config, d, table, say);
     // Last among the layers, so it shares the scale every other layer finished with.
     applyBaseline(spec, d, table);
@@ -403,6 +406,87 @@ export function realizeThemeVegaLite(
     const wrapped = applyFurniture(spec, d, rules);
 
     return wrapped ? report : report;
+}
+
+/**
+ * How opaque the house's dots are. Vega-Lite draws unaggregated dots at 0.7 unless told; the
+ * config tells it, and a chart that set its own opacity on the mark keeps it.
+ */
+function applyPointOpacity(config: any, d: DesignDecisions): void {
+    const opacity = d.marks.point?.opacity;
+    if (opacity == null) return;
+    for (const family of ['point', 'circle', 'square'] as const) {
+        config[family] = { ...(config[family] ?? {}), opacity };
+    }
+}
+
+/** Vega's names for the house's glyphs. */
+const VEGA_POINT_SHAPE: Record<PointShape, string> = {
+    circle: 'circle', square: 'square', diamond: 'diamond', triangle: 'triangle-up', cross: 'cross',
+};
+/** Vega's own order for a shape scale, which the house's glyph is moved to the head of. */
+const VEGA_SHAPE_RANGE = ['circle', 'square', 'triangle-up', 'cross', 'diamond', 'triangle-right', 'triangle-down', 'triangle-left'];
+
+/**
+ * The house's glyph for every dot. `config.point` reaches point marks and the dots a line
+ * carries; `circle` and `square` marks hard-code their glyph, so they are redrawn as points
+ * carrying everything their config gave them. A chart that encodes shape keeps its encoding,
+ * and the house's glyph is the first its scale hands out.
+ */
+function applyPointShape(spec: any, config: any, d: DesignDecisions): void {
+    const shape = d.marks.point?.shape;
+    if (!shape || shape === 'circle') return;
+    const glyph = VEGA_POINT_SHAPE[shape];
+    config.point = { ...(config.point ?? {}), shape: glyph };
+    if (config.line?.point && typeof config.line.point === 'object') config.line.point = { ...config.line.point, shape: glyph };
+    config.range = { ...(config.range ?? {}), symbol: [glyph, ...VEGA_SHAPE_RANGE.filter((s) => s !== glyph)] };
+    walk(spec, (node) => {
+        const type = markTypeOf(node.mark);
+        if (type === 'point') {
+            const mark = normalizeMark(node.mark);
+            if (mark.shape == null && !node.encoding?.shape) node.mark = { ...mark, shape: glyph };
+            return;
+        }
+        if (type !== 'circle' && type !== 'square') return;
+        const mark = normalizeMark(node.mark);
+        const own = config[type] ?? {};
+        node.mark = {
+            ...own,
+            ...mark,
+            type: 'point',
+            ...(node.encoding?.shape ? {} : { shape: glyph }),
+            // A `point` is hollow unless told; a circle or square was filled.
+            filled: mark.filled ?? own.filled ?? true,
+        };
+    });
+}
+
+/** Vega's legend symbols for the house's swatches. */
+const VEGA_SWATCH: Record<NonNullable<DesignDecisions['legend']['swatch']>, string> = {
+    square: 'square', circle: 'circle', line: 'stroke',
+};
+
+/**
+ * The house's swatch for every key to categories. Written on the encoding, where Vega-Lite reads
+ * it before the symbol it would infer from the mark. A key that is itself a shape or a size keeps
+ * its symbols: those *are* the entries.
+ */
+function applyLegendSwatch(spec: any, d: DesignDecisions): void {
+    const swatch = d.legend.swatch;
+    if (!swatch) return;
+    const symbolType = VEGA_SWATCH[swatch];
+    walk(spec, (node) => {
+        const enc = node.encoding;
+        if (!enc) return;
+        for (const channel of ['color', 'fill', 'stroke'] as const) {
+            const def = enc[channel];
+            if (!def?.field || def.legend === null) continue;
+            if (def.type === 'quantitative' || def.type === 'temporal') continue;
+            if (enc.shape?.field === def.field || enc.size?.field === def.field) continue;
+            if (def.legend?.symbolType != null) continue;
+            enc[channel] = { ...def, legend: { ...(def.legend ?? {}), symbolType } };
+        }
+    });
 }
 
 /**
@@ -504,6 +588,7 @@ function applySurface(spec: any, config: any, d: DesignDecisions): void {
     config.view = { ...(config.view ?? {}) };
     config.view.stroke = d.frame.show ? d.frame.color : null;
     if (d.frame.show) config.view.strokeWidth = d.frame.width;
+    if (d.frame.show && d.frame.dash) config.view.strokeDash = d.frame.dash;
     if (d.surface.plot && d.surface.plot !== d.surface.canvas) config.view.fill = d.surface.plot;
 
     if (spec.padding == null) spec.padding = d.layout.padding;
@@ -1823,7 +1908,13 @@ function applyMarks(
     config.line = { ...(config.line ?? {}), strokeWidth: m.strokeWidth };
     config.trail = { ...(config.trail ?? {}), size: m.strokeWidth };
     if (m.strokeCap) { config.line.strokeCap = m.strokeCap; config.rule = { ...(config.rule ?? {}), strokeCap: m.strokeCap }; }
-    if (m.strokeJoin) config.line.strokeJoin = m.strokeJoin;    if (m.interpolate) config.line.interpolate = m.interpolate;
+    if (m.strokeJoin) config.line.strokeJoin = m.strokeJoin;
+    // The house's curve reaches areas as well as lines: an area's edge is a line overlay and takes
+    // `config.line`, so a fill left on the default curve would part from its own edge.
+    if (m.interpolate) {
+        config.line.interpolate = m.interpolate;
+        config.area = { ...(config.area ?? {}), interpolate: m.interpolate };
+    }
     if (m.fillOpacity != null) config.area = { ...(config.area ?? {}), fillOpacity: m.fillOpacity };
     // A bar's own opacity (M2): the fill only, so an outline in the series ink stays crisp.
     if (m.barOpacity != null) config.bar = { ...(config.bar ?? {}), fillOpacity: m.barOpacity };

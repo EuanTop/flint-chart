@@ -137,8 +137,10 @@ How series colour holds up past the palette and on the page:
   only; `geometry.band.opacity` and `outlineInk: "series"` are for bars;
   `geometry.band.minLength` keeps a near-zero bar visible;
   `geometry.point.density` (`countable`, `all`, `sparse`) says which lines keep
-  dots; `geometry.arc.order` (`data`, `largestFirst`), `startAngle` and `hole`
-  state pie rules.
+  dots; `geometry.point.shape` (`circle`, `square`, `diamond`, `triangle`,
+  `cross`) is the glyph every dot is drawn as, and `geometry.point.opacity`
+  how opaque (unset, a scatter's dots are 0.7); `geometry.arc.order` (`data`,
+  `largestFirst`), `startAngle` and `hole` state pie rules.
 - `marks.redundantChannels: ["texture"]` with `marks.texture` draws pattern
   fills on bars, wedges and areas: `pattern: "vary" | "hatch"`, or the guide's
   own order as `patterns` (`solid`, `diagonal`, `antidiagonal`, `horizontal`,
@@ -174,10 +176,10 @@ the authored blocks and their jobs:
 | --- | --- |
 | `ink` | Canvas, plot, panel, text, structural, series, status, and accent colors |
 | `type` | Minimum size and role-based typography for headlines, axes, values, annotations, footnotes, and displays |
-| `structure` | Semantic categorical/measure axes (and `axis.x`/`axis.y` to style the bottom and left axes by side; `placement` takes `opposite`, `leading`/`trailing`, or a screen side), grids, baseline, and frame. Each grid, `grid.zero` and `baseline` is a presence or `{ presence, style, dash, weight, color }`; a grid may also take `layer: "front"` (over the marks). `grid.minor: { presence, divisions, on }` draws finer lines between the labelled ones |
+| `structure` | Semantic categorical/measure axes (and `axis.x`/`axis.y` to style the bottom and left axes by side; `placement` takes `opposite`, `leading`/`trailing`, or a screen side), grids, baseline, and frame. Each grid, `grid.zero`, `baseline` and `frame` is a presence or `{ presence, style, dash, weight, color }`; a grid may also take `layer: "front"` (over the marks). `grid.minor: { presence, divisions, on }` draws finer lines between the labelled ones |
 | `marks` | Band width, strokes, interpolation, opacity, corners, outlines, points, connectors, intervals, summaries, and separators; `group: { gap, spacing }` (also `geometry.band.group`) for grouped bars — the gap between bars in a group and between groups, each a share of a bar's width or `"Npx"` |
 | `labels` | Truncation, flush behavior, and the path category names that do not fit their band take. Leave `overflow` unset for the general path: a row of names `wrap` → `rotate90`; a run of times, dates, years or ranks `wrap` → `skip` (round values only) → `rotate90`. Set `overflow` only where the guide asks for something else, e.g. `["wrap", "rotate45", "rotate90"]` for 45° labels (steps: `wrap`, `skip`, `rotate45`, `rotate90`). Trimming is an add-on to every step, governed by `truncation` (`"never"` forbids it). Flint weighs each step whole and trimmed, at every size down to `type.minSize`, and takes the cheapest within the path's order. `fit` holds the thresholds: `minChars` (4), `turnedLimit` (px or `"40%"` of plot height), `gap` (em), `rowLimit` (px or % of chart width, for names down y). Names that fit are always flat; a row of names is never thinned |
-| `legend` | Visibility, ordered placement choices, direction, title, swatches, redundancy suppression, and how several keys stand: `arrangement` (`row`/`stack`), `titlePosition` (`above`/`inline`) and `align` (`start`/`center`/`end`/`spread`), preferences the layout keeps unless the keys would overflow |
+| `legend` | Visibility, ordered placement choices, direction, title, swatches (`swatch`: `auto`, `square`, `circle`, `line`), redundancy suppression, and how several keys stand: `arrangement` (`row`/`stack`), `titlePosition` (`above`/`inline`) and `align` (`start`/`center`/`end`/`spread`), preferences the layout keeps unless the keys would overflow |
 | `dataLabels` | Visibility, placement, and ink behavior for values on marks; `anchor` (`end`/`start`/`middle`) for labels inside bars, `fallback` (`perMark`/`allOutside`) when some bars are too short, `minContrast` for the ink inside a bar |
 | `annotation` | Units, axis titles, number formatting, point emphasis, labels, and statistics. `numberFormat.compact` sets number compaction: `style` (k/M/B, K/M/B, k/m/b, k/m/bn), `per` (`scale`: one unit per axis, or `value`), `threshold`, `on` (`axis`, `labels`) and the semantic `types` it covers; values already in a scale (`m`, `bn`, "(millions)") are never compacted |
 | `source` | How a chart's source line reads, when the chart gives one: `leadIn` (and its weight, style, case), `align`, `frame`, a `rule` above it, a house `credit` (`inline`/`end`/`nextLine`); set in `type.footnote` |

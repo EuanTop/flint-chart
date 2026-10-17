@@ -521,6 +521,8 @@ export function geometryToMarks(
         if (point.size !== undefined) resolved.size = point.size;
         if (point.vertexSize !== undefined) resolved.secondarySize = point.vertexSize;
         if (point.fill !== undefined) resolved.fill = point.fill;
+        if (point.shape !== undefined) resolved.shape = point.shape;
+        if (point.opacity !== undefined) resolved.opacity = point.opacity;
         if (point.ink !== undefined) resolved.ink = point.ink;
         if (point.density !== undefined) resolved.density = point.density;
         if (Object.keys(resolved).length) marks.point = resolved;
@@ -1039,7 +1041,7 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
     const measureFront = layerOf(structure.grid?.measure);
     const categoryFront = layerOf(structure.grid?.category);
 
-    const frame = rule(structure.frame, structureInk.frame ?? structureInk.axis, 'omit');
+    const frame = ruleFrom(structure.frame, structureInk.frame ?? structureInk.axis, 'omit');
     // The rule the marks stand on is drawn only where the house states it (A7).
     // A base is at zero: along a floor that is not zero, it would claim a base the chart does not
     // have. Only a house that states it strongly — emphasised, or with its own ink or weight — draws
@@ -1867,6 +1869,12 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
                 filled: marksSpec.point?.fill != null
                     ? marksSpec.point.fill !== 'hollow'
                     : undefined,
+                ...(marksSpec.point?.shape && marksSpec.point.shape !== 'circle'
+                    ? { shape: marksSpec.point.shape }
+                    : {}),
+                ...(typeof marksSpec.point?.opacity === 'number'
+                    ? { opacity: Math.max(0, Math.min(1, marksSpec.point.opacity)) }
+                    : {}),
                 ...(marksSpec.point?.ink && marksSpec.point.ink !== 'series'
                     ? { ink: marksSpec.point.ink === 'text' ? foreground : marksSpec.point.ink }
                     : {}),
@@ -2048,6 +2056,7 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
             label: keyLabel,
             gradientLength: legendSpec.gradientLength,
             maxSwatches: legendSpec.maxSwatches,
+            ...(legendSpec.swatch && legendSpec.swatch !== 'auto' ? { swatch: legendSpec.swatch } : {}),
             ...(legendSpec.arrangement ? { arrangement: legendSpec.arrangement } : {}),
             ...(legendSpec.titlePosition ? { titlePosition: legendSpec.titlePosition } : {}),
             ...(legendSpec.align ? { align: legendSpec.align } : {}),

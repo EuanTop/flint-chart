@@ -44,14 +44,16 @@
     "about": {
       "google-material": "Clean product UI: a purple-led Material palette, light gridlines, roomy type and soft rounded marks.",
       "microsoft-fluent": "Fluent’s calm enterprise look: a blue-first palette, Segoe type, quiet axes and compact legends for dashboards.",
-      "peoples-daily": "An editorial newspaper style: a red masthead rule, serif headlines, restrained inks and source lines at the foot."
+      "peoples-daily": "An editorial newspaper style: a red masthead rule, serif headlines, restrained inks and source lines at the foot.",
+      "mondrian": "Piet Mondrian’s Neo-Plasticism: red, yellow and blue planes bounded by heavy black lines on off-white, only horizontals and verticals (even lines step), and blocky De Stijl type."
     },
     "customDraft": "Your draft",
     "playTitle": "Try it",
     "demos": {
       "google-material": "Google Material",
       "microsoft-fluent": "Microsoft Fluent",
-      "peoples-daily": "People's Daily"
+      "peoples-daily": "People's Daily",
+      "mondrian": "Mondrian"
     },
     "editorAria": "Custom theme editor",
     "formatJson": "Format JSON",
