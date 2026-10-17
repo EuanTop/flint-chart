@@ -1305,8 +1305,9 @@ export interface ResolvedDataLabels {
     /** How the labels are compacted, where the theme compacts them; `format` stays the fallback. */
     compact?: CompactPrint;
     /**
-     * The unit each printed value carries. Set only where the house asks for
-     * a unit and no axis is left to state it — a pie has no ruler at all.
+     * The unit each printed value carries: a compact unit the field declares
+     * (`%`, `$`, `°C`) unless the format already writes it, else `%` on
+     * part-to-whole values that sum to 100.
      */
     unit?: string;
     /**

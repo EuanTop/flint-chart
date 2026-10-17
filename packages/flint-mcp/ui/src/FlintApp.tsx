@@ -15,7 +15,7 @@ import { useApp } from '@modelcontextprotocol/ext-apps/react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ChartAssemblyInput, ChartOption, ChartUpdate, ChartWarning } from 'flint-chart';
-import { THEME_PRESETS, DEFAULT_THEME_ICON, drawsAsTable, getChartTransform, validateChart } from 'flint-chart';
+import { THEME_PRESETS, DEFAULT_THEME_ICON, drawsAsTable, getChartTransform, validateChart, validateLinks } from 'flint-chart';
 import type { ChartChange, ChartState, InteractiveChartSurface } from 'flint-chart/interactive';
 import { FlintChart, FlintTable } from 'flint-chart/react';
 import { expressionInterpreter } from 'vega-interpreter';
@@ -25,7 +25,7 @@ import { chartIconFor } from './chart-icons';
 import { SelectionChips, chipText, impliedParts, partText, type SelectionChip } from './selection-chips';
 import { VIEW_SWITCH_LABEL, ViewSwitchIcon, useChartTable, type CellView } from './chart-table-view';
 import { tablePng } from './table-export';
-import { conditionUpdates, selectionParts, validateLinks, type LinkCondition } from '../../src/link';
+import { conditionUpdates, selectionParts, type LinkCondition } from 'flint-chart/interactive';
 import { chartContext, chartView, type ChartGesture } from '../../src/chart-context';
 import {
   buildPanelModel,

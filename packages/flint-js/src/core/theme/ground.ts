@@ -743,6 +743,11 @@ function percentOfWhole(ctx: GroundingContext, channel: string): string | undefi
     return n >= 3 && Math.abs(sum - 100) < 0.5 ? '%' : undefined;
 }
 
+/** Whether a number format already writes the unit: a d3 `%` pattern prints its own percent sign. */
+function formatPrintsUnit(pattern: string | undefined, unit: string): boolean {
+    return unit === '%' && /%$/.test(pattern ?? '');
+}
+
 function displayUnit(ctx: GroundingContext, channel: string) {
     const sem = ctx.channelSemantics?.[channel];
     return resolveDisplayUnit(sem?.semanticAnnotation);
@@ -1133,7 +1138,8 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
         const unitPolicy = theme.annotation?.unit ?? 'never';
         const inFieldUnits = ctx.stacked !== 'normalize' && !ctx.partToWhole;
         const unit = role === 'measure' && inFieldUnits ? displayUnit(ctx, channel) : undefined;
-        const unitTag = unitPolicy !== 'never' && unit?.placement === 'value' ? unit.text : undefined;
+        const unitTag = unitPolicy !== 'never' && unit?.placement === 'value'
+            && !formatPrintsUnit(ctx.channelSemantics?.[channel]?.format?.pattern, unit.text) ? unit.text : undefined;
 
         // Where the house keeps its axis titles, the title is the natural place
         // for the unit — `Weight (lb)` — and the ticks stay bare numbers.
@@ -1435,11 +1441,20 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
     // A field the house's compaction does not reach (a share, a value already in millions) prints
     // whole, its thousands grouped, rather than in d3's suffix format.
     if (compactRule && !labelsCompactable && /~s$/.test(numberFormat ?? '')) numberFormat = inferValueLabelFormat(labelValues, ',');
+    // A compact unit belongs to the number (`37%`, `$12`, `21°C`), so every printed value carries
+    // it, whatever the ruler states, unless the number's own format already writes it. A
+    // normalized stack prints shares, not the field's units.
+    const valueUnitChannel = bindings.measureChannels[0]
+        ?? (['theta', 'size', 'radius'] as const).find((ch) => ctx.channelSemantics?.[ch]?.field);
+    const valueDisplayUnit = normalizedStack ? undefined : displayUnit(ctx, valueUnitChannel ?? '');
+    const labelUnit = valueDisplayUnit?.placement === 'value' && !formatPrintsUnit(numberFormat, valueDisplayUnit.text)
+        ? valueDisplayUnit.text
+        : undefined;
     if (compactLabels?.per === 'value' && theme.annotation?.numberFormat?.signed) compactLabels = { ...compactLabels, signed: true };
     // Measured in the label's own font, weight and case (L1), as `value-label-measure` prints it.
     let printedLabels = normalizedStack
         ? measureValueLabels([1], { format: '.0%', text: valueLabel })
-        : measureValueLabels(labelValues, { format: numberFormat, compact: compactLabels, text: valueLabel });
+        : measureValueLabels(labelValues, { format: numberFormat, unit: labelUnit, compact: compactLabels, text: valueLabel });
     // The room a label wants inside a mark: along a horizontal bar, the inset at both ends; across
     // a bar or a slot, a little air at each side.
     let valueLabelWidthPx = printedLabels.widest + 2 * LABEL_INSET;
@@ -1504,7 +1519,7 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
     // A house that compacts shortens a number too wide for its band in its own style, from a thousand.
     if (!slotHoldsNumber && widthIsBinding && labelsCompactable && !compactLabels && valueMaxAbs >= 1000) {
         const shorter = compactPrint(labelValues, { ...compactRule!, threshold: 1000 }, 'significant');
-        const measured = shorter ? measureValueLabels(labelValues, { compact: shorter, text: valueLabel }) : undefined;
+        const measured = shorter ? measureValueLabels(labelValues, { unit: labelUnit, compact: shorter, text: valueLabel }) : undefined;
         if (shorter && measured && measured.widest < printedLabels.widest) {
             const was = printedLabels.text(valueMaxAbs);
             compactLabels = shorter;
@@ -1521,7 +1536,7 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
         && theme.annotation?.numberFormat?.compact?.show !== 'never'
         && theme.annotation?.numberFormat?.thousands === undefined && !/[s%]$/.test(numberFormat ?? '')) {
         const shorter = inferValueLabelFormat(labelValues, '~s');
-        const measured = shorter ? measureValueLabels(labelValues, { format: shorter, text: valueLabel }) : undefined;
+        const measured = shorter ? measureValueLabels(labelValues, { format: shorter, unit: labelUnit, text: valueLabel }) : undefined;
         if (shorter && measured && measured.widest < printedLabels.widest) {
             const was = printedLabels.text(valueMaxAbs);
             numberFormat = shorter;
@@ -1728,16 +1743,8 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
     }
 
     const measureChannel = bindings.measureChannels[0];
-
-    // A unit has to be stated somewhere. Normally that is the ruler; a pie has
-    // no ruler, and a measure axis whose labels were removed is no longer one
-    // either. Where the house asks for a unit and nothing else can hold it, the
-    // printed value takes it — whoever printed it, the theme or the template.
-    const valueUnitChannel = measureChannel
-        ?? (['theta', 'size', 'radius'] as const).find((ch) => ctx.channelSemantics?.[ch]?.field);
     const axisStatesUnit = (['x', 'y'] as const)
         .some((ch) => axes[ch]?.unit && axes[ch]!.label.show !== false);
-    const houseStatesUnit = (theme.annotation?.unit ?? 'never') !== 'never' && !axisStatesUnit;
     // A part-to-whole value whose slices sum to 100 *is* a percentage — the `%`
     // is the number's meaning, not a house-style flourish, and a pie has no
     // ruler to carry it. So it rides on the printed value whatever the house's
@@ -1747,10 +1754,8 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
     const shareUnit = signals.isPartToWhole && !axisStatesUnit
         ? percentOfWhole(ctx, valueUnitChannel ?? '')
         : undefined;
-    const valueDisplayUnit = displayUnit(ctx, valueUnitChannel ?? '');
-    const valueUnit = houseStatesUnit
-        ? (valueDisplayUnit?.placement === 'value' ? valueDisplayUnit.text : shareUnit)
-        : shareUnit;
+    // The printed value takes the unit, whoever printed it, the theme or the template.
+    const valueUnit = labelUnit ?? shareUnit;
 
     // A label placed at the mark sits *inside* it, which only works while the
     // mark is longer than the label. Below that length the label has to move
@@ -2603,6 +2608,7 @@ function groundNumberFormat(
     // semantics decided how that number reads, and re-deriving it here would
     // print a share of a share.
     if (isPercent) return house;
+    if (formatPrintsUnit(sem?.format?.pattern, '%')) return sem!.format!.pattern;
     return inferValueLabelFormat(values, house);
 }
 

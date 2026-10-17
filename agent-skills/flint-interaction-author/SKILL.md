@@ -306,10 +306,13 @@ interface CanvasInteractionEvent {
 
 - `target.elements[i].value` holds the mark's encoded values, derived fields
   included; `records` holds the source rows when the runtime can prove them. A
-  region target lists every mark inside. A legend hit has `value.field` and
-  `value.domain.value`.
-- `geometry.domain` is inverted through the plot's scales: a temporal axis
-  gives `Date` values; a discrete axis gives the category.
+  region target lists every mark inside. A legend hit's `value` is a
+  `LegendTargetValue`: `{ channel, field, domain: { kind: 'value', value } }`,
+  or `{ kind: 'interval', start, end }` on a continuous legend. An axis-label
+  hit's `value` is an `AxisTargetValue`: `{ axis, field, value }`.
+- `geometry.domain` is inverted through the plot's scales: a brush on a time
+  axis gives `domain.x = { kind: 'interval', start: Date, end: Date }`, a linear
+  axis gives numbers, a discrete axis gives the category.
 - `description` arrives on `focus-element` while `accessible-navigation` walks
   the chart: what the focused element is (`type`, such as "Bar") and what it
   represents (`content`), with the spoken `text`. The walk's emphasis reports
@@ -318,6 +321,116 @@ interface CanvasInteractionEvent {
   `projectable: true`: `segment.start.value` and `segment.end.value` are the
   overlay rows on each side of the pointer and `segment.t` the fraction between
   them.
+
+**The types.** `flint-chart/interactive` exports these, and `flint-chart/react`
+re-exports them. `onChange` receives a `ChartChange`: the gesture's own
+`target` and `geometry`, and the chart's `state` after it. Generated from the
+source by `npm run gen:reference`:
+
+<!-- event-types:start -->
+```ts
+interface ChartChange {
+  // `preview` while a gesture runs, `commit` for a committed change, `cancel` when a gesture ends with none.
+  phase: ChartChangePhase;
+  // `host` for `updates`, `applyUpdate`, `clearUpdate` and `dispatch`; always `commit`.
+  source: ChartChangeSource;
+  changed: ChartStateFacet[];
+  // The interaction behind the change: a reader's gesture, or an external interaction run by `dispatch`.
+  interactionId?: string;
+  action?: CanvasInteractionAction;
+  // The gesture's own hit: the hovered point, or the marks at an inspected index.
+  target?: SemanticTarget | null;
+  // The gesture's geometry: a brushed range, an index value, or the viewport after a move.
+  geometry?: CanvasInteractionEvent['geometry'];
+  // The reset gesture a reader made: a click on nothing, Escape, or a double-click. Reported even when the chart held nothing to reset, so a host that shows a selection of its own can let it go.
+  reset?: InteractionResetGesture;
+  state: ChartState;
+  previous: ChartState;
+}
+
+interface ChartState {
+  chartType: string;
+  // The marks the chart emphasizes or focuses now, previews included.
+  selected: SemanticElement[];
+  // The emphasized marks of each update, by update id; `selected` is their union.
+  entries?: ReadonlyMap<string, ChartStateEntry>;
+  // The legend values a toggle hides now.
+  hidden?: ChartHiddenValue[];
+  // The domain the plot shows now, when the chart navigates.
+  viewport?: DomainGeometry;
+  // The category window of each rail.
+  windows?: Partial<Record<'x' | 'y', ChartCategoryWindow>>;
+  categoryOrder?: unknown[];
+  // The notes the chart holds now, previews included; `inView` tells which ones it draws.
+  annotations?: ChartAnnotation[];
+  // The active filter of each field, set by filter controls; absent fields show every value.
+  filters?: Readonly<Record<string, FilterValue>>;
+}
+
+interface SemanticTarget {
+  visual: {
+    kind: 'mark' | 'path' | 'region' | 'widget' | 'handle' | 'legend' | 'axis' | 'chart' | 'title' | 'header';
+    role: string;
+  };
+  elements: SemanticElement[];
+}
+
+interface SemanticElement {
+  // Values represented by the mark's channels, or by a semantic control such as a legend item.
+  value: Record<string, unknown>;
+  // Contributing input records when provenance is available; zero or many may support one value.
+  records?: Record<string, unknown>[];
+}
+
+interface LegendTargetValue {
+  channel?: string;
+  field?: string;
+  // The entry's value on a reader's hit; read `domain`, which every legend target carries.
+  value?: unknown;
+  domain: LegendDomain;
+}
+
+type LegendDomain =
+  | { kind: 'value'; value: unknown }
+  | { kind: 'interval'; start?: number; end?: number };
+
+interface AxisTargetValue {
+  axis: 'x' | 'y';
+  field: string;
+  value: unknown;
+}
+
+interface DomainGeometry {
+  x?: DomainCoordinate;
+  y?: DomainCoordinate;
+  points?: DomainPoint[];
+  // The detail level a multi-level projected chart draws for this viewport.
+  level?: string;
+  // On a multi-level projected chart, the coarsest-level region under the plot centre: its feature id and properties plus the joined row fields.
+  focus?: Record<string, unknown>;
+}
+
+type DomainCoordinate =
+  | { kind: 'value'; value: DomainValue }
+  | { kind: 'interval'; start: DomainValue; end: DomainValue };
+
+type DomainValue = number | Date | string;
+
+interface DomainPoint {
+  x?: DomainValue;
+  y?: DomainValue;
+}
+
+interface ChartHiddenValue {
+  channel: string;
+  value: unknown;
+}
+
+type FilterValue =
+  | { in: unknown[] }
+  | { range: [unknown, unknown] };
+```
+<!-- event-types:end -->
 - `context` is the chart state plus `available`, every drawn mark, for
   building refs, and `selected`, the current emphasis, for a toggle rule.
 
@@ -723,29 +836,62 @@ is the path for a host that draws its own response to a gesture.
 
 ### Link charts, and drive a chart over time
 
-Each chart decides what a shared payload means to it; the host owns the wiring.
+`linkCharts` links mounted charts on the fields they share. A selection on one
+chart (a click, a brush, a group focus, a hover) becomes one condition, a part
+per field; every chart emphasizes the marks that meet it, the source included,
+through one `linked-selection` layer; a reset on any chart clears it everywhere.
 
 ```ts
-import { clickHighlight, externalInteraction } from 'flint-chart/interactive';
+import { linkCharts, mountChart, clickHighlight, brushX } from 'flint-chart/interactive';
 
+const link = linkCharts({
+  bars: { input: barsInput, surface: mountChart(barsEl, barsInput, { backend: 'vegalite', interactions: [clickHighlight()] }) },
+  trend: { input: trendInput, surface: mountChart(trendEl, trendInput, { backend: 'vegalite', interactions: [brushX()] }) },
+}, { fields: ['region', 'month'] });
+for (const [id, chart] of Object.entries(await link.links)) console.log(id, chart.notes); // what each chart left out
+link.onCondition(({ condition }) => table.filter(condition)); // { region: { in: ['Asia'] }, month: { range: [start, end] } }
+// link.clear(); link.destroy();
+```
+
+```tsx
+import { FlintChart, useLinkedCharts } from 'flint-chart/react';
+
+const link = useLinkedCharts({ bars: barsInput, trend: trendInput }, { fields: ['region', 'month'] });
+<FlintChart spec={barsInput} {...link.chart('bars')} />;
+<FlintChart spec={trendInput} {...link.chart('trend', { onChange: setPageState, updates: myUpdates })} />;
+// the chart's own onChange, onRender and updates go through chart(id, own); a prop after the spread replaces the link's
+// link.condition.condition is the same condition; filtered rows in `spec` keep it
+```
+
+- A chart receives a field when its marks carry it (encode it, on `detail` if
+  nothing else shows it), and sends through each selecting interaction whose
+  subject includes a connected field. `{ charts: { trend: { receive: false } } }`
+  keeps a chart as drawn; `send: false` keeps its selections to itself.
+- The link emphasizes; it never filters or re-aggregates. To filter, read the
+  condition (`onCondition`, `link.condition`) and give each chart its rows:
+  beside `linkCharts`, a `set-data` update (a new spec remounts the chart, and
+  the link holds the old surface); beside `useLinkedCharts`, a `spec` with the
+  filtered rows.
+- `setUpdates` replaces every layer, the link's included, until the condition
+  next changes; use `applyUpdate` and `clearUpdate` beside a link.
+- `linkCharts` checks the charts with the validator, loaded on first use; pass
+  `{ links }` from `validateLinks` (`flint-chart/validate`) to skip that load.
+
+For a link `linkCharts` does not express (a payload each chart reads its own
+way), wire `onChange` to an `externalInteraction` on the other charts:
+
+```ts
 const linked = externalInteraction<{ countries: string[] }>({
   id: 'linked',
   handle: ({ countries }) => ({
     id: 'linked',
-    ops: countries.length > 0
-      ? [{ op: 'set-style', targets: countries.map((c) => ({ select: { key: { Country: c } } })),
-           value: { state: 'emphasized' } }]
-      : [{ op: 'set-style', targets: [], value: { state: 'normal' } }],
+    ops: [{ op: 'set-style', targets: [{ select: { where: { Country: { in: countries } } } }], value: { state: 'emphasized' } }],
   }),
 });
-// mount every chart with `interactions: [clickHighlight({ targets: ['mark'] }), linked]`, then:
-for (const [id, source] of surfaces) {
-  source.onChange(({ phase, interactionId, target }) => {
-    if (phase !== 'commit' || !interactionId) return;       // host writes carry no id: no loop
-    const countries = (target?.elements ?? []).map((element) => String(element.value.Country));
-    for (const [other, surface] of surfaces) if (other !== id) void surface.dispatch('linked', { countries });
-  });
-}
+source.onChange(({ phase, interactionId, state }) => {
+  if (phase !== 'commit' || !interactionId) return;       // host writes carry no id: no loop
+  void other.dispatch('linked', { countries: state.selected.map((element) => String(element.value.Country)) });
+});
 ```
 
 `dispatch` is also how an application drives a chart over time: a playback
@@ -878,38 +1024,20 @@ unresolved, and the agent fixes the spelling before it describes the chart.
 ### Code: two linked charts
 
 Two bar charts share a `Country` field: GDP per country, and population per
-country. A click on one emphasizes the same country on the other.
+country. A click on one emphasizes the same country on both.
 
 ```ts
-import { mountChart, clickHighlight, externalInteraction } from 'flint-chart/interactive';
+import { mountChart, clickHighlight, linkCharts } from 'flint-chart/interactive';
 
-const linked = externalInteraction<{ countries: string[] }>({
-  id: 'linked',
-  handle: ({ countries }) => ({
-    id: 'linked',
-    ops: [countries.length > 0
-      ? { op: 'set-style', targets: countries.map((c) => ({ select: { key: { Country: c } } })), value: { state: 'emphasized' } }
-      : { op: 'set-style', targets: [], value: { state: 'normal' } }],
-  }),
-});
-
-const surfaces = new Map([
-  ['gdp', mountChart(gdpEl, gdpInput, { backend: 'vegalite', interactions: [clickHighlight({ targets: ['mark'] }), linked] })],
-  ['population', mountChart(popEl, popInput, { backend: 'vegalite', interactions: [clickHighlight({ targets: ['mark'] }), linked] })],
-]);
-for (const [id, source] of surfaces) {
-  source.onChange(({ phase, interactionId, state }) => {
-    if (phase !== 'commit' || interactionId !== 'click-highlight') return;
-    const countries = state.selected.map((element) => String(element.value.Country));
-    for (const [other, surface] of surfaces) if (other !== id) void surface.dispatch('linked', { countries });
-  });
-}
+const mount = (el: HTMLElement, input: ChartAssemblyInput) =>
+  ({ input, surface: mountChart(el, input, { backend: 'vegalite', interactions: [clickHighlight({ targets: ['mark'] })] }) });
+const link = linkCharts({ gdp: mount(gdpEl, gdpInput), population: mount(popEl, popInput) }, { fields: ['Country'] });
 ```
 
-A `click-none` reset on the source reports a commit with no `interactionId`,
-so the guard also covers it; to mirror the reset, drop the `interactionId`
-test and keep the `phase` test. The dispatch is a host write, which carries no
-`interactionId`, so the other chart never dispatches back.
+The clicked chart drops its own emphasis once the link shows the condition, so
+both charts show one selection. A `click-none`, Escape, or double-click on
+either chart clears it on both; the link's own writes are host changes, so no
+chart echoes them back.
 
 ### Bespoke: a rule over the brushed box
 

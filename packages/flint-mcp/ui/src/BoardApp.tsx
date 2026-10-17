@@ -45,7 +45,7 @@ import { boardPng } from './board-export';
 import { SelectionChips, chipText, impliedParts, partText } from './selection-chips';
 import { ViewSwitch, useCellViews, useChartTable, type CellView } from './chart-table-view';
 import { ActionButton, ThemeControl } from './FlintApp';
-import { LINK_LAYER, conditionUpdates, selectionParts, shownFields, type ChartLink, type LinkCondition, type LinkSpec } from '../../src/link';
+import { LINK_LAYER, conditionUpdates, gestureParts, shownFields, type ChartLink, type LinkCondition, type LinkSpec } from 'flint-chart/interactive';
 
 declare const __FLINT_MCP_VERSION__: string;
 
@@ -92,16 +92,6 @@ const NO_UPDATES: readonly ChartUpdate[] = [];
 
 /** The board's condition with nothing in it. */
 const NO_CONDITION: LinkCondition = {};
-
-/** The parts a chart's gesture holds after the reader used it, or null when it holds no marks. */
-function gestureParts(link: ChartLink, interaction: string, state: ChartState, hover: boolean): LinkCondition | null {
-  const gesture = link.gestures[interaction];
-  if (!gesture || gesture.hover !== hover) return null;
-  const entry = state.entries?.get(interaction);
-  if (!entry || entry.elements.length === 0 || entry.layer !== (hover ? 'preview' : 'retained')) return null;
-  const parts = selectionParts(entry.elements, gesture);
-  return Object.keys(parts).length > 0 ? parts : null;
-}
 
 interface BoardCondition {
   parts: LinkCondition;

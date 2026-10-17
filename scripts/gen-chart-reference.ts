@@ -739,3 +739,49 @@ function collectPresetOptions(): Record<string, { name: string; type: string; re
     // eslint-disable-next-line no-console
     console.log('Wrote the preset option catalogue into packages/flint-js/src/interactive/spec/preset-options.ts');
 }
+
+/** The types a host reads from `onChange`, `getState()` and an event, printed as the source declares them. */
+function renderEventTypes(): string {
+    const srcDir = resolve(__dirname, '../packages/flint-js/src');
+    const sources = ['core/interaction-contracts.ts', 'interactive/types.ts'].map((file) => {
+        const path = resolve(srcDir, file);
+        return ts.createSourceFile(path, readFileSync(path, 'utf8'), ts.ScriptTarget.Latest, true);
+    });
+    const names = [
+        'ChartChange', 'ChartState', 'SemanticTarget', 'SemanticElement',
+        'LegendTargetValue', 'LegendDomain', 'AxisTargetValue',
+        'DomainGeometry', 'DomainCoordinate', 'DomainValue', 'DomainPoint',
+        'ChartHiddenValue', 'FilterValue',
+    ];
+    const printed = names.map((name) => {
+        for (const source of sources) {
+            const node = source.statements.find((statement) =>
+                (ts.isInterfaceDeclaration(statement) || ts.isTypeAliasDeclaration(statement)) && statement.name.text === name);
+            if (!node) continue;
+            const lines = node.getText(source)
+                .replace(/^export /, '')
+                .replace(/\breadonly /g, '')
+                .replace(/ extends Record<string, unknown>/, '')
+                .replace(/\/\*\*([\s\S]*?)\*\//g, (_, body: string) => `// ${body.replace(/^\s*\*\s?/gm, ' ').replace(/\s+/g, ' ').trim()}`)
+                .split('\n');
+            const base = source.getLineAndCharacterOfPosition(node.getStart(source)).character;
+            return lines.map((line, i) => (i === 0 ? line : line.slice(base))
+                .replace(/^( {4})+/, (run) => '  '.repeat(run.length / 4))).join('\n');
+        }
+        throw new Error(`gen:reference: event type ${name} not found`);
+    });
+    return ['```ts', printed.join('\n\n'), '```'].join('\n');
+}
+
+{
+    const path = resolve(__dirname, '../agent-skills/flint-interaction-author/SKILL.md');
+    const doc = readFileSync(path, 'utf8');
+    const start = '<!-- event-types:start -->';
+    const end = '<!-- event-types:end -->';
+    const from = doc.indexOf(start);
+    const to = doc.indexOf(end);
+    if (from < 0 || to < 0) throw new Error(`${path}: event type markers not found`);
+    writeFileSync(path, `${doc.slice(0, from + start.length)}\n${renderEventTypes()}\n${doc.slice(to)}`, 'utf8');
+    // eslint-disable-next-line no-console
+    console.log('Wrote the event types into agent-skills/flint-interaction-author/SKILL.md');
+}

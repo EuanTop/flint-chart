@@ -7,7 +7,7 @@
  */
 import type { ChartAssemblyInput } from 'flint-chart';
 
-import type { LinkPart } from '../../src/link';
+import type { LinkPart } from 'flint-chart/interactive';
 
 /** The most chips a bar shows before it folds the rest into "+N". */
 const MAX_CHIPS = 3;

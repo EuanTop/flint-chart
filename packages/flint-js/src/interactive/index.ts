@@ -27,11 +27,16 @@ export type {
     ViewportState,
 } from './types';
 export type {
+    AxisTargetValue,
     ChartAnnotation,
     ChartCategoryWindow,
     ChartHiddenValue,
     ChartState,
     ChartStateEntry,
+    DomainPoint,
+    DomainValue,
+    LegendDomain,
+    LegendTargetValue,
 } from '../core/interaction-contracts';
 export type {
     GestureGuideController,
@@ -120,6 +125,8 @@ export type {
     PlotGeometry,
 } from './language/events';
 export { toCanvasInteractionEvent } from './canvas-interaction';
+export { LINK_LAYER, conditionUpdates, createLinkState, gestureParts, linkCharts, loadLinks, selectionParts, selectionTuples, shownFields } from './link';
+export type { ChartLink, ChartsLink, LinkChartsOptions, LinkCondition, LinkGesture, LinkPart, LinkSnapshot, LinkSpec, LinkState, LinkedChart } from './link';
 export type {
     ChartUpdateResult,
     FreeformOverlayBody,

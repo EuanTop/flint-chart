@@ -44,7 +44,7 @@ import { keyboardTrigger } from '../../interactive/triggers';
 import { normalizeInspectGuideOptions } from '../../interactive/guides';
 import { wheelZoomFactor } from '../../interactive/gestures/navigation';
 import type { CanvasInteractionEvent, DomainGeometry } from '../../interactive/language/events';
-import type { ChartAnnotation, ChartHiddenValue, ChartStateEntry } from '../../core/interaction-contracts';
+import type { ChartAnnotation, ChartHiddenValue, ChartStateEntry, DomainValue } from '../../core/interaction-contracts';
 import type { ChartChangeReport, ChartUpdateApplyOptions } from '../../interactive/types';
 import {
     INTERACTION_KEY,
@@ -232,12 +232,13 @@ export function domainForPlotGeometry(
     if (!plot) return undefined;
     // Navigation axes name the authoritative scales; the overlay scales cover
     // charts that project overlays but do not navigate.
-    const inverter = (axis: 'x' | 'y'): ((pixel: number) => unknown) | undefined => {
+    const inverter = (axis: 'x' | 'y'): ((pixel: number) => DomainValue | undefined) | undefined => {
         const name = axes?.[axis]?.scale ?? fallbackScales?.[axis];
         if (!name) return undefined;
         const scale = scaleFor(name);
         if (typeof scale?.invert !== 'function') return undefined;
-        return (pixel: number) => scale.invert!(pixel);
+        // Vega's scales invert to a number, a Date on a time scale, or the category on a band.
+        return (pixel: number) => scale.invert!(pixel) as DomainValue | undefined;
     };
     if (plot.kind === 'rect') {
         const domain: DomainGeometry = {};

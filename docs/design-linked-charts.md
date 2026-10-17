@@ -1,8 +1,9 @@
 # Linked charts: one selection the whole board shares
 
-Status: proposal with a working prototype. The update language change it rests on (`where`
-targets) and the reset report are in `flint-js`; the link itself runs inside the MCP board
-(`packages/flint-mcp/src/link.ts`) until it moves to `flint-chart/interactive`.
+Status: in `flint-js`. `linkCharts` and the shared functions are in `flint-chart/interactive`
+(`src/interactive/link.ts`), `validateLinks` in `flint-chart/validate`, `useLinkedCharts` in
+`flint-chart/react`. The MCP board checks links with `validateLinks` and keeps its own runtime in
+the card.
 
 ## Problem
 
@@ -73,8 +74,8 @@ factory and a `{ type, options }` entry.
 | Form | Use |
 |---|---|
 | `validateLinks(inputs, spec)` | Checks charts before mounting: what each sends, by which interaction, and receives, and why a field is left out. The MCP server reports it. |
-| `linkCharts(surfaces, spec)` | Plain JS over mounted surfaces: `onChange` in, the condition layer out through `applyUpdate`. Returns `{ clear, destroy, condition, warnings }`. |
-| `useLinkedCharts(spec)` | React: holds the condition and gives each `<FlintChart>` its `onChange` and `updates`. Survives remounts, because `<FlintChart>` re-applies `updates`. |
+| `linkCharts(charts, spec, { links? })` | Plain JS over mounted charts, each `{ input, surface }`: `onChange` in, the condition layer out through `applyUpdate`. Returns `{ ready, links, condition, onCondition, clear, destroy }`; `links` holds each chart's notes. |
+| `useLinkedCharts(inputs, spec)` | React: holds the condition and gives each `<FlintChart>` its `onChange`, `onRender` and `updates` through `chart(id)`. Survives remounts, because `<FlintChart>` re-applies `updates`. |
 
 All three share framework-free functions: `selectionParts(elements, gesture)` reads a gesture
 into parts, and `conditionUpdates(links, condition)` gives each chart its layer.
@@ -98,9 +99,10 @@ Asia in June). Where one field determines the other (country → region) nothing
 |---|---|---|
 | `where` targets | update language, validator, runtime, docs, skill | done |
 | Reset reports | `ChartChange.reset`, runtime, change filter | done |
-| `validateLinks`, `linkCharts`, shared functions | `flint-chart/interactive` | small: moves `link.ts` from the board |
-| `useLinkedCharts` | `flint-chart/react` | small |
-| MCP board on the core module | `flint-mcp` | small: the card's link code shrinks |
+| `linkCharts`, shared functions | `flint-chart/interactive` | done |
+| `validateLinks` | `flint-chart/validate`, loaded by `linkCharts` on first use | done |
+| `useLinkedCharts` | `flint-chart/react` | done |
+| MCP board on the core module | `flint-mcp` | imports done; the card still runs its own condition (chips, implied parts) |
 
 ## Alternatives considered
 
