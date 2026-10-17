@@ -907,9 +907,12 @@ function applyAxes(
         // One flat title per side: a left and a right ruler caption their own
         // values and never land on each other.
         const flatTitleSides = new Set<string>();
+        // Layers may share one encoding object (a ridge per layer); each is styled once.
+        const styled = new WeakSet<object>();
         walk(spec, (node) => {
             const enc = node.encoding?.[channel];
-            if (!enc || enc.axis === null) return;
+            if (!enc || enc.axis === null || styled.has(enc)) return;
+            styled.add(enc);
             const ax = enc.axis;
             let unitNamedInTitle = false;
             if (ax && typeof ax === 'object') {
@@ -1631,11 +1634,16 @@ const UNIT_LABEL_FIELD = '__flintValueWithUnit';
  * expression on a `text` channel. So the label is computed once for the whole
  * plot body and the text layer simply reads the new field.
  */
+/** A printed number with its unit before or after it: `"$" + …`, `… + "%"`, `… + " ppm"`. */
+function withUnitExpr(shown: string, unit: string | undefined): string {
+    if (!unit) return shown;
+    const quoted = JSON.stringify(/^[A-Za-z]/.test(unit) ? ` ${unit}` : unit);
+    return PREFIX_UNITS.has(unit) ? `${quoted} + ${shown}` : `${shown} + ${quoted}`;
+}
+
 function printWithUnit(body: any, node: any, field: string, format: string | undefined, unit: string | undefined, compact?: CompactPrint): void {
     const value = `datum[${JSON.stringify(field)}]`;
-    const shown = printedNumber(value, format, compact);
-    const quoted = unit ? JSON.stringify(/^[A-Za-z]/.test(unit) ? ` ${unit}` : unit) : undefined;
-    const calculate = !quoted ? shown : PREFIX_UNITS.has(unit!) ? `${quoted} + ${shown}` : `${shown} + ${quoted}`;
+    const calculate = withUnitExpr(printedNumber(value, format, compact), unit);
     const transform = (body.transform ??= []);
     if (!transform.some((t: any) => t.as === UNIT_LABEL_FIELD)) transform.push({ calculate, as: UNIT_LABEL_FIELD });
     node.encoding.text = { field: UNIT_LABEL_FIELD, type: 'nominal' };
@@ -4546,9 +4554,10 @@ function labelOneBody(
     if (stackedKeepTest) {
         labelEncoding.opacity = { condition: { test: stackedKeepTest, value: 1 }, value: 0 };
     }
-    if (live && d.dataLabels.format && !d.dataLabels.unit && !measure.aggregate
-        && labelEncoding.text?.field === measure.field && labelEncoding.text.format === d.dataLabels.format) {
-        labelEncoding.text = { value: { expr: `format(datum[${JSON.stringify(measure.field)}], ${live}.labels.format)` } };
+    if (live && d.dataLabels.format && !compact && !measure.aggregate
+        && (d.dataLabels.unit || (labelEncoding.text?.field === measure.field && labelEncoding.text.format === d.dataLabels.format))) {
+        const shown = `format(datum[${JSON.stringify(measure.field)}], ${live}.labels.format)`;
+        labelEncoding.text = { value: { expr: withUnitExpr(shown, d.dataLabels.unit) } };
     }
     if (live) {
         const kept = labelEncoding.opacity?.condition?.test;

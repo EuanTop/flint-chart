@@ -359,3 +359,53 @@ describe('pie value labels follow the wedges', () => {
         for (const l of host.layer) expect(l.encoding?.order).toBeUndefined();
     });
 });
+
+describe('a compact unit belongs to the printed value', () => {
+    const SHARE = [{ Region: 'North', Share: 36.7 }, { Region: 'South', Share: 22.1 }, { Region: 'East', Share: 48.3 }];
+    const chart = (rows: Record<string, unknown>[], annotation: Record<string, unknown>, theme?: string) => assembleVegaLite({
+        data: { values: rows },
+        semantic_types: { Share: annotation },
+        chart_spec: { chartType: 'Bar Chart', encodings: { x: { field: 'Region' }, y: { field: 'Share' } }, chartProperties: { showValueLabels: true } },
+        ...(theme ? { theme_spec: theme } : {}),
+    } as any);
+    const printed = (spec: any): string => JSON.stringify(spec.transform ?? []) + JSON.stringify(textLayers(spec).map((layer) => layer.encoding?.text));
+    const yAxis = (spec: any): any => (spec.layer ?? [spec]).find((layer: any) => layer.encoding?.y?.axis)?.encoding.y.axis;
+
+    it.each([undefined, 'swiss', 'nature', 'economist'])('prints % on 0–100 labels whatever the ruler states (%s)', (theme) => {
+        expect(printed(chart(SHARE, { semanticType: 'Percentage', unit: '%', intrinsicDomain: [0, 100] }, theme))).toContain('+ \\"%\\"');
+    });
+
+    it('prints 0–1 labels in the field’s percent format, and adds no second % to the ticks', () => {
+        const rows = SHARE.map((row) => ({ ...row, Share: row.Share / 100 }));
+        const spec = chart(rows, { semanticType: 'Percentage', unit: '%', intrinsicDomain: [0, 1] }, 'economist');
+        expect(textLayers(spec)[0].encoding.text.format).toMatch(/%$/);
+        expect(yAxis(spec).labelExpr ?? '').not.toContain('%');
+    });
+
+    it('prints a currency sign before each label, once', () => {
+        const rows = SHARE.map((row) => ({ ...row, Share: row.Share * 1000 }));
+        const text = printed(chart(rows, { semanticType: 'Revenue', unit: 'USD' }, 'economist'));
+        expect(text).toContain('\\"$\\" + format(');
+        expect(text).not.toContain('\\"$\\" + \\"$\\"');
+    });
+
+    it('keeps a word unit beside the field name, off the labels', () => {
+        expect(printed(chart(SHARE, { semanticType: 'Quantity', unit: 'years' }))).not.toContain('years');
+    });
+});
+
+describe('an axis shared by several layers', () => {
+    it('takes the tick unit once, however many ridges draw on it', () => {
+        const rows = ['Jan', 'Feb', 'Mar'].flatMap((Month, m) => [12, 18, 25, 31, 22].map((v, i) => ({ Month, Share: v + m * 3 + i })));
+        const spec = assembleVegaLite({
+            data: { values: rows },
+            semantic_types: { Month: 'Month', Share: { semanticType: 'Percentage', unit: '%' } },
+            chart_spec: { chartType: 'Ridgeline Plot', encodings: { x: { field: 'Share' }, color: { field: 'Month' } }, chartProperties: { perspective: true } },
+            theme_spec: 'economist',
+        } as any);
+        const exprs = JSON.stringify(spec).match(/"labelExpr":"(?:[^"\\]|\\.)*"/g) ?? [];
+        const tagged = exprs.filter((expr) => expr.includes('\\"%\\"'));
+        expect(tagged.length).toBeGreaterThan(0);
+        for (const expr of tagged) expect(expr.split('\\"%\\"').length - 1).toBe(1);
+    });
+});
