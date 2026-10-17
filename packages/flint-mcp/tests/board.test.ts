@@ -82,7 +82,7 @@ describe('board tools', () => {
     });
     expect(text(result)).toContain('✓ countries: sends region by select; leaves out continent: no field continent in its data; receives nothing (receive: false)');
     expect(text(result)).toContain('✗ by-country: not linked; leaves out continent');
-    expect(text(result)).toContain('✗ ghost: not linked; no chart "ghost" on the board');
+    expect(text(result)).toContain('✗ ghost: not linked; no chart "ghost" among the linked charts');
   });
 
   it('links a chart once its marks carry the field', async () => {

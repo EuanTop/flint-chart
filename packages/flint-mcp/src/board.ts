@@ -3,15 +3,14 @@
 
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
-import type { ChartAssemblyInput, ChartUpdate, ValidateResult } from 'flint-chart';
-import { drawsAsTable } from 'flint-chart';
+import type { ChartAssemblyInput, ChartLink, ChartUpdate, LinkSpec, ValidateResult } from 'flint-chart';
+import { drawsAsTable, validateLinks } from 'flint-chart';
 
 import { ROW_UNITS, boardColumns, boardRows, colorField, gridItemFor, gridLines, isKpi, layoutLines, sharedColorOrders, type ChartLayout, type GridItem } from './board-layout.js';
 
 /** The characters of a chart title that fit on one line per row unit, at the card's heading size. */
 const TITLE_CHARS_PER_UNIT = 7.5;
 import { OPENS_AS_TABLE, chartContext } from './chart-context.js';
-import { linkLines, validateLinks, type ChartLink, type LinkSpec } from './link.js';
 import { toAssemblyInput, updatesShape, viewShape, type AssemblyInputArgs, type ChartView } from './tools/schemas.js';
 
 /** One chart on a board: the spec with its data inline, and the agent's update layers. */
@@ -331,4 +330,17 @@ export function mergeChartArgs(chart: BoardChart, patch: Partial<BoardChartArgs>
   if (patch.layout !== undefined) next.layout = patch.layout;
   if (patch.view !== undefined) next.view = patch.view;
   return next as BoardChartArgs;
+}
+
+/** The link as the model reads it: what each chart sends, by which interaction, and receives, and what is left out. */
+function linkLines(links: Record<string, ChartLink>): string[] {
+  return Object.entries(links).map(([id, link]) => {
+    const sends = Object.entries(link.gestures).map(([gesture, info]) => `${info.fields.join(' + ')} by ${gesture}${info.hover ? ' (hover)' : ''}`);
+    const parts = [
+      sends.length > 0 ? `sends ${sends.join(', ')}` : '',
+      link.receives.length > 0 ? `receives ${link.receives.join(', ')}` : '',
+    ].filter(Boolean);
+    const mark = link.sends.length === 0 && link.receives.length === 0 ? '✗' : '✓';
+    return `${mark} ${id}: ${parts.join('; ') || 'not linked'}${link.notes.length > 0 ? `; ${link.notes.join('; ')}` : ''}`;
+  });
 }
