@@ -3,6 +3,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { assembleVegaLite } from '../src';
+import { resolveCountry, resolveCountryCode } from '../src/chart-types/geo';
 
 /**
  * Name-based map creation.
@@ -285,5 +286,33 @@ describe('Choropleth level', () => {
   it('keeps the state layer by default and on the world map', () => {
     expect(build({ region: 'us' }).data.format.feature).toBe('states');
     expect(build({ region: 'world', level: 'county' }).data.format.feature).toBe('countries');
+  });
+});
+
+describe('the country gazetteer covers the world map', () => {
+  /** Every country feature id in Vega's world-110m.json (its -99 shapes are disputed areas with no ISO code). */
+  const WORLD_110M_IDS = [4, 8, 10, 12, 24, 31, 32, 36, 40, 44, 50, 51, 56, 64, 68, 70, 72, 76, 84, 90, 96, 100, 104, 108, 112, 116, 120, 124, 140, 144, 148, 152, 156, 158, 170, 178, 180, 188, 191, 192, 196, 203, 204, 208, 214, 218, 222, 226, 231, 232, 233, 238, 242, 246, 250, 260, 262, 266, 268, 270, 275, 276, 288, 300, 304, 320, 324, 328, 332, 340, 348, 352, 356, 360, 364, 368, 372, 376, 380, 384, 388, 392, 398, 400, 404, 408, 410, 414, 417, 418, 422, 426, 428, 430, 434, 440, 442, 450, 454, 458, 466, 478, 484, 496, 498, 499, 504, 508, 512, 516, 524, 528, 540, 548, 554, 558, 562, 566, 578, 586, 591, 598, 600, 604, 608, 616, 620, 624, 626, 630, 634, 642, 643, 646, 682, 686, 688, 694, 703, 704, 705, 706, 710, 716, 724, 728, 729, 732, 740, 748, 752, 756, 760, 762, 764, 768, 780, 784, 788, 792, 795, 800, 804, 807, 818, 826, 834, 840, 854, 858, 860, 862, 887, 894];
+
+  it('resolves every map country from its ISO alpha-3 code', () => {
+    const missing = WORLD_110M_IDS.filter((id) => {
+      const a3 = resolveCountryCode(id);
+      return !a3 || resolveCountry(a3) !== id;
+    });
+    expect(missing).toEqual([]);
+  });
+
+  it('reads the names Our World in Data and the UN use', () => {
+    const cases: Record<string, number> = {
+      Albania: 8, Botswana: 72, Namibia: 516, Greenland: 304, Kyrgyzstan: 417, 'South Sudan': 728,
+      Congo: 178, 'Democratic Republic of Congo': 180, 'East Timor': 626, Eswatini: 748, Swaziland: 748,
+      'North Macedonia': 807, 'Bosnia and Herzegovina': 70, 'Papua New Guinea': 598, Palestine: 275,
+      'Guinea-Bissau': 624, Guinea: 324, 'Equatorial Guinea': 226, Gambia: 270, "Cote d'Ivoire": 384,
+    };
+    for (const [name, id] of Object.entries(cases)) expect(resolveCountry(name), name).toBe(id);
+  });
+
+  it('still keeps colliding US state codes on the US map', () => {
+    const rows = ['AL', 'GA', 'MD', 'ME', 'NC', 'SC'].map((st, v) => ({ st, v }));
+    expect(buildChoropleth(rows, 'st', 'v').feature).toBe('states');
   });
 });

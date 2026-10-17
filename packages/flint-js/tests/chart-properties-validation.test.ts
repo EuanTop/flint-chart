@@ -75,3 +75,18 @@ describe('Regression — discrete property value validation', () => {
         expect(spec._warnings).toBeUndefined();
     });
 });
+
+describe('array-valued options', () => {
+    it('keeps a map centre that arrives as a fresh array, as from JSON', () => {
+        const spec: any = assembleVegaLite({
+            data: { values: [{ City: 'Paris', Lon: 2.35, Lat: 48.86 }, { City: 'Tokyo', Lon: 139.7, Lat: 35.7 }] },
+            semantic_types: { City: 'City', Lon: 'Longitude', Lat: 'Latitude' },
+            chart_spec: {
+                chartType: 'Map', encodings: { longitude: 'Lon', latitude: 'Lat' },
+                chartProperties: JSON.parse('{"region":"world","projection":"orthographic","projectionCenter":[10,50]}'),
+            },
+        } as any);
+        expect(spec.layer[0].projection.rotate).toEqual([-10, -50, 0]);
+        expect((spec._warnings ?? []).some((w: any) => w.code === 'invalid-option-value')).toBe(false);
+    });
+});

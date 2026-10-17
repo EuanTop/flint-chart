@@ -16,6 +16,7 @@ import {
     injectVegaInteractionStore,
     injectVegaGeoLevelFit,
     injectVegaGeoNavigationSignals,
+    vegaGeoFocusSource,
     injectVegaNavigationSignals,
     injectVegaReorderSignal,
     findVegaAxisScale,
@@ -381,6 +382,8 @@ export function createVegaInteractiveRenderer(
                         );
                     if (interactionPlan.geoNavigation && interactionPlan.geoLevels) {
                         injectVegaGeoLevelFit(vegaSpec, interactionPlan.geoLevels);
+                    } else if (interactionPlan.geoNavigation) {
+                        interactionPlan.geoFocusSource = vegaGeoFocusSource(vegaSpec);
                     }
                     interactionPlan.reorderAxes = (interactionPlan.reorderAxes ?? [])
                         .map((axis) => injectVegaReorderSignal(vegaSpec, axis))

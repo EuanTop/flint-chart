@@ -42,7 +42,9 @@ import {
     GEO_AXIS_SCALES,
     GEO_EXTENT_SIGNAL,
     GEO_PROJECTION_SIGNAL,
+    GEO_ROTATE_SIGNAL,
     geoLevelGate,
+    isGlobeProjection,
     type GeoLevelConfig,
     type GeoPreProjection,
 } from './navigation-geo';
@@ -697,11 +699,44 @@ export function injectVegaGeoNavigationSignals(
     ];
     projection.extent = { signal: `${GEO_EXTENT_SIGNAL} || [[0, 0], [width, height]]` };
     delete projection.size;
+    // A globe turns: its rotation becomes a signal the navigation drives. Its
+    // fit (the whole sphere) does not depend on the rotation, so it holds its size.
+    if (isGlobeProjection(projection.type)) {
+        const authored = Array.isArray(projection.rotate) ? projection.rotate : [0, 0, 0];
+        vegaSpec.signals.push({ name: GEO_ROTATE_SIGNAL, value: authored });
+        projection.rotate = { signal: GEO_ROTATE_SIGNAL };
+    }
     const result: Partial<Record<'x' | 'y', import('./contracts').VegaNavigationAxis>> = {};
     for (const channel of channels) {
         result[channel] = { scale: GEO_AXIS_SCALES[channel], signal: GEO_EXTENT_SIGNAL, type: 'geo' };
     }
     return result;
+}
+
+/**
+ * The dataset a single-level map's focus and region viewports read: the
+ * regions the reader can point at, which are the shapes the chart keys for
+ * interaction. Structure drawn under them (a globe's no-data land) carries no
+ * key, so it is passed over; without any key, the last shape layer drawn is
+ * taken, since data sits over its base map.
+ */
+export function vegaGeoFocusSource(vegaSpec: Record<string, any>): string | undefined {
+    const datasets: any[] = Array.isArray(vegaSpec.data) ? vegaSpec.data : [];
+    const byName = new Map(datasets.map((dataset) => [dataset.name, dataset]));
+    const keyed = (name: string | undefined): boolean => {
+        const seen = new Set<string>();
+        for (let dataset = name ? byName.get(name) : undefined; dataset && !seen.has(dataset.name);
+            dataset = byName.get(dataset.source)) {
+            seen.add(dataset.name);
+            // Decorative structure carries the key too, but always null.
+            if ((dataset.transform ?? []).some((transform: any) => transform?.as === INTERACTION_KEY
+                && transform.expr !== 'null')) return true;
+        }
+        return false;
+    };
+    const shapes = (Array.isArray(vegaSpec.marks) ? vegaSpec.marks : [])
+        .filter((mark: any) => mark?.type === 'shape' && typeof mark.from?.data === 'string');
+    return (shapes.find((mark: any) => keyed(mark.from.data)) ?? shapes[shapes.length - 1])?.from.data;
 }
 
 /**

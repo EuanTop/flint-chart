@@ -87,6 +87,8 @@ export interface VegaInteractionPlan {
     geoLevels?: GeoLevelConfig;
     /** The projection a pre-projected base map was built with; the chart itself draws with identity. */
     geoPreProjection?: GeoPreProjection;
+    /** The dataset a single-level map reads its focus and region viewports from (set once compiled). */
+    geoFocusSource?: string;
     /** Polar templates realize the primary X brush as an angular sector. */
     angularXBrush?: boolean;
     navigationAxes?: Partial<Record<'x' | 'y', VegaNavigationAxis>>;

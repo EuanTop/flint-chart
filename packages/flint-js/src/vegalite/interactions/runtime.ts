@@ -840,7 +840,9 @@ export function mountVegaInteractions(
         reset: resetViewportRegion,
     });
     const navigationController = plan.geoNavigation
-        ? createVegaGeoNavigationController(view, plan.navigationAxes ?? {}, plan.geoLevels, plan.geoPreProjection)
+        ? createVegaGeoNavigationController(
+            view, plan.navigationAxes ?? {}, plan.geoLevels, plan.geoPreProjection, { focusSource: plan.geoFocusSource },
+        )
         : createVegaNavigationController(view, plan.navigationAxes ?? {});
     const selectedKeys = (): Set<string> => new Set(emphasizedRenderKeys);
     const renderPathFocus = (): void => focusOverlay.render(selectedKeys(), hoveredPathKeys, hoveredMarkKeys);

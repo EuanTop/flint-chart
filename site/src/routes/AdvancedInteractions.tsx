@@ -28,10 +28,12 @@ import { IndexChartStage } from '../playground/IndexChartStage';
 import { TimeboxStage } from '../playground/TimeboxStage';
 import { YouDrawItStage } from '../playground/YouDrawItStage';
 import { ChinaSemanticZoomStage } from '../playground/ChinaSemanticZoomStage';
+import { GlobeWarmingStage } from '../playground/GlobeWarmingStage';
 import { RetailDrilldownStage } from '../playground/RetailDrilldownStage';
 import { MovingAverageStage } from '../playground/MovingAverageStage';
 import mapSource from '../playground/MapSemanticZoomStage.tsx?raw';
 import chinaSource from '../playground/ChinaSemanticZoomStage.tsx?raw';
+import globeSource from '../playground/GlobeWarmingStage.tsx?raw';
 import retailSource from '../playground/RetailDrilldownStage.tsx?raw';
 import fisheyeSource from '../playground/FisheyeZoomStage.tsx?raw';
 import explodedSource from '../playground/ExplodedDetailStage.tsx?raw';
@@ -117,6 +119,15 @@ const SECTIONS: { title: string; cases: Case[] }[] = [
         credit: { label: '2020 census compilation by Lei Dong and colleagues', url: 'https://github.com/leiii/census' },
         demo: <ChinaSemanticZoomStage />,
         code: chinaSource,
+      },
+      {
+        id: 'turn-the-globe',
+        title: 'Turn the globe',
+        icon: Globe,
+        body: 'How much warmer 2016–2025 was than 1951–1980, country by country. Drag to turn the globe: the country facing you is the focus, edged on the map and read out beside it with its warming stripes since 1940. Look north, then south: the northern land warmed about twice as much.',
+        credit: { label: 'Copernicus Climate Change Service ERA5, processed by Our World in Data (contains modified Copernicus Climate Change Service information)', url: 'https://ourworldindata.org/grapher/annual-temperature-anomalies' },
+        demo: <GlobeWarmingStage />,
+        code: globeSource,
       },
       {
         id: 'food-basket',
