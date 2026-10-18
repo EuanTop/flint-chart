@@ -658,6 +658,10 @@ export const stackedBarChartDef: ChartTemplateDef = {
 
 /** The field a histogram's bars start at, computed by its bin transform. */
 const BIN_START = '__bin_start';
+/** The rows in each bin, computed by its aggregate. */
+const HISTOGRAM_COUNT = '__count';
+/** The count's axis title, as Vega-Lite names a count of rows. */
+const HISTOGRAM_COUNT_TITLE = 'Count of Records';
 
 export const histogramDef: ChartTemplateDef = {
     chart: "Histogram",
@@ -669,6 +673,8 @@ export const histogramDef: ChartTemplateDef = {
         },
     },
     channels: ["x", "color", "column", "row"],
+    // The count has no source field to take its title from; it is named as the bars draw it.
+    structure: (ctx) => ({ ...skeletonStructure(histogramDef.template, ctx), axisTitles: { y: HISTOGRAM_COUNT_TITLE } }),
     interactionSupport: {
         elements: true,
         region: ['cartesian'],
@@ -728,6 +734,19 @@ export const histogramDef: ChartTemplateDef = {
                 title: x.title ?? sourceField,
             };
             spec.encoding.x2 = { field: '__bin_end' };
+            // The count is stated as a field, as every other bar's measure is: an encoding that
+            // only aggregates names no field, and the passes that read a chart's measure off its
+            // field — the theme's baseline and grid, value labels, tick rounding — would pass
+            // the histogram by. `__count` is the name Vega-Lite gives the count itself.
+            const groups = ['color', 'column', 'row']
+                .map((channel) => spec.encoding?.[channel]?.field)
+                .filter((field): field is string => typeof field === 'string');
+            spec.transform.push({
+                aggregate: [{ op: 'count', as: HISTOGRAM_COUNT }],
+                groupby: [...new Set([BIN_START, '__bin_end', ...groups])],
+            });
+            const { aggregate: _aggregate, ...y } = spec.encoding.y ?? {};
+            spec.encoding.y = { ...y, field: HISTOGRAM_COUNT, type: 'quantitative', title: y.title ?? HISTOGRAM_COUNT_TITLE };
         }
         adjustBarMarks(spec, ctx);
     },

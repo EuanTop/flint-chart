@@ -1,6 +1,8 @@
 import type { ChartAssemblyInput } from 'flint-chart';
 import { csvParseRows } from 'd3-dsv';
 import gapminderCsv from '../assets/gapminder-five-year.csv?raw';
+import classicDatasets from '../data/classic-datasets.json';
+import timeUse from '../data/time-use-companions.json';
 
 export interface InteractionDemoFixture {
   id: string;
@@ -205,3 +207,38 @@ export const outboundFixtures = [
   salesFixture, countriesFixture, penguinsFixture, weatherFixture,
   stocksFixture, ganttFixture, populationFixture, lifeFixture,
 ];
+
+const { columns: carColumns, rows: carValues } = classicDatasets.autoMpg;
+const carRows = carValues.map((row) => Object.fromEntries(carColumns.map((column, index) => [column, row[index]])));
+
+/** 392 cars from 1970 to 1982, grouped by where they were made. */
+export const carsFixture = fixture(
+  'cars', 'Horsepower and fuel economy, 1970–1982', 'Auto MPG (UCI), 392 cars',
+  'Scatter Plot', carRows,
+  { Horsepower: 'Quantity', MPG: 'Quantity', Origin: 'Category', 'Model year': 'Year' },
+  { x: 'Horsepower', y: 'MPG', color: 'Origin' },
+);
+
+/** Hours a day women and men spend with each kind of company, by age. */
+export const companionsFixture: InteractionDemoFixture = {
+  id: 'companions',
+  title: 'Who Americans spend their time with',
+  source: 'American Time Use Survey (BLS), averages 2010–2024, via Our World in Data',
+  input: {
+    data: {
+      values: timeUse.values
+        .filter((row) => row.Group !== 'All people')
+        .map(({ Group, Age, Who, Hours }) => ({ Sex: Group, Age, Who, Hours })),
+    },
+    semantic_types: { Sex: 'Category', Age: 'Quantity', Who: 'Category', Hours: 'Quantity' },
+    field_display_names: { Hours: 'Hours per day' },
+    chart_spec: {
+      chartType: 'Line Chart',
+      title: 'Who Americans spend their time with',
+      subtitle: 'Hours per day by age, women and men',
+      encodings: { x: 'Age', y: 'Hours', color: 'Who', column: 'Sex' },
+      baseSize: { width: 520, height: 260 },
+      chartProperties: { facetColumns: 2 },
+    },
+  } as ChartAssemblyInput,
+};

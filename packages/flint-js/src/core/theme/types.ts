@@ -244,6 +244,12 @@ export interface ThemeInk {
         status?: { positive?: string; negative?: string; neutral?: string };
         selection?: {
             partToWhole?: 'categorical' | 'sequentialRamp';
+            /**
+             * How a signed series is coloured. Applies only when the coloured field itself carries
+             * the sign: a continuous colour whose values cross zero, or categories that split by
+             * sign (increase / decrease, regions netting a gain or a loss). A measure on an axis
+             * that dips below zero leaves the series' colour to the ordinal and categorical rules.
+             */
             signed?: 'categorical' | 'status' | 'diverging' | 'sequential';
             redundantWithFacet?: 'single' | 'categorical';
             statusUse?: 'anySigned' | 'thresholdOnly' | 'never';
@@ -292,6 +298,18 @@ export interface ThemeStructure {
         x?: AxisRole;
         /** The axis drawn up the left or right (y), whatever it carries; overrides the role's. */
         y?: AxisRole;
+        /**
+         * What the axis lines are where the value scale floats — does not start at zero, as a line
+         * or scatter at 45–90 does. `omit`: the line along the floor is a base, and a base there
+         * would claim a zero the chart does not have, so it is not drawn; the value grid marks the
+         * floor where a tick stands, and the line's ticks go with it. `keep`: the lines frame the
+         * window, wherever it starts. `rangeFrame`: the lines span only the data, set off from the
+         * plot (Tufte's range frame), so the frame stays and says where the data runs. Unset, a
+         * house that rules its value axis keeps the frame; one that grids its values instead omits
+         * the line. Bars and areas start at zero, so a floor under them is always a base.
+         * `rangeFrame` is drawn by Vega-Lite only.
+         */
+        floating?: 'omit' | 'keep' | 'rangeFrame';
     };
     /**
      * Gridlines, bound by what the axis *does*, not by what it holds.
@@ -1474,6 +1492,8 @@ export interface DesignDecisions {
      * its own ink or weight — so it is drawn along the axis's floor even where that is not zero.
      */
     baseline: ResolvedRule & { anyFloor?: boolean };
+    /** What the axis lines are where the value scale floats (`structure.axis.floating`); unset, inferred from the axes. */
+    floating?: 'omit' | 'keep' | 'rangeFrame';
     series: ResolvedSeriesInk;
     legend: ResolvedLegend;
     dataLabels: ResolvedDataLabels;

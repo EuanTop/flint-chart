@@ -29,6 +29,8 @@
  *   pop            process-colour quadrants divided by heavy black ink
  *   cartoon        rounded bar tops and a thick soft outline
  *   apple          rounded system-colour bars, ruled with labels on the trailing edge
+ *   de-stijl       a composition of primary planes split by heavy black lines
+ *   bbc            blue and amber bars between light rules, on a heavy zero rule
  *
  * Each is a complete SVG document so a caller can put it straight in an `<img>`
  * or inline it. 16×16 with a half-pixel inset frame: the frame is what lets a
@@ -182,3 +184,22 @@ export const APPLE_ICON = tile(
     3,
 );
 
+/** Red, blue and yellow planes split by heavy black lines on off-white: a composition, not a chart. */
+export const DE_STIJL_ICON = tile(
+    '#f4f1e8',
+    '#121212',
+    '<rect x="1" y="1" width="7" height="7" fill="#d40f0f"/>' +
+        '<rect x="10.5" y="10.5" width="4.5" height="4.5" fill="#1f4a94"/>' +
+        '<rect x="1" y="12.5" width="4" height="2.5" fill="#f5c400"/>' +
+        '<path d="M8.5 1V15M1 8.5H15M10 8.5V15M1 12H8.5" stroke="#121212" stroke-width="1.4" fill="none"/>',
+);
+
+/** BBC blue, amber and dark red on white between light horizontal rules, standing on the heavy dark rule at zero. */
+export const BBC_ICON = tile(
+    '#ffffff',
+    '#cbcbcb',
+    rule(2.6, 4.5, 13.4, '#cbcbcb') +
+        rule(2.6, 8.5, 13.4, '#cbcbcb') +
+        bars(['#1380A1', '#FAAB18', '#990000'], [7.5, 5, 3.4]) +
+        rule(2.2, BASELINE, 13.8, '#333333', 1.8),
+);

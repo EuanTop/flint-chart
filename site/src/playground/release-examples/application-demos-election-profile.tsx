@@ -49,7 +49,8 @@ function ProfileRow({ profile }: { profile: Profile }) {
   </li>;
 }
 
-export function ElectionProfileDemo() {
+/** `stacked` puts the profile under the map, for a narrow frame. */
+export function ElectionProfileDemo({ stacked = false }: { stacked?: boolean } = {}) {
   const [stateCode, setStateCode] = useState<string | null>(null);
   const [countyFips, setCountyFips] = useState<string | null>(null);
 
@@ -79,7 +80,7 @@ export function ElectionProfileDemo() {
     ...(county ? [{ kind: 'County' as const, name: county.county, detail: STATES.get(county.state)?.stateName ?? county.state, gop: county.gop, dem: county.dem, total: county.total }] : []),
   ];
 
-  return <div className="app-demo-map-profile">
+  return <div className={`app-demo-map-profile${stacked ? ' app-demo-map-profile--stacked' : ''}`}>
     <BespokeFrame><MapSemanticZoomStage dataset={ELECTION_DATASET} onSelect={onSelect} maxScale={1.2} /></BespokeFrame>
     <aside className="app-demo-box app-demo-profile-panel" aria-label="Profile" aria-live="polite">
       <h4 className="app-demo-column-title">Profile</h4>

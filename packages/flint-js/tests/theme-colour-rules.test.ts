@@ -134,6 +134,121 @@ describe('R2: one signed series of bars takes the status inks by sign', () => {
     });
 });
 
+describe('R2 follow-up: the colour is signed only when what it encodes carries the sign', () => {
+    const signedHouse = (signed: 'status' | 'diverging'): ThemeSpec => ({
+        id: `signed-${signed}`,
+        ink: {
+            text: { primary: '#111111', muted: '#666666' },
+            series: {
+                single: '#20aa3f',
+                categorical: ['#d40511', '#000000', '#0072bc'],
+                categoricalExtended: Array.from({ length: 12 }, (_, i) => `#${(0x102030 + i * 0x0a0b0c).toString(16)}`),
+                sequential: { stops: ['#e5edf5', '#00539b'] },
+                diverging: { stops: ['#00539b', '#f2f2f2', '#c2352b'] },
+                status: { positive: '#257675', negative: '#d14124', neutral: '#999999' },
+                overflow: '#aabbcc',
+                selection: { signed },
+            },
+        },
+    });
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    // Winter readings below freezing; every month still averages above it.
+    const readings = (shift: number) => MONTHS.flatMap((Month, m) => [-4, 0, 4, 8, 12].map((d) => ({ Month, Temperature: 6 + 8 * Math.sin((m / 11) * Math.PI) + d + shift })));
+    const ridgeline = (theme: ThemeSpec | string, shift: number) => assembleVegaLite({
+        data: { values: readings(shift) },
+        semantic_types: { Month: 'Month', Temperature: 'Temperature' },
+        chart_spec: { chartType: 'Ridgeline Plot', encodings: { x: 'Temperature', color: 'Month' }, chartProperties: { colorBy: 'series' } },
+        theme_spec: theme,
+    } as any);
+
+    for (const signed of ['status', 'diverging'] as const) {
+        it(`months on a ridgeline keep their ramp when the temperatures dip below zero (${signed} house)`, () => {
+            const cold = colourRanges(ridgeline(signedHouse(signed), -6))[0];
+            expect(readings(-6).some((r) => r.Temperature < 0)).toBe(true);
+            expect(cold).toEqual(colourRanges(ridgeline(signedHouse(signed), 20))[0]);
+            expect(cold).not.toContain('#aabbcc');
+            expect(new Set(cold).size).toBe(12);
+        });
+
+        it(`regions that each net a gain keep their own inks when some values dip below zero (${signed} house)`, () => {
+            const line = (shift: number) => assembleVegaLite({
+                data: { values: ['North', 'South', 'East'].flatMap((Region, r) => [2021, 2022, 2023, 2024].map((Year, i) => ({ Year, Region, Value: 4 + r * 3 + i * 2 + shift }))) },
+                semantic_types: { Year: 'Year', Region: 'Category', Value: 'Quantity' },
+                chart_spec: { chartType: 'Line Chart', encodings: { x: 'Year', y: 'Value', color: 'Region' } },
+                theme_spec: signedHouse(signed),
+            } as any);
+            expect(colourRanges(line(-5))[0]).toEqual(colourRanges(line(10))[0]);
+        });
+    }
+
+    it('takes no NYT grey for the months past its five inks', () => {
+        const range = colourRanges(ridgeline('nyt', -6))[0];
+        expect(range).toHaveLength(12);
+        expect(range).not.toContain('#9e9e9e');
+    });
+
+    it('still gives categories that split by sign the status inks', () => {
+        const spec = assembleVegaLite({
+            data: { values: [['North', 12], ['South', -8], ['East', 5], ['West', -3]].map(([Region, Net]) => ({ Region, Net })) },
+            semantic_types: { Region: 'Category', Net: 'Profit' },
+            chart_spec: { chartType: 'Bar Chart', encodings: { x: 'Region', y: 'Net', color: 'Region' } },
+            theme_spec: signedHouse('status'),
+        } as any);
+        expect(new Set(colourRanges(spec)[0])).toEqual(new Set(['#257675', '#d14124']));
+    });
+
+    it('reads a continuous colour’s sign from its own values, not the axes’', () => {
+        const scatter = (yShift: number, colourShift: number) => assembleVegaLite({
+            data: { values: Array.from({ length: 12 }, (_, i) => ({ Growth: i - 4 + yShift, Spend: 10 + i, Score: 5 + i * 2 + colourShift })) },
+            semantic_types: { Growth: 'Quantity', Spend: 'Quantity', Score: 'Quantity' },
+            chart_spec: { chartType: 'Scatter Plot', encodings: { x: 'Spend', y: 'Growth', color: 'Score' } },
+            theme_spec: signedHouse('diverging'),
+        } as any);
+        const positive = colourRanges(scatter(10, 0))[0];
+        expect(colourRanges(scatter(0, 0))[0]).toEqual(positive);
+        expect(colourRanges(scatter(0, -20))[0]).not.toEqual(positive);
+    });
+});
+
+describe('Ridgeline: named ridges share one ink', () => {
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+    const rows = MONTHS.flatMap((Month, m) => [0, 2, 4, 6, 8].map((d) => ({ Month, Temperature: m * 2 + d })));
+    const ridgeline = (chartProperties: Record<string, unknown> = {}, theme: string = 'nyt') => assembleVegaLite({
+        data: { values: rows },
+        semantic_types: { Month: 'Month', Temperature: 'Temperature' },
+        chart_spec: { chartType: 'Ridgeline Plot', encodings: { x: 'Temperature', color: 'Month' }, chartProperties },
+        theme_spec: theme,
+    } as any);
+    const areas = (spec: any): any[] => {
+        const out: any[] = [];
+        const visit = (node: any) => {
+            if (!node || typeof node !== 'object') return;
+            const mark = typeof node.mark === 'string' ? node.mark : node.mark?.type;
+            if (mark === 'area') out.push(node);
+            for (const child of node.layer ?? []) visit(child);
+        };
+        visit(spec);
+        return out;
+    };
+
+    it('draws every ridge in the house’s single ink, kept apart by its series', () => {
+        const spec: any = ridgeline();
+        const [area] = areas(spec);
+        expect(area.encoding.color).toBeUndefined();
+        expect(area.encoding.detail).toMatchObject({ field: 'Month' });
+        expect(area.mark.color).toBe('#2f6b9a');
+        expect(spec._theme.report.some((r: any) => r.code === 'series-mode-not-applied')).toBe(false);
+    });
+
+    it('colours each ridge by its series when asked', () => {
+        expect(colourRanges(ridgeline({ colorBy: 'series' }))[0]).toHaveLength(MONTHS.length);
+    });
+
+    it('keeps the x ramp a house would otherwise paint over', () => {
+        for (const area of areas(ridgeline({ colorBy: 'x' }))) expect(area.mark.color).toMatchObject({ gradient: 'linear' });
+    });
+});
+
 /** The resolved point definition on the first line layer (mark-level, else the config's). */
 function linePoint(spec: any): any {
     let found: any;

@@ -225,7 +225,7 @@ The **Availability** column shows whether a parameter is `always` available or `
 | `opacity` | number | 0.1 – 1 (step 0.1) | `0.5` | always | Mark opacity. |
 | `order` | choice | As given _(default)_, `mean` (By mean (highest on top)), `reverse` (Reversed) | — | always | Which order the ridges stand in: as given (a quantitative series lowest at the front), by their mean with the highest on top, or reversed. |
 | `tailCut` | number | 0 – 0.2 (step 0.01) | `0` | always | Trim each ridge to where its density is at least this share of its own peak (0 = full extent). |
-| `colorBy` | choice | By series _(default)_, `x` (By x value) | — | always | Fill each ridge by its series, or with a ramp along the x axis. |
+| `colorBy` | choice | One colour _(default)_, `series` (By series), `x` (By x value) | — | always | Fill each ridge by its series, or with a ramp along the x axis. |
 | `perspective` | toggle | on / off | `false` | always | Stand the ridges on a floor seen in perspective; skew, tilt and overlap left unset are planned so the depth takes about 40% of the plot’s width and more of its height as ridges are added. |
 | `skew` | number | 0 – 0.4 (step 0.01) | `0` | always | Shift the ridges behind the front one leftwards by this share of the x range, for a perspective view. |
 | `tilt` | number | 0 – 6 (step 0.1) | `0` | always | Raise the x axis by this many baselines across its range, so the floor is seen in perspective. |

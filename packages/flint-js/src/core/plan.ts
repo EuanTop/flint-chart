@@ -1455,6 +1455,7 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
         markChannel: template.markCognitiveChannel,
         markTypes: structure.marks,
         namesOnMarks: chartProperties?.showSeriesInLabel === true,
+        seriesOneInk: structure.series?.oneInk === true,
         channelSemantics,
         resolvedTypes: declaration.resolvedTypes as Record<string, string> | undefined,
         axisFlags: declaration.axisFlags,

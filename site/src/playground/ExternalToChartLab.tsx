@@ -9,6 +9,8 @@ import { ScaleToFit } from '../components/ScaleToFit';
 import { InteractionDemoChart } from './InteractionDemoChart';
 import { withHouseId } from '../shared/test-case-utils';
 import {
+  carsFixture,
+  companionsFixture,
   countriesFixture,
   ganttFixture,
   incidentsFixture,
@@ -92,6 +94,53 @@ function CountryTable({ rows, activeLabel, onSelect }: {
   );
 }
 
+/** One row per origin: a pick names every car made there. */
+function OriginTable({ rows, activeLabel, onSelect }: {
+  rows: Record<string, unknown>[];
+  activeLabel?: string;
+  onSelect: (option: ControlOption) => void;
+}) {
+  const origins = useMemo(() => {
+    const groups = new Map<string, Record<string, unknown>[]>();
+    for (const row of rows) groups.set(String(row.Origin), [...(groups.get(String(row.Origin)) ?? []), row]);
+    return [...groups].map(([origin, members]) => {
+      const power = members.map(row => Number(row.Horsepower)).sort((a, b) => a - b);
+      const middle = Math.floor(power.length / 2);
+      return {
+        origin,
+        count: members.length,
+        horsepower: power.length % 2 ? power[middle] : (power[middle - 1] + power[middle]) / 2,
+        mpg: members.reduce((total, row) => total + Number(row.MPG), 0) / members.length,
+      };
+    }).sort((a, b) => b.count - a.count);
+  }, [rows]);
+  return (
+    <table className="it-country-table" aria-label="Cars by origin, 1970–1982">
+      <thead><tr><th scope="col">Origin</th><th scope="col">Cars</th><th scope="col">Median hp</th><th scope="col">Mean MPG</th></tr></thead>
+      <tbody>{origins.map(({ origin, count, horsepower, mpg }) => (
+        <tr key={origin} className={activeLabel === origin ? 'active' : undefined}
+          onClick={() => onSelect({ label: origin, match: { Origin: origin } })}>
+          <td><button type="button" aria-pressed={activeLabel === origin}>{origin}</button></td>
+          <td>{count}</td>
+          <td>{Math.round(horsepower)}</td>
+          <td>{mpg.toFixed(1)}</td>
+        </tr>
+      ))}</tbody>
+    </table>
+  );
+}
+
+/** One finding per kind of company, each about two lines so the panel keeps its height between tabs. */
+const COMPANION_FINDINGS: Record<string, string> = {
+  All: 'Hours a day with six kinds of company, for women and men aged 15 to 80. Pick a tab to light one in both panels and see how it changes with age.',
+  Alone: 'Time alone grows steadily with age. By 80, women spend 8.4 hours a day alone; men peak a little earlier, at 7.9 hours around 65.',
+  Partner: 'Time with a partner climbs from zero in the teens into later life. Men reach 5.8 hours a day at 76; women peak at 4.2 hours at 69.',
+  Children: 'Time with children peaks in the thirties, while kids are young. Women reach 5.3 hours a day at 34, men 3.5 hours at 39.',
+  Family: 'Other family fills the teenage years: about 4.5 hours a day for girls and 4.1 for boys at 15, falling below an hour by 40.',
+  Friends: 'Friends matter most around 20, at about 2 hours a day. By the mid-thirties it falls to roughly half an hour and stays there.',
+  'Co-workers': 'Co-workers arrive with the first job and leave at retirement. Men peak at 4.1 hours a day at 30, women at 3.1 hours at 23.',
+};
+
 /** One row per continent, so a pick names a whole group rather than one point. */
 function ContinentTable({ rows, activeLabel, onSelect }: {
   rows: Record<string, unknown>[];
@@ -162,7 +211,7 @@ function ExternalControlContent({
       type="button"
       key={option.label}
       className={`${className}${activeLabel === option.label ? ' active' : ''}`}
-      aria-pressed={demo.id === 'continent-filter' ? activeLabel === option.label : undefined}
+      aria-pressed={demo.id === 'continent-filter' || demo.id === 'companion-tabs' ? activeLabel === option.label : undefined}
       onClick={() => onSelect(option)}
     >
       {content}
@@ -187,6 +236,25 @@ function ExternalControlContent({
 
   if (demo.id === 'continent-table') {
     return <ContinentTable rows={demo.fixture.input.data.values ?? []} activeLabel={activeLabel} onSelect={onSelect} />;
+  }
+
+  if (demo.id === 'origin-table') {
+    return <OriginTable rows={demo.fixture.input.data.values ?? []} activeLabel={activeLabel} onSelect={onSelect} />;
+  }
+
+  if (demo.id === 'companion-tabs') {
+    const who = demo.options.find(option => option.label === activeLabel && option.match)?.label;
+    return (
+      <div className="it-tab-module">
+        <div className="it-tabs" role="group" aria-label="Company">
+          {demo.options.map((option) => control(option, 'it-tab'))}
+        </div>
+        <div className="it-tab-copy" aria-live="polite">
+          <strong>{who ?? 'All company'}</strong>
+          <p>{COMPANION_FINDINGS[who ?? 'All']}</p>
+        </div>
+      </div>
+    );
   }
 
   if (demo.id === 'country-finder') {
@@ -333,12 +401,17 @@ const demos: ExternalDemo[] = [
   },
 ];
 
+/** The chart answers back: a click picks one country with its numbers, or the whole group a mark belongs to. */
+type Bidirectional = 'country' | { group: string };
+
+const BY_CONTINENT: Bidirectional = { group: 'Continent' };
+
 function ExternalDemoRow({ demo, compact = false, bidirectional }: {
   demo: ExternalDemo;
   compact?: boolean;
-  /** The chart answers back: a click picks a whole continent, or one country with its numbers. */
-  bidirectional?: 'continent' | 'country';
+  bidirectional?: Bidirectional;
 }) {
+  const groupField = bidirectional === 'country' ? 'Country' : bidirectional?.group;
   const chartRef = useRef<FlintChartHandle>(null);
   const payloadRef = useRef<MatchPayload | null>(demo.defaultSelection ?? null);
   const [lastPayload, setLastPayload] = useState<MatchPayload | null>(payloadRef.current);
@@ -359,7 +432,7 @@ function ExternalDemoRow({ demo, compact = false, bidirectional }: {
           }] : [])]
         : [{ op: 'set-style', targets: [], value: { state: 'normal' } }],
     }),
-  }), ...(bidirectional ? [clickGroupFocus({ groupBy: bidirectional === 'country' ? 'Country' : 'Continent' })] : [])], [interactionId, bidirectional]);
+  }), ...(groupField ? [clickGroupFocus({ groupBy: groupField })] : [])], [interactionId, groupField]);
   // Each new mount starts from the control's current selection.
   const handleRender = useCallback(() => {
     if (payloadRef.current) void chartRef.current?.dispatch(interactionId, payloadRef.current);
@@ -379,12 +452,12 @@ function ExternalDemoRow({ demo, compact = false, bidirectional }: {
       else void chartRef.current?.clearUpdate(interactionId);
       return;
     }
-    const continent = value?.Continent;
-    const payload = typeof continent === 'string' ? { label: continent, match: { Continent: continent } } : { label: 'All' };
+    const group = groupField ? value?.[groupField] : undefined;
+    const payload = typeof group === 'string' ? { label: group, match: { [groupField!]: group } } : { label: 'All' };
     payloadRef.current = payload;
     setLastPayload(payload);
     void chartRef.current?.clearUpdate(interactionId);
-  }, [bidirectional, interactionId, demo.fixture]);
+  }, [bidirectional, groupField, interactionId, demo.fixture]);
   const dispatch = async (payload: MatchPayload) => {
     payloadRef.current = payload;
     setLastPayload(payload);
@@ -447,7 +520,7 @@ const continentCohortDemo: ExternalDemo = {
 };
 
 export function ContinentCohortStage() {
-  return <ExternalDemoRow demo={continentCohortDemo} compact bidirectional="continent" />;
+  return <ExternalDemoRow demo={continentCohortDemo} compact bidirectional={BY_CONTINENT} />;
 }
 
 export function CountryTableStage({ themeId }: { themeId?: string | null } = {}) {
@@ -475,7 +548,41 @@ export function ContinentTableStage({ themeId }: { themeId?: string | null } = {
     id: 'continent-table', fixture, title: 'Continent table selection',
     description: 'Continent summaries linked to every country they hold.',
     controlLabel: 'Gapminder continents, 2007', options: [], defaultSelection,
-  }} compact bidirectional="continent" />;
+  }} compact bidirectional={BY_CONTINENT} />;
+}
+
+const BY_ORIGIN: Bidirectional = { group: 'Origin' };
+const BY_COMPANY: Bidirectional = { group: 'Who' };
+
+/** The cars' chart, as a spec pane shows it. */
+export const CARS_INPUT = carsFixture.input;
+
+/** A group table on cars: an origin row lights every car made there, and a car picks its origin's row. */
+export function CarOriginTableStage({ themeId }: { themeId?: string | null } = {}) {
+  const fixture = useMemo(() => ({ ...carsFixture, input: withHouseId(carsFixture.input, themeId) }), [themeId]);
+  return <ExternalDemoRow demo={{
+    id: 'origin-table', fixture, title: 'Cars by origin',
+    description: 'Origin summaries linked to every car made there.',
+    controlLabel: 'Cars by origin, 1970–1982', options: [],
+    defaultSelection: { label: 'Japan', match: { Origin: 'Japan' } },
+  }} compact bidirectional={BY_ORIGIN} />;
+}
+
+const COMPANIONS = ['Alone', 'Partner', 'Children', 'Family', 'Friends', 'Co-workers'];
+
+/** The companions' chart, as a spec pane shows it. */
+export const COMPANIONS_INPUT = companionsFixture.input;
+
+/** Tabs over a faceted line chart: a tab lights one kind of company in both panels, and a line picks its tab. */
+export function CompanionTabsStage({ themeId }: { themeId?: string | null } = {}) {
+  const fixture = useMemo(() => ({ ...companionsFixture, input: withHouseId(companionsFixture.input, themeId) }), [themeId]);
+  return <ExternalDemoRow demo={{
+    id: 'companion-tabs', fixture, title: 'Who we spend time with',
+    description: 'Tabs over the company kept, women and men side by side.',
+    controlLabel: 'Who Americans spend time with',
+    options: [{ label: 'All' }, ...COMPANIONS.map(Who => ({ label: Who, match: { Who } }))],
+    defaultSelection: { label: 'Children', match: { Who: 'Children' } },
+  }} compact bidirectional={BY_COMPANY} />;
 }
 
 export function ExternalToChartLab() {

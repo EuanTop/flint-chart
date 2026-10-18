@@ -202,9 +202,9 @@ export interface ClickAnnotateOptions {
     reset?: readonly InteractionResetGesture[];
 }
 
-export interface LinkedBrushOptions extends Omit<SelectOptions, 'mode'> {
+export interface LinkedBrushOptions extends SelectOptions {
     groupBy: GroupBy;
-    /** Defaults to 'rectangle'. */
+    /** Defaults to 'rectangle'. A lasso has no stateful mode: its freehand region ends at the commit. */
     brush?: 'rectangle' | 'lasso';
 }
 

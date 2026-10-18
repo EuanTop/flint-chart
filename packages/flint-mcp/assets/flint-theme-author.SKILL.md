@@ -99,7 +99,7 @@ Use `extends` when a built-in preset already supplies the intended compiler
 behavior and the new theme is a focused variation. Available preset IDs are:
 
 `nyt`, `economist`, `swiss`, `nature`, `mckinsey`, `datawrapper`, `powerbi`,
-`powerbi-light`, `pop`, `cartoon`, and `apple`.
+`powerbi-light`, `pop`, `cartoon`, `apple`, `de-stijl`, and `bbc`.
 
 Nested objects merge. Arrays and scalar values replace the preset value. If you
 replace `ink.series.categorical`, also consider replacing
@@ -176,7 +176,7 @@ the authored blocks and their jobs:
 | --- | --- |
 | `ink` | Canvas, plot, panel, text, structural, series, status, and accent colors |
 | `type` | Minimum size and role-based typography for headlines, axes, values, annotations, footnotes, and displays |
-| `structure` | Semantic categorical/measure axes (and `axis.x`/`axis.y` to style the bottom and left axes by side; `placement` takes `opposite`, `leading`/`trailing`, or a screen side), grids, baseline, and frame. Each grid, `grid.zero`, `baseline` and `frame` is a presence or `{ presence, style, dash, weight, color }`; a grid may also take `layer: "front"` (over the marks). `grid.minor: { presence, divisions, on }` draws finer lines between the labelled ones |
+| `structure` | Semantic categorical/measure axes (and `axis.x`/`axis.y` to style the bottom and left axes by side; `placement` takes `opposite`, `leading`/`trailing`, or a screen side), grids, baseline, and frame. `axis.floating` (`omit`, `keep`, `rangeFrame`) says what the axis lines are where the values do not start at zero: a base that is not drawn there, the window's frame, or a frame spanning only the data (Tufte; Vega-Lite only); leave it unset unless the guide says. Each grid, `grid.zero`, `baseline` and `frame` is a presence or `{ presence, style, dash, weight, color }`; a grid may also take `layer: "front"` (over the marks). `grid.minor: { presence, divisions, on }` draws finer lines between the labelled ones |
 | `marks` | Band width, strokes, interpolation, opacity, corners, outlines, points, connectors, intervals, summaries, and separators; `group: { gap, spacing }` (also `geometry.band.group`) for grouped bars — the gap between bars in a group and between groups, each a share of a bar's width or `"Npx"` |
 | `labels` | Truncation, flush behavior, and the path category names that do not fit their band take. Leave `overflow` unset for the general path: a row of names `wrap` → `rotate90`; a run of times, dates, years or ranks `wrap` → `skip` (round values only) → `rotate90`. Set `overflow` only where the guide asks for something else, e.g. `["wrap", "rotate45", "rotate90"]` for 45° labels (steps: `wrap`, `skip`, `rotate45`, `rotate90`). Trimming is an add-on to every step, governed by `truncation` (`"never"` forbids it). Flint weighs each step whole and trimmed, at every size down to `type.minSize`, and takes the cheapest within the path's order. `fit` holds the thresholds: `minChars` (4), `turnedLimit` (px or `"40%"` of plot height), `gap` (em), `rowLimit` (px or % of chart width, for names down y). Names that fit are always flat; a row of names is never thinned |
 | `legend` | Visibility, ordered placement choices, direction, title, swatches (`swatch`: `auto`, `square`, `circle`, `line`), redundancy suppression, and how several keys stand: `arrangement` (`row`/`stack`), `titlePosition` (`above`/`inline`) and `align` (`start`/`center`/`end`/`spread`), preferences the layout keeps unless the keys would overflow |

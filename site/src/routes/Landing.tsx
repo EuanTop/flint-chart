@@ -19,6 +19,7 @@ import { CHART_CATEGORIES } from '../shared/chart-categories';
 import { MOVIE_RATINGS } from './movie-ratings-data';
 import gapminderCsv from '../assets/gapminder-five-year.csv?raw';
 import classicDatasets from '../data/classic-datasets.json';
+import foodPrices from '../data/cpi-food-prices.json';
 import { version as FLINT_VERSION } from '../../../packages/flint-js/package.json';
 import { csvParseRows } from 'd3-dsv';
 import {
@@ -346,17 +347,20 @@ type ShowcaseExampleKey =
   | 'heatmap'
   | 'waterfall'
   | 'sunburst'
-  | 'donut'
+  | 'ridgeline'
   | 'regression'
-  | 'sortedBar'
-  | 'gapminder'
+  | 'linkedBrush'
   | 'penguins'
-  | 'worldCup'
-  | 'selectionChat'
+  | 'inspect'
+  | 'globe'
+  | 'climatePhase'
+  | 'drawIt'
   | 'countryTable'
-  | 'continentTable'
-  | 'movingAverage'
-  | 'climatePhase';
+  | 'originTable'
+  | 'companionTabs'
+  | 'usMap'
+  | 'worldCup'
+  | 'selectionChat';
 
 interface ShowcaseApplication {
   /** The Advanced Interactions case that carries the application's full code, when it has one. */
@@ -369,6 +373,13 @@ interface ShowcaseApplication {
   theme?: string;
   load(): Promise<{ Demo: ComponentType<{ themeId: string | null }>; spec: ChartAssemblyInput }>;
 }
+
+type ShowcaseGroup = 'charts' | 'interactions' | 'applications';
+
+/** Every group is one row of this many equal cells. */
+const SHOWCASE_COLUMNS = 6;
+
+const SHOWCASE_GROUPS: readonly ShowcaseGroup[] = ['charts', 'interactions', 'applications'];
 
 interface ShowcaseExample {
   id: string;
@@ -387,8 +398,8 @@ interface ShowcaseExample {
   interactions?: InteractionSpec['interactions'];
   /** An application built around the chart; the spec pane shows only the chart's spec. */
   application?: ShowcaseApplication;
-  /** Shown with the applications, as an interaction rather than a chart type. */
-  interactionGroup?: boolean;
+  /** The tab row it is listed in. */
+  group: ShowcaseGroup;
   /** Lines for a callout over the chart while the reader has a selection. */
   summarizeSelection?: (rows: readonly Record<string, unknown>[]) => string[];
 }
@@ -404,22 +415,6 @@ const MOVIE_MPAA: Array<[rating: string, films: number]> = [
   ['G', 79],
   ['NC-17', 8],
 ];
-
-/** Pie made into a donut purely by an `innerRadius` chart property. */
-function moviesDonut(): TestCase {
-  const data = MOVIE_MPAA.map(([Rating, Films]) => ({ Rating, Films }));
-  return {
-    title: 'Films by MPAA rating',
-    description: '',
-    tags: [],
-    chartType: 'Pie Chart',
-    data,
-    fields: [makeField('Rating'), makeField('Films')],
-    metadata: buildMetadata(data),
-    encodingMap: { color: makeEncodingItem('Rating'), size: makeEncodingItem('Films') },
-    chartProperties: { innerRadius: 50 },
-  };
-}
 
 /** Scatter + fitted trend line via the `Regression` chart type. */
 function moviesRegression(): TestCase {
@@ -457,52 +452,61 @@ const MOVIE_GENRE: Array<[genre: string, films: number]> = [
   ['Western', 36],
 ];
 
-/** Bars ordered by descending film count via a sort-by-measure (`-y`) override. */
-function moviesSortedBar(): TestCase {
-  const data = MOVIE_GENRE.map(([Genre, Films]) => ({ Genre, Films }));
-  return {
-    title: 'Films by genre (most to fewest)',
-    description: '',
-    tags: [],
-    chartType: 'Bar Chart',
-    data,
-    fields: [makeField('Genre'), makeField('Films')],
-    metadata: buildMetadata(data),
-    encodingMap: {
-      x: makeEncodingItem('Genre', { sortBy: 'y', sortOrder: 'descending' }),
-      y: makeEncodingItem('Films'),
-    },
-  };
-}
-
-/** Every country in Gapminder's 2007 snapshot, as a Rosling bubble chart. */
-function gapminder2007(): TestCase {
+/** The same countries in 1952 and 2007, side by side, so a brush in one year finds them in the other. */
+function gapminderLinkedYears(): TestCase {
   const data = csvParseRows(gapminderCsv).slice(1)
-    .filter(([, year]) => year === '2007')
-    .map(([Country, , pop, Continent, life, gdp]) => ({
+    .filter(([, year]) => year === '1952' || year === '2007')
+    .map(([Country, year, , Continent, life, gdp]) => ({
       Country,
       Continent,
+      Year: Number(year),
       'GDP per capita': Math.round(Number(gdp)),
       'Life expectancy': Number(life),
-      'Population (M)': Math.round(Number(pop) / 1e5) / 10,
     }));
   const metadata = buildMetadata(data);
   metadata.Country.semanticType = 'Country';
+  metadata.Year.semanticType = 'Year';
   return {
-    title: 'Gapminder 2007',
+    title: 'Gapminder 1952 and 2007',
     description: '',
     tags: [],
     chartType: 'Scatter Plot',
     data,
-    fields: ['Country', 'Continent', 'GDP per capita', 'Life expectancy', 'Population (M)'].map((name) => makeField(name)),
+    fields: ['Country', 'Continent', 'Year', 'GDP per capita', 'Life expectancy'].map((name) => makeField(name)),
     metadata,
     encodingMap: {
       x: makeEncodingItem('GDP per capita'),
       y: makeEncodingItem('Life expectancy'),
-      size: makeEncodingItem('Population (M)'),
       color: makeEncodingItem('Continent'),
+      detail: makeEncodingItem('Country'),
+      column: makeEncodingItem('Year'),
     },
-    chartProperties: { logScale_x: true },
+    chartProperties: { facetColumns: 2, logScale_x: true },
+  };
+}
+
+/** BLS average U.S. prices of a dozen eggs and a pound of white bread. */
+function eggAndBreadPrices(): TestCase {
+  const data = foodPrices.values
+    .filter(({ item }) => item === 'Eggs' || item === 'White bread')
+    .map(({ month, item, price }) => ({ Month: month, Food: item, Price: price }));
+  const metadata = buildMetadata(data);
+  metadata.Month.semanticType = 'Date';
+  metadata.Food.semanticType = 'Category';
+  metadata.Price.semanticType = 'Currency';
+  return {
+    title: 'Egg and bread prices',
+    description: '',
+    tags: [],
+    chartType: 'Line Chart',
+    data,
+    fields: ['Month', 'Food', 'Price'].map((name) => makeField(name)),
+    metadata,
+    encodingMap: {
+      x: makeEncodingItem('Month'),
+      y: makeEncodingItem('Price'),
+      color: makeEncodingItem('Food'),
+    },
   };
 }
 
@@ -564,6 +568,7 @@ const SHOWCASE_EXAMPLES: ShowcaseExample[] = [
   {
     id: 'waterfall',
     exampleKey: 'waterfall',
+    group: 'charts',
     generator: 'Omni: Waterfall',
     index: 0,
     interactions: [{ type: 'click-highlight' }],
@@ -571,6 +576,7 @@ const SHOWCASE_EXAMPLES: ShowcaseExample[] = [
   {
     id: 'line',
     exampleKey: 'facetedLine',
+    group: 'charts',
     generator: 'Omni: Line',
     index: 0,
     // Four regions, so two columns is a 2x2 block. Four columns would be a
@@ -581,14 +587,9 @@ const SHOWCASE_EXAMPLES: ShowcaseExample[] = [
     interactions: [{ type: 'hover-group-focus', options: { groupBy: 'gameType' } }, { type: 'legend-toggle' }],
   },
   {
-    id: 'gapminder',
-    exampleKey: 'gapminder',
-    testCase: gapminder2007(),
-    interactions: [{ type: 'click-highlight' }, { type: 'brush-zoom' }],
-  },
-  {
     id: 'heatmap',
     exampleKey: 'heatmap',
+    group: 'charts',
     generator: 'Heatmap',
     testTitle: 'Average monthly temperature by city',
     interactions: [{ type: 'hover-group-focus', options: { groupBy: 'City' } }],
@@ -596,100 +597,62 @@ const SHOWCASE_EXAMPLES: ShowcaseExample[] = [
   {
     id: 'sunburst',
     exampleKey: 'sunburst',
+    group: 'charts',
     generator: 'Omni: Sunburst',
     index: 0,
   },
   {
-    id: 'donut',
-    exampleKey: 'donut',
-    testCase: moviesDonut(),
-    interactions: [{ type: 'click-highlight', options: { targets: ['mark', 'legend'] } }],
+    id: 'ridgeline',
+    exampleKey: 'ridgeline',
+    group: 'charts',
+    generator: 'Ridgeline Plot',
+    testTitle: 'Monthly Temperatures (12 ridges)',
   },
   {
     id: 'regression',
     exampleKey: 'regression',
+    group: 'charts',
     testCase: moviesRegression(),
   },
   {
-    id: 'sorted-bar',
-    exampleKey: 'sortedBar',
-    testCase: moviesSortedBar(),
-    interactions: [{ type: 'click-highlight', options: { targets: ['mark', 'discreteAxis'] } }],
-  },
-  {
-    id: 'country-table',
-    exampleKey: 'countryTable',
-    application: {
-      width: 560,
-      theme: 'powerbi-light',
-      load: () => withApplicationStyles(Promise.all([
-        import('../playground/ExternalToChartLab'),
-        import('../playground/interaction-demo-data'),
-      ]).then(([lab, data]) => ({ Demo: lab.CountryTableStage, spec: data.countriesFixture.input }))),
-    },
-  },
-  {
-    id: 'continent-table',
-    exampleKey: 'continentTable',
-    application: {
-      width: 560,
-      theme: 'powerbi-light',
-      load: () => withApplicationStyles(Promise.all([
-        import('../playground/ExternalToChartLab'),
-        import('../playground/interaction-demo-data'),
-      ]).then(([lab, data]) => ({ Demo: lab.ContinentTableStage, spec: data.countriesFixture.input }))),
-    },
+    id: 'linked-brush',
+    exampleKey: 'linkedBrush',
+    group: 'interactions',
+    testCase: gapminderLinkedYears(),
+    canvasSize: { width: 620, height: 360 },
+    interactions: [{ type: 'linked-brush', options: { groupBy: 'Country', mode: 'stateful' } }],
   },
   {
     id: 'penguins',
     exampleKey: 'penguins',
+    group: 'interactions',
     testCase: palmerPenguins(),
     interactions: [{ type: 'lasso-select' }, { type: 'legend-toggle' }],
-    interactionGroup: true,
     summarizeSelection: penguinSelectionSummary,
   },
   {
-    id: 'world-cup',
-    exampleKey: 'worldCup',
-    application: {
-      caseId: 'click-a-team',
-      theme: 'nyt',
-      width: 760,
-      load: () => withApplicationStyles(import('../playground/WorldCupScorersDemo')
-        .then((module) => ({ Demo: module.WorldCupScorersDemo, spec: module.TEAMS_SPEC }))),
-    },
+    id: 'inspect',
+    exampleKey: 'inspect',
+    group: 'interactions',
+    testCase: eggAndBreadPrices(),
+    canvasSize: { width: 600, height: 380 },
+    interactions: [{ type: 'inspect-index', options: { axis: 'x', show: 'all', displayValue: true, seriesBy: 'Food' } }],
   },
   {
-    id: 'selection-chat',
-    exampleKey: 'selectionChat',
+    id: 'globe',
+    exampleKey: 'globe',
+    group: 'interactions',
     application: {
-      caseId: 'brush-for-the-agent',
-      theme: 'economist',
-      width: 600,
-      maxScale: 1,
-      load: () => withApplicationStyles(Promise.all([
-        import('../playground/InteractiveDataReportLab'),
-        import('../playground/interactive-data-report-content'),
-      ]).then(([lab, content]) => ({
-        Demo: ({ themeId }) => <div className="it-page idr-page app-demo-embed"><lab.SelectionChatDemo spec={content.SELECTION_CHAT} editable={false} themeId={themeId} /></div>,
-        spec: content.SELECTION_CHAT.fixture.input,
-      }))),
-    },
-  },
-  {
-    id: 'moving-average',
-    exampleKey: 'movingAverage',
-    application: {
-      caseId: 'moving-average',
-      theme: 'swiss',
-      width: 640,
-      load: () => withApplicationStyles(import('../playground/MovingAverageStage')
-        .then((module) => ({ Demo: module.MovingAverageStage, spec: module.SPEC }))),
+      caseId: 'turn-the-globe',
+      width: 560,
+      load: () => withApplicationStyles(import('../playground/GlobeWarmingStage')
+        .then((module) => ({ Demo: () => <module.GlobeWarmingStage layout="stacked" />, spec: module.GLOBE_INPUT }))),
     },
   },
   {
     id: 'climate-phase',
     exampleKey: 'climatePhase',
+    group: 'interactions',
     application: {
       caseId: 'climate-phase-portrait',
       theme: 'datawrapper',
@@ -702,6 +665,98 @@ const SHOWCASE_EXAMPLES: ShowcaseExample[] = [
           },
           spec: module.READOUT_CHART_INPUT,
         }))),
+    },
+  },
+  {
+    id: 'draw-it',
+    exampleKey: 'drawIt',
+    group: 'interactions',
+    application: {
+      caseId: 'you-draw-it',
+      theme: 'datawrapper',
+      width: 680,
+      load: () => withApplicationStyles(import('../playground/YouDrawItStage')
+        .then((module) => ({ Demo: () => <module.YouDrawItStage />, spec: module.DRAW_IT_INPUT }))),
+    },
+  },
+  {
+    id: 'country-table',
+    exampleKey: 'countryTable',
+    group: 'applications',
+    application: {
+      width: 560,
+      theme: 'powerbi-light',
+      load: () => withApplicationStyles(Promise.all([
+        import('../playground/ExternalToChartLab'),
+        import('../playground/interaction-demo-data'),
+      ]).then(([lab, data]) => ({ Demo: lab.CountryTableStage, spec: data.countriesFixture.input }))),
+    },
+  },
+  {
+    id: 'origin-table',
+    exampleKey: 'originTable',
+    group: 'applications',
+    application: {
+      caseId: 'cars-by-origin',
+      width: 560,
+      theme: 'powerbi-light',
+      load: () => withApplicationStyles(import('../playground/ExternalToChartLab')
+        .then((lab) => ({ Demo: lab.CarOriginTableStage, spec: lab.CARS_INPUT }))),
+    },
+  },
+  {
+    id: 'companion-tabs',
+    exampleKey: 'companionTabs',
+    group: 'applications',
+    application: {
+      caseId: 'company-we-keep',
+      width: 560,
+      theme: 'powerbi-light',
+      load: () => withApplicationStyles(import('../playground/ExternalToChartLab')
+        .then((lab) => ({ Demo: lab.CompanionTabsStage, spec: lab.COMPANIONS_INPUT }))),
+    },
+  },
+  {
+    id: 'us-map',
+    exampleKey: 'usMap',
+    group: 'applications',
+    application: {
+      caseId: 'zoom-into-counties',
+      width: 560,
+      load: () => withApplicationStyles(Promise.all([
+        import('../playground/release-examples/application-demos-election-profile'),
+        import('../playground/election-semantic-zoom-input'),
+      ]).then(([demo, input]) => ({ Demo: () => <demo.ElectionProfileDemo stacked />, spec: input.ELECTION_DATASET.input() }))),
+    },
+  },
+  {
+    id: 'world-cup',
+    exampleKey: 'worldCup',
+    group: 'applications',
+    application: {
+      caseId: 'click-a-team',
+      theme: 'nyt',
+      width: 760,
+      load: () => withApplicationStyles(import('../playground/WorldCupScorersDemo')
+        .then((module) => ({ Demo: module.WorldCupScorersDemo, spec: module.TEAMS_SPEC }))),
+    },
+  },
+  {
+    id: 'selection-chat',
+    exampleKey: 'selectionChat',
+    group: 'applications',
+    application: {
+      caseId: 'brush-for-the-agent',
+      theme: 'economist',
+      width: 600,
+      maxScale: 1,
+      load: () => withApplicationStyles(Promise.all([
+        import('../playground/InteractiveDataReportLab'),
+        import('../playground/interactive-data-report-content'),
+      ]).then(([lab, content]) => ({
+        Demo: ({ themeId }) => <div className="it-page idr-page app-demo-embed"><lab.SelectionChatDemo spec={content.SELECTION_CHAT} editable={false} themeId={themeId} /></div>,
+        spec: content.SELECTION_CHAT.fixture.input,
+      }))),
     },
   },
 ];
@@ -881,27 +936,29 @@ function HeroShowcase() {
   return (
     <section style={heroShowcaseSectionStyle}>
       <div className="landing-example-tabs" style={exampleTabsStyle} role="tablist" aria-label={t('landing.exampleAria')}>
-        {SHOWCASE_EXAMPLES.map((ex, i) => {
-          // The interactions follow the single charts, set off by a rule.
-          const inGroup = (entry?: ShowcaseExample) => Boolean(entry?.application || entry?.interactionGroup);
-          const firstApplication = inGroup(ex) && !inGroup(SHOWCASE_EXAMPLES[i - 1]);
-          return (
-            <Fragment key={ex.id}>
-              {firstApplication && <span aria-hidden="true" style={exampleTabRuleStyle} />}
-              <button
-                type="button"
-                role="tab"
-                className="landing-example-tab"
-                aria-selected={i === exampleIdx}
-                onClick={() => setExampleIdx(i)}
-                style={exampleTabStyle(i === exampleIdx)}
-              >
-                {firstApplication && <span aria-hidden="true" style={{ ...attentionStarStyle, marginRight: 5 }}>★</span>}
-                {t(`landing.examples.${ex.exampleKey}.label`)}
-              </button>
-            </Fragment>
-          );
-        })}
+        {SHOWCASE_GROUPS.map((group, row) => (
+          <Fragment key={group}>
+            <span className="landing-example-group-label" style={exampleGroupLabelStyle}>
+              {group === 'interactions' && <span aria-hidden="true" style={{ ...attentionStarStyle, marginRight: 4 }}>★</span>}
+              {t(`landing.exampleGroups.${group}`)}
+            </span>
+            <div className="landing-example-row" style={exampleRowStyle(row === 0, row === SHOWCASE_GROUPS.length - 1)}>
+              {SHOWCASE_EXAMPLES.map((ex, i) => ex.group !== group ? null : (
+                <button
+                  key={ex.id}
+                  type="button"
+                  role="tab"
+                  className="landing-example-tab"
+                  aria-selected={i === exampleIdx}
+                  onClick={() => setExampleIdx(i)}
+                  style={exampleTabStyle(i === exampleIdx)}
+                >
+                  {t(`landing.examples.${ex.exampleKey}.label`)}
+                </button>
+              ))}
+            </div>
+          </Fragment>
+        ))}
       </div>
       <div className="landing-showcase-row" style={carouselRowStyle}>
         <button
@@ -1889,6 +1946,7 @@ const landingInteractiveStyles = `
 
   .landing-example-tab:hover {
     color: ${siteTheme.text} !important;
+    background: #f6f8fa !important;
   }
 
   .landing-example-tab:focus-visible {
@@ -1916,28 +1974,82 @@ const landingInteractiveStyles = `
   }
 
   /* The pane is taller than wide: the chart leads and the table runs beneath it. */
-  .landing-application :is([data-app='countryTable'], [data-app='continentTable']) .it-workspace-external {
+  .landing-application :is([data-app='countryTable'], [data-app='originTable'], [data-app='companionTabs']) .it-workspace-external {
     grid-template-columns: minmax(0, 1fr);
     min-height: 0;
   }
 
-  .landing-application :is([data-app='countryTable'], [data-app='continentTable']) .it-chart-panel {
+  .landing-application :is([data-app='countryTable'], [data-app='originTable'], [data-app='companionTabs']) .it-chart-panel {
     order: -1;
     padding: 0 0 10px;
     border-left: 0;
   }
 
-  .landing-application :is([data-app='countryTable'], [data-app='continentTable']) .it-control-panel {
+  .landing-application :is([data-app='countryTable'], [data-app='originTable'], [data-app='companionTabs']) .it-control-panel {
     padding: 14px 0 0;
     border-top: 1px solid #e9edef;
   }
 
-  .landing-application :is([data-app='countryTable'], [data-app='continentTable']) .it-control-content {
+  .landing-application :is([data-app='countryTable'], [data-app='originTable'], [data-app='companionTabs']) .it-control-content {
     margin-top: 8px;
   }
 
   .landing-application [data-app='countryTable'] .it-country-table-scroll {
     max-height: 112px;
+  }
+
+  /* The tabs sit on their own surface, as segmented buttons, so they read as the control for the chart. */
+  .landing-application [data-app='companionTabs'] .it-control-panel {
+    margin-top: 4px;
+    padding: 12px 14px 14px;
+    border: 1px solid #e4e8eb;
+    border-radius: 8px;
+    background: #f6f8fa;
+  }
+
+  .landing-application [data-app='companionTabs'] .it-control-content {
+    margin-top: 10px;
+  }
+
+  .landing-application [data-app='companionTabs'] .it-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid #dfe4e8;
+    border-radius: 7px;
+    background: #fff;
+  }
+
+  .landing-application [data-app='companionTabs'] .it-tab {
+    flex: 1 1 auto;
+    border: 0;
+    border-radius: 5px;
+    padding: 5px 10px;
+  }
+
+  .landing-application [data-app='companionTabs'] .it-tab:hover {
+    color: #1f2328;
+    background: #eef1f3;
+  }
+
+  .landing-application [data-app='companionTabs'] .it-tab.active {
+    color: #fff;
+    background: var(--it-accent);
+  }
+
+  .landing-application [data-app='companionTabs'] .it-tab:focus-visible {
+    outline: 2px solid var(--it-accent);
+    outline-offset: 1px;
+  }
+
+  .landing-application [data-app='companionTabs'] .it-tab-copy {
+    padding: 12px 2px 0;
+  }
+
+  /* Two lines held open, so switching tabs never moves the pane. */
+  .landing-application [data-app='companionTabs'] .it-tab-copy p {
+    max-width: none;
+    min-height: calc(2 * 1.65em);
   }
 
   /* The climate readout runs as one row under the chart rather than a column beside it. */
@@ -2123,6 +2235,21 @@ const landingInteractiveStyles = `
 
     .landing-example-tabs {
       margin: 0 0 12px !important;
+    }
+
+    .landing-example-tabs {
+      grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    .landing-example-group-label {
+      justify-content: flex-start !important;
+      padding: 10px 0 4px !important;
+    }
+
+    .landing-example-row {
+      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+      border-top-width: 1px !important;
+      border-radius: 8px !important;
     }
 
     .landing-canvas-options {
@@ -2409,36 +2536,54 @@ const pagerArrowStyle: CSSProperties = {
   fontFamily: 'inherit',
 };
 
-// Aligned with the card: the pager arrows and their gap sit either side of it.
+// Group names stand in a right-aligned margin; the rows beside them stack into one table.
 const exampleTabsStyle: CSSProperties = {
-  display: 'flex',
-  flexWrap: 'wrap',
-  alignItems: 'center',
-  gap: '0 2px',
-  margin: '0 48px 14px',
-  borderBottom: `1px solid ${HAIRLINE}`,
+  display: 'grid',
+  gridTemplateColumns: 'auto minmax(0, 1fr)',
+  margin: '0 0 14px',
 };
 
-const exampleTabRuleStyle: CSSProperties = {
-  alignSelf: 'center',
-  width: 1,
-  height: 14,
-  margin: '0 6px',
-  background: HAIRLINE,
+// One row per group, every cell the same width; the rows share their rules.
+function exampleRowStyle(first: boolean, last: boolean): CSSProperties {
+  return {
+    display: 'grid',
+    gridTemplateColumns: `repeat(${SHOWCASE_COLUMNS}, minmax(0, 1fr))`,
+    gap: 1,
+    border: `1px solid ${HAIRLINE}`,
+    borderTopWidth: first ? 1 : 0,
+    borderRadius: `${first ? 8 : 0}px ${first ? 8 : 0}px ${last ? 8 : 0}px ${last ? 8 : 0}px`,
+    overflow: 'hidden',
+    background: HAIRLINE,
+  };
+}
+
+const exampleGroupLabelStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'flex-end',
+  padding: '0 12px 0 0',
+  color: siteTheme.textMuted,
+  fontSize: 10,
+  fontWeight: 600,
+  letterSpacing: '0.05em',
+  textTransform: 'uppercase',
+  whiteSpace: 'nowrap',
 };
 
 function exampleTabStyle(active: boolean): CSSProperties {
   return {
-    minHeight: 30,
-    padding: '6px 7px',
-    marginBottom: -1,
+    minWidth: 0,
+    padding: '7px 10px',
     border: 0,
-    borderBottom: `2px solid ${active ? siteTheme.accent : 'transparent'}`,
-    background: 'transparent',
+    boxShadow: active ? `inset 0 -2px 0 ${siteTheme.accent}` : 'none',
+    background: PAPER,
     color: active ? siteTheme.text : siteTheme.textMuted,
     fontFamily: 'inherit',
     fontSize: 12.5,
     fontWeight: active ? 600 : 500,
+    textAlign: 'left',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
     cursor: 'pointer',
   };

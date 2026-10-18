@@ -144,8 +144,24 @@ describe('Pop axis label clearance', () => {
             const axis = pop.config[channel];
             expect(axis.domainWidth).toBe(4.5);
             expect(axis.labelPadding + Math.max(0, axis.tickSize + (axis.tickOffset ?? 0))).toBe(7);
-            expect(swiss.config[channel].labelPadding).toBe(channel === 'axisX' ? 2 : 0);
+            // Swiss sets its labels flush: 2px past the plot, or past the tick on its ticked measure axis.
+            expect(swiss.config[channel].labelPadding).toBe(2);
         }
+    });
+});
+
+describe('a ticked log axis', () => {
+    it('ticks only the values it can label, at the plot\u2019s own width', () => {
+        const values = [2000, 3500, 5200, 9000, 14000, 21000, 38000, 60000, 95000].map((GDP, i) => ({ GDP, Life: 55 + i * 3 }));
+        const spec: any = assembleVegaLite({
+            data: { values },
+            semantic_types: { GDP: 'Quantity', Life: 'Quantity' },
+            chart_spec: { chartType: 'Scatter Plot', encodings: { x: 'GDP', y: 'Life' }, chartProperties: { logScale_x: true }, baseSize: { width: 280, height: 220 } },
+            theme_spec: 'swiss',
+        } as any);
+        expect(spec.config.axisX.grid).toBe(false);
+        // Five ticks in each decade would crowd out their labels at this width; the decades stand.
+        expect((spec.encoding ?? spec.layer[0].encoding).x.axis.values).toEqual([1000, 10000, 100000]);
     });
 });
 

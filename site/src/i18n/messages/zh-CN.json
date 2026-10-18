@@ -44,16 +44,14 @@
     "about": {
       "google-material": "简洁的产品界面风格：以紫色为主的 Material 配色、浅色网格线、宽松的字体和柔和的圆角图形。",
       "microsoft-fluent": "Fluent 的沉稳企业风格：以蓝色为主的配色、Segoe 字体、安静的坐标轴和紧凑的图例，适合仪表板。",
-      "peoples-daily": "报纸编辑风格：红色报头线、衬线标题、克制的用色以及底部的数据来源。",
-      "mondrian": "蒙德里安的新造型主义：红、黄、蓝色块由粗黑线分隔，铺在米白底上；只用水平线和垂直线（连折线也走阶梯），配以方正的风格派字体。"
+      "peoples-daily": "报纸编辑风格：红色报头线、衬线标题、克制的用色以及底部的数据来源。"
     },
     "customDraft": "你的草稿",
     "playTitle": "试一试",
     "demos": {
       "google-material": "Google Material",
       "microsoft-fluent": "Microsoft Fluent",
-      "peoples-daily": "人民日报",
-      "mondrian": "蒙德里安"
+      "peoples-daily": "人民日报"
     },
     "editorAria": "自定义主题编辑器",
     "formatJson": "格式化 JSON",
@@ -285,7 +283,9 @@
       "swiss": "国际主义平面设计风格：清晰网格、强烈的黑色结构与单一红色强调色。",
       "pop": "波普艺术版 Swiss：高饱和印刷色、粗重黑色结构与醒目的展示字体。",
       "cartoon": "活泼的漫画风格：暖色纸张、圆润字体、粗描边、明亮配色与柔和虚线网格。",
-      "apple": "以数据为主的安静界面图表：浅色标签、稀疏网格、尾侧数值轴、每种颜色配一个符号、圆角柱形。"
+      "apple": "以数据为主的安静界面图表：浅色标签、稀疏网格、尾侧数值轴、每种颜色配一个符号、圆角柱形。",
+      "de-stijl": "风格派（新造型主义）：灰白底上由粗黑线分隔的红、黄、蓝色块，只有水平与垂直，标题像展签一样置于画面下方。",
+      "bbc": "BBC 新闻图表：醒目的粗体大标题，只有浅色水平网格线、没有坐标轴线，零线加粗，每张图以底部分隔线收尾。"
     },
     "cases": {
       "keeling": {
@@ -479,14 +479,35 @@
       }
     },
     "examples": {
+      "originTable": { "label": "按产地看汽车" },
+      "companionTabs": { "label": "与谁共度时光" },
+      "countryTable": { "label": "表格联动图表" },
+      "ridgeline": {
+        "label": "山脊图",
+        "title": "每个月的气温如何分布",
+        "subtitle": "每日读数，每月一条山脊"
+      },
+      "linkedBrush": {
+        "label": "联动刷选",
+        "title": "55 年间各国走向何方",
+        "subtitle": "预期寿命与人均 GDP，1952 年与 2007 年；在任一年份中刷选"
+      },
+      "inspect": {
+        "label": "读数",
+        "title": "鸡蛋大起大落，面包缓慢上涨",
+        "subtitle": "美国平均价格（美元），一打鸡蛋与一磅白面包（BLS）"
+      },
+      "drawIt": {
+        "label": "你来画"
+      },
       "facetedLine": {
-        "label": "分地区折线图",
+        "label": "分面折线",
         "caption": "按地区拆分成多个小图，展示月活用户随时间的变化。",
         "title": "各地区月活跃用户",
         "subtitle": "2025 年逐月活跃玩家数，每个地区一幅小图，按平台着色"
       },
       "heatmap": {
-        "label": "温度热力图",
+        "label": "热力图",
         "caption": "以紧凑数值表格展示四座城市的逐月气候常值。",
         "title": "四座城市的季节差异",
         "subtitle": "月平均气温（°C）；气候常值"
@@ -503,46 +524,28 @@
         "title": "玩家分布在哪里",
         "subtitle": "月活跃用户按地区、平台、游戏逐层拆分"
       },
-      "donut": {
-        "label": "环图",
-        "caption": "以比例扇区展示影片分级，并从图表规范应用内半径。",
-        "title": "按 MPAA 分级划分的影片",
-        "subtitle": "各分级影片数量占比"
-      },
       "regression": {
-        "label": "回归散点图",
+        "label": "回归散点",
         "caption": "评论与观众评分，并拟合趋势线以揭示关系。",
         "title": "影评人与观众的评价大体一致",
         "subtitle": "IMDB 评分对烂番茄评分，每部影片一个点，并拟合趋势线"
       },
-      "sortedBar": {
-        "label": "排序柱状图",
-        "caption": "按数量从多到少排列影片类型。",
-        "title": "按类型划分的影片",
-        "subtitle": "影片数量，从多到少"
-      },
-      "gapminder": {
-        "label": "气泡散点图",
-        "caption": "收入与预期寿命；点击国家可高亮，拖动可缩放。",
-        "title": "越富裕的国家寿命越长",
-        "subtitle": "2007 年 142 个国家的预期寿命与人均 GDP；气泡大小表示人口"
-      },
       "penguins": {
-        "label": "套索选择",
+        "label": "套索",
         "caption": "三种企鹅；可套索圈选一簇，或在图例中切换物种。",
         "title": "三个物种，三个聚类",
         "subtitle": "体重与鳍肢长度，Palmer 站 342 只企鹅"
       },
       "worldCup": { "label": "点击球队" },
       "selectionChat": { "label": "刷选交给智能体" },
-      "countryTable": { "label": "表格联动图表" },
-      "continentTable": { "label": "大洲表格" },
-      "movingAverage": { "label": "移动均值" },
+      "globe": { "label": "转动地球" },
+      "usMap": { "label": "地图与概况" },
       "climatePhase": {
-        "label": "气候相位图",
+        "label": "气候相位",
         "hint": "点击并沿轨迹拖动一个点，查看其他城市如何随之变化。"
       }
-    }
+    },
+    "exampleGroups": { "charts": "图表", "interactions": "交互", "applications": "应用" }
   },
   "mcp": {
     "heroTitle": "让智能体通过 Flint MCP 创建图表与主题",

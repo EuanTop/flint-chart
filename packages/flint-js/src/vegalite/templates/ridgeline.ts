@@ -28,8 +28,10 @@ import { rangeAreaChartDef, interpolateConfigProperty } from './range-area';
  * top to bottom, so a lower ridge paints over the one above it.
  *
  * Options: `order` sorts the ridges by their mean, or reverses them; `tailCut` trims a ridge to
- * where its density is at least that share of its peak; `colorBy: 'x'` fills each ridge with a
- * ramp along x; `skew` shifts the ridges behind the front one leftwards for a perspective look,
+ * where its density is at least that share of its peak. Named ridges carry their names beside
+ * them, so by default they share the house's single ink; `colorBy: 'series'` gives each its own
+ * colour, and `colorBy: 'x'` fills each ridge with a ramp along x; `skew` shifts the ridges
+ * behind the front one leftwards for a perspective look,
  * where the x axis reads true for the front ridge only. `perspective: true` plans the skew, tilt
  * and overlap it is not given from the ridge count, so the depth keeps its share of the plot. In
  * perspective a value axis stands at the back-left corner, to `valueMax` where set, and the depth
@@ -456,6 +458,8 @@ export const ridgelinePlotDef: ChartTemplateDef = {
         const marked = marksValues(ctx.chartProperties, x?.type, skew);
         // A quantitative colour keeps its scale, and its gradient is the chart's one key.
         const graded = series?.field && series.type === 'quantitative' && ctx.chartProperties?.colorBy !== 'x';
+        // Named ridges carry their names beside them, so colour does not name them again unless asked.
+        const oneInk = Boolean(series?.field) && discrete(series) && ctx.chartProperties?.colorBy !== 'series';
         const structure: ChartStructure = {
             marks: [...(skewed ? ['rule', 'area', 'text'] : ['area']), ...(marked ? ['rule', 'point', 'text'] : []), ...(graded ? ['point'] : [])],
             ...(x?.field
@@ -464,15 +468,14 @@ export const ridgelinePlotDef: ChartTemplateDef = {
                     : { type: x.type ?? 'quantitative', fields: [x.field], baseline: 'data' } }
                 : {}),
             y: { type: 'quantitative', fields: [], derived: 'ridge', baseline: 'zero', ownScale: true },
-            ...(series?.field ? { series: { field: series.field, type: series.type } } : {}),
+            ...(series?.field ? { series: { field: series.field, type: series.type, ...(oneInk ? { oneInk } : {}) } } : {}),
             stacking: 'none',
             keys: graded ? [{ channel: 'color', field: series.field!, type: 'quantitative' }] : [],
-            // The names on the left stand for the series field; the skewed x is a working axis the
-            // template titles with the field's name itself, and a tilted one it titles along its
-            // own edge, leaving the axis untitled.
+            // The names on the left stand for the series field. In perspective the chart draws its own
+            // frame: x is titled along the floor's front edge, and neither flat axis is drawn.
             axisTitles: {
                 y: skewed ? null : seriesTitle,
-                ...(skewed && x?.field ? { x: tilt > 0 ? null : ctx.displayNames?.[x.field] ?? x.field } : {}),
+                ...(skewed && x?.field ? { x: null } : {}),
             },
         };
         return structure;
@@ -520,7 +523,7 @@ export const ridgelinePlotDef: ChartTemplateDef = {
             paramOverrides: { continuousMarkCrossSection: { x: 100, y: perRidge, seriesCountAxis: 'auto' }, facetAspectRatioResistance: 0.5 },
         };
     },
-    // In perspective the names, the value axis and the rising edge's labels stand outside the plot,
+    // In perspective the names, the value axis and the front edge's labels stand outside the plot,
     // and a marked value's label may stand over the back ridge's top.
     planOverhang: (ctx, plot) => {
         const inputs = ridgeInputs(ctx.channelSemantics, ctx.chartProperties, ctx.table);
@@ -541,7 +544,7 @@ export const ridgelinePlotDef: ChartTemplateDef = {
             left: Math.ceil(Math.max(names, values)),
             right: 0,
             top,
-            bottom: inputs.tilt > 0 ? 24 + LINE_HEIGHT : 0,
+            bottom: 24 + LINE_HEIGHT,
         };
     },
     instantiate: (spec, ctx) => {
@@ -578,7 +581,6 @@ export const ridgelinePlotDef: ChartTemplateDef = {
                     // other value while there are more than a house's tickCount.
                     tickCount: ridges.length,
                     labelOverlap: false,
-                    ...(perspective ? { grid: false, title: null, labels: false } : {}),
                 },
             },
             y2: { field: RIDGE_BASE },
@@ -589,11 +591,16 @@ export const ridgelinePlotDef: ChartTemplateDef = {
             const type = source.type ?? 'nominal';
             // A quantitative colour reads off its gradient; categories read off the names by each ridge.
             graded = type === 'quantitative' && ctx.chartProperties?.colorBy !== 'x';
-            encoding.color = { ...source, field: seriesField, type, legend: null };
-            if (!graded && !('sort' in encoding.color)) encoding.color.sort = null;
-            delete encoding.color.axis;
+            if (discrete({ type }) && ctx.chartProperties?.colorBy !== 'series') {
+                // The names stand by each ridge, so the ridges share one ink: the series only keeps
+                // each ridge its own area.
+                encoding.detail = { field: seriesField, type };
+            } else {
+                encoding.color = { ...source, field: seriesField, type, legend: null };
+                if (!graded && !('sort' in encoding.color)) encoding.color.sort = null;
+                delete encoding.color.axis;
+            }
         }
-        if (perspective) encoding.x.axis = { ...(encoding.x.axis ?? {}), grid: false };
         // The x ticks `markAt: true` marks at: the perspective's edge ticks, set below, or on a
         // flat x the round values whose labels fit, which the axis then shows.
         let markTicks: number[] = [];
@@ -716,10 +723,9 @@ export const ridgelinePlotDef: ChartTemplateDef = {
                 layers.push(labelLayer([{ label: valueTitle, [RIDGE_X]: cornerX, [RIDGE_BASE]: depth + height / 2 }],
                     { angle: 270, align: 'center', baseline: 'bottom', fontWeight: 'bold', dy: -(16 + widest) }));
             }
-            if (tilt > 0) {
-                // The tick labels and the title follow the rising front edge; the axis itself is withheld.
+            {
+                // The tick labels and the title follow the front edge, rising where it is tilted.
                 const title = encoding.x.title;
-                encoding.x.axis = { ...encoding.x.axis, labels: false, title: null };
                 const mid = (lo + hi) / 2;
                 const along = { angle: degrees(axisAngle), align: 'center', baseline: 'top' };
                 layers.push(labelLayer(ticks.map((tick) => ({ label: String(tick), [RIDGE_X]: tick, [RIDGE_BASE]: rise(tick) })), { ...along, ...offFrom(6) }));
@@ -736,7 +742,6 @@ export const ridgelinePlotDef: ChartTemplateDef = {
                     strokeOpacity: { condition: { test: 'datum.__edge', value: 0.9 }, value: 0.35 },
                 },
             });
-            encoding.x.axis = { ...encoding.x.axis, values: ticks, domain: false, ticks: false };
         }
         if (graded && seriesField) {
             // The gradient key. A ridge's colour paints both its fill and its top line, and Vega
@@ -796,6 +801,16 @@ export const ridgelinePlotDef: ChartTemplateDef = {
                 ...[false, true].map(label).filter((layer) => layer.data.values.length),
             );
         }
+        if (perspective) {
+            // The floor, its edges and their labels are the chart's whole frame. The flat axes would
+            // read against nothing in it, and a house that rules its axes would draw them anyway:
+            // `grid`, `domain` and `ticks` are the house's to set, but an axis that is absent stays so.
+            for (const layer of layers) {
+                for (const channel of ['x', 'y'] as const) {
+                    if (layer.encoding?.[channel]) layer.encoding[channel] = { ...layer.encoding[channel], axis: null };
+                }
+            }
+        }
         if (layers.length === 1) {
             spec.mark = layers[0].mark;
             spec.encoding = layers[0].encoding;
@@ -818,7 +833,8 @@ export const ridgelinePlotDef: ChartTemplateDef = {
         ] },
         { key: 'tailCut', label: 'Trim tails', type: 'continuous', min: 0, max: 0.2, step: 0.01, defaultValue: 0 },
         { key: 'colorBy', label: 'Fill', type: 'discrete', options: [
-            { value: undefined, label: 'By series' },
+            { value: undefined, label: 'One colour' },
+            { value: 'series', label: 'By series' },
             { value: 'x', label: 'By x value' },
         ] },
         { key: 'perspective', label: 'Perspective', type: 'binary', defaultValue: false },
@@ -837,7 +853,9 @@ export const ridgelinePlotDef: ChartTemplateDef = {
         {
             key: 'colorScheme',
             label: 'Scheme',
-            isApplicable: (ctx) => !!ctx.encodings.color?.field,
+            // Only where the series is coloured: by default named ridges share one ink.
+            isApplicable: (ctx) => !!ctx.encodings.color?.field
+                && (ctx.chartProperties?.colorBy === 'series' || (ctx.channelSemantics?.color != null && !discrete(ctx.channelSemantics.color))),
             dependencies: ['color'],
             control: {
                 type: 'discrete', options: [

@@ -35,52 +35,23 @@ const t: HouseTokens = {
   legendOrient: 'top-left',
 };
 
+// The shipped `bbc` preset, at bbplot's own page size and type (640 × 450, 28/22/18px), with the
+// block logo the gallery has on hand.
 const theme: ThemeSpec = {
+  extends: 'bbc',
   id: 'bbc',
   label: 'BBC News (bbplot)',
-  ink: {
-    surface: { source: 'house', canvas: '#ffffff' },
-    text: { primary: INK, secondary: INK, muted: NOTE, inverse: '#ffffff' },
-    structure: { grid: GRID, axis: BASE, zero: BASE, rule: BASE, connector: '#dddddd' },
-    series: {
-      single: BLUE,
-      categorical: [BLUE, AMBER, '#990000', '#588300'],
-      // Ordered stacks use viridis, reversed (scale_fill_viridis_d(direction = -1)).
-      sequential: { stops: ['#FDE725', '#5EC962', '#21918C', '#3B528B', '#440154'], space: 'lab' },
-    },
-    accent: BLUE,
-  },
   type: {
-    headline: { family: REITH, size: 28, weight: 'bold', case: 'asIs', color: INK },
-    deck: { family: REITH, size: 22, weight: 'regular', color: INK },
-    axisLabel: { family: REITH, size: 18, color: INK },
-    axisTitle: { family: REITH, size: 18, color: INK },
-    keyLabel: { family: REITH, size: 18, color: INK },
-    valueLabel: { family: REITH, size: 17, color: '#ffffff' },
-    annotation: { family: REITH, size: 17, color: NOTE },
-    footnote: { family: REITH, size: 16, color: INK },
+    headline: { size: 28 },
+    deck: { size: 22 },
+    axisLabel: { size: 18 },
+    axisTitle: { size: 18 },
+    keyLabel: { size: 18 },
+    valueLabel: { size: 17 },
+    annotation: { size: 17 },
+    footnote: { size: 16 },
   },
-  structure: {
-    axis: {
-      categorical: { line: 'omit', ticks: 'omit' },
-      measure: { line: 'omit', ticks: 'omit' },
-    },
-    grid: { measure: 'quiet', category: 'omit', style: 'solid', weight: 1, zero: 'emphasised' },
-    frame: 'omit',
-    baseline: 'emphasised',
-  },
-  marks: { bandFraction: 0.9, strokeWeight: 2 },
-  geometry: { line: { width: 2 }, point: { presence: 'omit' } },
-  labels: { truncation: 'wrap' },
-  legend: { show: 'always', placement: ['seriesEnd', 'top'], direction: 'horizontal', title: 'whenAmbiguous', align: 'start' },
-  dataLabels: { show: 'never', placement: 'atMark', inkMode: 'contrastWithMark' },
-  annotation: { axisTitles: 'omit', unit: 'lastTick', numberFormat: { thousands: 'separator' } },
-  facets: { header: { presence: 'full', style: 'flushLabel', fieldTitle: 'omit' }, panelFrame: 'omit' },
-  layout: { titleBlock: { anchor: 'start', gap: 'normal', deckGap: 'normal' } },
   compileDefaults: { baseSize: { width: 640, height: 450 } },
-  // The footer rule closes every chart; the source line sits under it (S1), the chart giving the words.
-  furniture: [{ kind: 'footerRule', anchor: 'bottomLeft', color: INK, height: 1 }],
-  // The block logo at the line's other end, level with the source (S1): the real file from ../logos when present, else the word.
   source: { credit: { text: 'BBC', placement: 'end', weight: 'bold', ...(bbcLogo ? { image: { src: bbcLogo, width: 66, height: 19 } } : {}) } },
 };
 

@@ -2,7 +2,7 @@ import { Fragment, useEffect, useRef, useState, type ReactNode, type RefObject }
 import { useSearchParams } from 'react-router-dom';
 import {
   BarChart3, Braces, Brush, ChevronRight, Crosshair, Globe, Layers, Link2, Map as MapIcon, MessageSquare, MousePointerClick,
-  Move, Pencil, PenLine, Play, Route, ScrollText, ShoppingBasket, Sigma, SquareDashed, Thermometer, TrendingUp, ZoomIn,
+  Move, Pencil, PenLine, Play, Route, ScrollText, ShoppingBasket, Sigma, SquareDashed, Table2, Thermometer, TrendingUp, Users, ZoomIn,
   type LucideIcon,
 } from 'lucide-react';
 import { CodeBlock } from '../components/CodeBlock';
@@ -11,6 +11,7 @@ import { LocaleLink } from '../i18n/LocaleLink';
 import { scrollToHeading } from '../shared/scroll-to-heading';
 import { ArticleSection, SelectionChatDemo } from '../playground/InteractiveDataReportLab';
 import { WorldCupScorersDemo } from '../playground/WorldCupScorersDemo';
+import { CarOriginTableStage, CompanionTabsStage } from '../playground/ExternalToChartLab';
 import { PisaDrawStage } from '../playground/PisaDrawStage';
 import { TIME_USE, SELECTION_CHAT } from '../playground/interactive-data-report-content';
 import { ConnectedModelsDemo } from '../playground/release-examples/application-demos-connected';
@@ -50,6 +51,7 @@ import averageSource from '../playground/MovingAverageStage.tsx?raw';
 import overviewSource from '../playground/release-examples/application-demos-overview-detail.tsx?raw';
 import connectedSource from '../playground/release-examples/application-demos-connected.tsx?raw';
 import worldCupSource from '../playground/WorldCupScorersDemo.tsx?raw';
+import externalSource from '../playground/ExternalToChartLab.tsx?raw';
 import '../playground/click-focus-lab.css';
 import '../playground/interaction-transport.css';
 import '../playground/bespoke-interaction-lab.css';
@@ -294,6 +296,24 @@ const SECTIONS: { title: string; cases: Case[] }[] = [
   {
     title: 'Charts in an application',
     cases: [
+      {
+        id: 'cars-by-origin',
+        title: 'Pick a group in a table',
+        icon: Table2,
+        body: 'Horsepower against fuel economy for 392 cars, 1970 to 1982, beside a table of where they were made. Click an origin to light its cars; click a car to select its origin in the table.',
+        credit: { label: 'Auto MPG, UCI Machine Learning Repository', url: 'https://archive.ics.uci.edu/dataset/9/auto+mpg' },
+        demo: <CarOriginTableStage />,
+        code: externalSource,
+      },
+      {
+        id: 'company-we-keep',
+        title: 'Tabs over a chart',
+        icon: Users,
+        body: 'Hours a day Americans spend with each kind of company, by age, women and men side by side. A tab lights that company in both panels and says when each spends the most time with it; click a line to switch tabs.',
+        credit: { label: 'American Time Use Survey (BLS 2025), via Our World in Data', url: 'https://ourworldindata.org/who-do-americans-spend-time-with-over-their-lives' },
+        demo: <CompanionTabsStage />,
+        code: externalSource,
+      },
       {
         id: 'click-a-team',
         title: 'Click a team',

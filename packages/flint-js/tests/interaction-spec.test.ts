@@ -62,6 +62,15 @@ describe('resolveInteractionSpec', () => {
         expect(dataOnly(interactions[0])).toEqual(dataOnly(brushX({ mode: 'stateful', dimOpacity: 0.3 })));
     });
 
+    it('keeps a linked brush rectangle on screen when stated stateful, and a lasso never', () => {
+        const source = (options: Record<string, unknown>) =>
+            resolveInteractionSpec({ interactions: [{ type: 'linked-brush', options: { groupBy: 'Country', ...options } }] })
+                .interactions[0].eventSource;
+        expect(source({})).toMatchObject({ type: 'region', mode: 'ephemeral' });
+        expect(source({ mode: 'stateful' })).toMatchObject({ type: 'region', mode: 'stateful' });
+        expect(source({ mode: 'stateful', brush: 'lasso' })).toMatchObject({ regionGeometry: 'lasso', mode: 'ephemeral' });
+    });
+
     it('resolves every preset type with default options and the type as its id', () => {
         for (const type of INTERACTION_PRESET_TYPES) {
             const required = REQUIRED[type];

@@ -400,7 +400,7 @@ describe('an axis shared by several layers', () => {
         const spec = assembleVegaLite({
             data: { values: rows },
             semantic_types: { Month: 'Month', Share: { semanticType: 'Percentage', unit: '%' } },
-            chart_spec: { chartType: 'Ridgeline Plot', encodings: { x: { field: 'Share' }, color: { field: 'Month' } }, chartProperties: { perspective: true } },
+            chart_spec: { chartType: 'Ridgeline Plot', encodings: { x: { field: 'Share' }, color: { field: 'Month' } }, chartProperties: { colorBy: 'x' } },
             theme_spec: 'economist',
         } as any);
         const exprs = JSON.stringify(spec).match(/"labelExpr":"(?:[^"\\]|\\.)*"/g) ?? [];

@@ -69,6 +69,9 @@ function chartInput(): ChartAssemblyInput {
   } as ChartAssemblyInput;
 }
 
+/** The globe's chart, as a spec pane shows it. */
+export const GLOBE_INPUT = chartInput();
+
 const CLICK_COUNTRY: CanvasInteractionDef = {
   id: CLICK_ID,
   eventSource: clickTrigger,
@@ -81,8 +84,8 @@ const CLICK_COUNTRY: CanvasInteractionDef = {
 
 /** Where each chip turns the globe: a land mass at the centre, so a country is always in focus. */
 const VIEWS: { label: string; center: [number, number] }[] = [
-  { label: 'Look north', center: [60, 62] },
-  { label: 'Look south', center: [25, -25] },
+  { label: 'North', center: [60, 62] },
+  { label: 'South', center: [25, -25] },
   { label: 'Americas', center: [-60, -8] },
 ];
 
@@ -114,7 +117,8 @@ function WarmingStripes({ country }: { country: CountryWarming }) {
   );
 }
 
-export function GlobeWarmingStage() {
+/** `stacked` puts the readout under the globe, for a narrow frame. */
+export function GlobeWarmingStage({ layout = 'side' }: { layout?: 'side' | 'stacked' } = {}) {
   const chartRef = useRef<FlintChartHandle>(null);
   const [focusCode, setFocusCode] = useState<string | undefined>(undefined);
   const focusRef = useRef<string | undefined>(undefined);
@@ -182,15 +186,7 @@ export function GlobeWarmingStage() {
   const rank = focusCode ? RANKED.indexOf(focusCode) + 1 : 0;
 
   return (
-    <div className="ic-flint-dimpvis-shell globe-warming-shell">
-      <div className="ic-toolbar">
-        {VIEWS.map((view) => (
-          <button key={view.label} type="button" className="ic-pill" onClick={() => turnTo(hemisphere(view.center))}>
-            {view.label}
-          </button>
-        ))}
-        <button type="button" className="ic-pill" onClick={() => turnTo({})}>Reset</button>
-      </div>
+    <div className={`ic-flint-dimpvis-shell globe-warming-shell${layout === 'stacked' ? ' globe-warming-shell--stacked' : ''}`}>
       <div className="globe-warming-layout">
         <div className="ic-flint-dimpvis-panel globe-warming-globe">
           <ScaleToFit height={560} adaptiveHeight padding={8}>
@@ -211,28 +207,38 @@ export function GlobeWarmingStage() {
             </div>
           </ScaleToFit>
         </div>
-        <aside className="globe-warming-profile" aria-live="polite">
-          {country ? (
-            <>
-              <span className="globe-warming-kicker">Facing you</span>
-              <h4>{country.Country}</h4>
-              <p className="globe-warming-value">
-                <strong>+{country.Warming.toFixed(1)} °C</strong>
-                <span>{rank === 1 ? 'the fastest-warming country' : `${ordinal(rank)} fastest of ${COUNTRIES.length}`}</span>
-              </p>
-              <WarmingStripes country={country} />
-              <div className="globe-warming-axis">
-                <span>{warming.firstYear}</span>
-                <span>{warming.lastYear}</span>
-              </div>
-              <p className="globe-warming-note">
-                Each stripe is a year, against the {warming.baseline[0]}–{warming.baseline[1]} average.
-              </p>
-            </>
-          ) : (
-            <p className="globe-warming-empty">Turn a country to the middle of the globe to read it.</p>
-          )}
-        </aside>
+        <div className="globe-warming-side">
+          <div className="globe-warming-views" role="group" aria-label="Turn to">
+            {VIEWS.map((view) => (
+              <button key={view.label} type="button" className="ic-pill" onClick={() => turnTo(hemisphere(view.center))}>
+                {view.label}
+              </button>
+            ))}
+            <button type="button" className="ic-pill" onClick={() => turnTo({})}>Reset</button>
+          </div>
+          <aside className="globe-warming-profile" aria-live="polite">
+            {country ? (
+              <>
+                <span className="globe-warming-kicker">Facing you</span>
+                <h4>{country.Country}</h4>
+                <p className="globe-warming-value">
+                  <strong>+{country.Warming.toFixed(1)} °C</strong>
+                  <span>{rank === 1 ? 'the fastest-warming country' : `${ordinal(rank)} fastest of ${COUNTRIES.length}`}</span>
+                </p>
+                <WarmingStripes country={country} />
+                <div className="globe-warming-axis">
+                  <span>{warming.firstYear}</span>
+                  <span>{warming.lastYear}</span>
+                </div>
+                <p className="globe-warming-note">
+                  Each stripe is a year, against the {warming.baseline[0]}–{warming.baseline[1]} average.
+                </p>
+              </>
+            ) : (
+              <p className="globe-warming-empty">Turn a country to the middle of the globe to read it.</p>
+            )}
+          </aside>
+        </div>
       </div>
       <p className="globe-warming-hint">
         Drag to turn the globe; the country in the middle is the focus. Scroll to zoom, click a country to turn to it,

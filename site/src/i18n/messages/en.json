@@ -44,16 +44,14 @@
     "about": {
       "google-material": "Clean product UI: a purple-led Material palette, light gridlines, roomy type and soft rounded marks.",
       "microsoft-fluent": "Fluent’s calm enterprise look: a blue-first palette, Segoe type, quiet axes and compact legends for dashboards.",
-      "peoples-daily": "An editorial newspaper style: a red masthead rule, serif headlines, restrained inks and source lines at the foot.",
-      "mondrian": "Piet Mondrian’s Neo-Plasticism: red, yellow and blue planes bounded by heavy black lines on off-white, only horizontals and verticals (even lines step), and blocky De Stijl type."
+      "peoples-daily": "An editorial newspaper style: a red masthead rule, serif headlines, restrained inks and source lines at the foot."
     },
     "customDraft": "Your draft",
     "playTitle": "Try it",
     "demos": {
       "google-material": "Google Material",
       "microsoft-fluent": "Microsoft Fluent",
-      "peoples-daily": "People's Daily",
-      "mondrian": "Mondrian"
+      "peoples-daily": "People's Daily"
     },
     "editorAria": "Custom theme editor",
     "formatJson": "Format JSON",
@@ -285,7 +283,9 @@
       "swiss": "International Typographic Style with a visible grid, strong black structure, and a single red accent.",
       "pop": "A pop-art remix of Swiss with electric process colors, heavy black structure, and punchy display type.",
       "cartoon": "Playful charts with warm paper, rounded type, bold outlines, bright colors, and a soft dashed grid.",
-      "apple": "Quiet app-interface charts where the data leads: light labels, a sparse grid, a trailing value axis, a symbol beside every color, and rounded bars."
+      "apple": "Quiet app-interface charts where the data leads: light labels, a sparse grid, a trailing value axis, a symbol beside every color, and rounded bars.",
+      "de-stijl": "De Stijl: red, yellow and blue planes bounded by heavy black lines on off-white, only horizontals and verticals, and the title under the picture like a museum label.",
+      "bbc": "BBC News graphics: a large bold headline, light horizontal gridlines with no axis lines, a heavy rule at zero, and a footer rule closing every chart."
     },
     "cases": {
       "keeling": {
@@ -479,14 +479,35 @@
       }
     },
     "examples": {
+      "originTable": { "label": "Cars by origin" },
+      "companionTabs": { "label": "Company we keep" },
+      "countryTable": { "label": "Table to chart" },
+      "ridgeline": {
+        "label": "Ridgeline",
+        "title": "How each month’s temperatures spread",
+        "subtitle": "Daily readings, one ridge per month"
+      },
+      "linkedBrush": {
+        "label": "Linked brush",
+        "title": "Where each country went in 55 years",
+        "subtitle": "Life expectancy against GDP per capita, 1952 and 2007; brush either year"
+      },
+      "inspect": {
+        "label": "Inspect",
+        "title": "Eggs swung while bread crept up",
+        "subtitle": "U.S. average price in USD, a dozen eggs and a pound of white bread (BLS)"
+      },
+      "drawIt": {
+        "label": "You draw it"
+      },
       "facetedLine": {
-        "label": "Faceted line chart",
+        "label": "Faceted line",
         "caption": "Monthly active users by region, laid out as small multiples over time.",
         "title": "Monthly active users by region",
         "subtitle": "Players per month in 2025, one panel per region, by platform"
       },
       "heatmap": {
-        "label": "Temperature heatmap",
+        "label": "Heatmap",
         "caption": "Monthly climate normals across four cities, shown as a compact table of values.",
         "title": "How seasons differ across four cities",
         "subtitle": "Average monthly temperature in °C; climate normals"
@@ -503,46 +524,28 @@
         "title": "Where the players are",
         "subtitle": "Monthly active users by region, then platform, then title"
       },
-      "donut": {
-        "label": "Donut chart",
-        "caption": "Film ratings as proportional slices, with an inner radius applied from the chart spec.",
-        "title": "Films by MPAA rating",
-        "subtitle": "Share of releases carrying each certificate"
-      },
       "regression": {
-        "label": "Regression scatter",
+        "label": "Regression",
         "caption": "Critic and audience scores with a fitted trend line to reveal their relationship.",
         "title": "Critics and audiences broadly agree",
         "subtitle": "IMDB rating against Rotten Tomatoes score, one point per film, with a fitted trend"
       },
-      "sortedBar": {
-        "label": "Sorted bar chart",
-        "caption": "Film genres ordered by count, from the most common to the least.",
-        "title": "Films by genre",
-        "subtitle": "Number of releases, most common to least"
-      },
-      "gapminder": {
-        "label": "Bubble scatter",
-        "caption": "Income against life expectancy; click a country to highlight it, drag to zoom.",
-        "title": "Richer countries tend to live longer",
-        "subtitle": "Life expectancy against GDP per capita, 142 countries in 2007; bubble size is population"
-      },
       "penguins": {
-        "label": "Lasso selection",
+        "label": "Lasso",
         "caption": "Three penguin species; lasso a cluster or toggle a species in the legend.",
         "title": "Three species, three clusters",
         "subtitle": "Body mass against flipper length, 342 Palmer Station penguins"
       },
       "worldCup": { "label": "Click a team" },
       "selectionChat": { "label": "Brush for the agent" },
-      "countryTable": { "label": "Table to chart" },
-      "continentTable": { "label": "Continent table" },
-      "movingAverage": { "label": "Moving average" },
+      "globe": { "label": "Turn the globe" },
+      "usMap": { "label": "Map and profile" },
       "climatePhase": {
-        "label": "Climate phase portrait",
+        "label": "Climate phases",
         "hint": "Click and drag a point along its trajectory to see how the other cities change with it."
       }
-    }
+    },
+    "exampleGroups": { "charts": "Charts", "interactions": "Interactions", "applications": "Applications" }
   },
   "mcp": {
     "heroTitle": "Use Flint as an MCP server for your agent",

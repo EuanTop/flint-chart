@@ -78,6 +78,9 @@ function chartInput(): ChartAssemblyInput {
   };
 }
 
+/** The chart as a spec pane shows it. */
+export const DRAW_IT_INPUT = chartInput();
+
 function candidatesFromDomainPoints(points: readonly { x?: unknown; y?: unknown }[] | undefined) {
   if (!points) return [];
   return points.flatMap((point) => {

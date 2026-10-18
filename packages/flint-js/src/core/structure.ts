@@ -79,8 +79,12 @@ export interface ChartStructure {
     angle?: AxisDescription;
     /** What a slice's distance from the centre measures, on a radial chart. */
     radius?: AxisDescription;
-    /** The series colour tells apart: a data field, or a series the chart derives itself, by name. */
-    series?: { field?: string; derived?: string; type?: string };
+    /**
+     * The series colour tells apart: a data field, or a series the chart derives itself, by name.
+     * `oneInk`: the chart names each series where it is drawn (a ridge's label beside it), so
+     * colour has nothing left to tell apart and every series takes the house's single ink.
+     */
+    series?: { field?: string; derived?: string; type?: string; oneInk?: boolean };
     stacking: Stacking;
     /** A title the chart writes for itself when the author gives none. */
     title?: string;

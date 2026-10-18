@@ -58,6 +58,7 @@ import { getRegistryEntry, isRegistered } from '../type-registry.js';
 import { alreadyNamed } from '../title-plan.js';
 import { namedAsItsKind, selfNamingKind } from '../self-naming-values.js';
 import { inferValueLabelFormat } from './value-label-format.js';
+import { categoriesSplitBySign, categorySignRoles } from './series-sign.js';
 import { COMPACT_SUFFIXES, DEFAULT_COMPACT_TYPES, compactApplies, compactPrint, type CompactPrint, type CompactRule } from '../number-compact.js';
 import { deepMerge } from './merge.js';
 import { overflowStaysFlat, resolveLabelOverflow } from '../axis-labels.js';
@@ -89,6 +90,8 @@ export interface GroundingContext {
     markTypes: string[];
     /** The resolved `showSeriesInLabel`: the chart names its series on the marks. */
     namesOnMarks?: boolean;
+    /** The chart names each series where it is drawn and draws them all in the single ink. */
+    seriesOneInk?: boolean;
     /** Per-channel resolved semantics (phase 0). */
     channelSemantics: Record<string, any>;
     /** Encoding types after template-driven conversion (e.g. Q→O for bars). */
@@ -1108,9 +1111,10 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
                 : 'no axis carries a measure — the cells are the structure, and a rule under their names is a line under nothing');
         }
         const tickLen = spec?.tickLength === 'long' ? 5 : spec?.tickLength === 'short' ? 2 : 3;
-        // A row-header gutter has neither spine nor ticks — dropping the line
-        // but keeping ticks leaves them floating against nothing.
-        const ticksRule = tableGutter
+        // A row-header gutter, or names with no measure standing on them, has
+        // neither spine nor ticks — dropping the line but keeping ticks leaves
+        // them floating against nothing.
+        const ticksRule = tableGutter || (indexing && !standsOnIt)
             ? rule('omit', axisInk, 'omit')
             : rule(spec?.ticks, spec?.color ?? structureInk.axis, 'omit');
         const inward = spec?.tickDirection === 'inward';
@@ -1152,7 +1156,9 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
         // of that distance and the padding covers the rest; where the house
         // draws none — or turns them inward — the padding is the whole distance,
         // and 4px leaves the label sitting against the edge of the plot.
-        const defaultLabelGap = labelFlush ? 2 : 4 + tickLen;
+        // A flush house sets its labels close: 2px past the plot, or past the tick where one is drawn.
+        const tickOut = ticksRule.show && !inward ? tickLen : 0;
+        const defaultLabelGap = labelFlush ? 2 + tickOut : 4 + tickLen;
         const ruleToLabelGap = spec?.labelGap ?? defaultLabelGap;
         const labelPadding = ticksRule.show && !inward
             ? Math.max(0, ruleToLabelGap - tickLen)
@@ -2048,6 +2054,7 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
         axes,
         frame,
         baseline,
+        ...(structure.axis?.floating ? { floating: structure.axis.floating } : {}),
         series,
         legend: {
             show: legendShow,
@@ -2287,6 +2294,9 @@ function groundSeriesInkChoice(
     const seriesField = channelFact(ctx, seriesChannel)?.field;
     const seriesType = channelFact(ctx, seriesChannel)?.type;
     const count = signals.seriesCount;
+    // The colour is signed only when what it encodes carries the sign: a measure on an axis that
+    // dips below zero says nothing about the series the colour names.
+    const seriesSigned = signals.isSigned && seriesCarriesSign(ctx, seriesField, seriesType);
 
     const base: ResolvedSeriesInk = {
         mode: 'single',
@@ -2316,14 +2326,20 @@ function groundSeriesInkChoice(
         return base;
     }
 
+    // The chart names every series where it draws it (each ridge's label beside the ridge): a
+    // colour per series would only say the name again, so they all take the single ink.
+    if (ctx.seriesOneInk === true && seriesType !== 'quantitative') {
+        return base;
+    }
+
     // Continuous series: a ramp, not an indexed set.
     if (seriesType === 'quantitative') {
         // Signed values normally use a diverging ramp, but a house may
         // deliberately read the field as ordered magnitude instead. McKinsey
         // does this on heatmaps: one navy sequence plus printed values, rather
         // than introducing a warm ink the house does not otherwise own.
-        const signedSequential = signals.isSigned && selection.signed === 'sequential';
-        const diverging = signals.isSigned && !signedSequential && Boolean(s.diverging);
+        const signedSequential = seriesSigned && selection.signed === 'sequential';
+        const diverging = seriesSigned && !signedSequential && Boolean(s.diverging);
         const ramp: Ramp | undefined = offSurface(diverging ? s.diverging : s.sequential, surfaceColour);
         if (ramp?.stops?.length) {
             const consumption = ramp.consumption ?? 'interpolate';
@@ -2371,13 +2387,13 @@ function groundSeriesInkChoice(
             `${count} slices exceed the ${rampResolution}-stop ramp's resolution — distinct hues name them better than shades, so the indexed set stands`);
     }
 
-    if (signals.isSigned && s.status && selection.signed === 'status' && selection.statusUse !== 'never') {
+    if (seriesSigned && s.status && selection.signed === 'status' && selection.statusUse !== 'never') {
         if (selection.statusUse !== 'thresholdOnly') {
             return { ...base, mode: 'status' };
         }
     }
 
-    if (signals.isSigned && selection.signed === 'diverging' && s.diverging?.stops?.length) {
+    if (seriesSigned && selection.signed === 'diverging' && s.diverging?.stops?.length) {
         const ramp = offSurface(s.diverging, surfaceColour)!;
         return {
             ...base,
@@ -2486,6 +2502,27 @@ function forMarkFamily(s: NonNullable<ThemeInk['series']>, family: SeriesMarkFam
         // A family's list replaces the general order, its count sets and the text variants written for it.
         ...(own.categorical?.length ? { categorical: own.categorical, categoricalByCount: undefined, categoricalText: undefined } : {}),
     };
+}
+
+/**
+ * Does the series the colour names carry a sign of its own? A continuous colour does when its own
+ * values cross zero; categories do when they split by sign (a waterfall's increase / decrease,
+ * regions that each net a gain or a loss). Months on a ridgeline of temperatures do not, however
+ * cold the winter.
+ */
+function seriesCarriesSign(ctx: GroundingContext, field: string | undefined, type: string | undefined): boolean {
+    if (!field) return false;
+    // A field this stage cannot see (a template derives it) keeps the chart's sign.
+    if (!fieldPresent(ctx.table, field)) return true;
+    if (type === 'quantitative') return ctx.table.some((row) => typeof row?.[field] === 'number' && row[field] < 0);
+    const domain = [...new Set(ctx.table.map((row) => row?.[field]).filter((v) => v != null))];
+    if (domain.length < 2) return false;
+    // The measure the categories would be signing, y before x, as realization reads it.
+    const measure = (['y', 'x', 'theta', 'size'] as const)
+        .filter((ch) => channelType(ctx, ch) === 'quantitative')
+        .map((ch) => channelFact(ctx, ch)?.field)
+        .find((f) => f && f !== field);
+    return categoriesSplitBySign(categorySignRoles(ctx.table, field, domain, measure));
 }
 
 /**

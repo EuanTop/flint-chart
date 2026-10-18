@@ -1020,8 +1020,7 @@ export function CaseCard({
     if (!selectionControls) return undefined;
     if (selectionType === 'lasso') return [linkedBrush({ groupBy: item.groupBy ?? 'Country', brush: 'lasso' })];
     if (selectionType === 'rectangle') {
-      const rectangle = linkedBrush({ groupBy: item.groupBy ?? 'Country' });
-      return [{ ...rectangle, eventSource: { ...rectangle.eventSource, mode: 'stateful' } }];
+      return [linkedBrush({ groupBy: item.groupBy ?? 'Country', mode: 'stateful' })];
     }
     const axisBrush = selectionType === 'x' ? brushX({ mode: 'stateful' }) : brushY({ mode: 'stateful' });
     return [{

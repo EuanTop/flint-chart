@@ -56,6 +56,20 @@ describe('Ridgeline Plot in perspective', () => {
         expect(front.label).toBe('0.34');
     });
 
+    it.each(['swiss', 'pop'])('keeps the flat axes out under a house that rules its axes (%s)', (house) => {
+        for (const properties of [{ perspective: true }, { perspective: true, tilt: 1 }]) {
+            const spec: any = assembleVegaLite({ ...input(properties), theme_spec: house } as ChartAssemblyInput);
+            for (const layer of layersOf(spec)) {
+                for (const channel of ['x', 'y']) {
+                    if (layer.encoding?.[channel]) expect(layer.encoding[channel].axis).toBeNull();
+                }
+            }
+            // The front edge carries its own tick labels and the x title instead.
+            const labels = textLayers(spec).flatMap((layer) => layer.data.values.map((row: any) => row.label));
+            expect(labels).toEqual(expect.arrayContaining(['0', 'Round']));
+        }
+    });
+
     it('draws a value axis with ticks up to the value max', () => {
         const spec: any = assembleVegaLite(input(marked));
         const labels = textLayers(spec).flatMap((layer) => layer.data.values.map((row: any) => row.label));

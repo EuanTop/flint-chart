@@ -164,6 +164,18 @@
 .app-demo-profile .app-demo-tally-labels strong { font-size: 11px; }
 .app-demo-profile-hint { margin: 0; min-height: 2.6em; }
 @media (max-width: 760px) { .app-demo-map-profile { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; } }
+/* Stacked: the map takes the width, unframed; Nation, State and County stand side by side in one
+   band of fixed height beneath it, the hint in the first empty slot, so the map keeps its size. */
+.app-demo-map-profile--stacked { grid-template-columns: minmax(0, 1fr); height: auto; gap: 8px; }
+.app-demo-map-profile--stacked > .app-demo-bespoke { height: auto; padding: 0; border: 0; background: transparent; box-shadow: none; }
+.app-demo-map-profile--stacked .map-semantic-zoom-mount { border: 0; }
+.app-demo-map-profile--stacked .app-demo-profile-panel { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: none; align-items: center; column-gap: 16px; height: 58px; padding: 8px 14px; border: 0; border-top: 1px solid #e4e7ea; border-radius: 0; background: transparent; }
+.app-demo-map-profile--stacked .app-demo-column-title { display: none; }
+.app-demo-map-profile--stacked .app-demo-profiles { display: contents; }
+.app-demo-map-profile--stacked .app-demo-profile { gap: 3px; min-width: 0; padding-top: 0; border-top: 0; }
+.app-demo-map-profile--stacked .app-demo-profile-head { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.app-demo-map-profile--stacked .app-demo-profile-bar { height: 8px; }
+.app-demo-map-profile--stacked .app-demo-profile-hint { grid-column: auto / -1; min-height: 0; margin: 0; }
 
 /* Fit a distribution: the two candidate curves and the starting shapes. */
 .app-demo-curves div { grid-template-columns: 136px minmax(0, 1fr); padding: 4px 6px; margin: 0 -6px; border-radius: 4px; }

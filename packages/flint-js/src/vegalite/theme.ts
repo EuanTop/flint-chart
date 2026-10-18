@@ -24,6 +24,7 @@ import { discreteDomain } from './value-colors';
 import { applyTextCase, caseLabelExpr, textCaseExpr } from '../core/text-case.js';
 import { format as formatNumber } from 'd3-format';
 import { contrastingInk, contrastRatio, parseColor, luminance, mixHex, readableTextInk, toHex } from '../core/theme/presence.js';
+import { categoriesSplitBySign, categorySignRoles } from '../core/theme/series-sign.js';
 import type { AxisLabelPlan } from '../core/axis-labels.js';
 import { bandsHoldSeveral, KEY_CHANNELS, statedStacking, type BuiltFacts, type Stacking } from '../core/structure.js';
 import { canvasContentWidth, fitDeckText, fitHeadlineText, plotHeightAfter, textPx, titleMeasures } from '../core/title-fit.js';
@@ -874,6 +875,8 @@ function applyAxes(
     axisLabels: Record<'x' | 'y', AxisLabelPlan> | undefined,
     flatYTitle?: FurniturePlan['yTitle'],
 ): void {
+    // The axes a range frame draws, once their lines are known.
+    const rangeFramed: ('x' | 'y')[] = [];
     for (const channel of ['x', 'y'] as const) {
         const axis = d.axes[channel];
         if (!axis) continue;
@@ -903,20 +906,36 @@ function applyAxes(
             say(`axes.${channel}.domain`, 'domain-not-drawn',
                 'the value scale floats — a rule under the categories would claim a base the chart does not have');
         }
-        // The index axis's line along the plot's floor reads as a base. Where the value axis does not
-        // start at zero there — the data dips below it, or the scale floats — the line is a gridline,
-        // not a base: it takes the value grid's ink and weight, and zero, where the chart crosses it,
+        // Where the value scale floats, the house says what its axis lines are (`floating`). Unset, a
+        // house that rules its value axis frames the window; one that grids its values instead reads
+        // the line along the floor as a base. A base off zero would claim one the chart does not
+        // have, and a line that is not a base is at most a gridline — the value grid already draws
+        // one there where a tick stands, and where none does, a line would mark a value nobody
+        // labelled. So that house leaves the floor to the grid; zero, where the chart crosses it,
         // carries the base.
         const valueAxis = d.axes[channel === 'x' ? 'y' : 'x'];
-        const floorIsGrid = domainShow && axis.indexing && valueAxis?.grid.show && valueFloorIsZero(spec, channel, table) === false;
+        const floating = floatingMode(d);
+        const floats = floatingFloor(spec, d, table);
+        const floorIsGrid = domainShow && axis.indexing && floats && floating === 'omit';
+        // A range frame: the line spans the data alone and stands off the plot, on a continuous axis.
+        const ranged = domainShow && floats && floating === 'rangeFrame' && continuousAxis(spec, channel);
+        if (ranged) rangeFramed.push(channel);
+        if (floorIsGrid) {
+            domainShow = false;
+            say(`axes.${channel}.domain`, 'domain-not-drawn',
+                'the value scale does not start at zero — the floor is not a base, so the value grid draws it where a tick stands');
+        }
         const themed: any = {
             grid: axis.grid.show,
             gridColor: axis.grid.color,
             gridWidth: axis.grid.width,
-            domain: domainShow,
-            domainColor: floorIsGrid ? valueAxis!.grid.color : axis.domain.color,
-            domainWidth: floorIsGrid ? valueAxis!.grid.width : axis.domain.width,
-            ticks: axis.ticks.show,
+            domain: domainShow && !ranged,
+            ...(ranged ? { offset: RANGE_FRAME_OFFSET } : {}),
+            domainColor: axis.domain.color,
+            domainWidth: axis.domain.width,
+            // Ticks hang from the axis line: where the house draws one and the chart withholds it,
+            // its ticks go with it rather than float.
+            ticks: axis.ticks.show && (domainShow || !axis.domain.show) && !ranged,
             tickColor: axis.ticks.color,
             tickWidth: axis.ticks.width,
             tickSize: axis.ticks.size,
@@ -1084,15 +1103,14 @@ function applyAxes(
             }
             // A grid line the reader cannot name is not a grid, it is a fence.
             // A log scale offers a line at 2, 3, 4… of every decade, and Vega
-            // prunes the *labels* that collide, not the lines under them. Where
-            // the house draws a grid on such a scale, the ticks are cut back to
-            // the decades — the ones that will still carry a number.
-            if (themed.grid && NONLINEAR_SCALES.has(enc.scale?.type)
+            // prunes the *labels* that collide, not the lines or ticks under
+            // them. Where the house draws a grid or ticks on such a scale, they
+            // are cut back to the decades — the ones that will still carry a number.
+            if ((themed.grid || themed.ticks) && NONLINEAR_SCALES.has(enc.scale?.type)
                 && (enc.axis?.tickCount ?? enc.axis?.values) == null) {
-                const size = channel === 'x' ? (node.width ?? spec.width) : (node.height ?? spec.height);
-                const span = typeof size === 'number' ? size : (channel === 'x' ? 600 : 300);
+                const span = plotSpan(spec, node, channel);
                 const ticks = enc.scale?.type === 'log'
-                    ? logTicks(table, enc.field, span)
+                    ? logTicks(table, enc.field, span, axis.label.fontSize ?? 10)
                     : decadeTicks(table, enc.field);
                 if (ticks) {
                     enc.axis = { ...(enc.axis ?? {}), values: ticks };
@@ -1105,8 +1123,7 @@ function applyAxes(
             // by what the data is actually spaced by.
             if (axis.indexing && axis.tickLabels && axis.tickLabels !== 'all'
                 && enc.axis?.values == null && enc.axis?.tickCount == null) {
-                const size = channel === 'x' ? (node.width ?? spec.width) : (node.height ?? spec.height);
-                const span = typeof size === 'number' ? size : (channel === 'x' ? 600 : 300);
+                const span = plotSpan(spec, node, channel);
                 const fontSize = axis.label.fontSize ?? 10;
                 if (enc.type === 'temporal') {
                     // Stating dates outright costs the renderer the format it
@@ -1181,6 +1198,16 @@ function applyAxes(
     }
 
     dropGridUnderSpine(spec, config);
+    applyRangeFrame(spec, d, table, rangeFramed);
+}
+
+/** The plot's length along a channel: the view's own size, else the size the layout gave the view. */
+function plotSpan(spec: any, node: any, channel: 'x' | 'y'): number {
+    const size = channel === 'x' ? (node.width ?? spec.width) : (node.height ?? spec.height);
+    if (typeof size === 'number') return size;
+    const view = spec.config?.view;
+    const continuous = channel === 'x' ? view?.continuousWidth : view?.continuousHeight;
+    return typeof continuous === 'number' ? continuous : (channel === 'x' ? 600 : 300);
 }
 
 /**
@@ -1256,6 +1283,81 @@ function lengthsFromIndexAxis(spec: any, indexChannel: 'x' | 'y'): boolean {
  * it does, false where the data dips below zero or the scale floats above it, undefined where the
  * chart has no single value axis there.
  */
+/** What the axis lines are where the value scale floats: the house's word, else inferred from its axes. */
+function floatingMode(d: DesignDecisions): 'omit' | 'keep' | 'rangeFrame' {
+    if (d.floating) return d.floating;
+    const value = (['x', 'y'] as const).map((channel) => d.axes[channel]).find((axis) => axis && !axis.indexing);
+    return value && !value.domain.show && value.grid.show ? 'omit' : 'keep';
+}
+
+/** Whether the chart's value scale floats: its floor, where the index axis stands, is not zero. */
+function floatingFloor(spec: any, d: DesignDecisions, table: any[]): boolean {
+    const index = (['x', 'y'] as const).find((channel) => d.axes[channel]?.indexing);
+    return index !== undefined && valueFloorIsZero(spec, index, table) === false;
+}
+
+/** How far a range frame's lines stand off the plot, in px. */
+const RANGE_FRAME_OFFSET = 6;
+
+/** An axis of numbers or dates the chart reads straight off a field: one a range frame can span. */
+function continuousAxis(spec: any, channel: 'x' | 'y'): boolean {
+    let continuous = false;
+    walk(spec, (node) => {
+        if (node.__themeSynthetic) return;
+        const enc = node.encoding?.[channel];
+        if (enc?.field && ['quantitative', 'temporal'].includes(enc.type) && !enc.bin && !enc.aggregate && !enc.stack) continuous = true;
+    });
+    return continuous;
+}
+
+/**
+ * A range frame (Tufte): each continuous axis draws its line from the least value to the greatest
+ * the data holds, set off from the plot by the axis's offset, so the frame stays and says where the
+ * data runs rather than where the window happens to start. The lines are rules in data space in the
+ * axis's own ink, in every panel; the axis itself draws its labels without a line.
+ */
+function applyRangeFrame(spec: any, d: DesignDecisions, table: any[], channels: readonly ('x' | 'y')[]): void {
+    for (const channel of channels) {
+        const line = d.axes[channel]?.domain;
+        if (!line) continue;
+        const across = channel === 'x' ? 'y' : 'x';
+        for (const body of plotBodies(spec)) {
+            const layers: any[] = body.layer ?? [body];
+            const holder = layers.find((layer) => !layer.__themeSynthetic && layer.encoding?.[channel]?.field);
+            const enc = holder?.encoding?.[channel];
+            if (!enc?.field || enc.axis === null) continue;
+            // The data's own extent, stated as data: a field the rule encoded would name itself in
+            // the axis title ("Min of Gas price").
+            const temporal = enc.type === 'temporal';
+            const read = (value: unknown) => temporal ? new Date(value as any).valueOf() : Number(value);
+            let lo: unknown;
+            let hi: unknown;
+            for (const row of table ?? []) {
+                const value = row?.[enc.field];
+                if (value === null || value === undefined || !Number.isFinite(read(value))) continue;
+                if (lo === undefined || read(value) < read(lo)) lo = value;
+                if (hi === undefined || read(value) > read(hi)) hi = value;
+            }
+            if (lo === undefined || hi === undefined) continue;
+            const orient = d.axes[channel]?.orient;
+            const far = channel === 'x' ? orient === 'top' : orient === 'right';
+            appendLayer(body, {
+                __themeSynthetic: true,
+                data: { values: [{}] },
+                mark: {
+                    type: 'rule', color: line.color, strokeWidth: line.width,
+                    [channel === 'x' ? 'yOffset' : 'xOffset']: (channel === 'x') === !far ? RANGE_FRAME_OFFSET : -RANGE_FRAME_OFFSET,
+                },
+                encoding: {
+                    [channel]: { datum: lo, type: enc.type, ...(enc.scale ? { scale: { ...enc.scale } } : {}) },
+                    [`${channel}2`]: { datum: hi },
+                    [across]: { value: channel === 'x' ? (far ? 0 : 'height') : (far ? 'width' : 0) },
+                },
+            });
+        }
+    }
+}
+
 function valueFloorIsZero(spec: any, indexChannel: 'x' | 'y', table: any[]): boolean | undefined {
     const other = indexChannel === 'x' ? 'y' : 'x';
     let verdict: boolean | undefined;
@@ -1346,11 +1448,19 @@ function applyZeroRule(spec: any, d: DesignDecisions, table: any[]): void {
  * zero is inside the domain, else along the axis's floor — wherever the chart put it, since
  * whether the axis starts at zero is the chart's decision, not the theme's. It is not drawn
  * where another rule is already there: the house's own zero rule where the data crosses zero,
- * or the index axis's line along the floor in the same ink and at least the same weight. At zero it
+ * or the index axis's line along the floor, at least as heavy and as dark. At zero it
  * takes a styled zero rule's ink, weight and dash. Only
  * marks that stand on a base take one — bars, areas, lines — not points, a strip, a scatter, a
  * range or a ranking.
  */
+/** Whether one ink reads at least as dark as another; inks that cannot be read count only when equal. */
+function atLeastAsDark(ink: string | undefined, than: string | undefined): boolean {
+    if (ink === than) return true;
+    const a = parseColor(ink);
+    const b = parseColor(than);
+    return !!a && !!b && luminance(a) <= luminance(b) + 1e-6;
+}
+
 function applyBaseline(spec: any, d: DesignDecisions, table: any[]): void {
     const base = d.baseline;
     if (!base?.show) return;
@@ -1393,15 +1503,20 @@ function applyBaseline(spec: any, d: DesignDecisions, table: any[]): void {
         const hi = domain?.[1] ?? scale.domainMax ?? (zero ? Math.max(0, max) : max);
         const atZero = !log && lo <= 0 && hi >= 0;
         // A base is at zero: along a floor the value axis does not start at zero, the line would
-        // claim a base the chart does not have — unless the house states it strongly.
-        if (!atZero && !base.anyFloor) continue;
+        // claim a base the chart does not have — unless the house says its floor is kept
+        // (`floating: 'keep'`), or, saying nothing there, states its base strongly.
+        const alongFloor = d.floating ? d.floating === 'keep' : base.anyFloor;
+        if (!atZero && !alongFloor) continue;
         const atFloor = !atZero || lo === 0;
         // The house's own zero rule is that line where the data crosses zero.
         if (atZero && min < 0 && max > 0 && d.axes[channel]?.zeroRule?.show) continue;
         // The index axis's line already runs along the floor.
+        // A line at least as strong — as heavy and as dark — already states the base; a paler base
+        // laid over it would only weaken the line it sits on.
         const line = d.axes[index]?.domain;
         const floorSide = channel === 'y' ? 'bottom' : 'left';
-        if (atFloor && line?.show && d.axes[index]?.orient === floorSide && line.color === base.color && line.width >= base.width) continue;
+        if (atFloor && line?.show && d.axes[index]?.orient === floorSide && line.width >= base.width
+            && atLeastAsDark(line.color, base.color)) continue;
         // At zero, a zero rule the house styled is the stronger statement: the line takes its ink,
         // weight and dash (GR2), whether or not the data reaches below it.
         const zeroStyle = d.axes[channel]?.zeroRule;
@@ -1537,7 +1652,7 @@ function decadeTicks(table: any[], field: string | undefined): number[] | undefi
  * narrowest transformed interval is at least 32px, so a wide log plot gains
  * useful interpolation without a compact one turning into a picket fence.
  */
-function logTicks(table: any[], field: string | undefined, span: number): number[] | undefined {
+function logTicks(table: any[], field: string | undefined, span: number, fontSize = 10): number[] | undefined {
     if (!field || !Array.isArray(table) || table.length === 0 || span <= 0) return undefined;
     let min = Infinity;
     let max = -Infinity;
@@ -1551,9 +1666,12 @@ function logTicks(table: any[], field: string | undefined, span: number): number
 
     const logSpan = Math.log10(max) - Math.log10(min);
     const decadePixels = span / logSpan;
-    const multipliers = decadePixels * Math.log10(2) >= 32 ? [1, 2, 5] : [1];
     const lo = Math.floor(Math.log10(min));
     const hi = Math.ceil(Math.log10(max));
+    // 2 and 5 stand only where their labels fit: the closest pair, 1–2 and 5–10, lies a factor of
+    // two apart, and the widest label written in full has to sit between them with room to spare.
+    const widest = Math.max(...[lo, hi].map((exponent) => (5 * 10 ** exponent).toLocaleString('en-US').length)) * fontSize * 0.6;
+    const multipliers = decadePixels * Math.log10(2) >= Math.max(32, widest + 8) ? [1, 2, 5] : [1];
     const ticks: number[] = [];
     for (let exponent = lo; exponent <= hi; exponent++) {
         for (const multiplier of multipliers) ticks.push(multiplier * 10 ** exponent);
@@ -2458,20 +2576,22 @@ function liftBandAxis(spec: any, bandCh: 'x' | 'y'): void {
 }
 
 /**
- * A grid puts a line at every tick of the axis it belongs to, and the tick at
- * the end of a scale sits exactly where the *other* axis draws its domain. The
- * two lines are then one line drawn twice, in two different inks — and the
- * grid, being part of the panel, is drawn second: a 2.5px black spine comes
- * out as a pale dashed rule in grid ink.
+ * A grid puts a line at every tick of its axis, and where a tick falls on the
+ * edge the *other* axis rules, the two are one line drawn twice in two inks —
+ * the grid, part of the panel, drawn second: a 2.5px black spine comes out as
+ * a pale dashed rule in grid ink.
  *
  * Z-order is not the answer here. Vega-Lite hoists a shared axis out of a
  * faceted plot's panels, so the panel's own grid is always laid down after it
- * however the axis is ranked, and drawing a second spine to cover the damage
- * would be inventing geometry. The honest fix is that the redundant line
- * should not be there: the spine already states that edge, so the grid gives
- * up its outermost line. Vega-Lite's conditional axis properties can say this
- * exactly — `datum.index` is the tick's position along the axis as a fraction,
- * so the line the domain lies on is the one at 0 or at 1.
+ * however the axis is ranked. The honest fix is that the redundant line should
+ * not be there: the spine already states that edge, so the grid gives up the
+ * line that lies on it — and only that one. A scale is often padded past its
+ * first tick (a dot plot keeps its dots off the edge; an unrounded domain
+ * starts between round values), and then the first tick stands clear of the
+ * spine: hiding its line would leave its label with nothing to read against.
+ * So the test is where the line is drawn, read off the live scale, not which
+ * tick it is. Where the scale cannot be named (concatenated or independent
+ * scales), the end tick stands in, as it does whenever the domain is rounded.
  */
 function dropGridUnderSpine(spec: any, config: any): void {
     const drawsGrid = (cfg: any): boolean =>
@@ -2479,19 +2599,26 @@ function dropGridUnderSpine(spec: any, config: any): void {
     const drawsDomain = (cfg: any): boolean =>
         cfg?.domain !== false && !!cfg?.domainColor && cfg.domainColor !== 'transparent'
         && (cfg.domainWidth ?? 1) > 0;
+    const sharedScales = !(spec.hconcat || spec.vconcat || spec.concat);
 
     for (const gridCh of ['x', 'y'] as const) {
         const spineCh = gridCh === 'x' ? 'y' : 'x';
         const gridCfg = config[gridCh === 'x' ? 'axisX' : 'axisY'];
         const spineCfg = config[spineCh === 'x' ? 'axisX' : 'axisY'];
         if (!drawsGrid(gridCfg) || !drawsDomain(spineCfg)) continue;
-        // `index` runs from the start of the range to its end. A y range runs
-        // top-to-bottom, so its 0 is the bottom of the plot, where an x axis
-        // sits by default; an x range runs left-to-right, so its 0 is the left,
-        // where a y axis sits.
+        // The side the spine stands on. An x range runs left to right and a y
+        // range top to bottom, so a left or bottom spine is at the range's
+        // outer end along the grid's own channel: its least x, its greatest y.
         const far = spineCh === 'x'
             ? (spineCfg.orient === 'top' ? 1 : 0)
             : (spineCfg.orient === 'right' ? 1 : 0);
+        const atLow = gridCh === 'x' ? far === 0 : far === 1;
+        const named = sharedScales && spec.resolve?.scale?.[gridCh] !== 'independent';
+        const bandPosition = gridCfg.bandPosition ?? (gridCfg.tickBand === 'extent' ? 0 : 0.5);
+        const s = JSON.stringify(gridCh);
+        const onSpine = named
+            ? `abs(scale(${s}, datum.value) + bandwidth(${s}) * ${bandPosition} - ${atLow ? 'min' : 'max'}(range(${s})[0], range(${s})[1])) < 0.5`
+            : `datum.index === ${far}`;
         walk(spec, (node) => {
             const enc = node.encoding?.[gridCh];
             if (!enc?.field || enc.axis === null) return;
@@ -2499,7 +2626,7 @@ function dropGridUnderSpine(spec: any, config: any): void {
             enc.axis = {
                 ...(enc.axis ?? {}),
                 gridColor: {
-                    condition: { test: `datum.index === ${far}`, value: 'transparent' },
+                    condition: { test: onSpine, value: 'transparent' },
                     value: gridCfg.gridColor,
                 },
             };
@@ -3299,9 +3426,6 @@ function reToneNeutral(ink: string, surface: string): string {
     return toHex({ r: t, g: t, b: t, a: 1 });
 }
 
-const NEGATIVE_WORDS = /\b(below|decrease|decline|loss|losses|negative|down|fall|deficit|shrink|worse)\b/i;
-const POSITIVE_WORDS = /\b(above|increase|growth|gain|gains|positive|up|rise|surplus|grow|better)\b/i;
-
 /**
  * The status inks name roles — positive, negative, neutral — and a role is a
  * property of the *category*, not of its place in the domain. Handing the
@@ -3361,24 +3485,11 @@ function statusRange(
         if (e?.field && (e.type === 'quantitative' || e.type == null)) { measure = e.field; break; }
     }
 
-    const roles = domain.map((value) => {
-        const label = String(value);
-        if (NEGATIVE_WORDS.test(label)) return 'negative';
-        if (POSITIVE_WORDS.test(label)) return 'positive';
-        if (!measure) return 'neutral';
-        let sum = 0; let n = 0;
-        for (const row of table ?? []) {
-            if (row?.[field] !== value) continue;
-            const v = Number(row?.[measure]);
-            if (Number.isFinite(v)) { sum += v; n++; }
-        }
-        if (n === 0) return 'neutral';
-        return sum < 0 ? 'negative' : sum > 0 ? 'positive' : 'neutral';
-    });
+    const roles = categorySignRoles(table, field, domain, measure);
 
     // No sign to speak of — every category reads the same way, so the status
     // set says nothing the categorical set would not say better.
-    if (new Set(roles).size < 2) return undefined;
+    if (!categoriesSplitBySign(roles)) return undefined;
     const range = roles.map((role) => (status as any)[role] ?? status.neutral ?? status.positive);
     if (range.some((c) => !c)) return undefined;
     return { domain, range: range as string[], roles };
@@ -3685,6 +3796,8 @@ function applySeriesInk(spec: any, d: DesignDecisions, table: any[], say: Report
             return;
         }
         const own = normalizeMark(node.mark).color;
+        // A gradient the chart drew (a ridge filled by its x) is its colour, not a gap for the ink.
+        if (own && typeof own === 'object' && (own as any).gradient) return;
         if (typeof own === 'string' && sawColorField) {
             const toned = reToneNeutral(own, surface);
             node.mark = { ...normalizeMark(node.mark), color: toned };

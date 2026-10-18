@@ -242,6 +242,8 @@ Call `list_themes` to choose an id, then place it beside `chart_spec`:
 | `powerbi-light` | Light dashboard tile: white canvas, fine gridlines, and bright categorical color. |
 | `cartoon` | Playful illustration: warm paper, rounded type, bold outlines, and bright color. |
 | `apple` | App-interface chart: light labels, trailing value axis, symbols beside color. |
+| `de-stijl` | De Stijl composition: primary planes in heavy black lines, steps not slopes, title under the picture. |
+| `bbc` | BBC News graphic: big bold headline, gridlines only, heavy zero rule, footer rule with the source. |
 
 ### 2. Override a preset
 
@@ -338,7 +340,7 @@ properties"). Required channels are noted.
 | `"Violin Plot"` | x, y, color, row | x (category) + y (measure) required; mirrored KDE density per category, prop `bandwidth`; **Vega-Lite only**; a genuine `color` subgroup splits two groups or grids 3+ groups |
 | `"Streamgraph"` | x, y, color, column, row | centre-stacked areas |
 | `"Density Plot"` | x, color, column, row | props `bandwidth`, `stackMode` (series stack; `layered` overlaps them), `opacity` |
-| `"Ridgeline Plot"` | x, y, color | x = measure; `color` (or a discrete `y`) names the ridges, each the KDE of x on its own baseline; a measure `y` draws each series' curve instead; props `overlap`, `order`, `tailCut`, `colorBy`, `perspective` (plans unset `skew`, `tilt`, `overlap` from the ridge count so the depth takes about 40% of the plot), `skew`, `tilt`, `valueMax`, `markAt` (`true` marks the x ticks, or a list of x values; each ridge's value is dotted and labelled, joined across ridges), `opacity`, `interpolate`, `bandwidth`; a numeric `color` keeps a gradient key; **Vega-Lite only** |
+| `"Ridgeline Plot"` | x, y, color | x = measure; `color` (or a discrete `y`) names the ridges, each the KDE of x on its own baseline; a measure `y` draws each series' curve instead; props `overlap`, `order`, `tailCut`, `colorBy`, `perspective` (plans unset `skew`, `tilt`, `overlap` from the ridge count so the depth takes about 40% of the plot), `skew`, `tilt`, `valueMax`, `markAt` (`true` marks the x ticks, or a list of x values; each ridge's value is dotted and labelled, joined across ridges), `opacity`, `interpolate`, `bandwidth`; named ridges share one ink unless `colorBy` asks otherwise; a numeric `color` keeps a gradient key; **Vega-Lite only** |
 | `"Marginal Plot"` | x, y, color, size, shape, opacity | the plot follows the axis types (measure × measure = scatter, category × measure = strip, category × category = heatmap of counts) with each axis's distribution along it (density, histogram or boxplot on a measure axis, a bar of counts on a category axis, split by `color`; density margins layer by default); props `marginal`, `stackMode`, `bandwidth`, `binCount`, `whiskerMethod`, `showOutliers`; **Vega-Lite only** |
 | `"Pie Chart"` | size, color, column, row | `size` = slice value (→ angle), `color` = category; props `innerRadius`, `sortSlices` |
 | `"Rose Chart"` | x, y, color, column, row | polar bars; props `alignment`, `padAngle`, `sortSlices` |
@@ -566,7 +568,7 @@ derived). Values are clamped to the ranges shown.
 | Ridgeline | `overlap` | 0.5–4 (1.8) | How many baselines up the tallest ridge reaches |
 | Ridgeline | `order` | `mean`, `reverse` (unset = as given; a quantitative series lowest at the front) | Highest mean on top, or reversed |
 | Ridgeline | `tailCut` | 0–0.2 (0) | Trim each ridge to where its density is at least this share of its peak |
-| Ridgeline | `colorBy` | `x` (unset = by series) | Fill each ridge with a ramp along x |
+| Ridgeline | `colorBy` | `series`, `x` (unset = one colour) | Named ridges share one ink by default; `series` colours each ridge, `x` fills each with a ramp along x |
 | Ridgeline | `perspective` | boolean (false) | Stand the ridges on a floor seen in perspective: `skew`, `tilt`, `overlap` left unset are planned so the depth takes about 40% of the plot's width and more of its height as ridges are added; the depth names, edge and value ticks give way (along the axis, then level, then every n-th) before they touch |
 | Ridgeline | `skew` | 0–0.4 (0) | Perspective: shift the back ridges left by this share of the x range |
 | Ridgeline | `tilt` | 0–6 (0) | Perspective: the x axis rises this many baselines across its range, labels following its edge |

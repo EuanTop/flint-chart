@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowLeftRight, Brush, Focus, GripVertical, Keyboard, Layers, LayoutGrid, MousePointerClick, Move, Pencil, Ruler, Scan, SlidersHorizontal, Table2, UserRound, ZoomIn } from 'lucide-react';
+import { ArrowDown, ArrowLeftRight, Brush, Focus, Globe, GripVertical, Keyboard, Layers, LayoutGrid, Map as MapIcon, MousePointerClick, Move, Pencil, Ruler, Scan, SlidersHorizontal, Table2, UserRound, ZoomIn } from 'lucide-react';
 import { Navigate, useLocation, useParams } from 'react-router-dom';
 import { INTERACTION_PRESET_TYPES, type CanvasInteractionAction } from 'flint-chart/interactive';
 import { CodeBlock } from '../components/CodeBlock';
@@ -18,6 +18,8 @@ import { FilterControlsGallery } from '../playground/FilterControlsGallery';
 import { CompositionsGallery } from '../playground/CompositionsGallery';
 import { ClimatePhaseStage } from '../playground/ClimatePhaseStage';
 import { RetailDrilldownStage } from '../playground/RetailDrilldownStage';
+import { GlobeWarmingStage } from '../playground/GlobeWarmingStage';
+import { ElectionProfileDemo } from '../playground/release-examples/application-demos-election-profile';
 import { YouDrawItStage } from '../playground/YouDrawItStage';
 import { FreeformExplodedDetailStage } from '../playground/ExplodedDetailStage';
 import { ContinentCohortStage, ContinentTableStage, CountryTableStage } from '../playground/ExternalToChartLab';
@@ -259,6 +261,12 @@ const curatedExamples = [
   { label: 'Zoom', mode: 'semantic-zoom', implementation: 'Custom API', item: undefined,
     interactionLabel: 'Semantic zoom', icon: ZoomIn,
     caption: 'Wheel zoom changes the time window and redraws the bars, axes, and value labels.' },
+  { label: 'Globe', mode: 'globe', implementation: 'Preset with a custom handler', item: undefined,
+    interactionLabel: 'Turn the globe', icon: Globe,
+    caption: 'Dragging turns a globe of warming since 1951–1980; the country facing you is the focus, read out beside the globe with its warming stripes.' },
+  { label: 'US map', mode: 'us-map', implementation: 'Preset with a custom handler', item: undefined,
+    interactionLabel: 'Zoom into counties', icon: MapIcon,
+    caption: 'Scrolling turns the 2024 vote-margin map from states into counties in place; clicking a state flies into it, and the profile beside the map follows.' },
   { label: 'Draw it', mode: 'you-draw-it', implementation: 'Custom API', item: undefined,
     interactionLabel: 'Freehand prediction', icon: Pencil,
     caption: "Drawing the missing years predicts coal's share of U.S. electricity generation; revealing the real series scores the prediction." },
@@ -303,6 +311,8 @@ function InteractionExamples({ selected, onSelect }: {
           : active.mode === 'continent-table' ? <ContinentTableStage />
           : active.mode === 'climate-phase' ? <ClimatePhaseStage compact height={440} showReadout />
           : active.mode === 'semantic-zoom' ? <RetailDrilldownStage />
+          : active.mode === 'globe' ? <GlobeWarmingStage />
+          : active.mode === 'us-map' ? <ElectionProfileDemo />
           : active.mode === 'you-draw-it' ? <YouDrawItStage />
           : active.mode === 'freeform-detail' ? <FreeformExplodedDetailStage />
           : active.item && <CaseCard

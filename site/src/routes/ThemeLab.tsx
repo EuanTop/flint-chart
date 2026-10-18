@@ -327,114 +327,6 @@ const PEOPLES_DAILY_THEME: ThemeSpec = {
   },
 };
 
-/**
- * Piet Mondrian's Neo-Plasticism (c. 1920–1944), read as a chart house.
- *
- * Its rules are the paintings' own, and none of them is borrowed from another house:
- *
- * - The plot is the canvas. Its field is an off-white, and heavy black lines cross it in both
- *   directions, few and far apart, so the plot reads as a composition of rectangles. There is no
- *   frame round it and no tick: the lines are what divides the picture, not a ruler's marks.
- * - A mark is a plane. Planes carry no border of their own; where two meet — a stack's pieces,
- *   a heat map's cells, a pie's wedges — the shared edge is a black line.
- * - Only horizontals and verticals. The diagonal is what Mondrian broke with van Doesburg over,
- *   so lines and areas step.
- * - Three primaries and the non-colours: red, blue, yellow, then black and grey. No gradient; a
- *   ramp is cut into flat steps.
- * - The words are a museum label: the title sits under the picture in italic, as a work's title is
- *   printed, and nothing is drawn above it.
- */
-const MONDRIAN_FONT = "Futura, 'Avenir Next', 'Century Gothic', 'Helvetica Neue', Arial, sans-serif";
-const MONDRIAN_THEME: ThemeSpec = {
-  id: 'mondrian',
-  label: 'Mondrian',
-  ink: {
-    surface: { source: 'house', canvas: '#f4f1e8', plot: '#f4f1e8', panel: '#ece8dd' },
-    text: { primary: '#121212', secondary: '#4a4945', muted: '#7c7a73', inverse: '#f4f1e8' },
-    structure: {
-      axis: '#121212', grid: '#121212', frame: '#121212', rule: '#121212',
-      zero: '#121212', connector: '#121212',
-    },
-    series: {
-      single: '#d40f0f',
-      categorical: ['#d40f0f', '#1f4a94', '#f5c400', '#121212', '#a9a69d'],
-      categoricalExtended: [
-        '#d40f0f', '#1f4a94', '#f5c400', '#121212', '#a9a69d',
-        '#e6a08f', '#8ea3c4', '#e8d58a', '#5a5853', '#8f2318', '#17305e', '#cfcbc0',
-      ],
-      overflow: '#a9a69d',
-      sequential: {
-        stops: ['#e9e4d6', '#f5c400', '#d40f0f', '#1f4a94', '#121212'],
-        space: 'rgb', endpointsAgainstSurface: true, consumption: 'quantize', quantizeCount: 5,
-      },
-      diverging: {
-        stops: ['#1f4a94', '#8ea3c4', '#e9e4d6', '#e6a08f', '#d40f0f'],
-        neutral: '#e9e4d6', space: 'rgb', endpointsAgainstSurface: true,
-        consumption: 'quantize', quantizeCount: 5,
-      },
-      status: { positive: '#1f4a94', negative: '#d40f0f', neutral: '#a9a69d' },
-      selection: { signed: 'status', statusUse: 'anySigned' },
-    },
-    accent: '#d40f0f',
-  },
-  type: {
-    minSize: 9,
-    headline: { family: MONDRIAN_FONT, size: 'text.300', weight: 'medium', style: 'italic', color: '#121212' },
-    deck: { family: MONDRIAN_FONT, size: 'text.100', color: '#4a4945' },
-    axisLabel: { family: MONDRIAN_FONT, size: 'text.100', color: '#4a4945' },
-    axisTitle: { family: MONDRIAN_FONT, size: 'text.100', color: '#4a4945' },
-    valueLabel: { family: MONDRIAN_FONT, weight: 'medium' },
-    keyLabel: { family: MONDRIAN_FONT, size: 'text.100', color: '#121212' },
-    display: { family: MONDRIAN_FONT, size: 'text.hero900', weight: 'medium', color: '#121212' },
-  },
-  structure: {
-    axis: {
-      categorical: { line: 'omit', ticks: 'omit', labelGap: 8 },
-      measure: { line: 'omit', ticks: 'omit', labelGap: 8, tickDensity: 'sparse' },
-    },
-    grid: {
-      measure: { presence: 'full', weight: 3 },
-      category: { presence: 'full', weight: 3 },
-      zero: 'full',
-    },
-    frame: 'omit',
-    baseline: { presence: 'full', weight: 3 },
-  },
-  marks: {
-    fillOpacity: 1,
-    separator: { presence: 'full', width: 3, source: 'structure' },
-    tile: { gap: 3, source: 'structure' },
-    connector: { presence: 'full', weight: 3, spanWeight: 4 },
-  },
-  geometry: {
-    line: { width: 4, cap: 'square', join: 'miter', interpolation: 'step' },
-    // No circle appears in a Neo-Plastic painting: a dot is a small square plane, and opaque like every plane.
-    point: { presence: 'omit', fill: 'solid', shape: 'square', size: 110, opacity: 1 },
-    area: { interpolation: 'step', fill: 'solid', opacity: 1, edge: 'omit' },
-    band: { fraction: 0.82, cornerRadius: 0 },
-    arc: { gap: 3, gapStyle: 'rule', cornerRadius: 0 },
-    cell: { gap: 3, cornerRadius: 0 },
-  },
-  // Bars already stand in the black lines of their own band; a line between every bar would cage them.
-  variants: [
-    {
-      when: { hasBandedAxis: true },
-      then: { structure: { grid: { category: 'omit' } } },
-      because: 'Bars are planes on the field; a black line through each band would cut every bar in two.',
-    },
-  ],
-  labels: { truncation: 'never', flush: true },
-  legend: {
-    show: 'always', placement: ['top'], direction: 'horizontal', swatch: 'square',
-    title: 'whenAmbiguous', suppressWhenAxisNames: true,
-  },
-  dataLabels: { show: 'whenTheyFit', placement: 'atMark', inkMode: 'contrastWithMark' },
-  layout: {
-    density: 'normal',
-    titleBlock: { anchor: 'start', position: 'bottom', gap: 'normal', deckGap: 'tight' },
-  },
-};
-
 /** The houses Flint ships, as the Visual Themes page lists them. */
 const PRESETS = Object.values(THEME_PRESETS);
 
@@ -442,7 +334,6 @@ const DEMO_THEMES = [
   { theme: GOOGLE_MATERIAL_THEME },
   { theme: MICROSOFT_FLUENT_THEME },
   { theme: PEOPLES_DAILY_THEME },
-  { theme: MONDRIAN_THEME },
 ] as const;
 
 

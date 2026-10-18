@@ -52,16 +52,22 @@ export function aboutHouse(summary: string | undefined): string {
 
 let housesPromise: Promise<HouseChoice[]> | undefined;
 
+/** Style-guide houses Flint now ships as presets; the page offers each once, as the preset. */
+const SHIPPED_AS_PRESET = new Set(['bbc']);
+
 /**
  * Every researched style-guide house, loaded on demand (the modules carry their research and gap
  * charts too) and loaded once. Their logos are left out: inline SVG and image data that would
  * swamp an editor and every preview.
  */
 export function loadHouses(): Promise<HouseChoice[]> {
-  housesPromise ??= import('../playground/new-theme-test/themes').then(({ STYLE_GUIDE_THEMES }) => STYLE_GUIDE_THEMES.map((house) => ({
+  // A house that has since shipped as a preset is offered once, as the preset.
+  housesPromise ??= import('../playground/new-theme-test/themes').then(({ STYLE_GUIDE_THEMES }) => STYLE_GUIDE_THEMES
+    .filter((house) => !SHIPPED_AS_PRESET.has(house.id))
+    .map((house) => ({
     id: house.id, name: shortName(house.id, house.org, house.theme.label), org: house.org,
     theme: withChrome(house.theme, { logos: false }) ?? house.theme,
     about: aboutHouse(house.research?.summary),
-  })));
+    })));
   return housesPromise;
 }
