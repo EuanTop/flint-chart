@@ -42,6 +42,7 @@ import {
   themeName,
   boardReport,
   boardSnapshot,
+  shownText,
   linkSpecShape,
   relink,
   mergeChartArgs,
@@ -242,8 +243,8 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
         'to show a chart whenever the host supports MCP App UIs — it renders ' +
         'the chart live with an editing panel. For several charts shown together ' +
         '(a dashboard, a comparison, an overview with its detail), call get_flint_skill ' +
-        'with skill "board", then create_board, and change that card with add_chart, ' +
-        'update_chart, remove_chart and update_board. ' +
+        'with skill "board", build it with create_board, change it with add_chart, ' +
+        'update_chart, remove_chart and update_board, then call show_board once to put it on screen. ' +
         'The editing panel is not ' +
         'interactivity: when the user asks for an interactive chart (hover, ' +
         'click, brush, zoom), add an interaction_spec. Fall back to render_chart for a static PNG/SVG artifact only ' +
@@ -556,7 +557,8 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
         'the spec itself: an invalid spec or update layer returns an error and draws ' +
         'nothing, so call it directly, without validate_chart first. The result is a ' +
         'report of the chart: its encodings, interactions, and each update op as ' +
-        'applied (✓) or not and why (✗); fix a ✗ and call again, or tell the user. ' +
+        'applied (✓) or not and why (✗). Each call opens a new card, so call again for a ✗ only ' +
+        'when the op matters to what the user asked; otherwise tell them what did not apply. ' +
         'What the user then does on the chart reaches you with their next message.',
       inputSchema: { ...assemblyInputShape, ...updatesShape, ...viewShape },
       _meta: { ui: { resourceUri: CHART_VIEW_RESOURCE_URI } },
@@ -598,7 +600,7 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
     }),
   );
 
-  // --- board tools (MCP App: several charts in one live card) -------------
+  // --- board tools (MCP App: several charts in one card per version) -------
   const boards = options.boards ?? new BoardStore();
   const boardChart = boardChartShape(assemblyInputShape);
   const boardFields = boardFieldsShape(assemblyInputShape.theme_spec);
@@ -623,6 +625,7 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
     relink(board);
     return { board, outcomes };
   };
+  /** An agent write: the board's next version, and the report the model judges it by. Nothing is on screen until show_board. */
   const boardWrite = (fn: (args: any) => Promise<{ board: Board; outcomes: ChartOutcome[]; notes?: (string | undefined)[] }>) =>
     async (args: any) => {
       try {
@@ -634,20 +637,42 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
         return errorResult(err);
       }
     };
+  /** A reader write from the newest card; a card an agent write has passed changes nothing. */
+  const readerWrite = (fn: (board: Board, args: any) => void) =>
+    async (args: any) => {
+      try {
+        const board = boards.get(args.board_id);
+        if (args.version !== board.version) {
+          return {
+            content: [{ type: 'text' as const, text: `Error: board ${board.id} is at version ${board.version}, not ${args.version}: change the newest card.` }],
+            structuredContent: { version: board.version },
+            isError: true,
+          };
+        }
+        fn(board, args);
+        return {
+          content: [{ type: 'text' as const, text: `version ${board.version}` }],
+          structuredContent: { version: board.version, board: boardSnapshot(board) },
+        };
+      } catch (err) {
+        return errorResult(err);
+      }
+    };
+  const boardCardOnly = { ui: { resourceUri: BOARD_VIEW_RESOURCE_URI, visibility: ['app' as const] } };
+  const cardVersion = z.number().describe('The board version the card shows; a newer board refuses the change.');
 
-  registerAppTool(
-    server,
+  server.registerTool(
     'create_board',
     {
-      title: 'Create live board',
+      title: 'Create board',
       description:
-        'Open one live card that holds several Flint charts: a dashboard, a comparison, ' +
+        'Build a board of several Flint charts: a dashboard, a comparison, ' +
         'an overview with its detail. The board has a headline, a deck and a source; each chart ' +
         'is a full chart spec with an id and a layout (span, height). link_spec connects the charts ' +
         'by the fields they share: ' +
-        'a selection on one chart emphasizes the marks that share its values on the others. The card stays ' +
-        'live: change it later with add_chart, update_chart, remove_chart and update_board, ' +
-        'which redraw this card instead of opening a new one. Use create_chart_view for a ' +
+        'a selection on one chart emphasizes the marks that share its values on the others. Nothing is on ' +
+        'screen yet: fix what the report asks with add_chart, update_chart, remove_chart and update_board, ' +
+        'then call show_board once. Use create_chart_view for a ' +
         'single chart. Before the first board, call get_flint_skill with skill "board". ' +
         'The result reports the layout, each chart (✓/✗ per update op), what each chart sends and receives, and a review ' +
         'of what the board should still fix; a chart with errors is left off the board.',
@@ -656,26 +681,15 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
         charts: z.array(boardChart).describe('The charts, in reading order: KPI tiles first, then the lead chart, then the charts that explain it.'),
         link_spec: linkSpecShape.optional(),
       },
-      _meta: { ui: { resourceUri: BOARD_VIEW_RESOURCE_URI } },
     },
-    async (args: any) => {
-      try {
-        const { board, outcomes } = await buildBoard(args);
-        return {
-          content: [{ type: 'text' as const, text: boardReport(board, outcomes) }],
-          _meta: { flint: { board: boardSnapshot(board) } },
-        };
-      } catch (err) {
-        return errorResult(err);
-      }
-    },
+    boardWrite(buildBoard),
   );
 
   server.registerTool(
     'add_chart',
     {
       title: 'Add chart to board',
-      description: 'Add a chart to an open board; its card redraws with the chart at the end. An id already on the board is an error: use update_chart.',
+      description: 'Add a chart to a board, at the end. An id already on the board is an error: use update_chart.',
       inputSchema: { board_id: z.string(), chart: boardChart },
     },
     boardWrite(async (args) => {
@@ -698,7 +712,7 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
     {
       title: 'Update chart on board',
       description:
-        'Change one chart on an open board; its card redraws that chart. Pass only the fields to replace ' +
+        'Change one chart on a board. Pass only the fields to replace ' +
         '(chart_spec, data, interaction_spec, updates, layout, ...); each replaces the chart\'s field whole. ' +
         'A change with errors leaves the chart as it was.',
       inputSchema: {
@@ -726,7 +740,7 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
     'remove_chart',
     {
       title: 'Remove chart from board',
-      description: 'Take a chart off an open board.',
+      description: 'Take a chart off a board.',
       inputSchema: { board_id: z.string(), chart_id: z.string() },
     },
     boardWrite(async (args) => {
@@ -746,7 +760,7 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
     'update_board',
     {
       title: 'Update board',
-      description: 'Change an open board\'s title, subtitle, source, theme, columns, chart order, or link_spec. Each field given replaces the board\'s.',
+      description: 'Change a board\'s title, subtitle, source, theme, columns, chart order, or link_spec. Each field given replaces the board\'s.',
       inputSchema: {
         board_id: z.string(),
         ...boardFields,
@@ -779,29 +793,47 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
 
   registerAppTool(
     server,
+    'show_board',
+    {
+      title: 'Show board',
+      description:
+        'Put a board on screen: a new card with its current version. Call it once a turn, after create_board ' +
+        'and any fixes; changes after it stay off screen until the next show_board. Earlier cards keep the ' +
+        'version they showed.',
+      inputSchema: { board_id: z.string() },
+      _meta: { ui: { resourceUri: BOARD_VIEW_RESOURCE_URI } },
+    },
+    async (args: any) => {
+      try {
+        const board = boards.get(args.board_id);
+        return {
+          content: [{ type: 'text' as const, text: shownText(board) }],
+          _meta: { flint: { board: boardSnapshot(board) } },
+        };
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+  );
+
+  registerAppTool(
+    server,
     'restore_board',
     {
       title: 'Restore board',
       description:
-        'For the board card only: hand back a board this server no longer holds, as after a restart. ' +
-        'Pass the board the card holds, kept under its own id, or the create_board arguments it was made from.',
+        'For the board card only: the board as this server holds it, given the board the card holds. ' +
+        'A server that lost it, as after a restart, takes the card\'s back under its own id; a newer board stays.',
       inputSchema: {
-        board: z.record(z.string(), z.any()).optional().describe('The board as the card holds it, with its id.'),
-        create: z.record(z.string(), z.any()).optional().describe('The create_board arguments, when the card holds no board.'),
+        board: z.record(z.string(), z.any()).describe('The board as the card holds it, with its id.'),
       },
-      _meta: { ui: { resourceUri: BOARD_VIEW_RESOURCE_URI, visibility: ['app'] } },
+      _meta: boardCardOnly,
     },
     async (args: any) => {
       try {
-        let board: Board;
-        if (args.board?.id && Array.isArray(args.board.charts)) {
-          board = boards.has(args.board.id) ? boards.get(args.board.id) : boards.restore(args.board as Board);
-          relink(board);
-        } else if (args.create && Array.isArray(args.create.charts)) {
-          board = (await buildBoard(args.create)).board;
-        } else {
-          throw new Error('Nothing to restore: pass the board or the create_board arguments.');
-        }
+        if (!args.board?.id || !Array.isArray(args.board.charts)) throw new Error('Nothing to restore: pass the board the card holds.');
+        const board = boards.restore(args.board as Board);
+        relink(board);
         return {
           content: [{ type: 'text' as const, text: `version ${board.version}` }],
           structuredContent: { version: board.version, board: boardSnapshot(board) },
@@ -820,24 +852,15 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
       description: 'For the board card only: the theme the reader picked for every chart, or reset to go back to the agent\'s.',
       inputSchema: {
         board_id: z.string(),
+        version: cardVersion,
         theme: z.union([z.string(), z.record(z.string(), z.any()), z.null()]).optional().describe('A preset id, a ThemeSpec, or null for Flint\'s default.'),
         reset: z.boolean().optional().describe('Go back to the agent\'s theme.'),
       },
-      _meta: { ui: { resourceUri: BOARD_VIEW_RESOURCE_URI, visibility: ['app'] } },
+      _meta: boardCardOnly,
     },
-    async (args: any) => {
-      try {
-        const board = boards.get(args.board_id);
-        board.reader_theme = args.reset ? undefined : { theme: args.theme ?? null };
-        boards.touch(board);
-        return {
-          content: [{ type: 'text' as const, text: `version ${board.version}` }],
-          structuredContent: { version: board.version, board: boardSnapshot(board) },
-        };
-      } catch (err) {
-        return errorResult(err);
-      }
-    },
+    readerWrite((board, args) => {
+      board.reader_theme = args.reset ? undefined : { theme: args.theme ?? null };
+    }),
   );
 
   registerAppTool(
@@ -848,54 +871,18 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
       description: 'For the board card only: the arrangement the reader made, as a place on a 12-column grid for every chart, or null to go back to the rows.',
       inputSchema: {
         board_id: z.string(),
-        version: z.number().describe('The board version the card arranged; a newer board refuses the arrangement.'),
+        version: cardVersion,
         grid: z.array(z.object({ id: z.string(), x: z.number(), y: z.number(), w: z.number(), h: z.number() })).nullable(),
       },
-      _meta: { ui: { resourceUri: BOARD_VIEW_RESOURCE_URI, visibility: ['app'] } },
+      _meta: boardCardOnly,
     },
-    async (args: any) => {
-      try {
-        const board = boards.get(args.board_id);
-        if (args.version !== board.version) {
-          throw new Error(`Board ${board.id} is at version ${board.version}, not ${args.version}; read it again and arrange that.`);
-        }
-        if (args.grid) {
-          const problem = gridProblem(args.grid, board.charts.map((chart) => chart.id));
-          if (problem) throw new Error(`The arrangement does not fit the board: ${problem}.`);
-        }
-        board.grid = args.grid ?? undefined;
-        boards.touch(board);
-        return {
-          content: [{ type: 'text' as const, text: `version ${board.version}` }],
-          structuredContent: { version: board.version, board: boardSnapshot(board) },
-        };
-      } catch (err) {
-        return errorResult(err);
+    readerWrite((board, args) => {
+      if (args.grid) {
+        const problem = gridProblem(args.grid, board.charts.map((chart) => chart.id));
+        if (problem) throw new Error(`The arrangement does not fit the board: ${problem}.`);
       }
-    },
-  );
-
-  registerAppTool(
-    server,
-    'read_board',
-    {
-      title: 'Read board',
-      description: 'For the board card only: the board\'s charts and links when its version moved past `version`.',
-      inputSchema: { board_id: z.string(), version: z.number().optional() },
-      _meta: { ui: { resourceUri: BOARD_VIEW_RESOURCE_URI, visibility: ['app'] } },
-    },
-    async (args: any) => {
-      try {
-        const board = boards.get(args.board_id);
-        const unchanged = args.version === board.version;
-        return {
-          content: [{ type: 'text' as const, text: unchanged ? 'unchanged' : `version ${board.version}` }],
-          structuredContent: unchanged ? { version: board.version } : { version: board.version, board: boardSnapshot(board) },
-        };
-      } catch (err) {
-        return errorResult(err);
-      }
-    },
+      board.grid = args.grid ?? undefined;
+    }),
   );
 
   registerAppResource(
@@ -1074,7 +1061,7 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
     {
       title: 'Flint board-author skill',
       description:
-        'Bundled instructions for a board of several charts in one live card: the headline, which charts, their layout, links between them, and refining the board from its report.',
+        'Bundled instructions for a board of several charts in one card: the headline, which charts, their layout, links between them, and refining the board from its report.',
       mimeType: 'text/markdown',
       annotations: { audience: ['assistant'], priority: 1 },
     },

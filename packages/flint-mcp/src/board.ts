@@ -42,6 +42,7 @@ export interface Board {
    * null is Flint's default. Absent while the reader keeps the agent's theme.
    */
   reader_theme?: { theme: ChartAssemblyInput['theme_spec'] | null };
+  /** One per agent write; a card shows one version, and the reader's changes keep it. */
   version: number;
   charts: BoardChart[];
   /** The fields the charts connect on; none when the charts stand alone. */
@@ -112,13 +113,10 @@ export class BoardStore {
     return board;
   }
 
-  /** Whether the store holds the board. */
-  has(id: string): boolean {
-    return this.boards.has(id);
-  }
-
-  /** Takes back a board a card still holds, under its own id, as a server that restarted lost it. */
+  /** Takes back the board a card holds, as a server that restarted lost it; a newer board it holds stays. */
   restore(board: Board): Board {
+    const held = this.boards.get(board.id);
+    if (held && held.version >= (board.version ?? 1)) return held;
     const kept: Board = { ...board, charts: board.charts ?? [], version: board.version ?? 1 };
     this.boards.set(kept.id, kept);
     if (this.boards.size > BOARD_LIMIT) this.boards.delete(this.boards.keys().next().value!);
@@ -129,12 +127,13 @@ export class BoardStore {
     const board = this.boards.get(id);
     if (!board) {
       throw new Error(
-        `No board "${id}" on this server; it may have restarted. Call create_board to open a new board card with the charts.`,
+        `No board "${id}" on this server; it may have restarted. Call create_board to build the board again, then show_board.`,
       );
     }
     return board;
   }
 
+  /** Marks an agent write: the board's next version. */
   touch(board: Board): void {
     board.version += 1;
   }
@@ -276,11 +275,16 @@ export function themeName(theme: ChartAssemblyInput['theme_spec'] | null): strin
   return custom.label ?? custom.id ?? (custom.extends ? `custom (${custom.extends})` : 'custom');
 }
 
+/** What the model reads once a board is on screen. */
+export function shownText(board: Board): string {
+  return `Board ${board.id} version ${board.version} is on screen in a new card; earlier cards keep the versions they showed. What the reader does on it reaches you with their next message.`;
+}
+
 /** The board as the model reads it after a write. */
 export function boardReport(board: Board, outcomes: readonly ChartOutcome[], notes: readonly string[] = []): string {
   const lines = [
     `Board ${board.id}${board.title ? ` "${board.title}"` : ''}: ${board.charts.length} chart${board.charts.length === 1 ? '' : 's'} (${board.charts.map((chart) => chart.id).join(', ') || 'none'}).`,
-    'The board card redraws from this board: change it with add_chart, update_chart, remove_chart and update_board, never a new create_board. What the reader does on it reaches you with their next message.',
+    `Version ${board.version}, not on screen yet: fix what this report asks with add_chart, update_chart, remove_chart and update_board (never a new create_board), then call show_board once.`,
   ];
   if (notes.length > 0) lines.push('', ...notes);
   if (board.reader_theme) {

@@ -43,11 +43,12 @@ afterAll(async () => {
 });
 
 const text = (result: any): string => result.content[0].text;
-const boardIdOf = (result: any): string => result._meta.flint.board.id;
+const boardIdOf = (result: any): string => text(result).match(/^Board (board-[0-9a-f]+)/)![1];
 
-async function read(boardId: string, version?: number): Promise<any> {
-  const result: any = await client.callTool({ name: 'read_board', arguments: { board_id: boardId, ...(version ? { version } : {}) } });
-  return result.structuredContent;
+/** The board as show_board hands it to its card. */
+async function shown(boardId: string): Promise<any> {
+  const result: any = await client.callTool({ name: 'show_board', arguments: { board_id: boardId } });
+  return result._meta.flint.board;
 }
 
 describe('board tools', () => {
@@ -63,16 +64,21 @@ describe('board tools', () => {
     expect(text(result)).toContain('✓ countries: sends region by select; receives region; leaves out country: its marks do not carry country');
     expect(text(result)).toContain('✓ by-country: receives country; leaves out region: its marks do not carry region');
     expect(text(result)).toContain('sends nothing: no interaction that selects');
-    const board = result._meta.flint.board;
+    expect(result._meta).toBeUndefined();
+    const board = await shown(boardIdOf(result));
     expect(board.charts.map((chart: any) => chart.id)).toEqual(['countries', 'by-country']);
     expect(board.linked['by-country']).toMatchObject({ sends: [], receives: ['country'] });
     expect(board.version).toBe(1);
 
     const { tools } = await client.listTools();
-    const create = tools.find((tool) => tool.name === 'create_board') as any;
-    const readTool = tools.find((tool) => tool.name === 'read_board') as any;
-    expect(create._meta.ui.resourceUri).toBe(BOARD_VIEW_RESOURCE_URI);
-    expect(readTool._meta.ui.visibility).toEqual(['app']);
+    for (const name of ['create_board', 'add_chart', 'update_chart', 'remove_chart', 'update_board']) {
+      expect((tools.find((entry) => entry.name === name) as any)._meta?.ui).toBeUndefined();
+    }
+    const show = tools.find((tool) => tool.name === 'show_board') as any;
+    expect(show._meta.ui.resourceUri).toBe(BOARD_VIEW_RESOURCE_URI);
+    expect(show._meta.ui.visibility).toBeUndefined();
+    const restore = tools.find((tool) => tool.name === 'restore_board') as any;
+    expect(restore._meta.ui.visibility).toEqual(['app']);
   });
 
   it('marks a chart that joins no field, honours receive: false, and names an unknown chart', async () => {
@@ -106,7 +112,7 @@ describe('board tools', () => {
       arguments: { charts: [hovering, clickable], link_spec: { fields: ['country', 'region'] } },
     });
     expect(text(both)).toContain('✓ countries: sends country + region by select, region by hover-group-focus (hover); receives country, region');
-    expect(both._meta.flint.board.linked.countries.gestures['hover-group-focus']).toEqual({ preset: 'hover-group-focus', fields: ['region'], hover: true });
+    expect((await shown(boardIdOf(both))).linked.countries.gestures['hover-group-focus']).toEqual({ preset: 'hover-group-focus', fields: ['region'], hover: true });
   });
 
   it('leaves a chart with errors off the board and says why', async () => {
@@ -118,17 +124,20 @@ describe('board tools', () => {
     expect(text(result)).toMatch(/## by-country\n✗ not drawn: /);
   });
 
-  it('add_chart, update_chart, remove_chart and update_board change the board in place and bump its version', async () => {
+  it('add_chart, update_chart, remove_chart and update_board change the board off screen, and show_board shows its current version', async () => {
     const created: any = await client.callTool({ name: 'create_board', arguments: { charts: [scatter] } });
     const id = boardIdOf(created);
-    expect((await read(id, 1)).board).toBeUndefined();
+    expect(text(created)).toContain('Version 1, not on screen yet');
+    const first = await shown(id);
 
     const added: any = await client.callTool({ name: 'add_chart', arguments: { board_id: id, chart: bars } });
     expect(text(added)).toContain('2 charts (countries, by-country)');
+    expect(text(added)).toContain('Version 2, not on screen yet');
     expect(added._meta).toBeUndefined();
-    const afterAdd = await read(id, 1);
-    expect(afterAdd.version).toBe(2);
-    expect(afterAdd.board.charts).toHaveLength(2);
+    const show: any = await client.callTool({ name: 'show_board', arguments: { board_id: id } });
+    expect(text(show)).toContain(`Board ${id} version 2 is on screen in a new card`);
+    expect(show._meta.flint.board.charts).toHaveLength(2);
+    expect(first.charts).toHaveLength(1);
 
     const duplicate: any = await client.callTool({ name: 'add_chart', arguments: { board_id: id, chart: bars } });
     expect(duplicate.isError).toBe(true);
@@ -138,8 +147,7 @@ describe('board tools', () => {
       arguments: { board_id: id, chart_id: 'by-country', chart_spec: { ...bars.chart_spec, title: 'Income by country' } },
     });
     expect(text(updated)).toContain('Chart "Income by country"');
-    const afterUpdate = await read(id);
-    const chart = afterUpdate.board.charts.find((entry: any) => entry.id === 'by-country');
+    const chart = (await shown(id)).charts.find((entry: any) => entry.id === 'by-country');
     expect(chart.input.chart_spec.title).toBe('Income by country');
     expect(chart.input.data.values).toHaveLength(4);
 
@@ -148,17 +156,15 @@ describe('board tools', () => {
       arguments: { board_id: id, chart_id: 'by-country', chart_spec: { ...bars.chart_spec, chartType: 'Not A Chart' } },
     });
     expect(text(broken)).toContain('✗ not drawn');
-    expect((await read(id)).board.charts[1].input.chart_spec.title).toBe('Income by country');
+    expect((await shown(id)).charts[1].input.chart_spec.title).toBe('Income by country');
 
-    await client.callTool({ name: 'update_board', arguments: { board_id: id, order: ['by-country'], link_spec: { fields: ['country'], charts: { 'by-country': { send: false } } } } });
-    const reordered = await read(id);
-    expect(reordered.board.charts.map((entry: any) => entry.id)).toEqual(['by-country', 'countries']);
+    const reordered: any = await client.callTool({ name: 'update_board', arguments: { board_id: id, order: ['by-country'], link_spec: { fields: ['country'], charts: { 'by-country': { send: false } } } } });
+    expect((await shown(id)).charts.map((entry: any) => entry.id)).toEqual(['by-country', 'countries']);
 
-    await client.callTool({ name: 'remove_chart', arguments: { board_id: id, chart_id: 'by-country' } });
-    const removed = await read(id);
-    expect(removed.board.charts.map((entry: any) => entry.id)).toEqual(['countries']);
-    expect(removed.board.link_spec).toEqual({ fields: ['country'], charts: {} });
-    expect(Object.keys(removed.board.linked)).toEqual(['countries']);
+    const removed: any = await client.callTool({ name: 'remove_chart', arguments: { board_id: id, chart_id: 'by-country' } });
+    expect((await shown(id)).charts.map((entry: any) => entry.id)).toEqual(['countries']);
+    expect((await shown(id)).link_spec).toEqual({ fields: ['country'], charts: {} });
+    expect(Object.keys((await shown(id)).linked)).toEqual(['countries']);
   });
 
   it('tells the model to create a board when the id is unknown', async () => {
@@ -189,8 +195,8 @@ describe('board tools', () => {
     const id = boardIdOf(result);
     const themed: any = await client.callTool({ name: 'update_board', arguments: { board_id: id, title: 'Countries', subtitle: 'GDP and life expectancy', theme_spec: 'economist' } });
     expect(text(themed)).toContain('Charts set their own themes');
-    expect((await read(id)).board.theme_spec).toBe('economist');
-    expect((await read(id)).board.charts.find((chart: any) => chart.id === 'countries').input.theme_spec).toBeUndefined();
+    expect((await shown(id)).theme_spec).toBe('economist');
+    expect((await shown(id)).charts.find((chart: any) => chart.id === 'countries').input.theme_spec).toBeUndefined();
 
     const narrowed: any = await client.callTool({ name: 'update_chart', arguments: { board_id: id, chart_id: 'trend', layout: { span: 1, height: 'compact' } } });
     expect(text(narrowed)).toContain('- row 2 (standard): trend (half), countries (half)');
@@ -227,7 +233,7 @@ describe('board tools', () => {
 
     const saved: any = await client.callTool({ name: 'set_board_layout', arguments: { board_id: id, version: 1, grid } });
     expect(saved.structuredContent.board.grid).toEqual(grid);
-    expect(saved.structuredContent.version).toBe(2);
+    expect(saved.structuredContent.version).toBe(1);
 
     const added: any = await client.callTool({ name: 'add_chart', arguments: { board_id: id, chart: { ...bars, id: 'more' } } });
     expect(text(added)).toContain('Arranged by the reader');
@@ -240,7 +246,7 @@ describe('board tools', () => {
     expect(text(removed)).not.toContain('- more:');
     const relaid: any = await client.callTool({ name: 'update_chart', arguments: { board_id: id, chart_id: 'countries', layout: { span: 2 } } });
     expect(text(relaid)).toContain("The reader's arrangement was dropped: layout on countries");
-    expect((await read(id)).board.grid).toBeUndefined();
+    expect((await shown(id)).grid).toBeUndefined();
   });
 
   it('holds a Table of rows and a chart opened as its table, and a change of view keeps the reader\'s arrangement', async () => {
@@ -252,13 +258,13 @@ describe('board tools', () => {
     expect(text(created)).toContain('Opens as the table of the rows it draws');
     expect(text(created)).toContain('list: receives country');
     const id = boardIdOf(created);
-    expect((await read(id)).board.charts.map((chart: any) => chart.view)).toEqual([undefined, 'table']);
+    expect((await shown(id)).charts.map((chart: any) => chart.view)).toEqual([undefined, 'table']);
 
     const grid = [{ id: 'list', x: 0, y: 0, w: 12, h: 17 }, { id: 'by-country', x: 0, y: 17, w: 6, h: 17 }];
     await client.callTool({ name: 'set_board_layout', arguments: { board_id: id, version: 1, grid } });
     const back: any = await client.callTool({ name: 'update_chart', arguments: { board_id: id, chart_id: 'by-country', view: 'chart' } });
     expect(text(back)).toContain('Arranged by the reader');
-    const board = (await read(id)).board;
+    const board = (await shown(id));
     expect(board.grid).toEqual(grid);
     expect(board.charts.find((chart: any) => chart.id === 'by-country').view).toBeUndefined();
 
@@ -269,20 +275,36 @@ describe('board tools', () => {
   it('keeps the theme the reader picks until the agent sets the board\'s theme', async () => {
     const created: any = await client.callTool({ name: 'create_board', arguments: { title: 'T', subtitle: 'S', theme_spec: 'economist', charts: [scatter, bars] } });
     const id = boardIdOf(created);
-    const picked: any = await client.callTool({ name: 'set_board_theme', arguments: { board_id: id, theme: 'nyt' } });
+    const picked: any = await client.callTool({ name: 'set_board_theme', arguments: { board_id: id, version: 1, theme: 'nyt' } });
     expect(picked.structuredContent.board.reader_theme).toEqual({ theme: 'nyt' });
     const added: any = await client.callTool({ name: 'add_chart', arguments: { board_id: id, chart: { ...bars, id: 'more' } } });
     expect(text(added)).toContain('The reader picked the theme nyt for every chart; keep it.');
 
-    const plain: any = await client.callTool({ name: 'set_board_theme', arguments: { board_id: id, theme: null } });
+    const plain: any = await client.callTool({ name: 'set_board_theme', arguments: { board_id: id, version: 2, theme: null } });
     expect(plain.structuredContent.board.reader_theme).toEqual({ theme: null });
-    const back: any = await client.callTool({ name: 'set_board_theme', arguments: { board_id: id, reset: true } });
+    const back: any = await client.callTool({ name: 'set_board_theme', arguments: { board_id: id, version: 2, reset: true } });
     expect(back.structuredContent.board.reader_theme).toBeUndefined();
 
-    await client.callTool({ name: 'set_board_theme', arguments: { board_id: id, theme: 'swiss' } });
+    await client.callTool({ name: 'set_board_theme', arguments: { board_id: id, version: 2, theme: 'swiss' } });
     const replaced: any = await client.callTool({ name: 'update_board', arguments: { board_id: id, theme_spec: 'datawrapper' } });
     expect(text(replaced)).toContain("The reader's theme (swiss) was replaced: theme_spec sets the board's theme again.");
-    expect((await read(id)).board.reader_theme).toBeUndefined();
+    expect((await shown(id)).reader_theme).toBeUndefined();
+  });
+
+  it('keeps nothing a passed card sends, and tells it the newest version', async () => {
+    const created: any = await client.callTool({ name: 'create_board', arguments: { title: 'T', subtitle: 'S', charts: [scatter] } });
+    const id = boardIdOf(created);
+    const first = await shown(id);
+    await client.callTool({ name: 'add_chart', arguments: { board_id: id, chart: bars } });
+    const theme: any = await client.callTool({ name: 'set_board_theme', arguments: { board_id: id, version: 1, theme: 'nyt' } });
+    expect(theme.isError).toBe(true);
+    expect(theme.structuredContent).toEqual({ version: 2 });
+    const layout: any = await client.callTool({ name: 'set_board_layout', arguments: { board_id: id, version: 1, grid: null } });
+    expect(layout.structuredContent).toEqual({ version: 2 });
+
+    const held: any = await client.callTool({ name: 'restore_board', arguments: { board: first } });
+    expect(held.structuredContent.version).toBe(2);
+    expect(held.structuredContent.board.charts).toHaveLength(2);
   });
 
   it('flags a chart that stacks repeated rows as slices, and not once it sums them', async () => {
@@ -295,9 +317,9 @@ describe('board tools', () => {
     expect(text(fixed)).not.toContain('stack of slices');
   });
 
-  it('takes back a board a restarted server lost, under its own id, and builds one from the call', async () => {
+  it('takes back a board a restarted server lost, under its own id', async () => {
     const created: any = await client.callTool({ name: 'create_board', arguments: { title: 'T', subtitle: 'S', charts: [scatter, bars] } });
-    const snapshot = created._meta.flint.board;
+    const snapshot = await shown(boardIdOf(created));
     const restarted = createServer();
     const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
     await restarted.connect(serverSide);
@@ -311,9 +333,7 @@ describe('board tools', () => {
       const updated: any = await fresh.callTool({ name: 'update_chart', arguments: { board_id: snapshot.id, chart_id: 'by-country', chart_spec: { ...bars.chart_spec, title: 'X' } } });
       expect(updated.isError).toBeFalsy();
       expect(text(updated)).toContain('Chart "X"');
-      const rebuilt: any = await fresh.callTool({ name: 'restore_board', arguments: { create: { title: 'Again', charts: [scatter] } } });
-      expect(rebuilt.structuredContent.board.charts.map((chart: any) => chart.id)).toEqual(['countries']);
-      const nothing: any = await fresh.callTool({ name: 'restore_board', arguments: {} });
+      const nothing: any = await fresh.callTool({ name: 'restore_board', arguments: { board: {} } });
       expect(nothing.isError).toBe(true);
     } finally {
       await fresh.close();

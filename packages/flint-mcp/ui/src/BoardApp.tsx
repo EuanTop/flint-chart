@@ -2,13 +2,13 @@
 // Licensed under the MIT License.
 
 /**
- * Flint board MCP App: several charts in one live card.
+ * Flint board MCP App: several charts in one card.
  *
- * The card draws the board from its tool result, then reads the board again
- * through the app-only `read_board` tool, so the agent's add_chart and
- * update_chart calls redraw this card instead of opening new ones. Links turn a
- * reader's selection on one chart into an emphasis layer on the others, and the
- * card sends one model context that covers every chart.
+ * Each show_board call opens a new card with the board's current version; a card
+ * keeps the version it was handed. The reader arranges and restyles the newest card in
+ * place; the server keeps nothing the reader changes on an earlier card. Links
+ * turn a reader's selection on one chart into an emphasis layer on the others,
+ * and the card sends one model context that covers every chart.
  */
 import type { App, McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import { useApp } from '@modelcontextprotocol/ext-apps/react';
@@ -71,7 +71,13 @@ interface Board {
   linked?: Record<string, ChartLink>;
 }
 
-const POLL_MS = 1500;
+/** Whether the card saves the reader's changes: the newest version does; a passed or offline one does not. */
+type Standing = 'newest' | 'passed' | 'offline';
+
+const STANDING_NOTE: Record<Exclude<Standing, 'newest'>, string> = {
+  passed: 'An earlier version of this board: the newest is further down the conversation.',
+  offline: 'Not live: showing the board as it was drawn.',
+};
 
 const EXPORT_LABEL = {
   idle: 'Copy board as PNG',
@@ -509,7 +515,7 @@ function GridTile({
   );
 }
 
-/** Keeps each chart object while its content is unchanged, so a poll redraws only the charts that moved. */
+/** Keeps each chart object while its content is unchanged, so a saved change redraws only the charts that moved. */
 function useStableCharts(board: Board): BoardChart[] {
   const cache = useRef(new Map<string, { key: string; chart: BoardChart }>());
   return useMemo(() => {
@@ -528,7 +534,7 @@ function useStableCharts(board: Board): BoardChart[] {
 
 function BoardView({ app, initial, hostContext }: { app: App; initial: Board; hostContext?: McpUiHostContext }) {
   const [board, setBoard] = useState(initial);
-  const [live, setLive] = useState(true);
+  const [standing, setStanding] = useState<Standing>('newest');
   // The board's one selection, from the chart the reader selected on last, with the layers that hold it there.
   // The board's one condition, and the chart each part came from, which names its values.
   // A theme picked in the bar shows at once; the board the server returns then carries it.
@@ -553,61 +559,53 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
   chartsRef.current = charts;
   const conditionRef = useRef(condition);
   conditionRef.current = condition;
-  // While the reader arranges the board, the draft is what the card shows; polls wait until they are done.
+  // While the reader arranges the board, the draft is what the card shows.
   const [draft, setDraft] = useState<GridItem[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const editingRef = useRef(false);
-  editingRef.current = draft !== null;
 
   useEffect(() => setBoard(initial), [initial]);
 
-  // The card reads the board again while it is on screen; a failed read leaves the last board drawn.
+  // The card hands its board to the server once: one that restarted takes it back, one past it says so,
+  // and one that holds it returns it with what the reader saved since.
   useEffect(() => {
     if (!app.getHostCapabilities()?.serverTools) {
-      setLive(false);
+      setStanding('offline');
       return;
     }
     let stopped = false;
-    const restoredRef = { current: null as string | null };
-    const poll = async () => {
-      if (stopped || editingRef.current || document.visibilityState !== 'visible') return;
-      try {
-        const result = await app.callServerTool({
-          name: 'read_board',
-          arguments: { board_id: boardRef.current.id, version: boardRef.current.version },
-        });
-        if (stopped || editingRef.current) return;
-        if (result.isError) {
-          // The server lost the board, as after a restart: hand it back under its own id, once.
-          if (restoredRef.current === boardRef.current.id) {
-            setLive(false);
-            return;
-          }
-          restoredRef.current = boardRef.current.id;
-          const restored = await app.callServerTool({ name: 'restore_board', arguments: { board: boardRef.current } });
-          const back = (restored.structuredContent as { board?: Board } | undefined)?.board;
-          if (stopped) return;
-          if (restored.isError || !back) {
-            setLive(false);
-            return;
-          }
-          setLive(true);
-          setBoard(back);
-          return;
-        }
-        setLive(true);
-        const next = (result.structuredContent as { board?: Board } | undefined)?.board;
-        if (next) setBoard(next);
-      } catch {
-        if (!stopped) setLive(false);
-      }
-    };
-    const handle = window.setInterval(poll, POLL_MS);
+    app.callServerTool({ name: 'restore_board', arguments: { board: initial } }).then(
+      (result) => {
+        if (stopped) return;
+        const held = (result.structuredContent as { board?: Board } | undefined)?.board;
+        if (result.isError || !held) setStanding('offline');
+        else if (held.version > initial.version) setStanding('passed');
+        else setBoard(held);
+      },
+      () => {
+        if (!stopped) setStanding('offline');
+      },
+    );
     return () => {
       stopped = true;
-      window.clearInterval(handle);
     };
+  }, [app, initial]);
+
+  /** Saves a reader change on the board; false when the server did not keep it. */
+  const writeBoard = useCallback(async (name: 'set_board_theme' | 'set_board_layout', args: Record<string, unknown>) => {
+    const current = boardRef.current;
+    try {
+      const result = await app.callServerTool({ name, arguments: { board_id: current.id, version: current.version, ...args } });
+      const { board: saved, version } = (result.structuredContent ?? {}) as { board?: Board; version?: number };
+      if (!result.isError && saved) {
+        setBoard(saved);
+        return true;
+      }
+      if (version !== undefined && version > current.version) setStanding('passed');
+    } catch {
+      // Not kept; the caller says so.
+    }
+    return false;
   }, [app]);
 
   const clearCondition = useCallback(() => {
@@ -700,7 +698,7 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
   const sendContext = useCallback(() => {
     const current = boardRef.current;
     const lines = [
-      `Board ${current.id}${current.title ? ` "${current.title}"` : ''}: ${current.charts.length} charts, as the reader sees them now. Change it with add_chart, update_chart, remove_chart and update_board.`,
+      `Board ${current.id}${current.title ? ` "${current.title}"` : ''}: ${current.charts.length} charts, as the reader sees them now. Change it with add_chart, update_chart, remove_chart and update_board, then show it again with show_board.`,
     ];
     for (const chart of chartsRef.current) {
       const state = states.current.get(chart.id);
@@ -792,23 +790,13 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
   const pickTheme = useCallback(async (next: ChartAssemblyInput['theme_spec']) => {
     const reset = JSON.stringify(next ?? null) === JSON.stringify(boardRef.current.theme_spec ?? null);
     setPendingTheme(reset ? 'reset' : { theme: next ?? null });
-    try {
-      const result = await app.callServerTool({
-        name: 'set_board_theme',
-        arguments: reset ? { board_id: boardRef.current.id, reset: true } : { board_id: boardRef.current.id, theme: next ?? null },
-      });
-      const saved = (result.structuredContent as { board?: Board } | undefined)?.board;
-      if (saved && !result.isError) {
-        setBoard(saved);
-        setPendingTheme(null);
-        return;
-      }
-    } catch {
-      // The pick stays on this card below.
+    if (await writeBoard('set_board_theme', reset ? { reset: true } : { theme: next ?? null })) {
+      setPendingTheme(null);
+      return;
     }
-    // The server did not keep it (one started before set_board_theme, say): the card still shows it.
+    // The server did not keep it: the card still shows it.
     setNotice('The theme could not be saved on the board; it shows here until the card reloads.');
-  }, [app]);
+  }, [writeBoard]);
   const style = useMemo(() => boardStyle(theme), [theme]);
   // The page behind the board takes its paper, so a dark theme has no light edge.
   useEffect(() => {
@@ -871,23 +859,9 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
   }, [board.grid, gridFromRows]);
 
   const save = useCallback(async (next: GridItem[] | null) => {
-    const current = boardRef.current;
-    try {
-      const result = await app.callServerTool({
-        name: 'set_board_layout',
-        arguments: { board_id: current.id, version: current.version, grid: next },
-      });
-      const saved = (result.structuredContent as { board?: Board } | undefined)?.board;
-      if (result.isError || !saved) {
-        setNotice('The board changed while you arranged it, so your arrangement was not kept.');
-      } else {
-        setBoard(saved);
-      }
-    } catch {
-      setNotice('The arrangement could not be saved.');
-    }
+    if (!(await writeBoard('set_board_layout', { grid: next }))) setNotice('The arrangement was not kept.');
     setDraft(null);
-  }, [app]);
+  }, [writeBoard]);
 
   const gesture = useRef<{ kind: GridGesture; id: string; x: number; y: number; start: GridItem[] } | null>(null);
   const onGesture = useCallback((kind: GridGesture, id: string, event: ReactPointerEvent<HTMLElement>) => {
@@ -1040,7 +1014,7 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
         </div>
         {editing && <p className="board-hint">Drag a chart by its handle at the top right: dropped on a chart in its row the two swap; dropped on another row it is inserted there and the rest move down (Shift does the other). Drag the right or bottom edge, or a bottom corner, to resize.</p>}
         {notice && <p className="board-status">{notice}</p>}
-        {!live && <p className="board-status">Not live: showing the board as it was drawn.</p>}
+        {standing !== 'newest' && <p className="board-status">{STANDING_NOTE[standing]}</p>}
       </header>
       {charts.length === 0 ? (
         <div className="board-empty">No charts on this board yet.</div>
@@ -1122,14 +1096,14 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
               </span>
             ) : (
               <span className="bar-actions">
-                <ActionButton label="Edit layout" onClick={startEditing}>
+                <ActionButton label="Edit layout" disabled={standing !== 'newest'} onClick={startEditing}>
                   <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
                     <rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" fill="none" stroke="currentColor" strokeWidth="1.3" />
                     <rect x="9" y="1.5" width="5.5" height="5.5" rx="1" fill="none" stroke="currentColor" strokeWidth="1.3" />
                     <rect x="1.5" y="9" width="13" height="5.5" rx="1" fill="none" stroke="currentColor" strokeWidth="1.3" />
                   </svg>
                 </ActionButton>
-                <ActionButton label="Reset layout" className="bar-reset" disabled={!board.grid} onClick={() => void save(null)}>
+                <ActionButton label="Reset layout" className="bar-reset" disabled={standing !== 'newest' || !board.grid} onClick={() => void save(null)}>
                   <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
                     <path d="M4 5.5H1.5V3" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
                     <path d="M2 5.5A6 6 0 1 1 2.8 11" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
@@ -1156,19 +1130,15 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
   );
 }
 
-/** How long the card waits for the call's result before it rebuilds the board from the call itself. */
-const RESULT_WAIT_MS = 2500;
-/** How long it waits for anything at all before it says the board cannot be redrawn here. */
-const NOTHING_WAIT_MS = 6000;
+/** How long the card waits for its result before it says the board cannot be redrawn here. */
+const RESULT_WAIT_MS = 6000;
 const NOT_REDRAWN =
-  'This board cannot be redrawn here: the call that made it did not reach this card again, as can happen when a conversation is reopened. Ask Claude to show the board again.';
+  'This board cannot be redrawn here: the call that showed it did not reach this card again, as can happen when a conversation is reopened. Ask Claude to show the board again.';
 
 export function BoardApp() {
   const [board, setBoard] = useState<Board | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [hostContext, setHostContext] = useState<McpUiHostContext | undefined>();
-  const toolArgs = useRef<Record<string, unknown> | undefined>(undefined);
-  const resultSeen = useRef(false);
   const boardSeen = useRef(false);
   boardSeen.current = board !== null;
 
@@ -1180,11 +1150,7 @@ export function BoardApp() {
       app.onteardown = async () => ({});
       app.onerror = (err) => console.error(err);
       app.onhostcontextchanged = (params) => setHostContext((prev) => ({ ...prev, ...params }));
-      app.ontoolinput = (params) => {
-        toolArgs.current = params?.arguments as Record<string, unknown> | undefined;
-      };
       app.ontoolresult = (result) => {
-        resultSeen.current = true;
         const { _meta, content } = result as { _meta?: { flint?: { board?: Board } }; content?: { type: string; text?: string }[] };
         if (result.isError) {
           setFailed(content?.find((part) => part.type === 'text')?.text ?? '');
@@ -1203,38 +1169,13 @@ export function BoardApp() {
     if (app) setHostContext(app.getHostContext());
   }, [app]);
 
-  // A reopened conversation may not hand the card its result again, or hand it without the board.
-  // The card then asks the server to build the board from the call's own arguments; with nothing to
-  // build from, it says so instead of waiting.
+  // A reopened conversation may not hand the card its result again; the card then says so instead of waiting.
   useEffect(() => {
     if (!app) return;
-    let stopped = false;
-    const rebuild = async () => {
-      if (stopped || boardSeen.current) return;
-      const args = toolArgs.current;
-      if (!args || !Array.isArray(args.charts)) {
-        if (resultSeen.current) setFailed(NOT_REDRAWN);
-        return;
-      }
-      try {
-        const result = await app.callServerTool({ name: 'restore_board', arguments: { create: args } });
-        const back = (result.structuredContent as { board?: Board } | undefined)?.board;
-        if (stopped || boardSeen.current) return;
-        if (result.isError || !back) setFailed(NOT_REDRAWN);
-        else setBoard(back);
-      } catch {
-        if (!stopped && !boardSeen.current) setFailed(NOT_REDRAWN);
-      }
-    };
-    const first = window.setTimeout(() => void rebuild(), RESULT_WAIT_MS);
-    const last = window.setTimeout(() => {
-      if (!stopped && !boardSeen.current && !toolArgs.current) setFailed(NOT_REDRAWN);
-    }, NOTHING_WAIT_MS);
-    return () => {
-      stopped = true;
-      window.clearTimeout(first);
-      window.clearTimeout(last);
-    };
+    const handle = window.setTimeout(() => {
+      if (!boardSeen.current) setFailed((reason) => reason ?? NOT_REDRAWN);
+    }, RESULT_WAIT_MS);
+    return () => window.clearTimeout(handle);
   }, [app]);
 
   if (error) {
