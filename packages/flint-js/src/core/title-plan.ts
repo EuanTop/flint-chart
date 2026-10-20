@@ -2,6 +2,7 @@ import type { AxisLabelPlan } from './axis-labels';
 import type { ChartStructure } from './structure';
 import type { DesignDecisions } from './theme/types';
 import { applyTextCase } from './text-case';
+import { trailingParenthetical } from './trailing-parenthetical';
 import { tableTextMeasurer } from './text-width';
 import { canvasContentWidth, fitDeckText, fitHeadlineText, plotHeightAfter, textPx, titleMeasures } from './title-fit';
 import type { LayoutResult } from './types';
@@ -81,8 +82,9 @@ function printedAxisTitles(inputs: TitlePlanInputs): Record<'x' | 'y', string[]>
  * not “People (million)” in “People displaced across borders”).
  */
 export function alreadyNamed(title: string, said: string, tickUnit?: string): boolean {
-    const unit = /\(([^)]*)\)\s*$/.exec(title)?.[1]?.trim().toLowerCase();
-    const bare = title.replace(/\s*\([^)]*\)\s*$/, '').trim().toLowerCase();
+    const parenthetical = trailingParenthetical(title);
+    const unit = parenthetical?.inner.trim().toLowerCase();
+    const bare = (parenthetical ? parenthetical.before : title).trim().toLowerCase();
     const text = said.toLowerCase();
     if (!bare || !text.includes(bare)) return false;
     // A unit the ruler prints on its ticks is named there.

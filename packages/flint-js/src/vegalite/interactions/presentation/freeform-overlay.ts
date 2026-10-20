@@ -28,6 +28,20 @@ function transformAttribute(transform: FreeformOverlayTransform | undefined): st
     return parts.length > 0 ? parts.join(' ') : undefined;
 }
 
+/** A raster image inlined as data, which cannot carry script the way an inlined SVG or HTML page can. */
+const SAFE_DATA_IMAGE = /^data:image\/(?:png|gif|jpe?g|webp|avif|bmp)[;,]/;
+
+/**
+ * A link that runs script or carries a document of its own. Browsers ignore control characters and
+ * whitespace inside a scheme (`java\tscript:`), so they are dropped before the scheme is read.
+ */
+export function isUnsafeUrl(value: string): boolean {
+    // eslint-disable-next-line no-control-regex
+    const url = value.replace(/[\u0000-\u0020]/g, '').toLowerCase();
+    return url.startsWith('javascript:') || url.startsWith('vbscript:')
+        || (url.startsWith('data:') && !SAFE_DATA_IMAGE.test(url));
+}
+
 function sanitizeSvg(element: SVGElement): SVGElement {
     const descendants = Array.from(element.querySelectorAll('*')) as unknown as SVGElement[];
     const nodes = [element, ...descendants];
@@ -38,9 +52,7 @@ function sanitizeSvg(element: SVGElement): SVGElement {
         }
         for (const attribute of [...node.attributes]) {
             const name = attribute.name.toLowerCase();
-            const value = attribute.value.trim().toLowerCase();
-            if (name.startsWith('on')
-                || ((name === 'href' || name === 'xlink:href') && value.startsWith('javascript:'))) {
+            if (name.startsWith('on') || ((name === 'href' || name === 'xlink:href') && isUnsafeUrl(attribute.value))) {
                 node.removeAttribute(attribute.name);
             }
         }

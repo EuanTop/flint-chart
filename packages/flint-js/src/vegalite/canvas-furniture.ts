@@ -185,13 +185,18 @@ export function appendCanvasFurniture(svg: SVGSVGElement, items: CanvasFurniture
 export function injectCanvasFurnitureSVG(svg: string, items: CanvasFurnitureItem[], patterns: CanvasPattern[] = []): string {
     if (!items?.length && !patterns?.length) return svg;
     let out = svg;
-    if (patterns.length) {
-        const open = /<svg[^>]*>/.exec(out);
-        if (open) out = out.slice(0, open.index + open[0].length) + canvasPatternDefs(patterns) + out.slice(open.index + open[0].length);
-    }
+    const open = rootSvgTag(out);
+    if (patterns.length && open) out = out.slice(0, open.end) + canvasPatternDefs(patterns) + out.slice(open.end);
     const idx = out.lastIndexOf('</svg>');
     if (idx === -1 || !items?.length) return out;
-    const width = Number(/<svg[^>]*\swidth="([\d.]+)"/.exec(out)?.[1] ?? 0);
-    const height = Number(/<svg[^>]*\sheight="([\d.]+)"/.exec(out)?.[1] ?? 0);
+    const width = Number(open && /\swidth="([\d.]+)"/.exec(open.tag)?.[1] || 0);
+    const height = Number(open && /\sheight="([\d.]+)"/.exec(open.tag)?.[1] || 0);
     return out.slice(0, idx) + canvasFurnitureMarkup(items, width, [], height) + out.slice(idx);
+}
+
+/** The root `<svg …>` tag, found by index rather than a pattern that rescans the markup from every `<svg`. */
+function rootSvgTag(svg: string): { tag: string; end: number } | undefined {
+    const start = svg.indexOf('<svg');
+    const close = start === -1 ? -1 : svg.indexOf('>', start);
+    return close === -1 ? undefined : { tag: svg.slice(start, close + 1), end: close + 1 };
 }

@@ -78,6 +78,16 @@ function denseLine(spec: ThemeSpec, showPoints?: boolean): any {
     } as any) as any;
 }
 
+/** A Plotly title as words: line breaks become spaces and the markup goes, until none is left. */
+function plainTitle(text: string): string {
+    let out = text.replace(/<br>/g, ' ');
+    for (let previous = ''; previous !== out;) {
+        previous = out;
+        out = out.replace(/<[^<>]*>/g, '');
+    }
+    return out;
+}
+
 const traceNamed = (fig: any, name: string) =>
     (fig.data ?? []).find((t: any) => t.name === name);
 
@@ -92,7 +102,7 @@ describe('omitted axis titles', () => {
             },
             theme_spec: 'mckinsey',
         });
-        const text = figure.layout.title.text.replace(/<br>/g, ' ').replace(/<[^>]+>/g, '');
+        const text = plainTitle(figure.layout.title.text);
         expect(text).toContain('Consumer price changes; yoy_year_change');
         expect(figure.layout.xaxis.title.text).toBe('');
     });
@@ -111,7 +121,7 @@ describe('omitted axis titles', () => {
             },
             theme_spec: 'mckinsey',
         });
-        const text = figure.layout.title.text.replace(/<br>/g, ' ').replace(/<[^>]+>/g, '');
+        const text = plainTitle(figure.layout.title.text);
         expect(text).toContain(subtitle ? `${subtitle}; Mass (kg)` : 'Mass (kg)');
         if (title) expect(text).toContain(title);
         expect(figure.layout.xaxis.title.text).toBe('');

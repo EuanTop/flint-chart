@@ -211,7 +211,7 @@ function needsMarkup(t: ResolvedText | undefined): { bold: boolean; italic: bool
 function styleText(s: string, t: ResolvedText | undefined): string {
     const { bold, italic } = needsMarkup(t);
     // Case the words, never the markup between them (`<br>`).
-    let out = t?.textCase ? s.split(/(<[^>]+>)/).map((part) => (part.startsWith('<') ? part : applyTextCase(part, t.textCase))).join('') : s;
+    let out = t?.textCase ? s.split(/(<[^<>]+>)/).map((part) => (part.startsWith('<') ? part : applyTextCase(part, t.textCase))).join('') : s;
     if (bold) out = `<b>${out}</b>`;
     if (italic) out = `<i>${out}</i>`;
     return out;

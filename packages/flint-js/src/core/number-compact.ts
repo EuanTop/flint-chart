@@ -5,6 +5,7 @@
  * counted in millions is not compacted again).
  */
 import { getRegistryEntry, isRegistered } from './type-registry';
+import { trailingParenthetical } from './trailing-parenthetical';
 
 /** How each power of a thousand is written. */
 export type CompactStyle = 'short' | 'upper' | 'lower' | 'editorial' | 'si';
@@ -46,11 +47,21 @@ export const DEFAULT_COMPACT_TYPES = ['Amount', 'Price', 'Profit', 'Count', 'Num
 
 /** Units that already state a scale: a value in them is not compacted again. */
 const SCALED_UNITS = /^(k|K|m|M|mn|mm|bn|b|B|tn|t|thousands?|millions?|billions?|trillions?|'?000s?|thousand\b.*|million\b.*|billion\b.*)$/;
-/** A field name that states the scale in parentheses: `Population (m)`, `Debt ($bn)`, `Sales (000s)`. */
-const SCALED_NAME = /\((?:[^)]*?\s)?\$?(k|K|m|M|mn|bn|tn|thousands?|millions?|billions?|trillions?|'?000s?)\)\s*$/;
+/** The scale a field name states in its closing parentheses: `Population (m)`, `Debt ($bn)`, `Sales (000s)`. */
+const SCALED_NAME_UNIT = /^\$?(k|K|m|M|mn|bn|tn|thousands?|millions?|billions?|trillions?|'?000s?)$/;
+
+/** Whether a field name ends by stating its scale in parentheses, as its last word there. */
+function namesScale(name: string): boolean {
+    const parenthetical = trailingParenthetical(name);
+    if (!parenthetical) return false;
+    const words = parenthetical.inner.split(/\s/);
+    const last = words[words.length - 1];
+    // A `(` inside the last word opens the parenthetical there: `Debt (net ($bn)` names `$bn`.
+    return SCALED_NAME_UNIT.test(last.slice(last.lastIndexOf('(') + 1));
+}
 
 /** A headline or deck that says the values are already scaled: `(millions)`, `$bn`, `'000s`. */
-const SCALED_TEXT = /\b(thousands|millions|billions|trillions)\b|\(\s*[$£€]?\s*(k|m|mn|bn|tn)\s*\)|[$£€](k|m|mn|bn|tn)\b|\b(mn|bn|tn)\b|'000s?/i;
+const SCALED_TEXT = /\b(thousands|millions|billions|trillions)\b|\(\s*(?:[$£€]\s*)?(k|m|mn|bn|tn)\s*\)|[$£€](k|m|mn|bn|tn)\b|\b(mn|bn|tn)\b|'000s?/i;
 
 /**
  * Whether a field may be compacted: its semantic type is one the theme compacts (or, without a
@@ -65,7 +76,7 @@ export function compactApplies(
     if (field.said && SCALED_TEXT.test(field.said)) return false;
     const unit = field.unit?.trim();
     if (unit && SCALED_UNITS.test(unit)) return false;
-    if (field.name && SCALED_NAME.test(field.name)) return false;
+    if (field.name && namesScale(field.name)) return false;
     const type = field.semanticType;
     if (!type || type === 'Unknown' || !isRegistered(type)) return types === DEFAULT_COMPACT_TYPES;
     if (types.includes(type)) return true;
