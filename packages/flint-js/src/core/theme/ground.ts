@@ -46,7 +46,6 @@ import {
     readableTextInk,
     isDarkSurface,
     isPaintedSurface,
-    luminance,
     mixHex,
     parseColor,
     presenceWidth,
@@ -65,7 +64,6 @@ import { deepMerge } from './merge.js';
 import { overflowStaysFlat, resolveLabelOverflow } from '../axis-labels.js';
 import { sequenceKindOf } from '../label-sequence.js';
 import type { TextMeasurer } from '../legend-layout.js';
-import { tableTextMeasurer } from '../text-width.js';
 import { axisRoles, type AxisFieldFacts } from '../axis-roles.js';
 import { boundValueInks, chartValueColors } from '../value-colors.js';
 import { LABEL_GAP, LABEL_INSET, LABEL_SIDE, LINE_SLACK, measureValueLabels } from '../value-label-measure.js';

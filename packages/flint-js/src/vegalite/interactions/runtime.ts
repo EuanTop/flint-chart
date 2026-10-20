@@ -1170,6 +1170,8 @@ export function mountVegaInteractions(
 
     // A retained region survives a pan or zoom; new rows or a new category order clear it.
     let shownLayout: { rows: unknown; order: string } | undefined;
+    // Assigned once the surface is built, below; `renderUpdates` may run before then, so it cannot be a const.
+    // eslint-disable-next-line prefer-const
     let onLayoutChange: (() => void) | undefined;
     const renderUpdates = async (): Promise<void> => {
         // A preview overlays the same interaction's retained state. It replaces

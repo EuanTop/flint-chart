@@ -1,6 +1,6 @@
 import type { ChartAnalysis } from './analyze';
 import type { AssembleOptions, CanvasTreatment, ChannelSemantics, ChartEncoding, ChartWarning, LayoutDeclaration, LayoutResult, OverflowResult, PlanStage, PlotPlanContext } from './types';
-import type { DesignDecisions, LabelFitStep, ThemeReport, ThemeSpec } from './theme/types';
+import type { DesignDecisions, ThemeReport, ThemeSpec } from './theme/types';
 import { computeChannelBudgets, computeLayout, DEFAULT_MAX_STRETCH, deriveStretchCaps, planBandLabels, resolveFacetColumnsOption } from './compute-layout';
 import { fontWeightOf, groundTheme, headlineText, resolveBandFraction, resolvedGroupSpacing, resolveThemeFontSize, resolveValueLabelChoice, themeBodyFamily } from './theme/ground';
 import { filterOverflow } from './filter-overflow';
@@ -29,7 +29,7 @@ import { format as formatNumber } from 'd3-format';
 import { chartBlock, fittedTitleWidth, heightAfterTitle, keysBesideWidth, nearestCentredShift, planTitle, type TitlePlan } from './title-plan';
 import { planRules, withRules, type ClosingRule } from './rule-plan';
 import { plotHeightAfter } from './title-fit';
-import { planAxisLabels, resolveLabelOverflow, type AxisLabelFacts, type AxisLabelPlan } from './axis-labels';
+import { planAxisLabels, resolveLabelOverflow, type AxisLabelPlan } from './axis-labels';
 import { sequenceKindOf } from './label-sequence';
 import { LAYOUT_COSTS } from './layout-costs';
 import { CANVAS_FIT_LIMITS, LEGIBILITY_MARGIN, describeTreatment, plotFitScale, judgeCanvas, readingCost, treatmentCost, type CanvasFitEstimate, type CanvasFitResult, type CanvasParts } from './canvas-fit';
