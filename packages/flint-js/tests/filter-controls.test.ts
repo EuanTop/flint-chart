@@ -223,7 +223,8 @@ describe('filter placement and summary', () => {
 });
 
 describe('filtered banded axis', () => {
-    it('finds the step and size signals a filter re-lays out', async () => {
+    // Imports the interactive runtime cold, which can outrun the 5 s default on a loaded runner.
+    it('finds the step and size signals a filter re-lays out', { timeout: 30_000 }, async () => {
         const { layoutSignals } = await import('../src/vegalite/interactive');
         const spec = {
             signals: [
