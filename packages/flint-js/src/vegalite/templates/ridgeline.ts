@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+import { schemeName } from '../../core/color-controls';
 import { ChartTemplateDef, ChartPropertyDef, EncodingActionDef, InstantiateContext } from '../../core/types';
 import type { ChartStructure } from '../../core/structure';
 import {
@@ -868,7 +869,7 @@ export const ridgelinePlotDef: ChartTemplateDef = {
                     { value: 'redblue', label: 'Red-Blue (diverging)' },
                 ],
             },
-            get: (encodings) => encodings.color?.scheme,
+            get: (encodings) => schemeName(encodings.color?.scheme),
             set: (encodings, value) => ({ ...encodings, color: { ...encodings.color, scheme: value } }),
         },
     ] as EncodingActionDef[],

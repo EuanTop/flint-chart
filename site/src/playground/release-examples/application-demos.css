@@ -227,3 +227,13 @@
 .app-demo-stats--large div { grid-template-columns: 110px minmax(0, 1fr); align-items: baseline; }
 .app-demo-stats--large dt { font-size: 11px; }
 .app-demo-stats--large dd { font-size: 16px; font-variant-numeric: tabular-nums; }
+
+.app-demo-dashboard { display: grid; gap: 12px; width: 100%; max-width: none; }
+.app-demo-dashboard-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.app-demo-dashboard-kpis { flex: 1; grid-template-columns: repeat(2, minmax(160px, max-content)); }
+.app-demo-dashboard-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: stretch; }
+.app-demo-dashboard-main, .app-demo-dashboard-side { display: grid; gap: 12px; min-width: 0; }
+.app-demo-dashboard-main > .idash-panel { display: grid; align-content: center; }
+@media (max-width: 900px) {
+  .app-demo-dashboard-grid { grid-template-columns: minmax(0, 1fr); }
+}

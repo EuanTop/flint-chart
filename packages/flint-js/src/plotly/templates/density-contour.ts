@@ -9,6 +9,7 @@
  * this is a Plotly-only statistical chart. See design-docs/plotly-stats-charts.md.
  */
 
+import { schemeName } from '../../core/color-controls';
 import { ChartTemplateDef, ChartPropertyDef, EncodingActionDef } from '../../core/types';
 
 const SCHEME_COLORSCALES: Record<string, string> = {
@@ -30,7 +31,7 @@ export const plDensityContourDef: ChartTemplateDef = {
 
         const binCount = (chartProperties?.binCount as number) || 20;
         const showPoints = chartProperties?.showPoints !== false;
-        const encScheme = (encodings?.color as any)?.scheme;
+        const encScheme = schemeName((encodings?.color as any)?.scheme);
         const userScheme = (encScheme && encScheme !== 'default') ? encScheme : undefined;
         const colorscale = SCHEME_COLORSCALES[userScheme ?? DEFAULT_SCHEME.toLowerCase()] ?? DEFAULT_SCHEME;
 

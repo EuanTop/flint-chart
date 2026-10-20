@@ -27,6 +27,7 @@ import { NewThemeTest } from './playground/new-theme-test/NewThemeTest';
 import { ThemeImprovement } from './playground/theme-improvement/ThemeImprovement';
 import { LabelAngles } from './playground/label-angles/LabelAngles';
 import { CanvasSqueeze } from './playground/canvas-squeeze/CanvasSqueeze';
+import { ColorLab } from './playground/ColorLab';
 import { BandStretchingLab } from './playground/BandStretchingLab';
 import { LabelExperimentLab } from './playground/LabelExperimentLab';
 import { AxisLabelLab } from './playground/AxisLabelLab';
@@ -52,6 +53,7 @@ import { InteractiveDataReportLab } from './playground/InteractiveDataReportLab'
 import { StyleReferences } from './playground/StyleReferences';
 import { FullTestCases } from './playground/FullTestCases';
 import { DebugGym } from './playground/DebugGym';
+import { AgentComparison } from './playground/AgentComparison';
 import { LocaleProvider, useLocale } from './i18n/LocaleContext';
 import type { Locale } from './i18n/locales';
 import { localePath } from './i18n/paths';
@@ -111,6 +113,7 @@ function AppRoutes({ locale }: { locale: Locale }) {
           <Route path="theme-improvement" element={<ThemeImprovement />} />
           <Route path="label-angles" element={<LabelAngles />} />
           <Route path="canvas-squeeze" element={<CanvasSqueeze />} />
+          <Route path="color" element={<ColorLab />} />
           <Route path="band-stretching" element={<BandStretchingLab />} />
           <Route path="label-experiment" element={<LabelExperimentLab />} />
           <Route path="axis-label" element={<AxisLabelLab />} />
@@ -140,6 +143,7 @@ function AppRoutes({ locale }: { locale: Locale }) {
           <Route path="interaction-candidates" element={<InteractionCandidates />} />
           <Route path="style-references/:house?" element={<StyleReferences />} />
           <Route path="debug-gym" element={<DebugGym />} />
+          <Route path="agent-comparison" element={<AgentComparison />} />
           <Route path="year-legend" element={<Navigate to="../debug-gym" replace />} />
           {/* The Swiss and cartoon labs were the same page twice; keep the
               links they were reached by working. */}

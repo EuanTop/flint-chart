@@ -342,6 +342,11 @@ export function chartDisplayNames(
  * backend has to spell differently keeps its own name as the title; else the display name; and a
  * positional measure whose unit belongs with its name gets the unit once.
  */
+/** How an aggregated channel's title names its operation: "Sum of revenue". */
+const AGGREGATE_LABEL: Record<string, string> = {
+    sum: 'Sum', average: 'Average', mean: 'Mean', median: 'Median', min: 'Min', max: 'Max',
+};
+
 export function encodingTitle(
     channel: string,
     encoding: Pick<ChartEncoding, 'field' | 'aggregate' | 'title'>,
@@ -364,6 +369,7 @@ export function encodingTitle(
             title = 'Count';
         } else if (encoding.aggregate) {
             field = spellField(`${name}_${encoding.aggregate}`);
+            title = `${AGGREGATE_LABEL[encoding.aggregate] ?? encoding.aggregate} of ${displayNames?.[name] ?? name}`;
         }
     }
     if (name && displayNames?.[name] && !title) title = displayNames[name];

@@ -489,6 +489,7 @@ describe('theme compileDefaults', () => {
             cartoon: 0.75,
             datawrapper: 1,
             economist: 0.55,
+            material: 1,
             mckinsey: 0.35,
             nature: 0.2,
             nyt: 0.7,

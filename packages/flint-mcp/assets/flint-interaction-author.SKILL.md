@@ -853,11 +853,28 @@ link.onCondition(({ condition }) => table.filter(condition)); // { region: { in:
 // link.clear(); link.destroy();
 ```
 
+**A table, a filter or any control beside linked charts** joins the same
+condition: `link.select(parts)` sets parts as if a chart had selected them, and
+`onCondition` gives the table what to show. One condition, so a row click, a
+region picker and a brush combine (AND) and a reset on any chart clears them all.
+
+```ts
+row.addEventListener('click', () => link.select({ country: { in: [row.dataset.country] } }));
+regionPicker.addEventListener('change', (e) => link.select({ region: e.target.value ? { in: [e.target.value] } : null })); // null lets go
+link.onCondition(({ condition }) => renderTable(rows.filter((r) => meets(r, condition))));
+```
+
+- `select` only takes fields in `fields`; a chart shows a part when its marks
+  carry the field (encode it, or put it on `detail`).
+- The link emphasizes the matching marks; to drop rows instead (a filter), give
+  the charts filtered data as below.
+
 ```tsx
 import { FlintChart, useLinkedCharts } from 'flint-chart/react';
 
 const link = useLinkedCharts({ bars: barsInput, trend: trendInput }, { fields: ['region', 'month'] });
 <FlintChart spec={barsInput} {...link.chart('bars')} />;
+// link.select({ region: { in: ["Asia"] } }) from a table or control; link.clear()
 <FlintChart spec={trendInput} {...link.chart('trend', { onChange: setPageState, updates: myUpdates })} />;
 // the chart's own onChange, onRender and updates go through chart(id, own); a prop after the spread replaces the link's
 // link.condition.condition is the same condition; filtered rows in `spec` keep it

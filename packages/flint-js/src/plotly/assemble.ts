@@ -27,6 +27,8 @@
  * This module has NO React, Redux, or UI framework dependencies.
  */
 
+import { authoredColorScale, withEncodingColorAnnotations } from '../core/color-controls';
+import { applyAuthoredColorScalePlotly } from './color-controls';
 import {
     ChartTemplateDef,
     ChartAssemblyInput,
@@ -36,7 +38,7 @@ import {
 } from '../core/types';
 import type { ChartWarning, ChartEncoding } from '../core/types';
 import { applyEncodingOverrides } from '../core/encoding-overrides';
-import { applyAggregation } from '../core/aggregate';
+import { applyAggregation, resolveImplicitAggregation } from '../core/aggregate';
 import { applyPivot, applyTransform, type PivotSurface, type TransformSurface } from '../core/pivot';
 import { plGetTemplateDef } from './templates';
 import { resolveChannelSemantics, convertTemporalData, repairEncodingSorts } from '../core/resolve-semantics';
@@ -96,7 +98,8 @@ function applyFieldDisplayNames(figure: any, names: Record<string, string> | und
 
 export function assemblePlotly(input: ChartAssemblyInput): any {
     const chartType = input.chart_spec.chartType;
-    const semanticTypes = input.semantic_types ?? {};
+    // The colour encoding's own `colors` and `mid` speak for its field in this chart.
+    const semanticTypes = withEncodingColorAnnotations(input.semantic_types ?? {}, input.chart_spec.encodings as Record<string, unknown>);
     // `theme_spec` may name a house Flint ships rather than spell one out.
     // A chart may turn off part of its house's chrome (a logo, the header, the footer).
     const themeSpec = withChrome(resolveThemeSpec(input.theme_spec), input.chart_spec.chrome);
@@ -171,7 +174,11 @@ export function assemblePlotly(input: ChartAssemblyInput): any {
         const swapped = plGetTemplateDef(transformed.chartType) as ChartTemplateDef | undefined;
         if (swapped) chartTemplate = swapped;
     }
-    const encodings = applyEncodingOverrides(chartTemplate, transformed.encodings, chartProperties);
+    const overridden = applyEncodingOverrides(chartTemplate, transformed.encodings, chartProperties);
+    // Several rows on one mark's key: aggregate the measure (and say so) rather than overplot.
+    const implicit = resolveImplicitAggregation(chartTemplate.chart, overridden, data, semanticTypes);
+    const encodings = implicit.encodings;
+    warnings.push(...implicit.warnings);
 
     // Optional aggregation transform — see vegalite/assemble for rationale.
     data = applyAggregation(encodings, data);
@@ -554,6 +561,9 @@ export function assemblePlotly(input: ChartAssemblyInput): any {
         figure._height = figure.layout.height;
     }
 
+    // The author's colour controls win over every default.
+    const authoredColor = authoredColorScale(input.chart_spec.encodings as Record<string, unknown>);
+    if (authoredColor) applyAuthoredColorScalePlotly(figure, authoredColor);
     if (warnings.length > 0) {
         figure._warnings = warnings;
     }

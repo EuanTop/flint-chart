@@ -1315,6 +1315,10 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
         ...prepared.options,
         bandStepFitCapacityX: Math.max(ceiling.width * 0.6, ceiling.width - reserve.width),
         bandStepFitCapacityY: Math.max(ceiling.height * 0.6, ceiling.height - reserve.height),
+        // Small multiples shrink their tick labels no further than the theme lets type go.
+        ...(theme && prepared.options.minLabelFontSize === undefined
+            ? { minLabelFontSize: (theme as ThemeSpec).type?.minSize ?? 8 }
+            : {}),
     };
     const values = overflowResult.filteredData;
     const nominalCounts = overflowResult.nominalCounts;

@@ -24,7 +24,69 @@
  * callers should still aggregate upstream.
  */
 
-import { ChartEncoding } from './types';
+import { ChartEncoding, ChartWarning } from './types';
+import { resolveAggregationDefault, toTypeString, type SemanticAnnotation } from './field-semantics';
+
+/**
+ * Chart types that draw one mark per key, and the channels that carry their measure.
+ * Several rows on one key would draw several marks on one spot (the last one wins),
+ * so the measure is aggregated instead.
+ */
+const ONE_MARK_PER_KEY: Record<string, readonly string[]> = {
+    Heatmap: ['color'],
+};
+
+/**
+ * When a one-mark-per-key chart gets several rows for one key and the measure has no
+ * `aggregate`, set one from the measure's semantic type (additive types sum, the rest
+ * average) and warn. Returns the encodings unchanged otherwise.
+ */
+export function resolveImplicitAggregation(
+    chartType: string,
+    encodings: Record<string, ChartEncoding>,
+    data: any[],
+    semanticTypes: Record<string, string | SemanticAnnotation>,
+): { encodings: Record<string, ChartEncoding>; warnings: ChartWarning[] } {
+    const measures = ONE_MARK_PER_KEY[chartType];
+    if (!measures || !data || data.length < 2) return { encodings, warnings: [] };
+    const open = measures.filter((ch) => encodings[ch]?.field && !encodings[ch].aggregate);
+    if (open.length === 0) return { encodings, warnings: [] };
+
+    const keyFields = [...new Set(Object.entries(encodings)
+        .filter(([ch, enc]) => !measures.includes(ch) && enc?.field && !enc.aggregate)
+        .map(([, enc]) => enc.field as string))];
+    const seen = new Set<string>();
+    let rowsPerKey = 1;
+    const counts = new Map<string, number>();
+    for (const row of data) {
+        const key = JSON.stringify(keyFields.map((f) => row[f] ?? null));
+        const n = (counts.get(key) ?? 0) + 1;
+        counts.set(key, n);
+        if (n > rowsPerKey) rowsPerKey = n;
+        seen.add(key);
+    }
+    if (rowsPerKey < 2) return { encodings, warnings: [] };
+
+    const next = { ...encodings };
+    const warnings: ChartWarning[] = [];
+    for (const ch of open) {
+        const field = encodings[ch].field as string;
+        const values = data.map((r) => r[field]).filter((v) => v != null);
+        if (!values.length || !values.every((v) => typeof v === 'number' || Number.isFinite(Number(v)))) continue;
+        const op = resolveAggregationDefault(toTypeString(semanticTypes[field])) === 'sum' ? 'sum' : 'average';
+        next[ch] = { ...encodings[ch], aggregate: op };
+        warnings.push({
+            severity: 'warning',
+            code: 'implicit-aggregate',
+            channel: ch,
+            field,
+            message: `Up to ${rowsPerKey} rows share one ${keyFields.join(' × ')} cell; `
+                + `${field} is aggregated with ${op} (${seen.size} cells from ${data.length} rows). `
+                + `Set "aggregate" on ${ch} to choose another operation.`,
+        });
+    }
+    return { encodings: next, warnings };
+}
 
 interface AggSpec {
     field?: string;

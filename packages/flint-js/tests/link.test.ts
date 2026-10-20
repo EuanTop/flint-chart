@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
     LINK_LAYER,
+    clickHighlight,
     conditionUpdates,
     createLinkState,
     linkCharts,
+    linkInput,
+    select,
     selectionParts,
     type ChartChange,
     type ChartLink,
@@ -56,6 +59,34 @@ describe('validateLinks', () => {
         expect(links.countries).toMatchObject({ sends: ['country', 'region'], receives: ['country', 'region'] });
         expect(links.regions.receives).toEqual(['region']);
         expect(links.regions.notes.join()).toContain('leaves out country');
+    });
+
+    it('counts presets mounted in code, not only those in the spec', async () => {
+        const scatterInput = { data: { values: rows }, chart_spec: { chartType: 'Scatter Plot', encodings: { x: 'gdp', y: 'gdp', detail: 'country' } } } as ChartAssemblyInput;
+        const mounted = { ...fakeSurface().surface, interactions: [select(), clickHighlight({ targets: ['mark'] })] } as InteractiveChartSurface;
+        const input = linkInput({ input: scatterInput, surface: mounted });
+        expect((input.interaction_spec as any).interactions.map((entry: any) => entry.type)).toEqual(['select', 'click-highlight']);
+        const links = validateLinks({ scatter: input }, { fields: ['country'] });
+        expect(links.scatter.sends).toEqual(['country']);
+        expect(Object.keys(links.scatter.gestures)).toEqual(['select', 'click-highlight']);
+
+        // Through linkCharts: a box drawn on the scatter reaches the other chart.
+        const scatter = fakeSurface();
+        const bars = fakeSurface();
+        Object.assign(scatter.surface, { interactions: [select()] });
+        const linked = linkCharts({
+            scatter: { input: scatterInput, surface: scatter.surface },
+            bars: { input: chart({ x: 'country', y: 'gdp' }), surface: bars.surface },
+        }, { fields: ['country'] });
+        await linked.ready;
+        scatter.emit({ interactionId: 'select', state: holding('select', 'retained', marks({ country: 'India' }, { country: 'France' })) });
+        expect(linked.condition().condition).toEqual({ country: { in: ['India', 'France'] } });
+    });
+
+    it('lists a preset once when it is both in the spec and mounted from it', () => {
+        const withSpec = chart({ x: 'country', y: 'gdp' }, ['click-highlight']);
+        const mounted = { ...fakeSurface().surface, interactions: [clickHighlight()] } as InteractiveChartSurface;
+        expect((linkInput({ input: withSpec, surface: mounted }).interaction_spec as any).interactions).toEqual(['click-highlight']);
     });
 });
 
@@ -157,6 +188,29 @@ describe('linkCharts', () => {
         linked.destroy();
         expect(bars.listeners.size).toBe(0);
         expect(bars.cleared.at(-1)).toBe(LINK_LAYER);
+    });
+
+    it('selects from the host, as a table row or a filter control would, and joins it with a chart selection', async () => {
+        const { bars, trend, linked } = await setup();
+        await linked.select({ region: { in: ['Oceania'] } });
+        expect(whereOf(bars.applied.at(-1))).toEqual({ region: { in: ['Oceania'] } });
+        expect(whereOf(trend.applied.at(-1))).toEqual({ region: { in: ['Oceania'] } });
+        expect(linked.condition()).toMatchObject({ condition: { region: { in: ['Oceania'] } }, from: { region: 'host' } });
+
+        trend.emit({ interactionId: 'brush-x', state: holding('brush-x', 'retained', marks({ month: 3, region: 'Oceania' }, { month: 6, region: 'Oceania' })) });
+        expect(whereOf(trend.applied.at(-1))).toEqual({ region: { in: ['Oceania'] }, month: { range: [3, 6] } });
+
+        await linked.select({ region: null }, { from: 'filter' });
+        expect(linked.condition()).toMatchObject({ condition: { month: { range: [3, 6] } }, from: { month: 'trend' } });
+        expect(bars.cleared.at(-1)).toBe(LINK_LAYER);
+    });
+
+    it('ignores a host part on a field the charts do not connect on', async () => {
+        const { bars, linked } = await setup();
+        const applied = bars.applied.length;
+        await linked.select({ country: { in: ['India'] } });
+        expect(linked.condition().condition).toEqual({});
+        expect(bars.applied.length).toBe(applied);
     });
 });
 

@@ -1606,7 +1606,7 @@ export function computeLayout(
         baseLabelFontSize: options.baseLabelFontSize,
         baseTitleFontSize: options.baseTitleFontSize,
     });
-    const labelOpts = { baseFont: fontSizing.tickBase, minFont: 6 };
+    const labelOpts = { baseFont: fontSizing.tickBase, minFont: options.minLabelFontSize ?? 6 };
     let xLabel = computeLabelSizing(xStepSize, xHasDiscreteItems, labelOpts);
     let yLabel = computeLabelSizing(yStepSize, yHasDiscreteItems, labelOpts);
 

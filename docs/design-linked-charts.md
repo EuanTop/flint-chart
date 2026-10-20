@@ -74,8 +74,8 @@ factory and a `{ type, options }` entry.
 | Form | Use |
 |---|---|
 | `validateLinks(inputs, spec)` | Checks charts before mounting: what each sends, by which interaction, and receives, and why a field is left out. The MCP server reports it. |
-| `linkCharts(charts, spec, { links? })` | Plain JS over mounted charts, each `{ input, surface }`: `onChange` in, the condition layer out through `applyUpdate`. Returns `{ ready, links, condition, onCondition, clear, destroy }`; `links` holds each chart's notes. |
-| `useLinkedCharts(inputs, spec)` | React: holds the condition and gives each `<FlintChart>` its `onChange`, `onRender` and `updates` through `chart(id)`. Survives remounts, because `<FlintChart>` re-applies `updates`. |
+| `linkCharts(charts, spec, { links? })` | Plain JS over mounted charts, each `{ input, surface }`: `onChange` in, the condition layer out through `applyUpdate`. Returns `{ ready, links, condition, onCondition, select, clear, destroy }`; `links` holds each chart's notes; `select(parts)` sets parts from the host (a table row, a filter control) as a chart's selection would, `null` letting a field go. |
+| `useLinkedCharts(inputs, spec)` | React: holds the condition and gives each `<FlintChart>` its `onChange`, `onRender` and `updates` through `chart(id)`, and `select`/`clear` for the host. Survives remounts, because `<FlintChart>` re-applies `updates`. |
 
 All three share framework-free functions: `selectionParts(elements, gesture)` reads a gesture
 into parts, and `conditionUpdates(links, condition)` gives each chart its layer.

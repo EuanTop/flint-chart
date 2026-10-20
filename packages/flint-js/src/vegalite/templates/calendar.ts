@@ -17,6 +17,7 @@
  *   color (quantitative) → the cell value (defaults to a count of 1)
  */
 
+import { schemeName } from '../../core/color-controls';
 import { ChartTemplateDef, ChartPropertyDef, EncodingActionDef } from '../../core/types';
 import { skeletonStructure } from '../../core/structure';
 import {
@@ -195,7 +196,7 @@ export const vlCalendarHeatmapDef: ChartTemplateDef = {
             ...(!valueField ? [{ calculate: '1', as: COUNT_FIELD }] : []),
         ];
 
-        const encScheme = ctx.encodings?.color?.scheme;
+        const encScheme = schemeName(ctx.encodings?.color?.scheme);
         const scheme = encScheme && encScheme !== 'default' ? encScheme : 'viridis';
         const cornerRadius = ctx.chartProperties?.cornerRadius;
         if (typeof cornerRadius === 'number') {
@@ -271,7 +272,7 @@ export const vlCalendarHeatmapDef: ChartTemplateDef = {
                     { value: 'purples', label: 'Purples' },
                 ],
             },
-            get: (enc) => enc.color?.scheme,
+            get: (enc) => schemeName(enc.color?.scheme),
             set: (enc, value) => ({ ...enc, color: { ...enc.color, scheme: value } }),
         },
     ] as EncodingActionDef[],

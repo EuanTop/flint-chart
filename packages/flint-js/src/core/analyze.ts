@@ -1,5 +1,6 @@
 import type { ChartAssemblyInput, ChartEncoding, ChartTemplateDef, ChartWarning, SemanticResult } from './types';
-import { applyAggregation } from './aggregate';
+import { withEncodingColorAnnotations } from './color-controls';
+import { applyAggregation, resolveImplicitAggregation } from './aggregate';
 import { applyEncodingOverrides } from './encoding-overrides';
 import { applyTransform, TRANSFORM_ARRANGE_KEY, TRANSFORM_CHART_TYPE_KEY } from './pivot';
 import { convertTemporalData, repairEncodingSorts, resolveChannelSemantics, resolveChannelTypes } from './resolve-semantics';
@@ -50,7 +51,8 @@ export function analyzeChart(
     getTemplateDef: (chartType: string) => ChartTemplateDef | undefined,
 ): ChartAnalysis {
     const chartType = input.chart_spec.chartType;
-    const semanticTypes = input.semantic_types ?? {};
+    // The colour encoding's own `colors` and `mid` speak for its field in this chart.
+    const semanticTypes = withEncodingColorAnnotations(input.semantic_types ?? {}, input.chart_spec.encodings as Record<string, unknown>);
     let template = authored;
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -125,9 +127,13 @@ export function analyzeChart(
     // Template-level encoding normalization (e.g. Sparkline remaps its series
     // field onto the `row` facet channel). Runs BEFORE semantics/layout so the
     // whole pipeline resolves against the normalized channel map.
-    const encodings = template.normalizeEncodings
+    const normalizedEncodings = template.normalizeEncodings
         ? template.normalizeEncodings(composedEncodings, data)
         : composedEncodings;
+    // Several rows on one mark's key: aggregate the measure (and say so) rather than overplot.
+    const implicit = resolveImplicitAggregation(template.chart, normalizedEncodings, data, semanticTypes);
+    const encodings = implicit.encodings;
+    warnings.push(...implicit.warnings);
 
     // Optional aggregation transform: when an encoding sets `aggregate`, collapse
     // the rows here (grouping by the dimension channels) so the derived

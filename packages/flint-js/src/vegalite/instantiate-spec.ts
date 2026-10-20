@@ -1058,7 +1058,8 @@ function vlApplyDefaultAxisFormat(
                     if (date.getUTCHours() || date.getUTCMinutes() || date.getUTCSeconds() || date.getUTCMilliseconds()) utcMidnights = false;
                     if (date.getHours() || date.getMinutes() || date.getSeconds() || date.getMilliseconds()) localMidnights = false;
                 }
-                const utc = enc.scale?.type === 'utc' || (utcMidnights && !localMidnights);
+                // UTC-midnight dates are calendar dates read as UTC, wherever the chart is built.
+                const utc = enc.scale?.type === 'utc' || utcMidnights;
                 const semantics = context.channelSemantics[ch];
                 const { fontSize, settings } = temporalLabelSettings(axisLabels[ch], formatting, enc.axis, themed);
                 const plot = vgObj.facet && vgObj.spec ? vgObj.spec : vgObj;
@@ -1086,6 +1087,9 @@ function vlApplyDefaultAxisFormat(
                     ...enc.axis,
                     ...axisPropertiesOf(plan),
                 };
+                // The scale agrees with the labels, so tooltips and mark descriptions read
+                // the same calendar date instead of the previous day west of UTC.
+                if (utc) enc.scale = { ...(enc.scale ?? {}), type: 'utc' };
             }
         }
     }

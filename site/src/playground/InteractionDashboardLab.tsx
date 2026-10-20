@@ -21,13 +21,13 @@ import './interaction-dashboard-lab.css';
 
 type Row = Record<string, unknown>;
 
-interface DashboardChart {
+export interface DashboardChart {
   id: string;
   fixture: InteractionDemoFixture;
   interaction: InteractionDef;
 }
 
-interface DashboardSelection {
+export interface DashboardSelection {
   ids: string[];
 }
 
@@ -40,7 +40,7 @@ const focusCountries = new Set([
 ]);
 
 type DashboardMetric = 'Life expectancy' | 'GDP per capita';
-const DASHBOARD_SELECTION_ID = 'dashboard-selection';
+export const DASHBOARD_SELECTION_ID = 'dashboard-selection';
 const DASHBOARD_LINKED_SELECTION_ID = 'dashboard-linked-selection';
 
 const semanticTypes = {
@@ -56,13 +56,15 @@ const semanticTypes = {
   'GDP per capita': 'Currency',
 };
 
-const dashboardTheme = {
+export const dashboardTheme = {
   extends: 'economist',
   ink: {
     series: {
       categoricalExtended: [
         '#006ba2', '#3ebcd2', '#ebb434', '#379a8b', '#9a3d5b', '#a17ba5',
         '#003f5c', '#d46b27', '#5f8f3b', '#c75146', '#d66aa5', '#74624f',
+        '#7fb2d0', '#e8c76a', '#8fc7b9', '#c99bb0', '#a8b85a', '#e7a37c',
+        '#5a6e8c', '#9c8a73',
       ],
     },
   },
@@ -78,7 +80,7 @@ function recordObservationIds(record: Row): string[] {
     : [String(record.Observation)];
 }
 
-function dashboardFixture(
+export function dashboardFixture(
   id: string,
   title: string,
   chartType: string,
@@ -203,7 +205,7 @@ function linkedTargets(chartId: string, observationIds: readonly string[]): Upda
   return [...values].map((value) => ({ select: { key: { [field]: value } } }));
 }
 
-function DashboardPanel({
+export function DashboardPanel({
   chart,
   registerChart,
   routeSelection,
@@ -253,17 +255,13 @@ function DashboardPanel({
   );
 }
 
-export function InteractionDashboardLab() {
+/**
+ * Links dashboard panels: a reader gesture in one panel is routed to every other
+ * registered panel through its external interaction, and kept as the selection.
+ */
+export function useLinkedDashboard() {
   const charts = useRef(new Map<string, FlintChartHandle>());
   const [selection, setSelection] = useState<DashboardSelection | null>(null);
-  const [snapshotYear, setSnapshotYear] = useState(2007);
-  const [metric, setMetric] = useState<DashboardMetric>('Life expectancy');
-  const deferredYear = useDeferredValue(snapshotYear);
-  const deferredMetric = useDeferredValue(metric);
-  const dashboardCharts = useMemo(
-    () => buildDashboardCharts(deferredYear, deferredMetric),
-    [deferredMetric, deferredYear],
-  );
 
   const dispatchSelection = useCallback((ids: string[], excludeId?: string) => {
     for (const [id, chart] of charts.current) {
@@ -291,6 +289,20 @@ export function InteractionDashboardLab() {
     dispatchSelection([]);
     setSelection(null);
   }, [dispatchSelection]);
+
+  return { selection, registerChart, routeSelection, clearSelection };
+}
+
+export function InteractionDashboardLab() {
+  const { selection, registerChart, routeSelection, clearSelection } = useLinkedDashboard();
+  const [snapshotYear, setSnapshotYear] = useState(2007);
+  const [metric, setMetric] = useState<DashboardMetric>('Life expectancy');
+  const deferredYear = useDeferredValue(snapshotYear);
+  const deferredMetric = useDeferredValue(metric);
+  const dashboardCharts = useMemo(
+    () => buildDashboardCharts(deferredYear, deferredMetric),
+    [deferredMetric, deferredYear],
+  );
 
   const changeYear = useCallback((year: number) => {
     clearSelection();

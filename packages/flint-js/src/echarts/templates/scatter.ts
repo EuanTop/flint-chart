@@ -9,6 +9,7 @@
  *   EC: series[].data = [[x, y], [x, y], ...] with type: 'scatter'
  */
 
+import { schemeName as namedScheme } from '../../core/color-controls';
 import { ChartTemplateDef, ChartPropertyDef } from '../../core/types';
 import { formatTimestamp } from '../instantiate-spec';
 import { DEFAULT_COLORS, groupBy, getCategoryOrder, extractCategories } from './utils';
@@ -388,7 +389,7 @@ export const ecScatterPlotDef: ChartTemplateDef = {
                 .filter((v: number) => !isNaN(v));
             const colorMin = colorVals.length ? Math.min(...colorVals) : (isTemporalColor ? Date.now() : 0);
             const colorMax = colorVals.length ? Math.max(...colorVals) : (isTemporalColor ? Date.now() : 1);
-            const scheme = (ctx.encodings as any)?.color?.scheme ?? '';
+            const scheme = namedScheme((ctx.encodings as any)?.color?.scheme) ?? '';
             // Default visualMap color bar: gray gradient (light → dark)
             const defaultGrayRange = ['#f5f5f5', '#e0e0e0', '#9e9e9e', '#616161', '#424242'];
             const greensRange = ['#f7fcf5', '#c7e9c0', '#41ab5d', '#006d2c', '#00441b'];

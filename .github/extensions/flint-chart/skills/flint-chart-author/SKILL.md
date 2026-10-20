@@ -136,6 +136,14 @@ Use the binding mode that matches the runtime. Do not mix them.
   pass a real runtime value, e.g. `data: { values: rows }`, to
   `assembleVegaLite`, `assembleECharts`, or `assembleChartjs`. This variable
   pattern is for generated code, not for MCP tool calls.
+  - Parse CSV with a real parser (`d3.csvParse`, Papa Parse, `pandas`), never
+    `line.split(',')`: quoted values such as `"Korea, Rep."` shift every later
+    column, and a shifted measure silently changes the chart (a wrong domain,
+    an unwanted log scale).
+  - Keep values as the data has them and let `semantic_types` read them: a
+    number column `year` typed `Year`, and a `YearMonth` column as `202501`,
+    `"202501"` or `"2025-01"`, are labelled as years and months; don't convert
+    them to date strings first.
 
 For spec-only answers, return the `semantic_types` and `chart_spec` pieces and
 state how the host should bind data. In the worked examples below, `data` is
@@ -158,8 +166,9 @@ not just the column names, and watch for:
   parts (e.g. `all` alongside `cage-free`/`caged`, or a `Total` region). Charting
   the total with its parts double-counts and flattens the parts — keep one or the
   other on a stacked/grouped/colored channel, not both.
-- **Units.** Check whether a rate is a fraction (0–1) or already a percent
-  (0–100) before tagging it `Percentage`; don't scale twice.
+- **Units.** `Percentage` accepts either a fraction (0–1) or a percent (0–100):
+  Flint reads which from the values and formats both as `%`. Don't rescale a
+  column for Flint, and don't scale it twice.
 - **One real entity.** If your breakdown column has a single distinct value, the
   per-group chart collapses to one mark — the intended breakdown is likely a
   different column.
@@ -242,6 +251,9 @@ Call `list_themes` to choose an id, then place it beside `chart_spec`:
 | `powerbi-light` | Light dashboard tile: white canvas, fine gridlines, and bright categorical color. |
 | `cartoon` | Playful illustration: warm paper, rounded type, bold outlines, and bright color. |
 | `apple` | App-interface chart: light labels, trailing value axis, symbols beside color. |
+| `de-stijl` | De Stijl composition: primary planes in heavy black lines, steps not slopes, title under the picture. |
+| `bbc` | BBC News graphic: big bold headline, gridlines only, heavy zero rule, footer rule with the source. |
+| `material` | Material Design 3 product chart: purple-led tonal palette, Roboto type, light gridlines, rounded bars. |
 
 ### 2. Override a preset
 
@@ -311,7 +323,7 @@ properties"). Required channels are noted.
 
 | chartType | Channels | Notes / required |
 |---|---|---|
-| `"Scatter Plot"` | x, y, color, size, opacity, column, row | x + y required |
+| `"Scatter Plot"` | x, y, color, size, shape, detail, opacity, column, row | x + y required; `detail` carries a field (e.g. `country`) on each point without a visual channel, for tooltips and linking |
 | `"Regression"` | x, y, size, color, column, row | scatter + fit line; props `regressionMethod`, `polyOrder` |
 | `"Connected Scatter Plot"` | x, y, order, color, detail, column, row | x + y required; `order` = connection sequence (time/index), so the line traces a trajectory and may self-cross |
 | `"Ranged Dot Plot"` | x, y, color | dumbbell of two x per category |
@@ -338,7 +350,7 @@ properties"). Required channels are noted.
 | `"Violin Plot"` | x, y, color, row | x (category) + y (measure) required; mirrored KDE density per category, prop `bandwidth`; **Vega-Lite only**; a genuine `color` subgroup splits two groups or grids 3+ groups |
 | `"Streamgraph"` | x, y, color, column, row | centre-stacked areas |
 | `"Density Plot"` | x, color, column, row | props `bandwidth`, `stackMode` (series stack; `layered` overlaps them), `opacity` |
-| `"Ridgeline Plot"` | x, y, color | x = measure; `color` (or a discrete `y`) names the ridges, each the KDE of x on its own baseline; a measure `y` draws each series' curve instead; props `overlap`, `order`, `tailCut`, `colorBy`, `perspective` (plans unset `skew`, `tilt`, `overlap` from the ridge count so the depth takes about 40% of the plot), `skew`, `tilt`, `valueMax`, `markAt` (`true` marks the x ticks, or a list of x values; each ridge's value is dotted and labelled, joined across ridges), `opacity`, `interpolate`, `bandwidth`; a numeric `color` keeps a gradient key; **Vega-Lite only** |
+| `"Ridgeline Plot"` | x, y, color | x = measure; `color` (or a discrete `y`) names the ridges, each the KDE of x on its own baseline; a measure `y` draws each series' curve instead; props `overlap`, `order`, `tailCut`, `colorBy`, `perspective` (plans unset `skew`, `tilt`, `overlap` from the ridge count so the depth takes about 40% of the plot), `skew`, `tilt`, `valueMax`, `markAt` (`true` marks the x ticks, or a list of x values; each ridge's value is dotted and labelled, joined across ridges), `opacity`, `interpolate`, `bandwidth`; named ridges share one ink unless `colorBy` asks otherwise; a numeric `color` keeps a gradient key; **Vega-Lite only** |
 | `"Marginal Plot"` | x, y, color, size, shape, opacity | the plot follows the axis types (measure × measure = scatter, category × measure = strip, category × category = heatmap of counts) with each axis's distribution along it (density, histogram or boxplot on a measure axis, a bar of counts on a category axis, split by `color`; density margins layer by default); props `marginal`, `stackMode`, `bandwidth`, `binCount`, `whiskerMethod`, `showOutliers`; **Vega-Lite only** |
 | `"Pie Chart"` | size, color, column, row | `size` = slice value (→ angle), `color` = category; props `innerRadius`, `sortSlices` |
 | `"Rose Chart"` | x, y, color, column, row | polar bars; props `alignment`, `padAngle`, `sortSlices` |
@@ -348,7 +360,19 @@ properties"). Required channels are noted.
 | `"KPI Card"` | metric, value, goal | big-number tile; prop `behindThreshold` |
 | `"Table"` | none (`encodings: {}`) | the rows as given, one column per field in row order; shape `data.values` to the rows and fields to list, name columns with `field_display_names`; numbers and dates print by `semantic_types`; receives links and `updates`, sends no selection |
 | `"Map"` | longitude, latitude, color, size, opacity | bubble map; props `region`, `projection` |
-| `"Choropleth"` | id, color, detail | `id` = geographic key |
+| `"Choropleth"` | id, color, detail | `id` = region key (see **Maps** below); props `region` (`"world"`/`"us"`), `level` (US: `"state"`/`"county"`/`"auto"`), `projection` (world) |
+
+**Maps: what `id` accepts.** Flint joins the key to its own base map; you never
+supply geometry or a lookup. A **world** map takes country names ("India",
+"DR Congo", "United Kingdom"), ISO 3166 alpha-2 / alpha-3 codes ("IN", "IND"),
+or ISO numeric codes (356), all in one column. A **US** map takes state names,
+USPS codes ("CA") or FIPS codes (6), and county FIPS (6037) with
+`level: "county"`. Declare the key `Country` or `State` in `semantic_types`
+(or set `chartProperties.region`) whenever codes could collide: "CA", "IN",
+"Georgia", or small numbers. A key that matches no region is not drawn. Map
+marks carry only `id`, `color` and `detail`: to link a map with charts keyed by
+a name column, encode that column as `id` (names resolve too) or put it on
+`detail` (e.g. `id: "map_id", detail: "country"`), which also labels the tooltip.
 
 **Donut chart:** use `"Pie Chart"` with `chartProperties.innerRadius > 0`.
 
@@ -414,10 +438,15 @@ string shorthand, expanded to `{ field: "<string>" }`):
 |---|---|---|
 | `field` | column name | Bind the channel to a data column |
 | `type` | `quantitative`, `nominal`, `ordinal`, `temporal` | Override the inferred encoding type (rarely needed) |
-| `aggregate` | `count`, `sum`, `average`, `mean` | Force an aggregation on a measure channel |
+| `aggregate` | `count`, `sum`, `average`, `mean` | Force an aggregation on a measure channel. A heatmap that gets several rows per cell aggregates its colour on its own (sum for additive types such as `Quantity` or `Profit`, average otherwise) and warns; set `aggregate` to choose |
 | `sortOrder` | `ascending`, `descending` | Sort direction; in Vega-Lite, direction alone preserves/reverses the semantic sequence |
 | `sortBy` | mapped `"x"`, `"y"`, `"color"`; Vega-Lite also accepts a data field or JSON-array string | Explicit category ordering; see the Vega-Lite contract below |
-| `scheme` | Vega scheme name (e.g. `viridis`, `redblue`) | Color scheme for the `color` channel |
+| `scheme` | Vega scheme name (e.g. `viridis`, `redblue`), or a list of stops low end first (`["#c0392b", "#f2f2f2", "#2e75b6"]`) | Color scheme for the `color` channel; wins over the theme's ramp |
+| `reverse` | `true` / `false` | `color` only: run the color scale the other way round |
+| `mid` | number | `color` only: where a diverging scale pivots, for this chart (the field's `divergingMidpoint`) |
+| `domain` | `[low, high]` | `color` only: the measure extent the ramp spans, in place of the data's |
+| `bins` | integer ≥ 2, or `0` | `color` only: quantize a continuous measure into that many steps; `0` keeps the ramp continuous |
+| `colors` | `{ value: color }` | `color` only: colors bound to category values, for this chart (the field's `colors`) |
 | `title` | a string, or `null` | The name the channel's axis or key prints in place of the field's; `null` prints none |
 
 You usually don't need `type`, `aggregate`, or `sortOrder` — they're
@@ -482,6 +511,8 @@ more. Pick the most specific type for each field. Full registered set:
 | Categorical | `Category`, `Name`, `Status`, `Boolean`, `Direction`, `Range` |
 | Fallback | `Unknown` |
 
+A temporal type also tells Flint how to read the values: a `YearMonth` accepts `202501`, `2025-01`, `2025/1`, `01/2025`, `2025M01`, `Jan 2025`, `2025-Jul`, `July-2025` or `Jul '25`; a `Date` accepts `20250115`, `2025/01/15`, `Jan 15, 2025` or `15-Jan-2025`. Pass the values as they are; an untyped field is never reinterpreted.
+
 What choosing well gets you (automatically):
 
 - `Price` / `Amount` → currency formatting, zero baseline, sequential color
@@ -534,6 +565,11 @@ understates what you know:
   Matched on the value (case-insensitive); values left out take the palette,
   which then skips these colours. Only for real conventions (parties, brands,
   asset classes), not to restyle a chart — the theme owns the palette.
+- `polarity` — `"higher-is-better"` or `"lower-is-better"`: which end of a
+  diverging colour is the alarming one. Signed measures (`Profit`,
+  `PercentageChange`) read as higher-is-better on their own; set
+  `"lower-is-better"` for costs, errors, churn or delays, so their highs, not
+  their lows, take the warm end, under any theme.
 
 ## Chart-level properties (`chartProperties`)
 
@@ -566,7 +602,7 @@ derived). Values are clamped to the ranges shown.
 | Ridgeline | `overlap` | 0.5–4 (1.8) | How many baselines up the tallest ridge reaches |
 | Ridgeline | `order` | `mean`, `reverse` (unset = as given; a quantitative series lowest at the front) | Highest mean on top, or reversed |
 | Ridgeline | `tailCut` | 0–0.2 (0) | Trim each ridge to where its density is at least this share of its peak |
-| Ridgeline | `colorBy` | `x` (unset = by series) | Fill each ridge with a ramp along x |
+| Ridgeline | `colorBy` | `series`, `x` (unset = one colour) | Named ridges share one ink by default; `series` colours each ridge, `x` fills each with a ramp along x |
 | Ridgeline | `perspective` | boolean (false) | Stand the ridges on a floor seen in perspective: `skew`, `tilt`, `overlap` left unset are planned so the depth takes about 40% of the plot's width and more of its height as ridges are added; the depth names, edge and value ticks give way (along the axis, then level, then every n-th) before they touch |
 | Ridgeline | `skew` | 0–0.4 (0) | Perspective: shift the back ridges left by this share of the x range |
 | Ridgeline | `tilt` | 0–6 (0) | Perspective: the x axis rises this many baselines across its range, labels following its edge |
@@ -618,6 +654,7 @@ default:
 - **Force an aggregation:** `encodings.y = { field: "sales", aggregate: "sum" }`.
 - **Sort a category axis by its measure:** `encodings.x = { field: "name", sortBy: "y", sortOrder: "descending" }`.
 - **Pick a color scheme:** `encodings.color = { field: "region", scheme: "tableau10" }`.
+- **Control a color ramp when the user asks for it:** `encodings.color = { field: "net", scheme: ["#c0392b", "#f2f2f2", "#2e75b6"], mid: 0, bins: 5 }`; add `reverse: true` to flip it or `domain: [-50000, 50000]` to fix its extent. These win over the theme.
 - **Override an inferred type:** `encodings.x = { field: "year", type: "ordinal" }` (e.g. treat a year as discrete bands).
 - **Use readable field titles:** `field_display_names = { percentageOfCountries: "Percentage of countries" }`.
   Keep encodings bound to the real column name; Flint uses the display name for axis titles and legend headers.
@@ -772,7 +809,9 @@ User: "Show each rep's sales against their quota."
 - **Don't set `type`/`aggregate`/`sortOrder`** unless intent conflicts
   with the default.
 - **Don't pass colors, font sizes, axis tick counts** — the compiler
-  derives these. Users fine-tune the *output* spec.
+  derives these. Users fine-tune the *output* spec. The exception is a colour
+  mapping the user asked for (a brand ramp, fixed bins, a pivot): use the
+  `color` encoding's `scheme`, `reverse`, `mid`, `domain`, `bins` and `colors`.
 - **Don't invent semantic type names.** If none fit, use the family
   default (`Quantity`, `Category`, `Date`).
 - **Don't call the library to discover channels/types** — this document is

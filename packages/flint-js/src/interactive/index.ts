@@ -125,7 +125,7 @@ export type {
     PlotGeometry,
 } from './language/events';
 export { toCanvasInteractionEvent } from './canvas-interaction';
-export { LINK_LAYER, conditionUpdates, createLinkState, gestureParts, linkCharts, loadLinks, selectionParts, selectionTuples, shownFields } from './link';
+export { HOST_SOURCE, LINK_LAYER, conditionUpdates, createLinkState, gestureParts, linkCharts, linkInput, loadLinks, selectionParts, selectionTuples, shownFields } from './link';
 export type { ChartLink, ChartsLink, LinkChartsOptions, LinkCondition, LinkGesture, LinkPart, LinkSnapshot, LinkSpec, LinkState, LinkedChart } from './link';
 export type {
     ChartUpdateResult,

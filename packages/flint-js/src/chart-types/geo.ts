@@ -322,15 +322,30 @@ export function inferBubbleScope(rows: any[], lonField?: string, latField?: stri
     return 'us';
 }
 
-/** Infer scope for a choropleth from its region keys (names / codes / ids). */
+/** US territory FIPS codes above the 1–56 state range: American Samoa, Guam, Northern Mariana Islands, Puerto Rico, Virgin Islands. */
+const US_TERRITORY_FIPS = new Set([60, 66, 69, 72, 78]);
+
+/**
+ * Infer scope for a choropleth from its region keys (names / codes / ids).
+ *
+ * Numeric ids are read by range, since a bare number resolves in both namespaces:
+ * US state FIPS run 1–56 (plus territories), county FIPS 1001 and up, and ISO 3166
+ * numeric country codes 4–894. Any id in 57–999 that is not a territory FIPS can only
+ * be a country, so a dataset keyed by ISO numeric codes (`map_id`) draws the world map.
+ */
 export function inferChoroplethScope(rows: any[], idField?: string): MapScope {
     if (!idField) return 'us';
     for (const r of rows) {
         const v = r[idField];
         if (v == null || v === '') continue;
-        // A value that resolves as a US state (by name, USPS code, FIPS id, or a
-        // bare numeric that passes straight through) keeps us in the US; the
-        // first value that doesn't flips the whole map to world.
+        const s = String(v).trim();
+        if (/^\d+$/.test(s)) {
+            const n = parseInt(s, 10);
+            if (n >= 57 && n <= 999 && !US_TERRITORY_FIPS.has(n)) return 'world';
+            continue;
+        }
+        // A value that resolves as a US state (by name or USPS code) keeps us in the US;
+        // the first value that doesn't flips the whole map to world.
         if (resolveUsState(v) === undefined) return 'world';
     }
     return 'us';

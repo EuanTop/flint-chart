@@ -21,6 +21,7 @@
  * =============================================================================
  */
 
+import { schemeName } from './color-controls';
 import type {
     ChartEncoding,
     ChartWarning,
@@ -36,6 +37,7 @@ import {
 import {
     resolveEncodingType as resolveEncodingTypeDecision,
 } from './decisions';
+import { hasTemporalParsers, parseTemporalByType } from './temporal-parse';
 import {
     resolveFieldSemantics,
     toTypeString,
@@ -442,8 +444,11 @@ export function convertTemporalData(
         for (const temporalKey of temporalKeys) {
             const val = r[temporalKey];
             const st = effectiveSemanticTypes[temporalKey];
+            const parsed = parseTemporalByType(val, st);
 
-            if (typeof val === 'number') {
+            if (parsed !== null) {
+                r[temporalKey] = parsed;
+            } else if (typeof val === 'number') {
                 if (st === 'Year' || st === 'Decade') {
                     r[temporalKey] = `${Math.floor(val)}`;
                 } else if (isLikelyTimestamp(val)) {
@@ -478,6 +483,17 @@ export function temporalFieldValue(
     value: unknown,
     semanticTypes: Record<string, string | SemanticAnnotation>,
 ): unknown {
+    if (value instanceof Date) {
+        const time = value.getTime();
+        if (!Number.isFinite(time)) return value;
+        // A Date built from calendar parts (`new Date(2025, 5, 1)`) names that day on the local
+        // calendar; where the field is a calendar grain, it means the same day the rows hold.
+        const level = SEMANTIC_LEVEL[toTypeString(semanticTypes[field])] ?? -1;
+        const localMidnight = !value.getHours() && !value.getMinutes() && !value.getSeconds() && !value.getMilliseconds();
+        return level >= SEMANTIC_LEVEL.Date && localMidnight
+            ? Date.UTC(value.getFullYear(), value.getMonth(), value.getDate())
+            : time;
+    }
     if (typeof value !== 'string' && typeof value !== 'number') return value;
     const converted = convertTemporalData([{ [field]: value }], semanticTypes)[0][field];
     const time = Date.parse(String(converted));
@@ -504,8 +520,18 @@ function resolveFieldChannelType(
     const semanticType = suppliedSemanticType
         || inferImplicitSemanticType(fieldName, fieldValues);
 
+    // Decide on the values as the chart will hold them: a YearMonth 202501 is a date.
+    let decisionData = data;
+    let decisionValues = fieldValues;
+    if (hasTemporalParsers(semanticType)) {
+        const parsed = fieldValues.map(v => parseTemporalByType(v, semanticType) ?? v);
+        if (parsed.some((v, i) => v !== fieldValues[i])) {
+            decisionValues = parsed;
+            decisionData = data.map((r, i) => ({ ...r, [fieldName]: parsed[i] }));
+        }
+    }
     const typeDecision = resolveEncodingTypeDecision(
-        semanticType, fieldValues, channel, data, fieldName,
+        semanticType, decisionValues, channel, decisionData, fieldName,
     );
 
     // Apply explicit type override
@@ -651,9 +677,10 @@ export function resolveChannelSemantics(
 
         // Color scheme (color and group channels)
         if ((channel === 'color' || channel === 'group') && fieldName) {
-            if (encoding.scheme && encoding.scheme !== 'default') {
+            const named = schemeName(encoding.scheme);
+            if (named && named !== 'default') {
                 cs.colorScheme = {
-                    scheme: encoding.scheme,
+                    scheme: named,
                     type: 'categorical',
                     reason: 'explicit user scheme',
                 };
@@ -672,6 +699,13 @@ export function resolveChannelSemantics(
                     const divInfo = resolveDivergingInfo(semanticType, annotation, nums);
                     if (divInfo) {
                         cs.colorScheme.domainMid = divInfo.midpoint;
+                    }
+                    // A declared polarity says which end is the bad one: warm (red) goes there.
+                    // Themes turn their own ramps to match the scheme named here.
+                    if (annotation.polarity === 'higher-is-better') {
+                        cs.colorScheme = { ...cs.colorScheme, scheme: 'redblue', reason: 'declared higher-is-better: red is the low side' };
+                    } else if (annotation.polarity === 'lower-is-better') {
+                        cs.colorScheme = { ...cs.colorScheme, scheme: 'blueorange', reason: 'declared lower-is-better: the warm end is high' };
                     }
                 }
             }

@@ -44,6 +44,8 @@
  * This module has NO React, Redux, or UI framework dependencies.
  */
 
+import { authoredColorScale, schemeName, withEncodingColorAnnotations } from '../core/color-controls';
+import { applyAuthoredColorScaleVL, restoreColorScales, snapshotColorScales } from './color-controls';
 import {
     ChartEncoding,
     ChartTemplateDef,
@@ -261,7 +263,8 @@ function plannedSize(input: ChartAssemblyInput, themeSpec: VegaLitePreparation['
 
 function prepareVegaLite(input: ChartAssemblyInput): VegaLitePreparation {
     const chartType = input.chart_spec.chartType;
-    const semanticTypes = input.semantic_types ?? {};
+    // The colour encoding's own `colors` and `mid` speak for its field in this chart.
+    const semanticTypes = withEncodingColorAnnotations(input.semantic_types ?? {}, input.chart_spec.encodings as Record<string, unknown>);
     // `theme_spec` may name a house Flint ships rather than spell one out.
     // A chart may turn off part of its house's chrome (a logo, the header, the footer).
     const themeSpec = withChrome(resolveThemeSpec(input.theme_spec), input.chart_spec.chrome);
@@ -590,8 +593,12 @@ function emitVegaLite(input: ChartAssemblyInput, prepared: VegaLitePreparation, 
     const design = { ...plan.design, legend: { ...plan.design.legend, placement: plan.legend.placement, orient: plan.legend.orient, direction: plan.legend.direction } };
 
     let themeDecisions: any;
+    const authoredColor = authoredColorScale(input.chart_spec.encodings as Record<string, unknown>);
     if (themeSpec) {
+        const authoredScales = authoredColor ? snapshotColorScales(vgObj, authoredColor) : undefined;
         const realizeReport = realizeThemeVegaLite(vgObj, design, values, plan);
+        // A scheme the author named outranks the theme's ramp.
+        if (authoredScales) restoreColorScales(authoredScales);
         themeDecisions = {
             ...design,
             report: [...themePresets.report, ...chartDefaultsReport, ...geometryReport, ...design.report, ...realizeReport],
@@ -629,6 +636,8 @@ function emitVegaLite(input: ChartAssemblyInput, prepared: VegaLitePreparation, 
         writeFacetGap(ruled ?? vgObj, plannedFacetGap(plan.views) ?? gapOf(plan.furniture.facets.spacing, 0), vgObj.config);
     }
     chartTemplate.postProcess?.(vgObj, instantiateContext);
+    // The author's colour controls win over every default and the theme's ramp.
+    if (authoredColor) applyAuthoredColorScaleVL(vgObj, authoredColor, values);
     vlFinalizeTemporalAxes(vgObj, instantiateContext);
     vlWriteKeyLayout(vgObj, plan.legend, plan.plot, plan.layout, VEGA_LITE_LAYOUT.measureText!);
     vlWriteAxisTitles(vgObj, plan.axisTitleFit);
@@ -1197,13 +1206,14 @@ function buildVLEncodings(
         const order = orders[channel];
         if (order) encodingObj.sort = vegaLiteSort(order);
 
-        // Color scheme from Phase 0 decisions
+        // Color scheme from Phase 0 decisions; stops the author listed are laid on after the theme.
         if (channel === "color" || channel === "group") {
-            if (encoding.scheme && encoding.scheme !== "default") {
+            const named = schemeName(encoding.scheme);
+            if (named && named !== "default") {
                 if ('scale' in encodingObj) {
-                    encodingObj.scale.scheme = encoding.scheme;
+                    encodingObj.scale.scheme = named;
                 } else {
-                    encodingObj.scale = { scheme: encoding.scheme };
+                    encodingObj.scale = { scheme: named };
                 }
             } else if (fieldName && cs?.colorScheme) {
                 if (!('scale' in encodingObj)) {

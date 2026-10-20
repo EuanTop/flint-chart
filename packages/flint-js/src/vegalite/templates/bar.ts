@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+import { schemeName as namedScheme } from '../../core/color-controls';
 import { ChartTemplateDef, ChartPropertyDef, EncodingActionDef, type ViewPlanContext } from '../../core/types';
 import type { ViewNode } from '../../core/views';
 import { skeletonStructure, statedStacking } from '../../core/structure';
@@ -868,7 +869,7 @@ export const heatmapDef: ChartTemplateDef = {
         // assembly (see applyEncodingOverrides), so we just read it here. This
         // also transparently covers charts saved before the migration, whose
         // value lived in chartProperties.colorScheme.
-        const encScheme = ctx.encodings?.color?.scheme;
+        const encScheme = namedScheme(ctx.encodings?.color?.scheme);
         const userScheme = (encScheme && encScheme !== 'default') ? encScheme : undefined;
         const semanticScheme = ctx.channelSemantics?.color?.colorScheme;
         const semanticIsDiverging = semanticScheme?.type === 'diverging';
@@ -1067,7 +1068,7 @@ export const heatmapDef: ChartTemplateDef = {
                     { value: "redblue", label: "Red-Blue (diverging)" },
                 ],
             },
-            get: (encodings) => encodings.color?.scheme,
+            get: (encodings) => namedScheme(encodings.color?.scheme),
             set: (encodings, value) => ({ ...encodings, color: { ...encodings.color, scheme: value } }),
         },
     ] as EncodingActionDef[],

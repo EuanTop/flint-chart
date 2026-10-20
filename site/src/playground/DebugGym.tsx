@@ -392,6 +392,14 @@ const PICKING_CASES = [
 ] as const;
 const PICKING_THEMES = [undefined, 'economist'] as const;
 
+/** Two rendering frames (layout observers have run), or half a second where frames don't come (a hidden tab). */
+function settledFrames(): Promise<void> {
+  return Promise.race([
+    new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+    new Promise<void>((resolve) => setTimeout(resolve, 500)),
+  ]);
+}
+
 function pickingInput(caseId: string, themeId: string | undefined): ChartAssemblyInput {
   const pick = PICKING_CASES.find((item) => item.id === caseId)!;
   const cases = TEST_GENERATORS[pick.generator]();
@@ -422,17 +430,38 @@ function PickingCase({ caseId, themeId }: { caseId: string; themeId: string | un
         setResult({ passed: false, text: `Fail: no .mark-${mark} element rendered` });
         return;
       }
-      // elementFromPoint only sees the viewport.
-      target.scrollIntoView({ block: 'center' });
-      const at = target.getPointAtLength(mark === 'line' ? target.getTotalLength() / 2 : 0);
-      const box = target.getBoundingClientRect();
-      const matrix = target.getScreenCTM()!;
-      const point = mark === 'line'
-        ? { x: matrix.a * at.x + matrix.c * at.y + matrix.e, y: matrix.b * at.x + matrix.d * at.y + matrix.f }
-        : { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+      const card = container.closest('article');
+      const probePoint = () => {
+        // elementFromPoint only sees the viewport.
+        target.scrollIntoView({ block: 'center' });
+        const at = target.getPointAtLength(mark === 'line' ? target.getTotalLength() / 2 : 0);
+        const box = target.getBoundingClientRect();
+        const matrix = target.getScreenCTM()!;
+        const point = mark === 'line'
+          ? { x: matrix.a * at.x + matrix.c * at.y + matrix.e, y: matrix.b * at.x + matrix.d * at.y + matrix.f }
+          : { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+        const clip = container.closest('[style*="overflow: hidden"]')?.getBoundingClientRect();
+        const inside = !clip || (point.x >= clip.left && point.x <= clip.right && point.y >= clip.top && point.y <= clip.bottom);
+        return { point, inside };
+      };
+      // ScaleToFit shrinks the chart a few frames after it renders; until then it spills over the
+      // neighbouring cards and the probe would land on their marks. Wait for it to fit.
+      let probe = probePoint();
+      for (let attempt = 0; !probe.inside && attempt < 30; attempt += 1) {
+        await settledFrames();
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        if (cancelled) return;
+        probe = probePoint();
+      }
+      if (!probe.inside) {
+        setResult({ passed: false, text: `Info: the ${mark} probed stays outside the card's visible box (the chart was not scaled to fit; is the tab hidden?)` });
+        return;
+      }
+      const { point } = probe;
       const top = document.elementFromPoint(point.x, point.y);
       const owner = top?.closest('g[class*="mark-"]');
-      const label = owner?.getAttribute('class') ?? top?.tagName ?? 'nothing';
+      const elsewhere = top && card && !card.contains(top) ? ' (another card)' : '';
+      const label = (owner?.getAttribute('class') ?? top?.tagName ?? 'nothing') + elsewhere;
       const passed = top === target || !!owner?.contains(target);
       setResult({ passed, text: passed
         ? `Pass: the pointer reaches the ${mark} mark`

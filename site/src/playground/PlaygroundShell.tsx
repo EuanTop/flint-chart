@@ -27,6 +27,7 @@ const pages: NavEntry[] = [
       { to: 'axis-label', label: 'Axis labels' },
       { to: 'calendar-axis', label: 'Calendar axes' },
       { to: 'canvas-squeeze', label: 'Canvas squeeze' },
+      { to: 'color', label: 'Color' },
     ],
   },
   {
@@ -73,6 +74,7 @@ const pages: NavEntry[] = [
     children: [
       { to: 'mcp-ui', label: 'MCP UI test' },
       { to: 'debug-gym', label: 'Debug gym' },
+      { to: 'agent-comparison', label: 'Agent comparison' },
       { to: 'interaction-coverage', label: 'Interaction coverage' },
     ],
   },

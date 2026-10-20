@@ -53,7 +53,7 @@ export function aboutHouse(summary: string | undefined): string {
 let housesPromise: Promise<HouseChoice[]> | undefined;
 
 /** Style-guide houses Flint now ships as presets; the page offers each once, as the preset. */
-const SHIPPED_AS_PRESET = new Set(['bbc']);
+const SHIPPED_AS_PRESET = new Set(['bbc', 'material']);
 
 /**
  * Every researched style-guide house, loaded on demand (the modules carry their research and gap

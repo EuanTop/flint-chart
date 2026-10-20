@@ -18,6 +18,7 @@
 + * =============================================================================
 + */
 
+import { schemeName } from './color-controls';
 import type { ChartEncoding, ChannelSemantics } from './types';
 
 // -----------------------------------------------------------------------------
@@ -155,7 +156,8 @@ function decideColorForChannel(
     const primary = inferColorChannelPrimary(channel, ctx.chartType);
 
     // 1. 显式 scheme 优先
-    if (encoding.scheme && encoding.scheme !== 'default') {
+    const named = schemeName(encoding.scheme);
+    if (named && named !== 'default') {
         const distinct = countDistinctValues(ctx.table, cs.field);
         // 用户显式指定 scheme 时，core 只透传 id，并根据 ChannelSemantics 推断类型；
         // 真正选择调色板由各后端的 colormap 模块完成。
@@ -163,7 +165,7 @@ function decideColorForChannel(
         return {
             channel,
             schemeType,
-            schemeId: encoding.scheme,
+            schemeId: named,
             categoryCount: distinct,
             primary,
             dataDriven,

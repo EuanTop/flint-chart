@@ -28,7 +28,7 @@ import { categoriesSplitBySign, categorySignRoles } from '../core/theme/series-s
 import type { AxisLabelPlan } from '../core/axis-labels.js';
 import { bandsHoldSeveral, KEY_CHANNELS, statedStacking, type BuiltFacts, type Stacking } from '../core/structure.js';
 import { canvasContentWidth, fitDeckText, fitHeadlineText, plotHeightAfter, textPx, titleMeasures } from '../core/title-fit.js';
-import { tableTextMeasurer } from '../core/text-width.js';
+import { tableTextMeasurer, textWidth } from '../core/text-width.js';
 import { alreadyNamed, keysBesideWidth, tickUnitOf, type TitlePlan } from '../core/title-plan.js';
 import { OWNED_AXIS_KEYS } from './owned-axis-keys.js';
 import { CONTINUOUS_BAR_STEP_FILL, coverageSizedMarks } from './templates/utils.js';
@@ -3406,6 +3406,27 @@ function setColorRange(enc: any, range: string[], extra?: any): void {
     enc.scale = { ...clearColorScale(enc.scale ?? {}), ...(extra ?? {}), range: r };
 }
 
+/** How warm an ink reads: red minus blue, so a red-to-brown end scores high and a blue end low. */
+function warmth(ink: string): number {
+    const c = parseColor(ink);
+    return c ? c.r - c.b : 0;
+}
+
+/**
+ * The chart chose its diverging scheme for the field's meaning: `redblue` puts the warm end low,
+ * where a loss or a fall sits, and `blueorange` puts it high, where heat sits. A house ramp is
+ * written one way round; turn it so its warm end lands where the chart's scheme put it, or a
+ * signed measure on a house ramp reads losses as gains.
+ */
+function orientDivergingRange(enc: any, range: string[]): string[] {
+    const scheme = enc.scale?.scheme;
+    const name = typeof scheme === 'string' ? scheme : scheme?.name;
+    if (name !== 'redblue' && name !== 'blueorange' || range.length < 2) return range;
+    const warmLow = warmth(range[0]) > warmth(range[range.length - 1]);
+    const wantWarmLow = name === 'redblue';
+    return warmLow === wantWarmLow ? range : [...range].reverse();
+}
+
 /**
  * A near-neutral ink baked into a template was chosen against flint's own
  * surface, which is white. What it means is its *distance* from that surface —
@@ -3571,9 +3592,10 @@ function applySeriesInk(spec: any, d: DesignDecisions, table: any[], say: Report
                 // distance from this surface, leaving the hued endpoints — and
                 // every continuous heat ramp — untouched.
                 const surface = d.surface.plot ?? d.surface.canvas;
+                const oriented = s.mode === 'diverging' ? orientDivergingRange(enc, s.range) : s.range;
                 const range = isContinuousColor(enc)
-                    ? s.range
-                    : s.range.map((c) => reToneNeutral(c, surface));
+                    ? oriented
+                    : oriented.map((c) => reToneNeutral(c, surface));
                 // The chart read the field as diverging and made its domain symmetric about the pivot;
                 // on a one-way ramp that half-empty domain paints the data in the dark half only, so the
                 // ramp spans the data's own range instead.
@@ -4003,6 +4025,7 @@ function applyLegend(
     if (gradient) {
         config.legend.gradientLength = gradient.length;
     }
+    fitBinnedKeyLength(spec, config, table, gradient?.block);
     // A key the plan leaves untitled drops its title — a series key whose labels name themselves, a
     // key the chart makes itself — even where its template wrote one; a key to values keeps its own,
     // because a number names nothing until the key says what it counts.
@@ -6591,6 +6614,50 @@ function bandedWidth(spec: any, table: any[]): number | undefined {
         ? undefined
         : discrete?.step ?? spec.config?.view?.step ?? 20;
     return typeof discrete === 'number' ? discrete : step * count;
+}
+
+
+/**
+ * A binned ramp labels every bin edge, so it runs long enough to give each label its room, up to
+ * the block it keys; otherwise the renderer drops every other label. Vega-Lite drops a binned
+ * key's own `gradientLength`, so the length goes on the config, which the ramp reads.
+ */
+export function fitBinnedKeyLength(spec: any, config: any, table: any[], block?: number): void {
+    config.legend = config.legend ?? {};
+    walk(spec, (node) => {
+        const enc = node.encoding?.color;
+        const scale = enc?.scale;
+        if (!enc || enc.legend === null || scale?.type !== 'quantize') return;
+        if ((enc.legend?.direction ?? config.legend.direction ?? 'horizontal') !== 'horizontal') return;
+        const domain = scale.domain;
+        const bins = Array.isArray(scale.range) ? scale.range.length : scale.scheme?.count ?? 0;
+        if (!Array.isArray(domain) || domain.length !== 2 || typeof domain[0] !== 'number' || typeof domain[1] !== 'number' || bins < 2) return;
+        const fontSize = enc.legend?.labelFontSize ?? config.legend.labelFontSize ?? 10;
+        const font = enc.legend?.labelFont ?? config.legend.labelFont;
+        const need = (pattern: string): number => {
+            let print: (n: number) => string;
+            try { print = formatNumber(pattern); } catch { print = formatNumber(','); }
+            let widest = 0;
+            for (let i = 1; i < bins; i++) {
+                const edge = domain[0] + (domain[1] - domain[0]) * i / bins;
+                widest = Math.max(widest, textWidth(print(edge).replace('-', '−'), fontSize, font));
+            }
+            return Math.ceil(bins * (widest + fontSize));
+        };
+        const current = config.legend.gradientLength ?? 200;
+        // A key is a caption: it runs no further than a share of the block it keys.
+        const room = block ?? blockWidth(spec, table);
+        const cap = Math.max(current, room ? Math.round(room * 0.6) : current);
+        const stated = typeof enc.legend?.format === 'string' || enc.legend?.labelExpr !== undefined;
+        let wanted = need(stated ? enc.legend.format ?? ',' : ',');
+        // Edges that do not fit at full precision print compactly: −38,501 becomes −39k.
+        if (wanted > cap && !stated) {
+            enc.legend = { ...(enc.legend ?? {}), format: '~s' };
+            wanted = need('~s');
+        }
+        if (wanted <= current) return;
+        config.legend.gradientLength = Math.min(wanted, cap);
+    });
 }
 
 function blockWidth(spec: any, table: any[]): number | undefined {

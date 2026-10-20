@@ -146,8 +146,17 @@ export interface LinkState {
      * that let its marks go, or a reader's reset, clears the condition. Host changes are ignored.
      */
     read(id: string, change: ChartChange): { changed: boolean; dropOwn?: string };
+    /**
+     * Sets parts from outside the charts (a table row, a filter control), the way a chart's
+     * selection does: each field takes the new part, other parts stay. A part of `null` lets that
+     * field go. Returns whether the condition changed.
+     */
+    select(parts: Record<string, LinkPart | null>, from?: string): boolean;
     clear(): boolean;
 }
+
+/** The `from` a part set by the host carries when the host names no source. */
+export const HOST_SOURCE = 'host';
 
 const EMPTY: LinkCondition = {};
 
@@ -173,6 +182,26 @@ export function createLinkState(links: Record<string, ChartLink>, previous?: Pic
         links,
         snapshot: () => ({ condition, from, shown }),
         clear,
+        select(parts, source = HOST_SOURCE) {
+            const before = JSON.stringify(condition);
+            const nextCondition: LinkCondition = { ...condition };
+            const nextFrom = { ...from };
+            for (const [field, part] of Object.entries(parts)) {
+                if (!linked.has(field)) continue;
+                if (part === null) {
+                    delete nextCondition[field];
+                    delete nextFrom[field];
+                } else {
+                    nextCondition[field] = part;
+                    nextFrom[field] = source;
+                }
+            }
+            if (JSON.stringify(nextCondition) === before) return false;
+            condition = Object.keys(nextCondition).length > 0 ? nextCondition : EMPTY;
+            from = nextFrom;
+            reshow();
+            return true;
+        },
         read(id, change) {
             const link = links[id];
             if (change.source === 'host' || !link) return { changed: false };
@@ -218,6 +247,13 @@ export interface ChartsLink {
     condition(): LinkSnapshot;
     /** Every change to the condition; returns the unsubscribe. A host that filters its own rows reads it here. */
     onCondition(listener: (snapshot: LinkSnapshot) => void): () => void;
+    /**
+     * Selects from outside the charts, e.g. `select({ country: { in: ['India'] } })` from a table
+     * row or `select({ region: { in: ['Oceania'] } })` from a filter control. Each field takes the
+     * new part and every chart that carries it shows it, as if a chart had selected it; `null`
+     * lets a field go. Resolves once the link is ready.
+     */
+    select(parts: Record<string, LinkPart | null>, options?: { from?: string }): Promise<void>;
     clear(): void;
     destroy(): void;
 }
@@ -229,13 +265,36 @@ export async function loadLinks(inputs: Record<string, ChartAssemblyInput>, spec
 }
 
 /**
+ * The input a link checks: the chart's own, with the presets mounted in code (`mountChart(…,
+ * { interactions })`) added to its `interaction_spec`, since those select too. Presets already in
+ * the spec are mounted from it, so each id is listed once.
+ */
+export function linkInput(chart: LinkedChart): ChartAssemblyInput {
+    const mounted = chart.surface.interactions ?? [];
+    const spec = (chart.input.interaction_spec ?? {}) as { interactions?: readonly unknown[] };
+    const listed = spec.interactions ?? [];
+    const ids = new Set(listed.map((entry) => {
+        const record = (typeof entry === 'string' ? { type: entry } : entry) as { type?: string; id?: string } | null;
+        return record?.id ?? record?.type;
+    }));
+    const added = mounted.flatMap((definition) => {
+        const preset = (definition as { preset?: string; presetOptions?: Record<string, unknown> }).preset;
+        if (!preset || ids.has(definition.id)) return [];
+        ids.add(definition.id);
+        return [{ type: preset, id: definition.id, options: (definition as { presetOptions?: Record<string, unknown> }).presetOptions ?? {} }];
+    });
+    if (added.length === 0) return chart.input;
+    return { ...chart.input, interaction_spec: { ...spec, interactions: [...listed, ...added] } } as ChartAssemblyInput;
+}
+
+/**
  * Links mounted charts on the fields they share. A selection on one chart emphasizes the marks
  * that meet it on every chart, the source included, through one `linked-selection` layer each;
  * a reset on any chart clears it everywhere. A host that replaces every layer with `setUpdates`
  * removes that layer until the condition next changes.
  */
 export function linkCharts(charts: Record<string, LinkedChart>, spec: LinkSpec, options: LinkChartsOptions = {}): ChartsLink {
-    const inputs = Object.fromEntries(Object.entries(charts).map(([id, chart]) => [id, chart.input]));
+    const inputs = Object.fromEntries(Object.entries(charts).map(([id, chart]) => [id, linkInput(chart)]));
     const links = options.links ? Promise.resolve(options.links) : loadLinks(inputs, spec);
     const listeners = new Set<(snapshot: LinkSnapshot) => void>();
     const layered = new Set<string>();
@@ -276,6 +335,10 @@ export function linkCharts(charts: Record<string, LinkedChart>, spec: LinkSpec, 
         onCondition(listener) {
             listeners.add(listener);
             return () => listeners.delete(listener);
+        },
+        async select(parts, options) {
+            await ready;
+            if (state?.select(parts, options?.from)) show();
         },
         clear() {
             if (state?.clear()) show();

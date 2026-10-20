@@ -17,11 +17,13 @@ import {
     createLinkState,
     isCanvasInteraction,
     isFilterControls,
+    linkInput,
     loadLinks,
     mountChart,
     resolveInteractionSpec,
     type CanvasInteractionDef,
     type ChartLink,
+    type LinkPart,
     type LinkSnapshot,
     type LinkSpec,
     type LinkState,
@@ -604,6 +606,8 @@ export interface LinkedCharts {
     condition: LinkSnapshot;
     /** What each chart sends and receives, and why anything is left out; null until checked. */
     links: Record<string, ChartLink> | null;
+    /** Selects from outside the charts, e.g. from a table row or a filter control; `null` lets a field go. */
+    select(parts: Record<string, LinkPart | null>, options?: { from?: string }): void;
     clear(): void;
 }
 
@@ -632,10 +636,18 @@ export function useLinkedCharts(inputs: Record<string, ChartAssemblyInput>, spec
     const surfaces = useRef(new Map<string, InteractiveChartSurface>());
     const handlers = useRef(new Map<string, Pick<LinkedChartProps, 'onChange' | 'onRender'>>());
     const owners = useRef(new Map<string, Partial<LinkedChartProps>>());
+    // Presets a chart mounts from its `interactions` prop select too; the link checks again once a
+    // chart reports ones its spec does not list.
+    const [mountedKey, setMountedKey] = useState('');
+    const mountedKeys = useRef(new Map<string, string>());
 
     useEffect(() => {
         let stale = false;
-        void loadLinks(latest.current.inputs, latest.current.spec).then((links) => {
+        const inputs = Object.fromEntries(Object.entries(latest.current.inputs).map(([id, input]) => {
+            const surface = surfaces.current.get(id);
+            return [id, surface ? linkInput({ input, surface }) : input];
+        }));
+        void loadLinks(inputs, latest.current.spec).then((links) => {
             if (stale) return;
             const next = createLinkState(links, stateRef.current?.snapshot());
             setState(next);
@@ -644,7 +656,7 @@ export function useLinkedCharts(inputs: Record<string, ChartAssemblyInput>, spec
         return () => {
             stale = true;
         };
-    }, [key]);
+    }, [key, mountedKey]);
 
     const updates = useMemo(() => {
         const layers = state ? conditionUpdates(state.links, snapshot.shown) : new Map<string, ChartUpdate>();
@@ -666,6 +678,14 @@ export function useLinkedCharts(inputs: Record<string, ChartAssemblyInput>, spec
                 },
                 onRender: (surface) => {
                     surfaces.current.set(id, surface);
+                    const input = latest.current.inputs[id];
+                    if (input) {
+                        const mounted = JSON.stringify(linkInput({ input, surface }).interaction_spec ?? null);
+                        if (mountedKeys.current.get(id) !== mounted) {
+                            mountedKeys.current.set(id, mounted);
+                            if (mounted !== JSON.stringify(input.interaction_spec ?? null)) setMountedKey([...mountedKeys.current].join('|'));
+                        }
+                    }
                     owners.current.get(id)?.onRender?.(surface);
                 },
             };
@@ -675,12 +695,17 @@ export function useLinkedCharts(inputs: Record<string, ChartAssemblyInput>, spec
         return { ...handler, updates: own?.updates?.length ? [...own.updates, ...layer] : layer };
     }, [updates]);
 
+    const select = useCallback((parts: Record<string, LinkPart | null>, options?: { from?: string }) => {
+        const current = stateRef.current;
+        if (current?.select(parts, options?.from)) setSnapshot(current.snapshot());
+    }, []);
+
     const clear = useCallback(() => {
         const current = stateRef.current;
         if (current?.clear()) setSnapshot(current.snapshot());
     }, []);
 
-    return { chart, condition: snapshot, links: state?.links ?? null, clear };
+    return { chart, condition: snapshot, links: state?.links ?? null, select, clear };
 }
 
 export { FlintTable, MAX_TABLE_ROWS, emphasizedRows, nextSort, sortedRows, tableNotes, type FlintTableProps, type TableSort } from './table';

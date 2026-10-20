@@ -31,6 +31,7 @@
  *   apple          rounded system-colour bars, ruled with labels on the trailing edge
  *   de-stijl       a composition of primary planes split by heavy black lines
  *   bbc            blue and amber bars between light rules, on a heavy zero rule
+ *   material       rounded tonal-purple, teal and amber bars on a faint outline-variant grid
  *
  * Each is a complete SVG document so a caller can put it straight in an `<img>`
  * or inline it. 16×16 with a half-pixel inset frame: the frame is what lets a
@@ -202,4 +203,15 @@ export const BBC_ICON = tile(
         rule(2.6, 8.5, 13.4, '#cbcbcb') +
         bars(['#1380A1', '#FAAB18', '#990000'], [7.5, 5, 3.4]) +
         rule(2.2, BASELINE, 13.8, '#333333', 1.8),
+);
+
+/** M3 primary purple, teal and amber with rounded value ends, over faint outline-variant gridlines on the M3 surface. */
+export const MATERIAL_ICON = tile(
+    '#FFFBFE',
+    '#CAC4D0',
+    rule(2.6, 5.5, 13.4, '#CAC4D0', 0.6) +
+        rule(2.6, 9, 13.4, '#CAC4D0', 0.6) +
+        bars(['#6750A4', '#00696E', '#E8A600'], [8, 6, 4.4], 2.6, 1) +
+        rule(2.6, BASELINE, 13.4, '#79747E', 0.6),
+    4,
 );

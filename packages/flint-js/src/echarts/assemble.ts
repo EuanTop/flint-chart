@@ -50,6 +50,8 @@
  * This module has NO React, Redux, or UI framework dependencies.
  */
 
+import { authoredColorScale, withEncodingColorAnnotations } from '../core/color-controls';
+import { applyAuthoredColorScaleEC } from './color-controls';
 import {
     ChartEncoding,
     ChartTemplateDef,
@@ -60,7 +62,7 @@ import {
 } from '../core/types';
 import type { ChartWarning } from '../core/types';
 import { applyEncodingOverrides } from '../core/encoding-overrides';
-import { applyAggregation } from '../core/aggregate';
+import { applyAggregation, resolveImplicitAggregation } from '../core/aggregate';
 import { applyPivot, applyTransform, type PivotSurface, type TransformSurface } from '../core/pivot';
 import { ecGetTemplateDef } from './templates';
 import { resolveChannelSemantics, convertTemporalData, repairEncodingSorts } from '../core/resolve-semantics';
@@ -114,7 +116,8 @@ function applyFieldDisplayNames(option: any, names: Record<string, string> | und
 
 export function assembleECharts(input: ChartAssemblyInput): any {
     const chartType = input.chart_spec.chartType;
-    const semanticTypes = input.semantic_types ?? {};
+    // The colour encoding's own `colors` and `mid` speak for its field in this chart.
+    const semanticTypes = withEncodingColorAnnotations(input.semantic_types ?? {}, input.chart_spec.encodings as Record<string, unknown>);
     // Internal layout targets the base (target) size; the optional canvasSize
     // ceiling is applied as per-dimension stretch caps once options resolve.
     // The base is clamped to the ceiling so a smaller canvasSize shrinks the
@@ -176,7 +179,11 @@ export function assembleECharts(input: ChartAssemblyInput): any {
     // chartProperties, keyed by action key) onto the post-transform encodings
     // before any pipeline phase runs. Flint owns the transform; the host only
     // stores the override value. See applyEncodingOverrides / EncodingActionDef.
-    const encodings = applyEncodingOverrides(chartTemplate, transformed.encodings, chartProperties);
+    const overridden = applyEncodingOverrides(chartTemplate, transformed.encodings, chartProperties);
+    // Several rows on one mark's key: aggregate the measure (and say so) rather than overplot.
+    const implicit = resolveImplicitAggregation(chartTemplate.chart, overridden, data, semanticTypes);
+    const encodings = implicit.encodings;
+    warnings.push(...implicit.warnings);
 
     // Optional aggregation transform — see vegalite/assemble for rationale.
     data = applyAggregation(encodings, data);
@@ -535,6 +542,10 @@ export function assembleECharts(input: ChartAssemblyInput): any {
     // ═══════════════════════════════════════════════════════════════════════
     // RESULT
     // ═══════════════════════════════════════════════════════════════════════
+
+    // The author's colour controls win over every default.
+    const authoredColor = authoredColorScale(input.chart_spec.encodings as Record<string, unknown>);
+    if (authoredColor) applyAuthoredColorScaleEC(ecOption, authoredColor);
 
     // Attach metadata
     if (warnings.length > 0) {

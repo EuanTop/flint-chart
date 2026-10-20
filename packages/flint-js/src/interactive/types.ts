@@ -156,6 +156,8 @@ export interface InteractiveChartSurface {
     readonly element: HTMLElement;
     readonly chartId: string;
     readonly ready: Promise<void>;
+    /** The interactions mounted on the chart: those of its `interaction_spec`, then those passed in code. */
+    readonly interactions?: readonly InteractionDef[];
     /** Every warning about this chart's interactions, once the mount has settled. Never rejects. */
     readonly warnings: Promise<readonly ChartWarning[]>;
     /**

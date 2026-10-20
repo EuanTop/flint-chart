@@ -434,6 +434,7 @@ export function mountInteractiveChartSurface(
         element: root,
         chartId,
         ready,
+        interactions,
         warnings: ready.then(() => warnings as readonly ChartWarning[], () => warnings as readonly ChartWarning[]),
         get layout() {
             return renderer?.layout;

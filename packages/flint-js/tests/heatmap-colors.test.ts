@@ -178,7 +178,8 @@ describe('heatmap color defaults', () => {
 
     const compiled = compile(spec).spec as any;
     const xScale = compiled.scales.find((scale: any) => scale.name === 'x');
-    expect(xScale.type).toBe('time');
+    // Years parse as UTC midnights, so the time scale is a UTC one.
+    expect(xScale.type).toBe('utc');
   });
 
   it('does not zero-expand an explicit cell domain on an untyped quantitative axis', () => {

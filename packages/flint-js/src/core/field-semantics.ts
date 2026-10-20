@@ -90,6 +90,14 @@ export interface SemanticAnnotation {
      * skips the bound colours. Wins over the theme's role inks.
      */
     colors?: Record<string, string>;
+
+    /**
+     * Which way the field's values are good, for a diverging colour: `higher-is-better` (profit,
+     * growth) puts the warm, alarming end on the low side; `lower-is-better` (cost, errors, churn)
+     * puts it on the high side. Unset ⇒ the semantic type decides (signed measures read as
+     * higher-is-better, temperatures run warm-high).
+     */
+    polarity?: 'higher-is-better' | 'lower-is-better';
 }
 
 /** d3-compatible format specification */
@@ -396,7 +404,10 @@ export function resolveFormat(
             // Only override axis when we have a known currency symbol;
             // without it the axis is better left to VL defaults.
             if (pfx) {
-                const axisPattern = semanticType === 'Price' ? ',.2f' : precisionFormat(nums);
+                // Ticks fall on round values, so the data's own decimals (GDP per person to
+                // seven places) would print `$100.0000`: allow cents, trim zeros a tick lacks.
+                const p = Math.min(detectPrecision(nums), 2);
+                const axisPattern = semanticType === 'Price' ? ',.2f' : p === 0 ? ',d' : `,.${p}~f`;
                 return {
                     format: { pattern: axisPattern, prefix: pfx },
                     tooltipFormat: { pattern: ',.2f', prefix: pfx },

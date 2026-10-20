@@ -55,7 +55,21 @@ export interface ChartEncoding {
     aggregate?: 'count' | 'sum' | 'average' | 'mean';
     sortOrder?: "ascending" | "descending";
     sortBy?: string;
-    scheme?: string;
+    /**
+     * Colour channel: a Vega scheme name (`viridis`, `redblue`), or the stops a ramp or palette runs
+     * through, low end first (`["#c0392b", "#f2f2f2", "#2e75b6"]`). Wins over the theme's ramp.
+     */
+    scheme?: string | string[];
+    /** Colour channel: run the scale the other way round. */
+    reverse?: boolean;
+    /** Colour channel: the value a diverging scale pivots on, for this chart (the field's `divergingMidpoint`). */
+    mid?: number;
+    /** Colour channel: the measure extent the ramp spans, `[low, high]`, in place of the data's. */
+    domain?: [number, number];
+    /** Colour channel: quantize a continuous measure into this many bins; `0` keeps the ramp continuous. */
+    bins?: number;
+    /** Colour channel: colours bound to values, for this chart (the field's `colors`): `{ "Win": "#2a9d8f" }`. */
+    colors?: Record<string, string>;
     /**
      * The name the channel's axis or key prints, in place of the field's; `null` prints none. A
      * theme still decides whether a key is titled at all: a name given here renames it where it is.
@@ -1659,6 +1673,11 @@ export interface AssembleOptions {
      * Default: 10.
      */
     baseLabelFontSize?: number;
+    /**
+     * The smallest axis tick label (px) the shrink ladder may reach, as small multiples
+     * shrink their plots. A themed chart takes its theme's `type.minSize`. Default: 6.
+     */
+    minLabelFontSize?: number;
     /**
      * Backend-native base font size (px) for **headers** (axis titles, legend,
      * chart title), at a 300px reference canvas. Scaled subtly with canvas size

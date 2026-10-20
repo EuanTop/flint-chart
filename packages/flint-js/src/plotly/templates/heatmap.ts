@@ -9,6 +9,7 @@
  * ECharts template (`data: [[xIdx, yIdx, value], ...]`) needs.
  */
 
+import { schemeName as namedScheme } from '../../core/color-controls';
 import { ChartTemplateDef, EncodingActionDef } from '../../core/types';
 import { extractCategories } from './utils';
 import { makeCartesianPivot } from '../../core/pivot';
@@ -47,7 +48,7 @@ export const plHeatmapDef: ChartTemplateDef = {
             return v ?? null;
         }));
 
-        const encScheme = (encodings?.color as any)?.scheme;
+        const encScheme = namedScheme((encodings?.color as any)?.scheme);
         const userScheme = (encScheme && encScheme !== 'default') ? encScheme : undefined;
         const decision = colorDecisions?.color ?? colorDecisions?.group;
         const semanticIsDiverging = decision?.schemeType === 'diverging';
