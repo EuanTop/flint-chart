@@ -72,6 +72,7 @@ const pages: NavEntry[] = [
     group: 'Tools',
     children: [
       { to: 'mcp-ui', label: 'MCP UI test' },
+      { to: 'mcp-stories', label: 'MCP chat stories' },
       { to: 'debug-gym', label: 'Debug gym' },
       { to: 'agent-comparison', label: 'Agent comparison' },
       { to: 'dense-marks', label: 'Dense marks: D3 vs Flint' },

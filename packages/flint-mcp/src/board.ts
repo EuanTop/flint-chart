@@ -25,6 +25,8 @@ export interface BoardChart {
 
 export interface Board {
   id: string;
+  /** A chart: one chart, drawn as the chart card. A board: several under one headline. */
+  kind: 'chart' | 'board';
   /** The headline: what the board shows or is for. */
   title?: string;
   /** The deck: the data, its scope and period. */
@@ -42,6 +44,7 @@ export interface Board {
    * null is Flint's default. Absent while the reader keeps the agent's theme.
    */
   reader_theme?: { theme: ChartAssemblyInput['theme_spec'] | null };
+  /** One per agent write; a card shows one version, and the reader's changes keep it. */
   version: number;
   charts: BoardChart[];
   /** The fields the charts connect on; none when the charts stand alone. */
@@ -105,21 +108,18 @@ export const BOARD_LIMIT = 200;
 export class BoardStore {
   private boards = new Map<string, Board>();
 
-  create(fields: BoardFields): Board {
-    const board: Board = { id: `board-${randomBytes(8).toString('hex')}`, ...fields, version: 1, charts: [] };
+  create(kind: Board['kind'], fields: BoardFields = {}): Board {
+    const board: Board = { id: `${kind}-${randomBytes(8).toString('hex')}`, kind, ...fields, version: 1, charts: [] };
     this.boards.set(board.id, board);
     if (this.boards.size > BOARD_LIMIT) this.boards.delete(this.boards.keys().next().value!);
     return board;
   }
 
-  /** Whether the store holds the board. */
-  has(id: string): boolean {
-    return this.boards.has(id);
-  }
-
-  /** Takes back a board a card still holds, under its own id, as a server that restarted lost it. */
+  /** Takes back the board a card holds, as a server that restarted lost it; a newer board it holds stays. */
   restore(board: Board): Board {
-    const kept: Board = { ...board, charts: board.charts ?? [], version: board.version ?? 1 };
+    const held = this.boards.get(board.id);
+    if (held && held.version >= (board.version ?? 1)) return held;
+    const kept: Board = { ...board, kind: board.kind ?? 'board', charts: board.charts ?? [], version: board.version ?? 1 };
     this.boards.set(kept.id, kept);
     if (this.boards.size > BOARD_LIMIT) this.boards.delete(this.boards.keys().next().value!);
     return kept;
@@ -129,15 +129,26 @@ export class BoardStore {
     const board = this.boards.get(id);
     if (!board) {
       throw new Error(
-        `No board "${id}" on this server; it may have restarted. Call create_board to open a new board card with the charts.`,
+        `No chart or board "${id}" on this server; it may have restarted. Call create_chart or create_board to build it again, then show.`,
       );
     }
     return board;
   }
 
+  /** Marks an agent write: the board's next version. */
   touch(board: Board): void {
     board.version += 1;
   }
+}
+
+/** The chart as the model reads it before it is drawn: the same report the drawn chart sends as its context. */
+export function chartReport(input: ChartAssemblyInput, updates: readonly ChartUpdate[] | undefined, result: ValidateResult): string {
+  const report = chartContext({ agent: input, shown: input, updates, checks: result.updates, warnings: result.warnings }).text;
+  const ops = (result.updates ?? []).flatMap((check) => check.ops);
+  const failed = ops.filter((op) => !op.ok).length;
+  if (failed === 0) return report;
+  return `${failed} of ${ops.length} update ops do not apply (✗ below); the chart draws without them. ` +
+    `Fix each one, or tell the user what is missing.\n${report}`;
 }
 
 /** The outcome of one chart write: the chart drawn, or why it was not. */
@@ -156,16 +167,16 @@ export async function prepareChart(
   args: BoardChartArgs,
   validate: Validate,
   board: Pick<Board, 'theme_spec'>,
-): Promise<{ chart?: BoardChart; outcome: ChartOutcome }> {
+): Promise<{ chart?: BoardChart; outcome: ChartOutcome; errors?: string }> {
   const { id, updates, layout, view, ...rest } = args;
   const own = toAssemblyInput(rest as AssemblyInputArgs);
   const { result, input } = await validate(withBoardTheme(own, board), updates);
   if (!result.valid) {
-    return { outcome: { id, drawn: false, text: `✗ not drawn: ${result.errors.map((e) => e.message).join('; ')}` } };
+    const errors = result.errors.map((e) => e.message).join('; ');
+    return { errors, outcome: { id, drawn: false, text: `✗ not drawn: ${errors}` } };
   }
   const opensAsTable = view === 'table' && !drawsAsTable(input.chart_spec.chartType);
-  const report = chartContext({ agent: input, shown: input, updates, checks: result.updates, warnings: result.warnings }).text
-    + (opensAsTable ? `\n${OPENS_AS_TABLE}` : '');
+  const report = chartReport(input, updates, result) + (opensAsTable ? `\n${OPENS_AS_TABLE}` : '');
   // The board's theme stays the board's: a later update_board theme reaches every chart that set none.
   const stored = { ...input, theme_spec: own.theme_spec };
   return {
@@ -276,11 +287,25 @@ export function themeName(theme: ChartAssemblyInput['theme_spec'] | null): strin
   return custom.label ?? custom.id ?? (custom.extends ? `custom (${custom.extends})` : 'custom');
 }
 
-/** The board as the model reads it after a write. */
-export function boardReport(board: Board, outcomes: readonly ChartOutcome[], notes: readonly string[] = []): string {
+/** What the model reads once a chart or board is on screen. */
+export function shownText(board: Board): string {
+  return `${board.kind === 'chart' ? 'Chart' : 'Board'} ${board.id} version ${board.version} is on screen in a new card; earlier cards keep the versions they showed. What the reader does on it reaches you with their next message.`;
+}
+
+/** A chart or board as the model reads it after a write. */
+export function viewReport(board: Board, outcomes: readonly ChartOutcome[], notes: readonly string[] = []): string {
+  if (board.kind === 'board') return boardReport(board, outcomes, notes);
+  return [
+    `Chart ${board.id}, version ${board.version}, not on screen yet: fix what this report asks with update_chart (never a new create_chart), then call show once.`,
+    ...notes,
+    ...outcomes.map((outcome) => outcome.text),
+  ].join('\n');
+}
+
+function boardReport(board: Board, outcomes: readonly ChartOutcome[], notes: readonly string[]): string {
   const lines = [
     `Board ${board.id}${board.title ? ` "${board.title}"` : ''}: ${board.charts.length} chart${board.charts.length === 1 ? '' : 's'} (${board.charts.map((chart) => chart.id).join(', ') || 'none'}).`,
-    'The board card redraws from this board: change it with add_chart, update_chart, remove_chart and update_board, never a new create_board. What the reader does on it reaches you with their next message.',
+    `Version ${board.version}, not on screen yet: fix what this report asks with add_chart, update_chart, remove_chart and update_board (never a new create_board), then call show once.`,
   ];
   if (notes.length > 0) lines.push('', ...notes);
   if (board.reader_theme) {

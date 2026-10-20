@@ -23,16 +23,13 @@ import {
   toAssemblyInput,
   updatesShape,
   viewShape,
-  type ChartView,
   SUPPORTED_BACKENDS,
   type SupportedBackend,
   type AssemblyInputArgs,
 } from './tools/schemas.js';
-import type { ChartAssemblyInput, ChartUpdate, ValidateResult } from 'flint-chart';
-import { drawsAsTable } from 'flint-chart';
+import type { ChartAssemblyInput, ChartUpdate } from 'flint-chart';
 
 import { VERSION } from './version.js';
-import { OPENS_AS_TABLE, chartContext } from './chart-context.js';
 import {
   BoardStore,
   boardChartShape,
@@ -40,8 +37,10 @@ import {
   dropArrangement,
   placeAddedChart,
   themeName,
-  boardReport,
+  chartReport,
+  viewReport,
   boardSnapshot,
+  shownText,
   linkSpecShape,
   relink,
   mergeChartArgs,
@@ -62,15 +61,12 @@ const THEME_SKILL_ASSET = new URL('../assets/flint-theme-author.SKILL.md', impor
 const INTERACTION_SKILL_ASSET = new URL('../assets/flint-interaction-author.SKILL.md', import.meta.url);
 const BOARD_SKILL_ASSET = new URL('../assets/flint-board-author.SKILL.md', import.meta.url);
 
-/** URI linking the chart-view tool to its bundled UI resource. */
-export const CHART_VIEW_RESOURCE_URI = 'ui://flint-chart/chart-view.html';
-const CHART_VIEW_ASSET = new URL('../assets/flint-app.html', import.meta.url);
-
-/** URI linking the board tools to the same UI bundle, opened as the board view. */
-export const BOARD_VIEW_RESOURCE_URI = 'ui://flint-chart/board-view.html';
+/** URI linking show to its bundled UI resource, the card that draws a chart or a board. */
+export const VIEW_RESOURCE_URI = 'ui://flint-chart/view.html';
+const VIEW_ASSET = new URL('../assets/flint-app.html', import.meta.url);
 
 /** Shown when the UI bundle has not been built yet (e.g. during `test`). */
-const CHART_VIEW_PLACEHOLDER = `<!DOCTYPE html><html><head><meta charset="utf-8">\
+const VIEW_PLACEHOLDER = `<!DOCTYPE html><html><head><meta charset="utf-8">\
 <title>Flint Chart</title></head><body style="font-family:Arial,sans-serif;color:#6b6b6b;\
 padding:24px">Flint chart view UI is not built. Run <code>npm run build:ui</code> in \
 packages/flint-mcp to generate it.</body></html>`;
@@ -118,18 +114,13 @@ export function skillSection(text: string, heading: string): string {
   return text.slice(sections[index].start, sections[index + 1]?.start ?? text.length).trimEnd() + '\n';
 }
 
-/** Read the bundled chart-view HTML, tolerating a not-yet-built asset. */
-function readChartViewHtml(): string {
+/** Read the bundled view HTML, tolerating a not-yet-built asset. */
+function readViewHtml(): string {
   try {
-    return readFileSync(CHART_VIEW_ASSET, 'utf8');
+    return readFileSync(VIEW_ASSET, 'utf8');
   } catch {
-    return CHART_VIEW_PLACEHOLDER;
+    return VIEW_PLACEHOLDER;
   }
-}
-
-/** The chart-view bundle, marked to open as the board view. */
-function readBoardViewHtml(): string {
-  return readChartViewHtml().replace('<head>', '<head><script>window.__FLINT_VIEW__="board"</script>');
 }
 
 export interface CreateServerOptions {
@@ -141,7 +132,7 @@ export interface CreateServerOptions {
    * file the agent references.
    */
   disableFileReference?: boolean;
-  /** Where boards live; a server that is rebuilt per request passes one store so boards outlive the request. */
+  /** Where charts and boards live; a server that is rebuilt per request passes one store so they outlive the request. */
   boards?: BoardStore;
 }
 
@@ -149,29 +140,6 @@ type JsonContent = { content: { type: 'text'; text: string }[]; isError?: boolea
 
 function jsonResult(value: unknown): JsonContent {
   return { content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] };
-}
-
-/** The chart as the model reads it before it is drawn: the same report the drawn view sends as its context. */
-function chartReport(input: ChartAssemblyInput, updates: readonly ChartUpdate[] | undefined, result: ValidateResult): string {
-  const report = chartContext({ agent: input, shown: input, updates, checks: result.updates, warnings: result.warnings }).text;
-  const ops = (result.updates ?? []).flatMap((check) => check.ops);
-  const failed = ops.filter((op) => !op.ok).length;
-  if (failed === 0) return report;
-  return `${failed} of ${ops.length} update ops do not apply (✗ below); the chart draws without them. ` +
-    `Fix each one and call again, or tell the user what is missing.\n${report}`;
-}
-
-/** A create_chart_view call that draws nothing: the model reads the fix to make, the card shows the reason. */
-function notDrawn(reason: string) {
-  return {
-    content: [{
-      type: 'text' as const,
-      text: `Chart spec has errors: ${reason}. No chart was drawn; the card shows this reason. ` +
-        'Fix the spec and call create_chart_view again, which opens a new card.',
-    }],
-    _meta: { flint: { error: reason } },
-    isError: true,
-  };
 }
 
 function errorResult(err: unknown): JsonContent {
@@ -238,12 +206,12 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
     {
       instructions:
         'Flint compiles one semantic chart spec (ChartAssemblyInput) into ' +
-        'Vega-Lite, ECharts, or Chart.js. By DEFAULT, prefer create_chart_view ' +
-        'to show a chart whenever the host supports MCP App UIs — it renders ' +
-        'the chart live with an editing panel. For several charts shown together ' +
-        '(a dashboard, a comparison, an overview with its detail), call get_flint_skill ' +
-        'with skill "board", then create_board, and change that card with add_chart, ' +
-        'update_chart, remove_chart and update_board. ' +
+        'Vega-Lite, ECharts, or Chart.js. By DEFAULT, show a chart whenever the host ' +
+        'supports MCP App UIs: build it with create_chart, fix what its report asks with ' +
+        'update_chart, then call show once; the card draws the chart live with an editing panel. ' +
+        'For several charts shown together (a dashboard, a comparison, an overview with its detail), ' +
+        'call get_flint_skill with skill "board", build it with create_board, change it with add_chart, ' +
+        'update_chart, remove_chart and update_board, then call show once. ' +
         'The editing panel is not ' +
         'interactivity: when the user asks for an interactive chart (hover, ' +
         'click, brush, zoom), add an interaction_spec. Fall back to render_chart for a static PNG/SVG artifact only ' +
@@ -293,7 +261,7 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
       description:
         'Compile a Flint chart spec for a backend and render it to a STATIC image ' +
         '(PNG) or vector (SVG), returned inline. Rendering is local/in-process. ' +
-        'The chartjs backend supports PNG only. Prefer create_chart_view instead ' +
+        'The chartjs backend supports PNG only. Prefer create_chart and show instead ' +
         'when the host supports MCP App UIs; use render_chart for a static ' +
         'artifact or when no App UI is available.',
       inputSchema: {
@@ -380,9 +348,9 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
         'whether it is valid, all warnings/errors, and the computed layout size. ' +
         'With an interaction_spec it also reports the entries the chart would drop. ' +
         'With updates it rejects a malformed layer and reports, op by op, whether ' +
-        'each will apply (✓) or why not (✗), in the same report create_chart_view ' +
-        'returns. create_chart_view runs the same checks and draws nothing on an ' +
-        'error, so do not call this before it; use it to check a spec without drawing it.',
+        'each will apply (✓) or why not (✗), in the same report create_chart ' +
+        'returns. create_chart runs the same checks and keeps nothing on an ' +
+        'error, so do not call this before it; use it to check a spec in code or CI.',
       inputSchema: { ...assemblyInputShape, ...updatesShape, backend: backendEnum },
     },
     async (args: any) => {
@@ -505,100 +473,7 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
     },
   );
 
-  // --- create_chart_view (MCP App: live chart + editing panel) -----------
-  /** A create_chart_view call drawn: the report for the model, the view's payload in `_meta.flint`. */
-  const drawChartView = async (args: any) => {
-    try {
-      // The host UI renders Vega-Lite client-side and cannot read local files,
-      // so it gets the input with `data.url` read into inline `data.values`.
-      const updates = args.updates as ChartUpdate[] | undefined;
-      const { result, input } = validateChart(toAssemblyInput(args as AssemblyInputArgs), 'vegalite', {
-        ...dataSourceOptions,
-        roots: await clientRoots(),
-        updates,
-      });
-      if (!result.valid) return notDrawn(result.errors.map((e) => e.message).join('; '));
-      const view = args.view as ChartView | undefined;
-      const opensAsTable = view === 'table' && !drawsAsTable(input.chart_spec.chartType);
-      const report = chartReport(input, updates, result) + (opensAsTable ? `\n${OPENS_AS_TABLE}` : '');
-      return {
-        content: [{ type: 'text' as const, text: report }],
-        // The view's payload, with data inlined so it never sees an unreadable
-        // local data.url. `_meta` reaches the view but not the model, which
-        // reads `content` only when there is no `structuredContent`.
-        _meta: { flint: { input, ...(updates ? { updates } : {}), ...(opensAsTable ? { view } : {}) } },
-      };
-    } catch (err) {
-      return notDrawn(err instanceof Error ? err.message : String(err));
-    }
-  };
-
-  registerAppTool(
-    server,
-    'create_chart_view',
-    {
-      title: 'Create live chart view',
-      description:
-        'PREFERRED DEFAULT for showing a chart when the host supports MCP App ' +
-        'UIs. Open a live, editable Flint chart view: renders the spec live as SVG ' +
-        'and ' +
-        'offers an editing panel (chart type, channel bindings, chart ' +
-        'properties, sort) built from Flint\'s option model. Rendering and edits ' +
-        'happen entirely in the host UI (Vega-Lite); no data leaves the host. ' +
-        'Use this whenever the user wants to see a chart, not just when they ask ' +
-        'to tweak it; fall back to render_chart only for a static image. ' +
-        'The editing panel does not make the chart respond to the reader: ' +
-        'for hover, click, brush, or zoom, pass interaction_spec ' +
-        '(list_interaction_presets has the presets for each chart type). ' +
-        'Pass updates to open the chart in a state (emphasis, a note, a range), ' +
-        'and call it again with new updates to show the chart in a new state; each ' +
-        'call opens a new card, and earlier cards stay as they were. It validates ' +
-        'the spec itself: an invalid spec or update layer returns an error and draws ' +
-        'nothing, so call it directly, without validate_chart first. The result is a ' +
-        'report of the chart: its encodings, interactions, and each update op as ' +
-        'applied (✓) or not and why (✗); fix a ✗ and call again, or tell the user. ' +
-        'What the user then does on the chart reaches you with their next message.',
-      inputSchema: { ...assemblyInputShape, ...updatesShape, ...viewShape },
-      _meta: { ui: { resourceUri: CHART_VIEW_RESOURCE_URI } },
-    },
-    drawChartView,
-  );
-
-  registerAppTool(
-    server,
-    'restore_chart_view',
-    {
-      title: 'Restore chart view',
-      description:
-        'For the chart card only: draw the chart again from the create_chart_view arguments, ' +
-        'when a reopened conversation does not hand the card its result.',
-      inputSchema: { ...assemblyInputShape, ...updatesShape, ...viewShape },
-      _meta: { ui: { resourceUri: CHART_VIEW_RESOURCE_URI, visibility: ['app'] } },
-    },
-    async (args: any) => {
-      const drawn = await drawChartView(args);
-      return { ...drawn, structuredContent: drawn._meta.flint };
-    },
-  );
-
-  registerAppResource(
-    server,
-    'chart-view',
-    CHART_VIEW_RESOURCE_URI,
-    { mimeType: RESOURCE_MIME_TYPE },
-    async () => ({
-      contents: [
-        {
-          uri: CHART_VIEW_RESOURCE_URI,
-          mimeType: RESOURCE_MIME_TYPE,
-          text: readChartViewHtml(),
-          _meta: { ui: { permissions: { clipboardWrite: {} } } },
-        },
-      ],
-    }),
-  );
-
-  // --- board tools (MCP App: several charts in one live card) -------------
+  // --- charts and boards: built off screen, drawn by show (MCP App) --------
   const boards = options.boards ?? new BoardStore();
   const boardChart = boardChartShape(assemblyInputShape);
   const boardFields = boardFieldsShape(assemblyInputShape.theme_spec);
@@ -606,7 +481,7 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
     validateChart(input, 'vegalite', { ...dataSourceOptions, roots: await clientRoots(), updates });
   /** A new board from create_board arguments: each chart checked, the ones with errors left off. */
   const buildBoard = async (args: any): Promise<{ board: Board; outcomes: ChartOutcome[] }> => {
-    const board = boards.create({
+    const board = boards.create('board', {
       title: args.title,
       subtitle: args.subtitle,
       source: args.source,
@@ -623,31 +498,88 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
     relink(board);
     return { board, outcomes };
   };
+  /** An agent write: the next version, and the report the model judges it by. Nothing is on screen until show. */
   const boardWrite = (fn: (args: any) => Promise<{ board: Board; outcomes: ChartOutcome[]; notes?: (string | undefined)[] }>) =>
     async (args: any) => {
       try {
         const { board, outcomes, notes = [] } = await fn(args);
         relink(board);
         const said = notes.filter((note): note is string => note !== undefined);
-        return { content: [{ type: 'text' as const, text: boardReport(board, outcomes, said) }] };
+        return { content: [{ type: 'text' as const, text: viewReport(board, outcomes, said) }] };
       } catch (err) {
         return errorResult(err);
       }
     };
+  /** A reader write from the newest card; a card an agent write has passed changes nothing. */
+  const readerWrite = (fn: (board: Board, args: any) => void) =>
+    async (args: any) => {
+      try {
+        const board = boards.get(args.id);
+        if (args.version !== board.version) {
+          return {
+            content: [{ type: 'text' as const, text: `Error: board ${board.id} is at version ${board.version}, not ${args.version}: change the newest card.` }],
+            structuredContent: { version: board.version },
+            isError: true,
+          };
+        }
+        fn(board, args);
+        return {
+          content: [{ type: 'text' as const, text: `version ${board.version}` }],
+          structuredContent: { version: board.version, board: boardSnapshot(board) },
+        };
+      } catch (err) {
+        return errorResult(err);
+      }
+    };
+  const cardOnly = { ui: { resourceUri: VIEW_RESOURCE_URI, visibility: ['app' as const] } };
+  const viewId = z.string().describe('The id create_chart or create_board returned.');
+  /** A board by id; a chart's id is refused with what to call instead. */
+  const boardById = (id: string): Board => {
+    const view = boards.get(id);
+    if (view.kind === 'chart') {
+      throw new Error(`${id} is a chart, not a board: change it with update_chart, or call create_board to show several charts together.`);
+    }
+    return view;
+  };
+  const cardVersion = z.number().describe('The board version the card shows; a newer board refuses the change.');
 
-  registerAppTool(
-    server,
+  server.registerTool(
+    'create_chart',
+    {
+      title: 'Create chart',
+      description:
+        'Build one Flint chart. Nothing is on screen yet: the result is a report of the chart (its encodings, ' +
+        'interactions, and each update op as applied ✓ or not and why ✗) and its id. Fix what the report asks ' +
+        'with update_chart, then call show once; the card draws the chart live with an editing panel. ' +
+        'The editing panel does not make the chart respond to the reader: for hover, click, brush, or zoom, ' +
+        'pass interaction_spec (list_interaction_presets has the presets for each chart type). ' +
+        'Pass updates to show the chart in a state (emphasis, a note, a range). In a later turn, change it ' +
+        'with update_chart and call show again: a new card shows the new version and earlier cards stay as ' +
+        'they were. An invalid spec or update layer is an error and keeps nothing. ' +
+        'What the user then does on the chart reaches you with their next message.',
+      inputSchema: { ...assemblyInputShape, ...updatesShape, ...viewShape },
+    },
+    boardWrite(async (args) => {
+      const { chart, outcome, errors } = await prepareChart({ ...args, id: 'chart' } as BoardChartArgs, validateBoardChart, {});
+      if (!chart) throw new Error(`Chart spec has errors: ${errors}. Nothing was kept; fix the spec and call create_chart again.`);
+      const view = boards.create('chart');
+      view.charts.push(chart);
+      return { board: view, outcomes: [outcome] };
+    }),
+  );
+
+  server.registerTool(
     'create_board',
     {
-      title: 'Create live board',
+      title: 'Create board',
       description:
-        'Open one live card that holds several Flint charts: a dashboard, a comparison, ' +
+        'Build a board of several Flint charts: a dashboard, a comparison, ' +
         'an overview with its detail. The board has a headline, a deck and a source; each chart ' +
         'is a full chart spec with an id and a layout (span, height). link_spec connects the charts ' +
         'by the fields they share: ' +
-        'a selection on one chart emphasizes the marks that share its values on the others. The card stays ' +
-        'live: change it later with add_chart, update_chart, remove_chart and update_board, ' +
-        'which redraw this card instead of opening a new one. Use create_chart_view for a ' +
+        'a selection on one chart emphasizes the marks that share its values on the others. Nothing is on ' +
+        'screen yet: fix what the report asks with add_chart, update_chart, remove_chart and update_board, ' +
+        'then call show once. Use create_chart for a ' +
         'single chart. Before the first board, call get_flint_skill with skill "board". ' +
         'The result reports the layout, each chart (✓/✗ per update op), what each chart sends and receives, and a review ' +
         'of what the board should still fix; a chart with errors is left off the board.',
@@ -656,30 +588,19 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
         charts: z.array(boardChart).describe('The charts, in reading order: KPI tiles first, then the lead chart, then the charts that explain it.'),
         link_spec: linkSpecShape.optional(),
       },
-      _meta: { ui: { resourceUri: BOARD_VIEW_RESOURCE_URI } },
     },
-    async (args: any) => {
-      try {
-        const { board, outcomes } = await buildBoard(args);
-        return {
-          content: [{ type: 'text' as const, text: boardReport(board, outcomes) }],
-          _meta: { flint: { board: boardSnapshot(board) } },
-        };
-      } catch (err) {
-        return errorResult(err);
-      }
-    },
+    boardWrite(buildBoard),
   );
 
   server.registerTool(
     'add_chart',
     {
       title: 'Add chart to board',
-      description: 'Add a chart to an open board; its card redraws with the chart at the end. An id already on the board is an error: use update_chart.',
-      inputSchema: { board_id: z.string(), chart: boardChart },
+      description: 'Add a chart to a board, at the end. An id already on the board is an error: use update_chart.',
+      inputSchema: { id: viewId, chart: boardChart },
     },
     boardWrite(async (args) => {
-      const board = boards.get(args.board_id);
+      const board = boardById(args.id);
       if (board.charts.some((chart) => chart.id === args.chart.id)) {
         throw new Error(`Board ${board.id} already has a chart "${args.chart.id}"; call update_chart to change it.`);
       }
@@ -696,21 +617,24 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
   server.registerTool(
     'update_chart',
     {
-      title: 'Update chart on board',
+      title: 'Update chart',
       description:
-        'Change one chart on an open board; its card redraws that chart. Pass only the fields to replace ' +
+        'Change a chart, or one chart on a board. Pass only the fields to replace ' +
         '(chart_spec, data, interaction_spec, updates, layout, ...); each replaces the chart\'s field whole. ' +
-        'A change with errors leaves the chart as it was.',
+        'A change with errors leaves the chart as it was. Nothing is on screen until show.',
       inputSchema: {
-        board_id: z.string(),
-        chart_id: z.string(),
+        id: viewId,
+        chart_id: z.string().optional().describe('The chart on a board to change; a chart from create_chart needs none.'),
         ...boardChart.omit({ id: true }).partial().shape,
       },
     },
     boardWrite(async (args) => {
-      const board = boards.get(args.board_id);
-      const index = board.charts.findIndex((chart) => chart.id === args.chart_id);
-      if (index < 0) throw new Error(`Board ${board.id} has no chart "${args.chart_id}"; its charts: ${board.charts.map((chart) => chart.id).join(', ')}.`);
+      const board = boards.get(args.id);
+      const charts = board.charts.map((chart) => chart.id).join(', ');
+      const chartId = args.chart_id ?? (board.kind === 'chart' ? board.charts[0].id : undefined);
+      if (chartId === undefined) throw new Error(`Board ${board.id} holds several charts: pass chart_id (${charts}).`);
+      const index = board.charts.findIndex((chart) => chart.id === chartId);
+      if (index < 0) throw new Error(`Board ${board.id} has no chart "${chartId}"; its charts: ${charts}.`);
       const { chart, outcome } = await prepareChart(mergeChartArgs(board.charts[index], args), validateBoardChart, board);
       const notes: (string | undefined)[] = [];
       if (chart) {
@@ -726,11 +650,11 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
     'remove_chart',
     {
       title: 'Remove chart from board',
-      description: 'Take a chart off an open board.',
-      inputSchema: { board_id: z.string(), chart_id: z.string() },
+      description: 'Take a chart off a board.',
+      inputSchema: { id: viewId, chart_id: z.string() },
     },
     boardWrite(async (args) => {
-      const board = boards.get(args.board_id);
+      const board = boardById(args.id);
       board.charts = board.charts.filter((chart) => chart.id !== args.chart_id);
       if (board.link_spec?.charts?.[args.chart_id]) {
         const { [args.chart_id]: _gone, ...charts } = board.link_spec.charts;
@@ -746,16 +670,16 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
     'update_board',
     {
       title: 'Update board',
-      description: 'Change an open board\'s title, subtitle, source, theme, columns, chart order, or link_spec. Each field given replaces the board\'s.',
+      description: 'Change a board\'s title, subtitle, source, theme, columns, chart order, or link_spec. Each field given replaces the board\'s.',
       inputSchema: {
-        board_id: z.string(),
+        id: viewId,
         ...boardFields,
         order: z.array(z.string()).optional().describe('Chart ids in the new reading order; charts left out keep their place at the end.'),
         link_spec: linkSpecShape.nullable().optional().describe('The fields the charts connect on; null unlinks them.'),
       },
     },
     boardWrite(async (args) => {
-      const board = boards.get(args.board_id);
+      const board = boardById(args.id);
       for (const key of ['title', 'subtitle', 'source', 'theme_spec', 'columns'] as const) {
         if (args[key] !== undefined) (board as any)[key] = args[key];
       }
@@ -779,29 +703,47 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
 
   registerAppTool(
     server,
+    'show',
+    {
+      title: 'Show chart or board',
+      description:
+        'Put a chart or board on screen: a new card with its current version. Call it once a turn, after ' +
+        'create_chart or create_board and any fixes; changes after it stay off screen until the next show. ' +
+        'Earlier cards keep the version they showed.',
+      inputSchema: { id: viewId },
+      _meta: { ui: { resourceUri: VIEW_RESOURCE_URI } },
+    },
+    async (args: any) => {
+      try {
+        const board = boards.get(args.id);
+        return {
+          content: [{ type: 'text' as const, text: shownText(board) }],
+          _meta: { flint: { board: boardSnapshot(board) } },
+        };
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+  );
+
+  registerAppTool(
+    server,
     'restore_board',
     {
       title: 'Restore board',
       description:
-        'For the board card only: hand back a board this server no longer holds, as after a restart. ' +
-        'Pass the board the card holds, kept under its own id, or the create_board arguments it was made from.',
+        'For the board card only: the board as this server holds it, given the board the card holds. ' +
+        'A server that lost it, as after a restart, takes the card\'s back under its own id; a newer board stays.',
       inputSchema: {
-        board: z.record(z.string(), z.any()).optional().describe('The board as the card holds it, with its id.'),
-        create: z.record(z.string(), z.any()).optional().describe('The create_board arguments, when the card holds no board.'),
+        board: z.record(z.string(), z.any()).describe('The board as the card holds it, with its id.'),
       },
-      _meta: { ui: { resourceUri: BOARD_VIEW_RESOURCE_URI, visibility: ['app'] } },
+      _meta: cardOnly,
     },
     async (args: any) => {
       try {
-        let board: Board;
-        if (args.board?.id && Array.isArray(args.board.charts)) {
-          board = boards.has(args.board.id) ? boards.get(args.board.id) : boards.restore(args.board as Board);
-          relink(board);
-        } else if (args.create && Array.isArray(args.create.charts)) {
-          board = (await buildBoard(args.create)).board;
-        } else {
-          throw new Error('Nothing to restore: pass the board or the create_board arguments.');
-        }
+        if (!args.board?.id || !Array.isArray(args.board.charts)) throw new Error('Nothing to restore: pass the board the card holds.');
+        const board = boards.restore(args.board as Board);
+        relink(board);
         return {
           content: [{ type: 'text' as const, text: `version ${board.version}` }],
           structuredContent: { version: board.version, board: boardSnapshot(board) },
@@ -819,25 +761,16 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
       title: 'Set board theme',
       description: 'For the board card only: the theme the reader picked for every chart, or reset to go back to the agent\'s.',
       inputSchema: {
-        board_id: z.string(),
+        id: viewId,
+        version: cardVersion,
         theme: z.union([z.string(), z.record(z.string(), z.any()), z.null()]).optional().describe('A preset id, a ThemeSpec, or null for Flint\'s default.'),
         reset: z.boolean().optional().describe('Go back to the agent\'s theme.'),
       },
-      _meta: { ui: { resourceUri: BOARD_VIEW_RESOURCE_URI, visibility: ['app'] } },
+      _meta: cardOnly,
     },
-    async (args: any) => {
-      try {
-        const board = boards.get(args.board_id);
-        board.reader_theme = args.reset ? undefined : { theme: args.theme ?? null };
-        boards.touch(board);
-        return {
-          content: [{ type: 'text' as const, text: `version ${board.version}` }],
-          structuredContent: { version: board.version, board: boardSnapshot(board) },
-        };
-      } catch (err) {
-        return errorResult(err);
-      }
-    },
+    readerWrite((board, args) => {
+      board.reader_theme = args.reset ? undefined : { theme: args.theme ?? null };
+    }),
   );
 
   registerAppTool(
@@ -847,68 +780,32 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
       title: 'Set board layout',
       description: 'For the board card only: the arrangement the reader made, as a place on a 12-column grid for every chart, or null to go back to the rows.',
       inputSchema: {
-        board_id: z.string(),
-        version: z.number().describe('The board version the card arranged; a newer board refuses the arrangement.'),
+        id: viewId,
+        version: cardVersion,
         grid: z.array(z.object({ id: z.string(), x: z.number(), y: z.number(), w: z.number(), h: z.number() })).nullable(),
       },
-      _meta: { ui: { resourceUri: BOARD_VIEW_RESOURCE_URI, visibility: ['app'] } },
+      _meta: cardOnly,
     },
-    async (args: any) => {
-      try {
-        const board = boards.get(args.board_id);
-        if (args.version !== board.version) {
-          throw new Error(`Board ${board.id} is at version ${board.version}, not ${args.version}; read it again and arrange that.`);
-        }
-        if (args.grid) {
-          const problem = gridProblem(args.grid, board.charts.map((chart) => chart.id));
-          if (problem) throw new Error(`The arrangement does not fit the board: ${problem}.`);
-        }
-        board.grid = args.grid ?? undefined;
-        boards.touch(board);
-        return {
-          content: [{ type: 'text' as const, text: `version ${board.version}` }],
-          structuredContent: { version: board.version, board: boardSnapshot(board) },
-        };
-      } catch (err) {
-        return errorResult(err);
+    readerWrite((board, args) => {
+      if (args.grid) {
+        const problem = gridProblem(args.grid, board.charts.map((chart) => chart.id));
+        if (problem) throw new Error(`The arrangement does not fit the board: ${problem}.`);
       }
-    },
-  );
-
-  registerAppTool(
-    server,
-    'read_board',
-    {
-      title: 'Read board',
-      description: 'For the board card only: the board\'s charts and links when its version moved past `version`.',
-      inputSchema: { board_id: z.string(), version: z.number().optional() },
-      _meta: { ui: { resourceUri: BOARD_VIEW_RESOURCE_URI, visibility: ['app'] } },
-    },
-    async (args: any) => {
-      try {
-        const board = boards.get(args.board_id);
-        const unchanged = args.version === board.version;
-        return {
-          content: [{ type: 'text' as const, text: unchanged ? 'unchanged' : `version ${board.version}` }],
-          structuredContent: unchanged ? { version: board.version } : { version: board.version, board: boardSnapshot(board) },
-        };
-      } catch (err) {
-        return errorResult(err);
-      }
-    },
+      board.grid = args.grid ?? undefined;
+    }),
   );
 
   registerAppResource(
     server,
-    'board-view',
-    BOARD_VIEW_RESOURCE_URI,
+    'view',
+    VIEW_RESOURCE_URI,
     { mimeType: RESOURCE_MIME_TYPE },
     async () => ({
       contents: [
         {
-          uri: BOARD_VIEW_RESOURCE_URI,
+          uri: VIEW_RESOURCE_URI,
           mimeType: RESOURCE_MIME_TYPE,
-          text: readBoardViewHtml(),
+          text: readViewHtml(),
           _meta: { ui: { permissions: { clipboardWrite: {} } } },
         },
       ],
@@ -1074,7 +971,7 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
     {
       title: 'Flint board-author skill',
       description:
-        'Bundled instructions for a board of several charts in one live card: the headline, which charts, their layout, links between them, and refining the board from its report.',
+        'Bundled instructions for a board of several charts in one card: the headline, which charts, their layout, links between them, and refining the board from its report.',
       mimeType: 'text/markdown',
       annotations: { audience: ['assistant'], priority: 1 },
     },

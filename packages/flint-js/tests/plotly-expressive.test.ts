@@ -575,7 +575,8 @@ describe('Plotly expressive templates — regression fixes', () => {
     const fig = assemblePlotly(input('KPI Card', { metric: { field: 'region' }, value: { field: 'revenue' } },
       [{ region: 'Revenue', revenue: 118432 }], { region: 'Category', revenue: 'Amount' }));
     expect(fig.data[0].type).toBe('indicator');
-    expect(fig.data[0].value).toBe(118432);
+    expect(fig.data[0].value).toBeCloseTo(118.432);
+    expect(fig.data[0].number).toMatchObject({ valueformat: '.3~r', suffix: 'k' });
   });
 
   it('waterfall: the first bar anchors at its own value (not a zero-height "total")', () => {

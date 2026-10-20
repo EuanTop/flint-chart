@@ -12,12 +12,19 @@ import type { LinkPart } from 'flint-chart/interactive';
 /** The most chips a bar shows before it folds the rest into "+N". */
 const MAX_CHIPS = 3;
 
-/** A selected value as the data writes it: a time the chart read from a date string prints as that date. */
+/**
+ * A selected value as the data writes it: a time the chart read from a date string prints as that
+ * date, and a time the chart read from a year number prints as that year.
+ */
 export function valueText(value: unknown, input: ChartAssemblyInput | undefined, field: string): string {
   const sample = ((input?.data.values ?? []) as Record<string, unknown>[]).find((row) => row?.[field] != null)?.[field];
   if (typeof value === 'number' && typeof sample === 'string') {
     const date = new Date(value);
     if (!Number.isNaN(date.getTime())) return date.toISOString().slice(0, sample.length <= 7 ? 7 : 10);
+  }
+  if (typeof value === 'number' && input?.semantic_types?.[field] === 'Year' && Math.abs(value) >= 1e5) {
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) return String(date.getUTCFullYear());
   }
   return String(value);
 }
@@ -86,7 +93,7 @@ export function SelectionChips(props: {
   return (
     <div className="board-selection" role="status" aria-label="Selection">
       {shown.map((chip) => (
-        <span className="board-chip" key={chip.field} title={chip.full}>
+        <span className={onRemove ? 'board-chip board-chip-removable' : 'board-chip'} key={chip.field} title={chip.full}>
           <span className="board-chip-text">{chip.label}</span>
           {onRemove && (
             <button type="button" className="board-chip-clear" aria-label={`Remove ${chip.full}`} onClick={() => onRemove(chip.field)}>×</button>

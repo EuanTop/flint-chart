@@ -18,6 +18,7 @@ import { PlaygroundShell } from './playground/PlaygroundShell';
 import { Illustrations } from './playground/Illustrations';
 import { ArchitectureIllustrations } from './playground/ArchitectureIllustrations';
 import { McpUi } from './playground/McpUi';
+import { McpStories } from './playground/McpStories';
 import { Labs } from './playground/Labs';
 import { DemoWall } from './playground/DemoWall';
 import { ThemeLab } from './playground/ThemeLab';
@@ -103,6 +104,7 @@ function AppRoutes({ locale }: { locale: Locale }) {
           <Route path="illustrations" element={<Illustrations />} />
           <Route path="illustrations/architecture" element={<ArchitectureIllustrations />} />
           <Route path="mcp-ui" element={<McpUi />} />
+          <Route path="mcp-stories" element={<McpStories />} />
           <Route path="labs" element={<Labs />} />
           <Route path="demo-wall" element={<DemoWall />} />
           {/* The theme wall graduated to the public /themes page. */}

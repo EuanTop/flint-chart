@@ -555,10 +555,6 @@
     "leadAfter": "server and your agent can create interactive charts or author reusable visual themes. By default it opens an interactive Flint chart view; it can also return static artifacts and guide agents through a formal ThemeSpec.",
     "quickStart": "Quick start:",
     "quickStartBody": "paste this setup request into your agent and let it configure Flint for the current project. For manual setup, see",
-    "localSetupTitle": "Local server",
-    "localSetupBody": "Recommended if your client supports local MCP",
-    "remoteSetupTitle": "Remote server",
-    "remoteSetupBody": "Use if your client only supports remote MCP",
     "installConfigure": "install & configure",
     "orThe": "or the",
     "githubReadme": "GitHub README",
@@ -601,6 +597,115 @@
     },
     "chatTitle": "Agent chat",
     "copySpec": "Copy spec to chat",
-    "appTag": "MCP App"
+    "appTag": "MCP App",
+    "exp": {
+      "simple": {
+        "chartHeading": "An interactive chart, in a theme",
+        "chartAsk": "Show me how global temperatures have changed since 1880, in a newspaper style. Let me brush across the years.",
+        "chartReply": "Here's a live chart in a newspaper style. Drag across the years to select a period.",
+        "boardHeading": "A dashboard, in a theme",
+        "boardAsk": "Build a dashboard from the Gapminder data in the Economist theme, with the charts linked by continent.",
+        "boardReply": "Here's a board of four linked charts in the Economist theme. Click a continent in any of them to see it everywhere."
+      },
+      "chartPart": "Part 1",
+      "chartHeading": "One chart, start to finish",
+      "boardPart": "Part 2",
+      "boardHeading": "A whole dashboard, in the chat",
+      "chatTitle": "Agent chat",
+      "chart": {
+        "create": {
+          "label": "Create",
+          "title": "Ask, and a live chart appears",
+          "body": "Ask in words; a live chart opens in the chat.",
+          "ask": "Show me how global temperatures have changed since 1880.",
+          "reply": "Here's a live chart. You can adjust it on the card."
+        },
+        "interact": {
+          "label": "Interact",
+          "title": "Add an interaction",
+          "body": "Ask for a brush, and the chart responds.",
+          "ask": "Let me brush across the years.",
+          "reply": "Done. Drag across the years to select a period."
+        },
+        "theme": {
+          "label": "Theme",
+          "title": "Restyle it with a theme",
+          "body": "Shipped or custom; the reader can switch it too.",
+          "ask": "Make it look like a newspaper chart.",
+          "reply": "Switched to a newspaper style."
+        },
+        "select": {
+          "label": "Select",
+          "title": "Ask about your selection",
+          "body": "Brush a period, then ask about it.",
+          "ask": "I want to look at one stretch of this.",
+          "reply": "Drag across the years you mean, then ask.",
+          "followAsk": "Summarize my selection.",
+          "followReply": "You selected {{from}} to {{to}}. The temperature went from {{fromValue}} °C to {{toValue}} °C against the 1951–1980 average, a change of {{change}} °C. The warmest year in that stretch was {{warmest}}, at {{warmestValue}} °C."
+        },
+        "edit": {
+          "label": "Edit",
+          "title": "Ask the agent to change it",
+          "body": "Describe a change; the agent redraws and annotates it.",
+          "ask": "Show the last two years month by month as columns, and mark the warmest month.",
+          "reply": "Here are the last 24 months as columns, with the warmest month marked."
+        }
+      },
+      "board": {
+        "board": {
+          "label": "Board",
+          "title": "A linked dashboard in one ask",
+          "body": "Three charts, linked by continent from the start.",
+          "ask": "Build a dashboard from the Gapminder data, with the charts linked by continent.",
+          "reply": "Here's a board of three linked charts. Click a continent in any of them to see it everywhere."
+        },
+        "theme": {
+          "label": "Theme",
+          "title": "One theme for the whole board",
+          "body": "Every chart, heading and footer follows.",
+          "ask": "Restyle the board in the Cartoon theme.",
+          "reply": "Done. The whole board now uses the Cartoon theme."
+        },
+        "add": {
+          "label": "Add",
+          "title": "Add a chart",
+          "body": "Ask for another view; the board makes room.",
+          "ask": "Add a chart of population by continent.",
+          "reply": "Added it. The board is now two by two."
+        },
+        "table": {
+          "label": "Tables",
+          "title": "See the numbers behind the charts",
+          "body": "Add a table, or flip any chart to its table view.",
+          "ask": "Add a table comparing the continents, and show the years-gained chart as a table.",
+          "reply": "Added a continent table and switched the years-gained chart to its table view. Both follow the continent you pick."
+        },
+        "arrange": {
+          "label": "Arrange",
+          "title": "Arrange it, then share it",
+          "body": "Drag, resize, then copy it as an image.",
+          "ask": "Let me rearrange the board myself.",
+          "reply": "Layout mode is on. Drag a chart by its handle or resize it from an edge, then copy the board as an image."
+        }
+      }
+    },
+    "groups": {
+      "chart": {
+        "title": "Live charts",
+        "body": "Open an interactive chart card the reader can tweak, select on and theme."
+      },
+      "board": {
+        "title": "Boards",
+        "body": "Build, change and show dashboards of linked charts."
+      },
+      "static": {
+        "title": "Static output",
+        "body": "Return a PNG or SVG, a backend spec, or a validation report."
+      },
+      "skills": {
+        "title": "Discovery and skills",
+        "body": "List chart types, interactions and themes, and load the authoring skills."
+      }
+    }
   }
 }

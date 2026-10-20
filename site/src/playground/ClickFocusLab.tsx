@@ -43,6 +43,7 @@ import {
   type InteractionDef,
   type CanvasInteractionAction,
   type InspectIndexShow,
+  type ChartChange,
 } from 'flint-chart/interactive';
 import { expressionInterpreter } from 'vega-interpreter';
 import { FlintChart, type FlintChartHandle } from 'flint-chart/react';
@@ -1037,6 +1038,7 @@ function InteractiveChart({
   resetVersion,
   onStatus,
   onSemanticEvent,
+  onChange,
 }: {
   input: ChartAssemblyInput;
   mode: InteractionMode;
@@ -1050,6 +1052,7 @@ function InteractiveChart({
   resetVersion: number;
   onStatus: (status: ProbeStatus, message?: string, warnings?: readonly ChartWarning[]) => void;
   onSemanticEvent: (detail: FlintInteractionEventDetail) => void;
+  onChange?: (change: ChartChange) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const statusRef = useRef(onStatus);
@@ -1107,6 +1110,7 @@ function InteractiveChart({
           expressionInterpreter={expressionInterpreter}
           ariaLabel={input.chart_spec.title}
           onInteraction={handleInteraction}
+          onChange={onChange}
           onWarnings={handleWarnings}
           onError={handleError}
         />
@@ -1217,6 +1221,7 @@ export function CaseCard({
   showSpec = true,
   showSpecPanel = true,
   onProbe,
+  onChange,
 }: {
   item: InteractionCase;
   mode: InteractionMode;
@@ -1229,6 +1234,8 @@ export function CaseCard({
   showSpecPanel?: boolean;
   /** Reports the card's status so the page can tally ready and dropped cards. */
   onProbe?: (id: string, status: ProbeStatus) => void;
+  /** Hears every change to what the chart shows, so a host can read out the selection. */
+  onChange?: (change: ChartChange) => void;
 }) {
   const [status, setStatus] = useState<ProbeStatus>('loading');
   const [statusMessage, setStatusMessage] = useState('Compiling');
@@ -1325,6 +1332,7 @@ export function CaseCard({
               setWarnings(nextWarnings ?? []);
             }}
             onSemanticEvent={setLastInteraction}
+            onChange={onChange}
           />
         </ScaleToFit>
       </div>

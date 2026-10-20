@@ -43,19 +43,22 @@ First decide which workflow the user is asking for:
   `semantic_types` + `chart_spec` pieces. Do not install packages or write
   renderer code unless asked.
 - **MCP chart output:** if Flint MCP tools are available, **default to
-  `create_chart_view`** whenever the user asks to see a chart — it opens an
-  interactive, live-rendered view with a customization panel, and it validates
-  the spec for you. Only fall back to `render_chart` (PNG/SVG) when the host has
+  `create_chart` then `show`** whenever the user asks to see a chart.
+  `create_chart` checks the spec and returns a report and the chart's id
+  without drawing; fix what the report asks with `update_chart`, then call
+  `show` once, which opens an interactive, live-rendered card with a
+  customization panel. Only fall back to `render_chart` (PNG/SVG) when the host has
   no App UI support or the user explicitly wants a static image. Use
   `validate_chart` to check a spec without rendering, `compile_chart` when the
   user wants backend-native JSON, and `list_chart_types` when you need the
   supported chart catalog.
-- **DO** pass `updates` beside the input to `create_chart_view` when the user
+- **DO** pass `updates` beside the input to `create_chart` when the user
   asks the chart to open in a state: rows to stand out, a note on a mark, a
   framed range. It is a list of ChartUpdate layers, state not behaviour; the
-  shapes are in `flint://interaction-skill` under "Update the chart". To change an
-  open chart, call `create_chart_view` again with the same input and new `updates`.
-- **DO** pass `view: "table"` to `create_chart_view` when the user wants to see
+  shapes are in `flint://interaction-skill` under "Update the chart". To change a
+  chart in a later turn, call `update_chart` with its id and new `updates`, then
+  `show` again: a new card shows the new version, earlier cards stay as they were.
+- **DO** pass `view: "table"` to `create_chart` when the user wants to see
   a chart's numbers: the card opens on the table of the rows the chart draws,
   and the reader can switch to the chart. When the user wants records listed and
   no chart at all, use `chartType: "Table"` instead.
@@ -833,4 +836,4 @@ Before returning, verify:
 
 ## Copilot CLI chart canvas
 
-When this plugin's native **Flint Chart Canvas** is available, prefer it over `create_chart_view`. Validate the complete `ChartAssemblyInput` first, then open the canvas with that input, including any theme, options, and `interaction_spec`. Pass resolved inline `data.values`, not a local `data.url`: the canvas cannot read local data files. The canvas owns interactive chart customization; do not recreate that UI or replace it with a browser page.
+When this plugin's native **Flint Chart Canvas** is available, prefer it over `create_chart` and `show`. Validate the complete `ChartAssemblyInput` first, then open the canvas with that input, including any theme, options, and `interaction_spec`. Pass resolved inline `data.values`, not a local `data.url`: the canvas cannot read local data files. The canvas owns interactive chart customization; do not recreate that UI or replace it with a browser page.

@@ -1,20 +1,23 @@
 ---
 name: flint-board-author
-description: "Use when: several Flint charts should be read together in one view: a dashboard, KPI tiles over a trend, a side-by-side comparison, an overview with its detail; or a board on screen should change (add, retitle, resize, reconnect a chart). Produce one create_board call whose headline, chart choice, layout and connected fields are decided, then refine it from the report."
+description: "Use when: several Flint charts should be read together in one view: a dashboard, KPI tiles over a trend, a side-by-side comparison, an overview with its detail; or a board on screen should change (add, retitle, resize, reconnect a chart). Produce one create_board call whose headline, chart choice, layout and connected fields are decided, refine it from the report, then put it on screen once with show."
 ---
 
 # flint-board: several charts, one view
 
-A board is one live card that holds several Flint charts under one headline.
-The agent writes it with `create_board`, then changes the same card with
-`add_chart`, `update_chart`, `remove_chart` and `update_board`; a new
-`create_board` opens a second card, so it is only for a second board.
+A board holds several Flint charts under one headline. The agent builds it
+with `create_board` and changes it with `add_chart`, `update_chart`,
+`remove_chart` and `update_board`; none of these draws anything. `show`
+puts the board's current version on screen in a new card, below the
+conversation's latest message, and earlier cards keep the version they showed.
+So call `show` once a turn, after the board is right. A new
+`create_board` starts a second board, so it is only for a second board.
 
 Each chart on a board is a full chart spec (`flint-chart-author`), plus an
 `id` and a `layout`. This skill covers what a board adds: the headline, which
 charts, where they sit, how they connect, and how they look as one piece.
 
-Work through the steps in order. A board is done when the `create_board`
+Work through the steps in order. A board is ready to show when its latest
 report shows no `✗` and its `Review:` section is empty or says only that a
 colour field is shared.
 
@@ -59,10 +62,12 @@ Give each chart its own data, aggregated to what it draws: a bar, a slice or
 a cell is one row. Rows that repeat a category (monthly rows under a by-product
 bar) draw as a stack of thin slices; sum them first, or set the measure's
 `aggregate: "sum"`. A KPI tile takes
-one row: `{ metric, value, goal }`. It prints `value` as given and draws
-progress only when `value` and `goal` are both numbers, so pass them in the
-units the reader reads and name the unit in `metric`:
-`{ "metric": "Gross margin, %", "value": 37.8, "goal": 40 }`.
+one row: `{ metric, value, goal }`. It draws progress only when `value` and
+`goal` are both numbers. Pass raw numbers and declare the value field's unit
+in `semantic_types`: the tile prints `{ "semanticType": "Amount", "unit": "USD" }`
+as `$1.18M`, a `Percentage` of 0.378 as `37.8%`, and compacts amounts and
+counts from 10,000 up. A value already scaled says so in `metric`
+(`"Revenue, $m"`) and is not compacted again. A string `value` prints as given.
 
 ## Step 3 — give each chart a heading
 
@@ -180,13 +185,16 @@ it:
 - `Review:` what the board should still fix: a missing headline, deck or chart
   title, too many tiles or charts, themes set per chart.
 
-Fix each `✗` and each review note with the narrowest call: `update_chart` for
-one chart (pass only the fields that change), `update_board` for the headline,
+Each call takes the board's `id` from the report. Fix each `✗` and each review
+note with the narrowest call: `update_chart` with `chart_id` for one chart
+(pass only the fields that change), `update_board` for the headline,
 theme, columns, order or `link_spec`, `remove_chart` for a chart the board does not
-need. Each redraws the same card.
+need. Then call `show` once. In a later turn, change the board the same
+way and show it again: the reader gets a new card at the bottom of the
+conversation, and the earlier one stays as it was.
 
-What the reader then does on the board (selections, link emphasis) reaches the
-model with their next message, one section per chart.
+What the reader then does on the newest card (selections, link emphasis)
+reaches the model with their next message, one section per chart.
 
 The reader can also arrange the board: **Edit layout** lets them move a chart,
 swap two, and resize one on a 12-column grid. Their arrangement then replaces the

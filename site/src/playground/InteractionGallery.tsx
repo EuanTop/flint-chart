@@ -44,6 +44,7 @@ import {
   type FlintInteractionEventDetail,
   type InteractiveChartSurface,
   type InspectIndexShow,
+  type ChartChange,
 } from 'flint-chart/interactive';
 import { expressionInterpreter } from 'vega-interpreter';
 import { FlintChart, type FlintChartHandle } from 'flint-chart/react';
@@ -789,6 +790,7 @@ function InteractiveChart({
   preview = false,
   onStatus,
   onSemanticEvent,
+  onChange,
   onSurface,
 }: {
   input: ChartAssemblyInput;
@@ -805,6 +807,7 @@ function InteractiveChart({
   preview?: boolean;
   onStatus: (status: ProbeStatus, message?: string, warnings?: readonly ChartWarning[]) => void;
   onSemanticEvent: (detail: FlintInteractionEventDetail) => void;
+  onChange?: (change: ChartChange) => void;
   onSurface?: (surface: InteractiveChartSurface | null) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -940,6 +943,7 @@ function InteractiveChart({
           expressionInterpreter={expressionInterpreter}
           ariaLabel={input.chart_spec.title}
           onInteraction={handleInteraction}
+          onChange={onChange}
           onRender={handleRender}
           onWarnings={handleWarnings}
           onError={handleError}
@@ -990,6 +994,7 @@ export function CaseCard({
   selectionControls = false,
   preview = false,
   onProbe,
+  onChange,
   onSurface,
 }: {
   item: InteractionCase;
@@ -1005,6 +1010,8 @@ export function CaseCard({
   preview?: boolean;
   /** Reports the card's status so the page can tally ready and dropped cards. */
   onProbe?: (id: string, status: ProbeStatus) => void;
+  /** Hears every change to what the chart shows, so a host can read out the selection. */
+  onChange?: (change: ChartChange) => void;
   onSurface?: (surface: InteractiveChartSurface | null) => void;
 }) {
   const [status, setStatus] = useState<ProbeStatus>('loading');
@@ -1360,6 +1367,7 @@ export function CaseCard({
               setWarnings(nextWarnings ?? []);
             }}
             onSemanticEvent={setLastInteraction}
+            onChange={onChange}
             onSurface={onSurface}
           />
         </ScaleToFit>

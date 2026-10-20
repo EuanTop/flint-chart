@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ChartAssemblyInput } from 'flint-chart';
-import { FlintAppInner } from '../../../packages/flint-mcp/ui/src/FlintApp';
+import { ChartView, shownChart } from '../../../packages/flint-mcp/ui/src/ChartView';
 import { siteTheme } from '../shared/theme';
 
 type Example = {
@@ -236,7 +236,7 @@ function ExampleCard(props: { example: Example; frameWidth: number }) {
         <span style={cardNoteStyle}>{copied ? 'Copied spec' : example.note}</span>
       </div>
       <div style={{ ...frameStyle, width: frameWidth }}>
-        <FlintAppInner app={app as never} input={example.input} />
+        <ChartView app={app as never} shown={shownChart(example.input)} />
       </div>
       {(context || download) && (
         <pre style={hostLogStyle}>

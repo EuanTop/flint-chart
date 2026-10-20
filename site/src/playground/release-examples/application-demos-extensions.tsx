@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { ChartAssemblyInput } from 'flint-chart';
-import { FlintAppInner } from '../../../../packages/flint-mcp/ui/src/FlintApp';
-import mcpStyles from '../../../../packages/flint-mcp/ui/src/styles.css?inline';
+import { ChartView, shownChart } from '../../../../packages/flint-mcp/ui/src/ChartView';
+import { useMcpStyles, useMockApp } from '../../components/mcp-embed';
 import { gapminderRows } from '../gapminder-dashboard-data';
 import { salesFixture } from '../interaction-demo-data';
 import { DemoColumns, EmptyPanel } from './application-demos-layout';
@@ -9,37 +9,11 @@ import '../bespoke-interaction-lab.css';
 
 const SCOPE = 'app-demo-mcp';
 
-/** The MCP view's stylesheet, scoped to the mount so it does not restyle the site, for as long as the view is on screen. */
-function useMcpStyles() {
-  useEffect(() => {
-    const style = document.createElement('style');
-    style.dataset.appDemo = SCOPE;
-    style.textContent = mcpStyles
-      .replace(/:root\b/g, `.${SCOPE}`)
-      .replace(/html,\s*body\s*\{/g, `.${SCOPE} {`);
-    document.head.append(style);
-    return () => style.remove();
-  }, []);
-}
-
-type ModelContext = { content: { type: string; text: string }[] };
-
-function useMockApp(onContext?: (text: string) => void) {
-  return useMemo(() => ({
-    sendMessage: async () => undefined,
-    updateModelContext: async ({ content }: ModelContext) => {
-      onContext?.(content.map((part) => part.text).join('\n'));
-    },
-    getHostCapabilities: () => ({}),
-    downloadFile: async () => ({}),
-  }), [onContext]);
-}
-
 function McpView({ input, onContext }: { input: ChartAssemblyInput; onContext?: (text: string) => void }) {
-  useMcpStyles();
+  useMcpStyles(SCOPE);
   const app = useMockApp(onContext);
   return <div className={`${SCOPE} app-demo-mcp-frame`}>
-    <FlintAppInner app={app as never} input={input} />
+    <ChartView app={app as never} shown={shownChart(input)} />
   </div>;
 }
 
@@ -72,7 +46,7 @@ const MCP_CHART_INPUT: ChartAssemblyInput = {
 } as ChartAssemblyInput;
 
 const MCP_CHART_CALL = JSON.stringify({
-  name: 'create_chart_view',
+  name: 'create_chart',
   arguments: {
     interaction_spec: MCP_CHART_INPUT.interaction_spec,
     chart_spec: MCP_CHART_INPUT.chart_spec,

@@ -112,12 +112,18 @@ nav.ig-breadcrumb [aria-current] { color: #1f2328; }
 .ig-overview-intro[aria-label="About Flint-interactive"] li + li { margin-top: 4px; }
 .ig-overview-intro[aria-label="About Flint-interactive"] a { color: #0078d4; text-decoration: underline; text-underline-offset: 2px; }
 .ig-curated-examples { width: min(100%, 832px); margin: 24px auto 0; color: #1f2328; }
-.ig-example-header { display: flex; align-items: baseline; gap: 12px; width: 100%; max-width: 100%; box-sizing: border-box; margin: 24px 0 0; border-bottom: 1px solid #d8dee4; }
-.ig-example-label { flex: 0 0 auto; padding: 7px 0; font-size: 13px; font-weight: 600; color: #66707a; }
+.ig-example-header { display: grid; gap: 2px; width: 100%; max-width: 100%; box-sizing: border-box; margin: 24px 0 0; padding-bottom: 4px; border-bottom: 1px solid #d8dee4; }
+.ig-example-group { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+.ig-example-label { flex: 0 0 72px; padding: 5px 0; font-size: 13px; font-weight: 600; color: #66707a; }
 .ig-example-tabs { display: flex; flex: 1; min-width: 0; flex-wrap: wrap; gap: 0 6px; }
-.ig-example-tabs button { min-width: 0; max-width: 100%; min-height: 34px; box-sizing: border-box; padding: 7px 8px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: #4b525a; font: inherit; font-size: 13px; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+.ig-example-tabs button { min-width: 0; max-width: 100%; min-height: 30px; box-sizing: border-box; padding: 5px 8px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: #4b525a; font: inherit; font-size: 13px; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
 .ig-example-tabs button[aria-selected="true"] { border-bottom-color: #0067b8; color: #1f2328; }
 .ig-example-tabs button:focus-visible { outline: 2px solid #0067b8; outline-offset: -2px; }
+.ig-example-star { margin-left: 3px; vertical-align: 4px; }
+.ig-readout-host .cf-stage { position: relative; }
+.ig-readout { position: absolute; z-index: 5; display: grid; gap: 1px; max-width: 230px; padding: 6px 10px; border: 1px solid rgba(0, 0, 0, 0.10); border-radius: 8px; background: rgba(255, 255, 255, 0.94); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08); color: #4b525a; font-size: 11.5px; line-height: 1.4; font-variant-numeric: tabular-nums; text-align: left; pointer-events: none; }
+.ig-readout-title { color: #1f2328; font-weight: 600; }
+.ig-readout.ig-readout-inline { position: static; margin-top: 12px; padding: 8px 10px; box-shadow: none; background: #fff; }
 .ig-curated-example .ydi-stage,
 .ig-curated-example .exploded-detail-shell { padding: 0; border: 0; border-radius: 0; background: transparent; }
 .ig-curated-example .ydi-stage .ic-stage-meta,
@@ -158,6 +164,7 @@ nav.ig-breadcrumb [aria-current] { color: #1f2328; }
 .ig-curated-example[data-example-mode="accessible-navigation"] .cf-probe-header > div,
 .ig-curated-example[data-example-mode="accessible-navigation"] .cf-status { display: none; }
 .ig-curated-example .climate-phase-shell { gap: 0; padding: 0; border: 0; border-radius: 0; background: transparent; overflow: hidden; }
+.ig-curated-example .ig-filter-example .cf-stage { display: flex; justify-content: center; padding: 8px; }
 .ig-curated-example .ig-example-caption { margin: 8px 0 0; padding: 0 8px; color: #40474e; font-size: 15px; line-height: 1.5; text-align: center; }
 .ig-example-caption strong { color: #1f2328; font-weight: 600; }
 .ig-example-caption .ig-example-source { color: #66707a; font-size: 12px; white-space: nowrap; }
@@ -196,6 +203,8 @@ nav.ig-breadcrumb [aria-current] { color: #1f2328; }
 .ig-continent-cohort .it-tab-copy strong { font-size: 16px; }
 .ig-continent-cohort .it-tab-copy p { font-size: 13px; }
 @media (max-width: 760px) {
+  .ig-example-group { display: grid; gap: 0; }
+  .ig-example-label { padding-bottom: 0; }
   .ig-curated-example .cf-probe-with-keyboard, .ig-curated-example .cf-probe-with-selection { grid-template-columns: minmax(0, 1fr); }
   .ig-curated-example .cf-probe-with-keyboard .cf-stage, .ig-curated-example .cf-probe-with-selection .cf-stage { grid-row: 2; }
   .cf-keyboard-panel { grid-column: 1; grid-row: 1; width: 164px; max-width: 100%; box-sizing: border-box; justify-self: center; }

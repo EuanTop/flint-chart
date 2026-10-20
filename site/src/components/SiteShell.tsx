@@ -545,6 +545,8 @@ const navLinkStyle: CSSProperties = {
   textDecorationLine: 'none',
   fontSize: 13,
   letterSpacing: '0.01em',
+  whiteSpace: 'nowrap',
+  flexShrink: 0,
 };
 
 /**

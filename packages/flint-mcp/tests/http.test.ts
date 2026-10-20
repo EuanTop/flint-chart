@@ -48,22 +48,32 @@ describe('MCP server over HTTP (stateless streamable transport)', () => {
       'add_chart',
       'compile_chart',
       'create_board',
-      'create_chart_view',
+      'create_chart',
       'get_flint_skill',
       'list_chart_types',
       'list_interaction_presets',
       'list_themes',
-      'read_board',
       'remove_chart',
       'render_chart',
       'restore_board',
-      'restore_chart_view',
       'set_board_layout',
       'set_board_theme',
+      'show',
       'update_board',
       'update_chart',
       'validate_chart',
     ]);
+  });
+
+  it('shows a chart built in an earlier request', async () => {
+    const created: any = await client.callTool({
+      name: 'create_chart',
+      arguments: { data: { values: [{ region: 'East', revenue: 120 }] }, chart_spec: { chartType: 'Bar Chart', encodings: { x: 'region', y: 'revenue' } } },
+    });
+    const id = created.content[0].text.match(/^Chart (chart-[0-9a-f]+)/)[1];
+    const shown: any = await client.callTool({ name: 'show', arguments: { id } });
+    expect(shown.isError).toBeFalsy();
+    expect(shown._meta.flint.board).toMatchObject({ id, kind: 'chart', version: 1 });
   });
 
   it('renders a chart through the HTTP transport', async () => {

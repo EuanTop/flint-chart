@@ -1,14 +1,23 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowLeftRight, Brush, Focus, Globe, GripVertical, Keyboard, Layers, LayoutGrid, Map as MapIcon, MousePointerClick, Move, Pencil, Ruler, Scan, SlidersHorizontal, Table2, UserRound, ZoomIn } from 'lucide-react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import {
+  ArrowDown, ArrowLeftRight, Brush, Crosshair, EyeOff, Focus, Globe, GripVertical, Keyboard, Lasso, Layers, LayoutGrid, Link2,
+  Map as MapIcon, Menu, MessageSquare, MessageSquareText, MousePointerClick, Move, MoveHorizontal, Pencil, RotateCcw, Ruler,
+  Scan, ScrollText, Sigma, SlidersHorizontal, SquareDashed, Star, Table2, Target, UserRound, ZoomIn,
+} from 'lucide-react';
 import { Navigate, useLocation, useParams } from 'react-router-dom';
-import { INTERACTION_PRESET_TYPES, type CanvasInteractionAction } from 'flint-chart/interactive';
+import { INTERACTION_PRESET_TYPES, clickAnnotate, type CanvasInteractionAction, type ChartChange } from 'flint-chart/interactive';
 import { CodeBlock } from '../components/CodeBlock';
 import { MicrosoftDisclosures, SiteNavBar, SiteShell } from '../components/SiteShell';
 import { LocaleLink } from '../i18n/LocaleLink';
 import { useLocale } from '../i18n/LocaleContext';
 import { siteTheme } from '../shared/theme';
 import '../playground/playground.css';
-import { ClickFocusLab, compositionInteractionModes, unitInteractionModes, type InteractionMode } from '../playground/ClickFocusLab';
+import {
+  CaseCard as PresetCaseCard, ClickFocusLab, compositionInteractionModes, gapminderRows, interactionCases as presetCases, unitInteractionModes,
+  type InteractionCase as PresetCase, type InteractionMode,
+} from '../playground/ClickFocusLab';
+import { navigationDemoCases } from '../playground/navigation-demo-data';
 import foodPrices from '../data/cpi-food-prices.json';
 import { FlintChart } from 'flint-chart/react';
 import type { ChartAssemblyInput } from 'flint-chart';
@@ -23,8 +32,19 @@ import { ElectionProfileDemo } from '../playground/release-examples/application-
 import { YouDrawItStage } from '../playground/YouDrawItStage';
 import { FreeformExplodedDetailStage } from '../playground/ExplodedDetailStage';
 import { ContinentCohortStage, ContinentTableStage, CountryTableStage } from '../playground/ExternalToChartLab';
+import { IndexChartStage } from '../playground/IndexChartStage';
+import { TimeboxStage } from '../playground/TimeboxStage';
+import { MovingAverageStage } from '../playground/MovingAverageStage';
+import { WorldCupScorersDemo } from '../playground/WorldCupScorersDemo';
+import { ArticleSection, SelectionChatDemo } from '../playground/InteractiveDataReportLab';
+import { SELECTION_CHAT, TIME_USE } from '../playground/interactive-data-report-content';
+import { ConnectedModelsDemo } from '../playground/release-examples/application-demos-connected';
+import { OverviewDetailDemo } from '../playground/release-examples/application-demos-overview-detail';
+import '../playground/interaction-transport.css';
+import '../playground/bespoke-interaction-lab.css';
+import '../playground/release-examples/application-demos.css';
 import {
-  CaseCard, interactionCases,
+  CaseCard, interactionCases, type InteractionCase, type InteractionMode as CuratedCardMode,
 } from '../playground/InteractionGallery';
 
 function MechanismArrows() {
@@ -210,12 +230,341 @@ const electricityReorderCase = electricityMixCase && {
 const inspectIndexCase = interactionCases.find(item => item.id === 'inspect-index-line-two-all');
 const nutritionRadarCase = interactionCases.find(item => item.chartType === 'Radar Chart');
 
-const curatedExamples = [
-  { label: 'Linked brush', mode: 'linked-brush', implementation: 'Preset',
+type ExampleGroup = 'preset' | 'app' | 'custom';
+
+const exampleGroups: readonly { value: ExampleGroup; label: string }[] = [
+  { value: 'preset', label: 'Presets' },
+  { value: 'app', label: 'In an app' },
+  { value: 'custom', label: 'Custom' },
+];
+
+type Row = Record<string, unknown>;
+type Summarize = (rows: readonly Row[]) => string[];
+
+const formatNumber = (value: number, digits = 0) =>
+  value.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+const mean = (rows: readonly Row[], field: string) =>
+  rows.reduce((total, row) => total + Number(row[field]), 0) / rows.length;
+const monthYear = (value: unknown) =>
+  new Date(String(value)).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
+
+function uniqueBy(rows: readonly Row[], field: string): Row[] {
+  const seen = new Map<unknown, Row>();
+  for (const row of rows) if (!seen.has(row[field])) seen.set(row[field], row);
+  return [...seen.values()];
+}
+
+/** "Asia 5 · Europe 3": the selection's make-up by one category, largest first. */
+function breakdown(rows: readonly Row[], field: string): string {
+  const counts = new Map<string, number>();
+  for (const row of rows) counts.set(String(row[field]), (counts.get(String(row[field])) ?? 0) + 1);
+  return [...counts].sort((a, b) => b[1] - a[1]).map(([name, count]) => `${name} ${count}`).join(' · ');
+}
+
+const summarizeLinkedCountries: Summarize = (rows) => {
+  const countries = uniqueBy(rows, 'Country');
+  const names = countries.slice(0, 3).map(row => String(row.Country)).join(', ');
+  return [
+    `${plural(countries.length, 'country', 'countries')} selected in every year`,
+    breakdown(countries, 'Continent'),
+    countries.length > 3 ? `${names} +${countries.length - 3} more` : names,
+  ];
+};
+
+const summarizeCountries: Summarize = (rows) => {
+  const countries = uniqueBy(rows, 'Country');
+  const life = formatNumber(mean(countries, 'Life expectancy'), 1);
+  const gdp = formatNumber(mean(countries, 'GDP per capita'));
+  return countries.length === 1
+    ? [String(countries[0].Country), `${String(countries[0].Continent)} · ${life} yrs · $${gdp} per person`]
+    : [`${plural(countries.length, 'country', 'countries')} highlighted`, breakdown(countries, 'Continent'),
+      `Avg ${life} yrs · $${gdp} per person`];
+};
+
+const summarizeFoodSeries: Summarize = (rows) => {
+  const series = uniqueBy(rows, 'Series');
+  if (series.length !== 1) return [`${plural(series.length, 'food')} in focus`];
+  const points = rows.filter(row => row.Series === series[0].Series)
+    .sort((a, b) => String(a.Index).localeCompare(String(b.Index)));
+  const latest = points[points.length - 1];
+  const peak = points.reduce((best, row) => (Number(row.Value) > Number(best.Value) ? row : best), points[0]);
+  return [
+    String(series[0].Series),
+    `Latest $${formatNumber(Number(latest.Value), 2)} (${monthYear(latest.Index)})`,
+    `Peak $${formatNumber(Number(peak.Value), 2)} (${monthYear(peak.Index)})`,
+  ];
+};
+
+const summarizeCo2Years: Summarize = (rows) => {
+  const years = uniqueBy(rows, 'Year').sort((a, b) => Number(a.Year) - Number(b.Year));
+  const first = years[0];
+  const last = years[years.length - 1];
+  const rise = Number(last['CO₂ (ppm)']) - Number(first['CO₂ (ppm)']);
+  return [
+    `${plural(years.length, 'year')} selected`,
+    years.length === 1 ? String(first.Year) : `${first.Year}–${last.Year}`,
+    years.length === 1
+      ? `CO₂ ${formatNumber(Number(first['CO₂ (ppm)']), 1)} ppm`
+      : `CO₂ ${formatNumber(Number(first['CO₂ (ppm)']), 1)} → ${formatNumber(Number(last['CO₂ (ppm)']), 1)} ppm (+${formatNumber(rise, 1)})`,
+  ];
+};
+
+const summarizeRainfallMonths: Summarize = (rows) => {
+  const months = uniqueBy(rows, 'Month');
+  const total = months.reduce((sum, row) => sum + Number(row['Rainfall (mm)']), 0);
+  return [
+    `${plural(months.length, 'month')} selected`,
+    months.map(row => String(row.Month)).join(', '),
+    `Total ${formatNumber(total)} mm · Avg ${formatNumber(total / months.length)} mm`,
+  ];
+};
+
+const summarizePenguins: Summarize = (rows) => [
+  `${plural(rows.length, 'penguin')} selected`,
+  breakdown(rows, 'Species'),
+  `Avg flipper ${formatNumber(mean(rows, 'Flipper length (mm)'))} mm · mass ${formatNumber(mean(rows, 'Body mass (g)'))} g`,
+];
+
+/** The rows behind the marks a change leaves selected: a mark's own records, or its datum. */
+function selectedRows(change: ChartChange): Row[] {
+  return change.state.selected.flatMap(element =>
+    element.records?.length ? element.records as Row[] : [element.value as Row]);
+}
+
+/** Where a readout sits: the emptiest corner of the plot, or inside a side panel of the card. */
+type ReadoutPlacement = 'plot' | { panel: string };
+
+type Corner = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
+const CORNERS: readonly Corner[] = ['top-right', 'top-left', 'bottom-right', 'bottom-left'];
+
+/** The plot corner where a box of this size hides the fewest marks and none of the legend or title. */
+function emptiestCorner(stage: HTMLElement, plot: DOMRect, size: { width: number; height: number }, inset: number): Corner {
+  const centers = [...stage.querySelectorAll('.role-mark:not(.__flint_interaction_clear) path')].flatMap(mark => {
+    const box = mark.getBoundingClientRect();
+    return box.width || box.height ? [{ x: box.left + box.width / 2, y: box.top + box.height / 2 }] : [];
+  });
+  const furniture = [...stage.querySelectorAll('.role-legend, .role-title')].map(group => group.getBoundingClientRect());
+  const score = (corner: Corner) => {
+    const left = corner.endsWith('left') ? plot.left + inset : plot.right - inset - size.width;
+    const top = corner.startsWith('top') ? plot.top + inset : plot.bottom - inset - size.height;
+    const right = left + size.width;
+    const bottom = top + size.height;
+    const covered = centers.filter(({ x, y }) => x >= left && x <= right && y >= top && y <= bottom).length;
+    const blocked = furniture.filter(box => box.width && !(box.right < left || box.left > right || box.bottom < top || box.top > bottom)).length;
+    return covered + blocked * 1000;
+  };
+  return CORNERS.reduce((best, corner) => (score(corner) < score(best) ? corner : best));
+}
+
+/**
+ * Wraps an example card with the front page's selection callout: it reads `state.selected` on
+ * every change, previews and hovers included, and pins the summary over the plot where it hides
+ * the least. The corner is chosen when the callout appears and kept while it stays, so it does
+ * not hop as a brush moves.
+ */
+function SelectionReadout({ summarize, placement, children }: {
+  summarize: Summarize;
+  placement: ReadoutPlacement;
+  children: (onChange: (change: ChartChange) => void) => ReactNode;
+}) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const calloutRef = useRef<HTMLDivElement>(null);
+  const [lines, setLines] = useState<string[] | null>(null);
+  const [anchor, setAnchor] = useState<{ host: HTMLElement; style?: CSSProperties } | null>(null);
+  const onChange = useCallback((change: ChartChange) => {
+    const rows = selectedRows(change);
+    setLines(rows.length > 0 ? summarize(rows) : null);
+  }, [summarize]);
+
+  const visible = lines !== null;
+  // Find the host first; the callout renders hidden there so its size can be measured.
+  useLayoutEffect(() => {
+    const card = hostRef.current;
+    if (!visible || !card) { setAnchor(null); return; }
+    const host = card.querySelector<HTMLElement>(typeof placement === 'object' ? placement.panel : '.cf-stage');
+    setAnchor(host ? { host, style: typeof placement === 'object' ? undefined : { visibility: 'hidden', left: 0, top: 0 } } : null);
+  }, [visible, placement]);
+  useLayoutEffect(() => {
+    const callout = calloutRef.current;
+    if (!anchor || anchor.style?.visibility !== 'hidden' || !callout) return;
+    const stage = anchor.host;
+    // The plot's own background mark, which the interaction layer lays under the data.
+    const plotMark = stage.querySelector('.__flint_interaction_clear path, .__flint_interaction_clear rect');
+    const bounds = stage.getBoundingClientRect();
+    const plot = plotMark?.getBoundingClientRect() ?? bounds;
+    const inset = 8;
+    const corner = emptiestCorner(stage, plot, { width: callout.offsetWidth, height: callout.offsetHeight }, inset);
+    setAnchor({
+      host: stage,
+      style: {
+        ...(corner.endsWith('left') ? { left: plot.left - bounds.left + inset } : { right: bounds.right - plot.right + inset }),
+        ...(corner.startsWith('top') ? { top: plot.top - bounds.top + inset } : { bottom: bounds.bottom - plot.bottom + inset }),
+      },
+    });
+  }, [anchor]);
+
+  const inline = typeof placement === 'object';
+  const callout = lines && anchor && <div ref={calloutRef} className={`ig-readout${inline ? ' ig-readout-inline' : ''}`}
+    style={anchor.style} aria-live="polite">
+    {lines.filter(Boolean).map((line, index) => <div key={`${index}-${line}`} className={index === 0 ? 'ig-readout-title' : undefined}>{line}</div>)}
+  </div>;
+  return <div ref={hostRef} className="ig-readout-host">
+    {children(onChange)}
+    {callout && createPortal(callout, anchor.host)}
+  </div>;
+}
+
+interface CuratedExample {
+  label: string;
+  mode: string;
+  group: ExampleGroup;
+  implementation: string;
+  themeId?: string;
+  /** Marked with a small star in the tab row as a recommended starting point. */
+  featured?: boolean;
+  /** Lines for the callout naming what is selected or hovered, as on the front page. */
+  summarize?: Summarize;
+  readout?: ReadoutPlacement;
+  interactionLabel: string;
+  icon: typeof Move;
+  caption: string;
+  /** A preset case rendered by the curated card; examples without one render their own stage. */
+  item?: InteractionCase;
+  render?: (onChange?: (change: ChartChange) => void) => ReactNode;
+}
+
+const PRESET_GUARD = { minVisibleFraction: 0.02, maxVisibleFraction: 1, overscrollFraction: 0 };
+const PRESET_SIZE = { width: 560, height: 280 };
+/** A ceiling on the compiler's stretch, so scatters and legends do not grow the chart taller than the stage. */
+const PRESET_CANVAS = { width: 680, height: 340 };
+
+// Sized once at module load, so re-renders never hand the card a new spec and remount the chart.
+function presetItem(item: PresetCase | undefined, { title, size, canvas = PRESET_CANVAS }: {
+  title?: string;
+  size?: { width: number; height: number };
+  canvas?: { width: number; height: number } | null;
+} = {}): PresetCase | undefined {
+  if (!item) return undefined;
+  const { chart_spec } = item.input;
+  return {
+    ...item,
+    input: {
+      ...item.input,
+      chart_spec: {
+        ...chart_spec,
+        title: title ?? chart_spec.title ?? item.title ?? chart_spec.chartType,
+        ...(size ? { baseSize: size } : {}),
+        ...(canvas ? { canvasSize: canvas } : {}),
+      },
+    },
+    stageHeight: 380, stageScale: 1, wide: false, spacious: false,
+  };
+}
+const presetCase = (id: string, title?: string, size = PRESET_SIZE, canvas = PRESET_CANVAS) =>
+  presetItem(presetCases.find(candidate => candidate.id === id), { title, size, canvas });
+const navigationCase = (id: string, canvas: { width: number; height: number } | null = PRESET_CANVAS) => {
+  const item = navigationDemoCases.find(candidate => candidate.id === id);
+  return presetItem(item && { ...item, chartType: item.input.chart_spec.chartType }, { canvas });
+};
+
+const clickHighlightCase = presetCase('Scatter Plot-Gapminder 2007 bubbles', 'Income and life expectancy, 2007');
+const hoverFocusCase = presetCase('inspect-index-line-multi', 'U.S. average food prices');
+const brushXCase = presetCase('Line Chart-Keeling Curve — atmospheric CO₂ at Mauna Loa');
+// A polar chart is as wide as it is tall, so it keeps a squarer frame than the shared one.
+const angleBrushCase = presetCase('Rose Chart-Seattle monthly rainfall', undefined, { width: 560, height: 320 }, { width: 700, height: 360 });
+const lassoCase = presetCase('Scatter Plot-Palmer Penguins — flipper length vs body mass');
+const navigateCase = navigationCase('navigate-gapminder');
+const brushZoomCase = navigationCase('navigate-electricity-demand', null);
+const legendToggleCase = presetCase('Streamgraph-World population by region, 1950–2020');
+const contextMenuCase = presetCase('Scatter Plot-Palmer Penguins — flipper length vs body mass');
+
+function PresetExample({ item, mode, themeId, onChange }: {
+  item: PresetCase | undefined;
+  mode: InteractionMode;
+  themeId?: string;
+  onChange?: (change: ChartChange) => void;
+}) {
+  if (!item) return null;
+  return <PresetCaseCard item={item} mode={mode} source="code" showSpecPanel={false} themeId={themeId} onChange={onChange}
+    navigationGuard={PRESET_GUARD} resetVersion={0} />;
+}
+
+const FILTER_CONTROLS_SPEC = {
+  data: { values: gapminderRows },
+  semantic_types: { Country: 'Country', Continent: 'Region', Year: 'Year', Population: 'Count', 'Life expectancy': 'Quantity', 'GDP per capita': 'Amount' },
+  chart_spec: {
+    chartType: 'Scatter Plot', title: 'Life expectancy and GDP per capita',
+    encodings: { x: 'GDP per capita', y: 'Life expectancy', color: 'Continent', size: 'Population', detail: 'Country' },
+    baseSize: PRESET_SIZE,
+    canvasSize: PRESET_CANVAS,
+    chartProperties: { logScale_x: true },
+  },
+  theme_spec: 'swiss',
+  interaction_spec: {
+    interactions: [
+      { type: 'legend-toggle' },
+      { type: 'filter-controls', options: { fields: [{ field: 'Year', widget: 'select' }], initial: { Year: { in: [2007] } } } },
+    ],
+  },
+} as ChartAssemblyInput;
+
+function FilterControlsExample() {
+  return <article className="cf-probe ig-filter-example">
+    <div className="cf-stage">
+      <ScaleToFit height={380} adaptiveHeight maxScale={1} padding={8}>
+        <FlintChart spec={FILTER_CONTROLS_SPEC} renderer="svg" ariaLabel="Life expectancy and GDP per capita, filtered by year" />
+      </ScaleToFit>
+    </div>
+  </article>;
+}
+
+const ANNOTATE_SPEC = {
+  data: {
+    values: gapminderRows.filter(({ Year }) => Year === 2007)
+      .map(({ Country, Continent, 'Life expectancy': life, 'GDP per capita': gdp }) => ({
+        Country, Continent, 'Life expectancy': life, 'GDP per capita': gdp,
+      })),
+  },
+  semantic_types: { Country: 'Country', Continent: 'Region', 'Life expectancy': 'Quantity', 'GDP per capita': 'Amount' },
+  chart_spec: {
+    chartType: 'Scatter Plot', title: 'Life expectancy and income, 2007',
+    encodings: { x: 'GDP per capita', y: 'Life expectancy', color: 'Continent', detail: 'Country' },
+    baseSize: PRESET_SIZE,
+    canvasSize: PRESET_CANVAS,
+    chartProperties: { logScale_x: true },
+  },
+  theme_spec: 'nyt',
+} as ChartAssemblyInput;
+
+/** The dots carry no names, so the note says whose dot it is and what it reads. */
+const ANNOTATE_INTERACTIONS = [clickAnnotate({
+  format: (element) => {
+    const row = (element.records?.[0] ?? element.value) as Row;
+    return `${String(row.Country)} · ${formatNumber(Number(row['Life expectancy']), 1)} yrs · $${formatNumber(Number(row['GDP per capita']))}`;
+  },
+})];
+
+function AnnotateExample() {
+  return <article className="cf-probe ig-filter-example">
+    <div className="cf-stage">
+      <ScaleToFit height={380} adaptiveHeight maxScale={1} padding={8}>
+        <FlintChart spec={ANNOTATE_SPEC} interactions={ANNOTATE_INTERACTIONS} renderer="svg"
+          ariaLabel="Life expectancy and income by country, 2007" />
+      </ScaleToFit>
+    </div>
+  </article>;
+}
+
+const embeddedReport = (children: ReactNode) => <div className="it-page idr-page app-demo-embed">{children}</div>;
+
+const curatedExamples: readonly CuratedExample[] = [
+  // Presets: one line of interaction_spec each.
+  { label: 'Linked brush', mode: 'linked-brush', featured: true, group: 'preset', implementation: 'Preset', themeId: 'nyt', summarize: summarizeLinkedCountries, readout: { panel: '.cf-selection-panel' },
     interactionLabel: 'Linked brushing', icon: Brush,
     caption: 'Brushing countries in one year highlights the same countries in the other years.',
     item: interactionCases.find(item => item.id === 'Scatter Plot-Gapminder-faceted-years') },
-  { label: 'Inspect', mode: 'inspect-index', implementation: 'Preset',
+  { label: 'Inspect', mode: 'inspect-index', group: 'preset', implementation: 'Preset', themeId: 'powerbi-light',
     interactionLabel: 'Shared-axis inspection', icon: Ruler,
     caption: 'Moving along the time axis reads egg and bread prices at the same month, with a labeled value guide for each series.',
     item: inspectIndexCase && {
@@ -229,23 +578,55 @@ const curatedExamples = [
       },
       indexInspection: { ...inspectIndexCase.indexInspection, displayValue: true },
     } },
-  { label: 'Reorder', mode: 'drag-reorder', implementation: 'Preset',
+  { label: 'Click highlight', mode: 'click-highlight', group: 'preset', implementation: 'Preset', themeId: 'economist', summarize: summarizeCountries,
+    interactionLabel: 'Click to highlight', icon: MousePointerClick,
+    caption: 'Clicking a bubble or a continent in the legend highlights its countries; Shift-click adds more to the highlight.',
+    render: onChange => <PresetExample mode="click-highlight" themeId="economist" item={clickHighlightCase} onChange={onChange} /> },
+  { label: 'Hover focus', mode: 'hover-group-focus', group: 'preset', implementation: 'Preset', themeId: 'datawrapper', summarize: summarizeFoodSeries,
+    interactionLabel: 'Hover group focus', icon: Target,
+    caption: "Hovering a food's line brings that series forward while the pointer stays on it; nothing is retained.",
+    render: onChange => <PresetExample mode="hover-group-focus" themeId="datawrapper" item={hoverFocusCase} onChange={onChange} /> },
+  { label: 'Brush', mode: 'brush-x-stateful', group: 'preset', implementation: 'Preset', themeId: 'nature', summarize: summarizeCo2Years,
+    interactionLabel: 'Editable X brush', icon: MoveHorizontal,
+    caption: 'Dragging across the Keeling Curve selects a span of years; the brush stays to move or resize, and clicking outside clears it.',
+    render: onChange => <PresetExample mode="brush-x-stateful" themeId="nature" item={brushXCase} onChange={onChange} /> },
+  { label: 'Angle brush', mode: 'brush-angle-stateful', group: 'preset', implementation: 'Preset', themeId: 'apple', summarize: summarizeRainfallMonths,
+    interactionLabel: 'Angular brush', icon: RotateCcw,
+    caption: "Dragging around the center selects a run of months in Seattle's rainfall; drag the sector's edges to widen it.",
+    render: onChange => <PresetExample mode="brush-angle-stateful" themeId="apple" item={angleBrushCase} onChange={onChange} /> },
+  { label: 'Lasso', mode: 'lasso', group: 'preset', implementation: 'Preset', themeId: 'material', summarize: summarizePenguins,
+    interactionLabel: 'Lasso selection', icon: Lasso,
+    caption: 'Drawing a freehand loop selects the penguins inside it, however irregular the cluster.',
+    render: onChange => <PresetExample mode="lasso" themeId="material" item={lassoCase} onChange={onChange} /> },
+  { label: 'Pan & zoom', mode: 'navigate', group: 'preset', implementation: 'Preset', themeId: 'economist',
+    interactionLabel: 'Pan and zoom', icon: Move,
+    caption: 'Scrolling zooms into the Gapminder cloud around the pointer; dragging pans across income and life expectancy.',
+    render: onChange => <PresetExample mode="navigate" themeId="economist" item={navigateCase} onChange={onChange} /> },
+  { label: 'Brush zoom', mode: 'brush-zoom', group: 'preset', implementation: 'Preset', themeId: 'bbc',
+    interactionLabel: 'Brush to zoom', icon: ZoomIn,
+    caption: 'Dragging across a stretch of 2025 zooms the daily electricity demand into it; Escape or a double-click restores the year.',
+    render: onChange => <PresetExample mode="brush-zoom" themeId="bbc" item={brushZoomCase} onChange={onChange} /> },
+  { label: 'Legend toggle', mode: 'legend-toggle', group: 'preset', implementation: 'Preset', themeId: 'mckinsey',
+    interactionLabel: 'Legend toggle', icon: EyeOff,
+    caption: 'Clicking a region in the legend hides or shows its layer, and the stream restacks around what remains.',
+    render: onChange => <PresetExample mode="legend-toggle" themeId="mckinsey" item={legendToggleCase} onChange={onChange} /> },
+  { label: 'Annotate', mode: 'annotate', group: 'preset', implementation: 'Preset', themeId: 'nyt',
+    interactionLabel: 'Click to annotate', icon: MessageSquareText,
+    caption: "Clicking a dot pins the country's name, life expectancy, and income in nearby free space, connected to the dot by a leader line.",
+    render: () => <AnnotateExample /> },
+  { label: 'Reorder', mode: 'drag-reorder', group: 'preset', implementation: 'Preset', themeId: 'datawrapper',
     interactionLabel: 'Country reordering', icon: GripVertical,
     caption: 'Dragging a country bar reorders ten electricity-generation mixes (OWID/Ember, 2023); the source shares remain unchanged.',
     item: electricityReorderCase },
-  { label: 'Cohorts', mode: 'continent-cohort', implementation: 'Preset-level app integration', item: undefined,
-    interactionLabel: 'Bidirectional selection', icon: ArrowLeftRight,
-    caption: 'The continent selector highlights its countries; selecting a country updates the continent summary.' },
-  { label: 'Table to chart', mode: 'country-table', implementation: 'Preset-level app integration', item: undefined,
-    interactionLabel: 'External selection', icon: Table2,
-    caption: 'Selecting a country in the Gapminder table highlights its point and annotates its income and life expectancy.' },
-  { label: 'Continent table', mode: 'continent-table', implementation: 'Preset-level app integration', item: undefined,
-    interactionLabel: 'Bidirectional group selection', icon: Table2,
-    caption: 'Selecting a continent in the summary table highlights its countries; clicking a country selects its continent in the table.' },
-  { label: 'DimpVis', mode: 'climate-phase', implementation: 'Custom API', item: undefined,
-    interactionLabel: 'Temporal dragging (DimpVis)', icon: Move,
-    caption: "Dragging a city's seasonal path moves all cities through the year; playback animates the same cycle." },
-  { label: 'Keyboard', mode: 'accessible-navigation', implementation: 'Preset',
+  { label: 'Filters', mode: 'filter-controls', group: 'preset', implementation: 'Preset', themeId: 'swiss',
+    interactionLabel: 'Filter controls', icon: SlidersHorizontal,
+    caption: 'Flint draws a year slider beside the Gapminder chart to step from 1952 to 2007; the legend toggles continents.',
+    render: () => <FilterControlsExample /> },
+  { label: 'Context menu', mode: 'context-menu', group: 'preset', implementation: 'Preset', themeId: 'nature',
+    interactionLabel: 'Selection menu', icon: Menu,
+    caption: 'Brushing penguins opens a menu of host actions beside the selection: send to chat, add to report, or copy values.',
+    render: onChange => <PresetExample mode="context-menu" themeId="nature" item={contextMenuCase} onChange={onChange} /> },
+  { label: 'Keyboard', mode: 'accessible-navigation', group: 'preset', implementation: 'Preset', themeId: 'material',
     interactionLabel: 'Accessible keyboard navigation', icon: Keyboard,
     caption: 'Move focus through chart elements and read their labels and values without a mouse.',
     item: nutritionRadarCase && {
@@ -258,24 +639,97 @@ const curatedExamples = [
         },
       },
     } },
-  { label: 'Zoom', mode: 'semantic-zoom', implementation: 'Custom API', item: undefined,
+  // In an app: charts that talk to tables, tabs, chat, articles, and each other.
+  { label: 'Cohorts', mode: 'continent-cohort', featured: true, group: 'app', implementation: 'Preset-level app integration',
+    interactionLabel: 'Bidirectional selection', icon: ArrowLeftRight,
+    caption: 'The continent selector highlights its countries; selecting a country updates the continent summary.',
+    render: () => <ContinentCohortStage /> },
+  { label: 'Table to chart', mode: 'country-table', group: 'app', implementation: 'Preset-level app integration',
+    interactionLabel: 'External selection', icon: Table2,
+    caption: 'Selecting a country in the Gapminder table highlights its point and annotates its income and life expectancy.',
+    render: () => <CountryTableStage /> },
+  { label: 'Continent table', mode: 'continent-table', group: 'app', implementation: 'Preset-level app integration',
+    interactionLabel: 'Bidirectional group selection', icon: Table2,
+    caption: 'Selecting a continent in the summary table highlights its countries; clicking a country selects its continent in the table.',
+    render: () => <ContinentTableStage /> },
+  { label: 'Linked charts', mode: 'linked-charts', group: 'app', implementation: 'Preset-level app integration',
+    interactionLabel: 'Two linked charts', icon: Link2,
+    caption: 'Brushing release dates re-counts the notable AI models by company (Epoch AI); clicking a company lights its models on the scatter.',
+    render: () => <ConnectedModelsDemo /> },
+  { label: 'Overview + detail', mode: 'overview-detail', group: 'app', implementation: 'Custom API',
+    interactionLabel: 'Overview and detail', icon: Brush,
+    caption: 'Brushing the strip of weekly U.S. gasoline prices since 2000 frames those weeks in the detail chart above (EIA).',
+    render: () => <OverviewDetailDemo /> },
+  { label: 'Scorers', mode: 'world-cup', group: 'app', implementation: 'Preset-level app integration',
+    interactionLabel: 'Click to drill down', icon: MousePointerClick,
+    caption: 'Clicking a team lists its 2026 World Cup scorers beside the bars, and a scorer shows their goals by opponent.',
+    render: () => <WorldCupScorersDemo /> },
+  { label: 'Chat', mode: 'chat-brush', group: 'app', implementation: 'Preset-level app integration',
+    interactionLabel: 'Brush for the agent', icon: MessageSquare,
+    caption: 'In a chat, brushing quarters of U.S. construction spending makes them the context of the next question.',
+    render: () => embeddedReport(<SelectionChatDemo spec={SELECTION_CHAT} editable={false} />) },
+  { label: 'Article', mode: 'scrollytelling', group: 'app', implementation: 'Preset-level app integration',
+    interactionLabel: 'Scroll-driven story', icon: ScrollText,
+    caption: 'Each paragraph zooms the chart to its decades and lights the lines it names (American Time Use Survey).',
+    render: () => embeddedReport(<ArticleSection spec={TIME_USE} editable={false} />) },
+  // Custom: bespoke interactions built from Flint's triggers, events, and update operators.
+  { label: 'DimpVis', mode: 'climate-phase', group: 'custom', implementation: 'Custom API',
+    interactionLabel: 'Temporal dragging (DimpVis)', icon: Move,
+    caption: "Dragging a city's seasonal path moves all cities through the year; playback animates the same cycle.",
+    render: () => <ClimatePhaseStage compact height={440} showReadout /> },
+  { label: 'Zoom', mode: 'semantic-zoom', group: 'custom', implementation: 'Custom API',
     interactionLabel: 'Semantic zoom', icon: ZoomIn,
-    caption: 'Wheel zoom changes the time window and redraws the bars, axes, and value labels.' },
-  { label: 'Globe', mode: 'globe', implementation: 'Preset with a custom handler', item: undefined,
+    caption: 'Wheel zoom changes the time window and redraws the bars, axes, and value labels.',
+    render: () => <RetailDrilldownStage /> },
+  { label: 'Globe', mode: 'globe', featured: true, group: 'custom', implementation: 'Preset with a custom handler',
     interactionLabel: 'Turn the globe', icon: Globe,
-    caption: 'Dragging turns a globe of warming since 1951–1980; the country facing you is the focus, read out beside the globe with its warming stripes.' },
-  { label: 'US map', mode: 'us-map', implementation: 'Preset with a custom handler', item: undefined,
+    caption: 'Dragging turns a globe of warming since 1951–1980; the country facing you is the focus, read out beside the globe with its warming stripes.',
+    render: () => <GlobeWarmingStage /> },
+  { label: 'US map', mode: 'us-map', group: 'custom', implementation: 'Preset with a custom handler',
     interactionLabel: 'Zoom into counties', icon: MapIcon,
-    caption: 'Scrolling turns the 2024 vote-margin map from states into counties in place; clicking a state flies into it, and the profile beside the map follows.' },
-  { label: 'Draw it', mode: 'you-draw-it', implementation: 'Custom API', item: undefined,
+    caption: 'Scrolling turns the 2024 vote-margin map from states into counties in place; clicking a state flies into it, and the profile beside the map follows.',
+    render: () => <ElectionProfileDemo /> },
+  { label: 'Draw it', mode: 'you-draw-it', group: 'custom', implementation: 'Custom API',
     interactionLabel: 'Freehand prediction', icon: Pencil,
-    caption: "Drawing the missing years predicts coal's share of U.S. electricity generation; revealing the real series scores the prediction." },
-  { label: 'Fisheye', mode: 'freeform-detail', implementation: 'Custom API', item: undefined,
+    caption: "Drawing the missing years predicts coal's share of U.S. electricity generation; revealing the real series scores the prediction.",
+    render: () => <YouDrawItStage /> },
+  { label: 'Fisheye', mode: 'freeform-detail', group: 'custom', implementation: 'Custom API',
     interactionLabel: 'Magnified neighborhood detail', icon: Focus,
-    caption: 'Moving over the temperature lines magnifies nearby points with labels; scrolling changes the lens magnification without zooming the chart.' },
-] as const;
+    caption: 'Moving over the temperature lines magnifies nearby points with labels; scrolling changes the lens magnification without zooming the chart.',
+    render: () => <FreeformExplodedDetailStage /> },
+  { label: 'Re-index', mode: 'index-chart', group: 'custom', implementation: 'Custom API',
+    interactionLabel: 'Re-index from any date', icon: Crosshair,
+    caption: 'Moving over the dates re-indexes five tech stocks to the price on the date under the pointer, 2013–2017.',
+    render: () => <IndexChartStage /> },
+  { label: 'Timebox', mode: 'timebox', group: 'custom', implementation: 'Custom API',
+    interactionLabel: 'Timebox query', icon: SquareDashed,
+    caption: 'Drawing a box over dates and temperatures matches the cities whose every daily value in that interval stays inside the band.',
+    render: () => <TimeboxStage /> },
+  { label: 'Moving average', mode: 'moving-average', group: 'custom', implementation: 'Custom API',
+    interactionLabel: 'Brush-driven reference line', icon: Sigma,
+    caption: 'Brushing months of U.S. egg prices moves a reference line to their mean; it follows every frame as the brush moves.',
+    render: () => <MovingAverageStage /> },
+];
 
-type CuratedExampleMode = typeof curatedExamples[number]['mode'];
+type CuratedExampleMode = string;
+
+const cardItems = new WeakMap<InteractionCase, InteractionCase>();
+/** The curated card's sizing, built once per case so a readout re-render never recompiles the chart. */
+function curatedCardItem(item: InteractionCase): InteractionCase {
+  let sized = cardItems.get(item);
+  if (!sized) {
+    sized = {
+      ...item,
+      input: {
+        ...item.input,
+        chart_spec: { ...item.input.chart_spec, title: item.input.chart_spec.title ?? item.title ?? item.chartType },
+      },
+      stageHeight: 380, stageScale: 1, wide: false, spacious: false,
+    };
+    cardItems.set(item, sized);
+  }
+  return sized;
+}
 
 function InteractionExamples({ selected, onSelect }: {
   selected: CuratedExampleMode;
@@ -283,55 +737,54 @@ function InteractionExamples({ selected, onSelect }: {
 }) {
   const active = curatedExamples.find(example => example.mode === selected) ?? curatedExamples[0];
   const CaptionIcon = active.icon;
+  const focusTab = (index: number) => {
+    const next = curatedExamples[(index + curatedExamples.length) % curatedExamples.length].mode;
+    onSelect(next);
+    document.getElementById(`ig-example-tab-${next}`)?.focus();
+  };
 
-  return <section className="ig-curated-examples" aria-labelledby="ig-examples-title">
+  const example = (onChange?: (change: ChartChange) => void) => active.render
+    ? active.render(onChange)
+    : active.item && <CaseCard item={curatedCardItem(active.item)}
+      mode={active.mode as CuratedCardMode} source="spec" themeId={active.themeId}
+      navigationGuard={PRESET_GUARD}
+      resetVersion={0} playback={active.mode === 'accessible-navigation'}
+      selectionControls={active.mode === 'linked-brush'}
+      keyboardControls={active.mode === 'accessible-navigation'} onChange={onChange} />;
+
+  return <section className="ig-curated-examples" aria-label="Interactive examples">
     <header className="ig-example-header">
-    <span id="ig-examples-title" className="ig-example-label">Examples</span>
-    <div className="ig-example-tabs" role="tablist" aria-label="Interactive examples">
-      {curatedExamples.map(({ label, mode }, index) => <button key={mode} type="button" role="tab"
-        id={`ig-example-tab-${mode}`} aria-controls="ig-example-panel" aria-selected={selected === mode}
-        tabIndex={selected === mode ? 0 : -1} onClick={() => onSelect(mode)}
-        onKeyDown={event => {
-          const nextIndex = event.key === 'ArrowRight' ? (index + 1) % curatedExamples.length
-            : event.key === 'ArrowLeft' ? (index + curatedExamples.length - 1) % curatedExamples.length
-            : event.key === 'Home' ? 0 : event.key === 'End' ? curatedExamples.length - 1 : undefined;
-          if (nextIndex === undefined) return;
-          event.preventDefault();
-          const next = curatedExamples[nextIndex].mode;
-          onSelect(next);
-          document.getElementById(`ig-example-tab-${next}`)?.focus();
-        }}>{label}</button>)}
-    </div>
+      {exampleGroups.map(group => {
+        const examples = curatedExamples.filter(example => example.group === group.value);
+        const tabbable = examples.some(example => example.mode === active.mode) ? active.mode : examples[0]?.mode;
+        return <div key={group.value} className="ig-example-group">
+          <span id={`ig-example-group-${group.value}`} className="ig-example-label">{group.label}</span>
+          <div className="ig-example-tabs" role="tablist" aria-labelledby={`ig-example-group-${group.value}`}>
+            {examples.map(({ label, mode, featured }) => {
+              const index = curatedExamples.findIndex(example => example.mode === mode);
+              return <button key={mode} type="button" role="tab"
+                id={`ig-example-tab-${mode}`} aria-controls="ig-example-panel" aria-selected={active.mode === mode}
+                tabIndex={tabbable === mode ? 0 : -1} onClick={() => onSelect(mode)}
+                onKeyDown={event => {
+                  const nextIndex = event.key === 'ArrowRight' ? index + 1
+                    : event.key === 'ArrowLeft' ? index - 1
+                    : event.key === 'Home' ? 0 : event.key === 'End' ? curatedExamples.length - 1 : undefined;
+                  if (nextIndex === undefined) return;
+                  event.preventDefault();
+                  focusTab(nextIndex);
+                }}>{label}{featured && <Star className="ig-example-star" size={9} fill="#e5b23c" color="#b8860b"
+                  aria-hidden="true" focusable="false" />}</button>;
+            })}
+          </div>
+        </div>;
+      })}
     </header>
     <div className="ig-example-workspace" id="ig-example-panel" role="tabpanel"
-      aria-labelledby={`ig-example-tab-${selected}`} aria-describedby="ig-example-caption">
-      <figure key={selected} className="ig-curated-example" data-example-mode={selected} aria-label={active.label}>
-        {active.mode === 'continent-cohort' ? <ContinentCohortStage />
-          : active.mode === 'country-table' ? <CountryTableStage />
-          : active.mode === 'continent-table' ? <ContinentTableStage />
-          : active.mode === 'climate-phase' ? <ClimatePhaseStage compact height={440} showReadout />
-          : active.mode === 'semantic-zoom' ? <RetailDrilldownStage />
-          : active.mode === 'globe' ? <GlobeWarmingStage />
-          : active.mode === 'us-map' ? <ElectionProfileDemo />
-          : active.mode === 'you-draw-it' ? <YouDrawItStage />
-          : active.mode === 'freeform-detail' ? <FreeformExplodedDetailStage />
-          : active.item && <CaseCard
-            item={{
-              ...active.item,
-              input: {
-                ...active.item.input,
-                chart_spec: {
-                  ...active.item.input.chart_spec,
-                  title: active.item.input.chart_spec.title ?? active.item.title ?? active.item.chartType,
-                },
-              },
-              stageHeight: 380, stageScale: 1, wide: false, spacious: false,
-            }}
-            mode={active.mode} source="spec" themeId={active.mode === 'inspect-index' ? 'powerbi-light' : undefined}
-            navigationGuard={{ minVisibleFraction: 0.02, maxVisibleFraction: 1, overscrollFraction: 0 }}
-            resetVersion={0} playback={active.mode === 'accessible-navigation'}
-            selectionControls={active.mode === 'linked-brush'}
-            keyboardControls={active.mode === 'accessible-navigation'} />}
+      aria-labelledby={`ig-example-tab-${active.mode}`} aria-describedby="ig-example-caption">
+      <figure key={active.mode} className="ig-curated-example" data-example-mode={active.mode} aria-label={active.label}>
+        {active.summarize
+          ? <SelectionReadout summarize={active.summarize} placement={active.readout ?? 'plot'}>{example}</SelectionReadout>
+          : example()}
         <figcaption id="ig-example-caption" className="ig-example-caption">
           <strong><CaptionIcon size={15} aria-hidden="true" />{active.interactionLabel}</strong>{' '}
           <span className="ig-example-source">({active.implementation})</span>:{' '}{active.caption}

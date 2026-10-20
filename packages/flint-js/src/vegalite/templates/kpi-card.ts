@@ -9,6 +9,8 @@ import {
 } from '../../core/interaction-semantics';
 import { annotationCandidates, presentAnnotationUpdate } from '../../interactive/presentation/annotation';
 import { withInteractionDecorative, withInteractionTextLabel } from '../interaction-provenance';
+import { kpiNumberFormat } from '../../core/kpi-format';
+import { titleWithDisplayUnit } from '../../core/field-semantics';
 
 /**
  * KPI Card — "big number" dashboard tile, one row per tile.
@@ -32,10 +34,10 @@ import { withInteractionDecorative, withInteractionTextLabel } from '../interact
  *
  * Formatting
  * ──────────
- * Formatting is delegated upstream. The template applies only a trivial
- * default (`toLocaleString`) to numeric values so a raw shelf binding
- * doesn't show `1184320.0`. If you want `"$1.18M"`, write that string
- * into the `value` column in the data prep step.
+ * Numbers print by `kpiNumberFormat`: the value field's declared unit
+ * (`USD` → `$1.18M`), a percent form for percentage fields, and amounts
+ * of 10,000 or more compacted to three significant digits. A string
+ * value prints as given.
  *
  * Progress bar
  * ────────────
@@ -200,6 +202,10 @@ export const kpiCardDef: ChartTemplateDef = {
             : 0.5;
 
         const sourceTable = ctx.fullTable ?? ctx.table ?? [];
+        const numbers = kpiNumberFormat(
+            ctx.channelSemantics.value,
+            valueField ? sourceTable.map((row) => row?.[valueField]) : [],
+        );
 
         // ── Collect tiles ──────────────────────────────────────────────────
         type Tile = {
@@ -218,14 +224,15 @@ export const kpiCardDef: ChartTemplateDef = {
                 const rawValue = row[valueField];
                 if (rawValue == null) continue;
 
-                const caption = metricField
+                const name = metricField
                     ? (row[metricField] != null ? String(row[metricField]) : '')
                     : valueField;
+                const caption = name ? titleWithDisplayUnit(name, numbers.fieldUnit) : name;
 
                 const rawGoal = goalField ? row[goalField] : undefined;
 
-                const valueText = renderScalar(rawValue);
-                const goalText  = rawGoal != null ? renderScalar(rawGoal) : undefined;
+                const valueText = numbers.print(rawValue, caption);
+                const goalText  = rawGoal != null ? numbers.print(rawGoal, caption) : undefined;
 
                 let progress: Tile['progress'];
                 if (
@@ -665,29 +672,6 @@ export const kpiCardDef: ChartTemplateDef = {
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-
-/**
- * Trivial scalar → display string.
- *
- * - Numbers: `toLocaleString` with at most 2 fraction digits. Tiny
- *   floating-point noise near zero is snapped so "-0" never appears.
- * - Strings / everything else: pass through via `String(...)`.
- *
- * Any richer formatting (currency symbols, SI abbreviations, percent,
- * locale-specific patterns) should be produced by the upstream data
- * transformation — the template intentionally does not parse format
- * patterns.
- */
-function renderScalar(v: any): string {
-    if (typeof v === 'number' && Number.isFinite(v)) {
-        // Snap -0 / FP noise.
-        if (Math.abs(v) < 1e-9) v = 0;
-        return Number.isInteger(v)
-            ? v.toLocaleString()
-            : v.toLocaleString(undefined, { maximumFractionDigits: 2 });
-    }
-    return String(v);
-}
 
 function clamp(n: number, lo: number, hi: number): number {
     return Math.max(lo, Math.min(hi, n));

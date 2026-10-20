@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { ChartAssemblyInput } from 'flint-chart';
-import { FlintAppInner } from '../../../packages/flint-mcp/ui/src/FlintApp';
+import { ChartView, shownChart } from '../../../packages/flint-mcp/ui/src/ChartView';
 import foodPrices from '../data/cpi-food-prices.json';
 import './chart-redesign-figure.css';
 
@@ -149,6 +149,7 @@ function chartInput(variant: RedesignVariant, transformed: boolean): ChartAssemb
 
 const mockApp = {
   sendMessage: async () => undefined,
+  getHostCapabilities: () => ({}),
 };
 
 function McpView({
@@ -207,9 +208,9 @@ function McpView({
 
   return (
     <div className="redesign-real-mcp" ref={rootRef}>
-      <FlintAppInner
+      <ChartView
         app={mockApp as never}
-        input={chartInput(variant, transformed)}
+        shown={shownChart(chartInput(variant, transformed))}
       />
     </div>
   );

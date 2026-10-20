@@ -12,6 +12,8 @@
  */
 
 import { ChartTemplateDef, ChartPropertyDef } from '../../core/types';
+import { kpiNumberFormat } from '../../core/kpi-format';
+import { titleWithDisplayUnit } from '../../core/field-semantics';
 
 type Layout = 'horizontal' | 'vertical' | 'grid';
 
@@ -29,6 +31,7 @@ export const plKpiCardDef: ChartTemplateDef = {
 
         const rows = (ctx.fullTable ?? table ?? []).filter((r: any) => r && r[valueField] != null);
         if (rows.length === 0) return;
+        const numbers = kpiNumberFormat(channelSemantics.value, rows.map((r: any) => r[valueField]));
 
         const layout: Layout = (chartProperties?.layout as Layout) ?? (rows.length > 4 ? 'grid' : 'horizontal');
         const n = rows.length;
@@ -71,15 +74,18 @@ export const plKpiCardDef: ChartTemplateDef = {
             const goal = goalField != null ? Number(row[goalField]) : undefined;
             const hasGoal = goal != null && Number.isFinite(goal);
             const hasProgressGoal = hasGoal && goal > 0;
-            const caption = metricField ? String(row[metricField] ?? '') : valueField;
+            const name = metricField ? String(row[metricField] ?? '') : valueField;
+            const caption = name ? titleWithDisplayUnit(name, numbers.fieldUnit) : name;
+            const goalText = hasGoal ? numbers.print(goal, caption) : '';
 
             if (isNumeric) {
+                const print = numbers.parts(value, caption);
                 const indicator: any = {
                     type: 'indicator',
                     mode: hasGoal ? 'number+delta' : 'number',
-                    value,
+                    value: value / print.divisor,
                     title: { text: caption, font: { size: captionFontPx } },
-                    number: { font: { size: valueFontPx } },
+                    number: { font: { size: valueFontPx }, valueformat: print.pattern, prefix: print.prefix, suffix: print.suffix },
                     domain: {
                         x: [x0, x0 + cellW],
                         y: hasProgressGoal
@@ -88,7 +94,7 @@ export const plKpiCardDef: ChartTemplateDef = {
                     },
                 };
                 if (hasGoal) {
-                    indicator.delta = { reference: goal, relative: false, increasing: { color: '#2f855a' }, decreasing: { color: '#c44e52' } };
+                    indicator.delta = { reference: goal / print.divisor, relative: false, valueformat: print.pattern, prefix: print.prefix, suffix: print.suffix, increasing: { color: '#2f855a' }, decreasing: { color: '#c44e52' } };
                 }
                 if (hasProgressGoal) {
                     const barX0 = x0 + cellW * 0.12;
@@ -115,7 +121,7 @@ export const plKpiCardDef: ChartTemplateDef = {
                         },
                     );
                     annotations.push({
-                        text: `${Math.round((value / goal) * 100)}% of ${goal}`,
+                        text: `${Math.round((value / goal) * 100)}% of ${goalText}`,
                         x: (x0 + x0 + cellW) / 2,
                         y: y0 + cellH * 0.13,
                         xref: 'paper',
@@ -127,7 +133,7 @@ export const plKpiCardDef: ChartTemplateDef = {
                     });
                 } else if (hasGoal) {
                     annotations.push({
-                        text: `Goal: ${goal}`,
+                        text: `Goal: ${goalText}`,
                         x: (x0 + x0 + cellW) / 2,
                         y: y0 + cellH * 0.12,
                         xref: 'paper',
@@ -153,7 +159,7 @@ export const plKpiCardDef: ChartTemplateDef = {
                     { text: caption, x: cx, y: cy + cellH * 0.32, xref: 'paper', yref: 'paper', xanchor: 'center', yanchor: 'middle', showarrow: false, font: { size: captionFontPx, color: '#6b7280' } },
                     { text: String(rawValue ?? ''), x: cx, y: cy - cellH * 0.06, xref: 'paper', yref: 'paper', xanchor: 'center', yanchor: 'middle', showarrow: false, font: { size: valueFontPx, color: '#111827' } },
                     ...(hasGoal
-                        ? [{ text: `Goal: ${goal}`, x: cx, y: cy - cellH * 0.36, xref: 'paper' as const, yref: 'paper' as const, xanchor: 'center' as const, yanchor: 'middle' as const, showarrow: false, font: { size: goalFontPx, color: '#9ca3af' } }]
+                        ? [{ text: `Goal: ${goalText}`, x: cx, y: cy - cellH * 0.36, xref: 'paper' as const, yref: 'paper' as const, xanchor: 'center' as const, yanchor: 'middle' as const, showarrow: false, font: { size: goalFontPx, color: '#9ca3af' } }]
                         : []),
                 );
             }
