@@ -26,6 +26,9 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run site:build
+        env:
+          # The site bundle outgrows Node's default ~4 GB heap; the runner has 16 GB.
+          NODE_OPTIONS: --max-old-space-size=8192
       - name: Compose site
         run: |
           mkdir -p _site
