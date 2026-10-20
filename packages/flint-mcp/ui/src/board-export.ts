@@ -2,7 +2,7 @@
 // Licensed under the MIT License.
 
 /**
- * The board as one PNG, drawn as it looks: its paper, the theme's tab, the headline and the cell
+ * The board as one PNG, drawn as it looks: its paper, the theme's furniture and rules, the headline and the cell
  * headings in their own type, the rules between rows, and every chart's SVG or table at its place. The
  * controls (the bar, the selection chip, edit outlines) are left out.
  */
@@ -56,10 +56,16 @@ export async function boardPng(root: HTMLElement): Promise<Blob> {
   ctx.fillRect(0, 0, origin.width, height);
   const at = (rect: DOMRect) => ({ x: rect.left - origin.left, y: rect.top - origin.top });
 
-  for (const tab of root.querySelectorAll<HTMLElement>('.board-tab')) {
-    const rect = tab.getBoundingClientRect();
+  for (const svg of root.querySelectorAll<SVGSVGElement>(':scope > .board-furniture')) {
+    const rect = svg.getBoundingClientRect();
     const { x, y } = at(rect);
-    ctx.fillStyle = getComputedStyle(tab).backgroundColor;
+    ctx.drawImage(await svgImage(svg), x, y, rect.width, rect.height);
+  }
+
+  for (const rule of root.querySelectorAll<HTMLElement>('.board-rule')) {
+    const rect = rule.getBoundingClientRect();
+    const { x, y } = at(rect);
+    ctx.fillStyle = getComputedStyle(rule).backgroundColor;
     ctx.fillRect(x, y, rect.width, rect.height);
   }
 

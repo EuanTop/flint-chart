@@ -788,6 +788,7 @@ input[type="checkbox"] {
    to the same house as the charts under them. */
 .board {
   --board-rule: color-mix(in srgb, var(--board-muted) 28%, transparent);
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -853,13 +854,31 @@ input[type="checkbox"] {
   border-top: 1px solid var(--board-rule);
 }
 
-.board-tab {
-  display: block;
-  margin-bottom: 8px;
+.board-furniture {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
 }
 
-.board-header-ruled {
-  border-bottom-color: var(--board-ink);
+.board-header.board-header-themed {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.board-rule {
+  flex: none;
+  margin-top: 8px;
+}
+
+.board-foot-rule {
+  margin-top: 0;
+}
+
+.board-source.board-source-ruled {
+  padding-top: 0;
+  border-top: none;
 }
 
 .board-cell-header {

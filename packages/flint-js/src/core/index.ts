@@ -136,6 +136,9 @@ export { resolveChannelSemantics, convertTemporalData } from './resolve-semantic
 export { filterOverflow, resolveCategoryViewport, applyCategoryViewports } from './filter-overflow';
 export { computeLayout, computeChannelBudgets } from './compute-layout';
 export { setTextMeasurer } from './text-width';
+export { planFrameFurniture, type FrameFurniture } from './frame-furniture';
+export type { HeaderPlan, HeaderPiece } from './header-plan';
+export type { ClosingRule } from './rule-plan';
 export type { TextMeasurer } from './legend-layout';
 export {
     normalizeStaticSeries,

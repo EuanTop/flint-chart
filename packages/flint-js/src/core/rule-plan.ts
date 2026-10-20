@@ -37,10 +37,8 @@ export interface RulesInputs {
  */
 export function planRules(inputs: RulesInputs): RulesPlan | undefined {
     const { design, structure, views, block } = inputs;
-    // A rule below the title spans the plot block; so do the earlier header and footer rules.
-    const asked = design.furniture.filter((item) => item.kind === 'headerRule' || item.kind === 'footerRule'
-        || ((item.kind === 'rule' || item.kind === 'band') && item.at === 'belowTitle'));
-    if (!asked.length) return undefined;
+    const rules = closingRules(design, block);
+    if (!rules.length) return undefined;
     if (views?.kind === 'concat') {
         return { refused: 'rule-not-drawn', message: 'the closing rule is not drawn — the chart is already a concatenation' };
     }
@@ -51,14 +49,24 @@ export function planRules(inputs: RulesInputs): RulesPlan | undefined {
     if (views?.kind === 'facet' && views.panel.kind === 'concat') {
         return { refused: 'rule-not-drawn', message: 'the closing rule is not drawn — a faceted table is already its own stack of blocks, with no single edge to close' };
     }
-    const rules: ClosingRule[] = asked.map((item) => ({
-        edge: item.at === 'belowTitle' || (item.anchor ?? 'topLeft').startsWith('top') ? 'top' : 'bottom',
-        width: item.width ?? block,
-        ...(item.width !== undefined ? { stated: true } : {}),
-        height: item.height ?? 2,
-        ...(item.color ? { color: item.color } : {}),
-    }));
     return { rules, room: rules.reduce((sum, rule) => sum + rule.height + RULE_GAP, 0) };
+}
+
+/**
+ * The rules a theme asks for across a block `block` px wide: a rule below the title spans it, and so
+ * do the earlier header and footer rules.
+ */
+export function closingRules(design: DesignDecisions, block: number): ClosingRule[] {
+    return design.furniture
+        .filter((item) => item.kind === 'headerRule' || item.kind === 'footerRule'
+            || ((item.kind === 'rule' || item.kind === 'band') && item.at === 'belowTitle'))
+        .map((item) => ({
+            edge: item.at === 'belowTitle' || (item.anchor ?? 'topLeft').startsWith('top') ? 'top' : 'bottom',
+            width: item.width ?? block,
+            ...(item.width !== undefined ? { stated: true } : {}),
+            height: item.height ?? 2,
+            ...(item.color ? { color: item.color } : {}),
+        }));
 }
 
 /**

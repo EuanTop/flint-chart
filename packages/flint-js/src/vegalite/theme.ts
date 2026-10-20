@@ -33,7 +33,7 @@ import { alreadyNamed, keysBesideWidth, tickUnitOf, type TitlePlan } from '../co
 import { OWNED_AXIS_KEYS } from './owned-axis-keys.js';
 import { CONTINUOUS_BAR_STEP_FILL, coverageSizedMarks } from './templates/utils.js';
 import { LOCAL_DODGE_LANE_FILL } from './templates/bar.js';
-import { CANVAS_FURNITURE_KEY, CANVAS_PATTERNS_KEY, readCanvasFurniture, type CanvasFurnitureItem, type CanvasPattern } from './canvas-furniture.js';
+import { CANVAS_FURNITURE_KEY, CANVAS_PATTERNS_KEY, readCanvasFurniture, headerFurnitureItems, type CanvasFurnitureItem, type CanvasPattern } from './canvas-furniture.js';
 import { withInteractionDecorative, withInteractionLegendLabel, withInteractionTextLabel } from './interaction-provenance.js';
 import { facetDropsTicks, gridOvershoot } from '../core/furniture-reserve';
 import type { ValueLabelPlan } from '../core/value-label-plan';
@@ -6581,23 +6581,7 @@ export function applyHeaderFurniture(spec: any, header: HeaderPlan | undefined):
     if (header.beside.start && spec.title) {
         spec.title = typeof spec.title === 'string' ? { text: spec.title, dx: header.beside.start } : { ...spec.title, dx: header.beside.start };
     }
-    const zoneTop = { canvasTop: 0, aboveTitle: header.edge + base.top, besideTitle: room + base.top };
-    const built: CanvasFurnitureItem[] = header.pieces.map((p) => {
-        const start = p.frame === 'canvas' ? 0 : base.left;
-        const end = p.frame === 'canvas' ? 0 : base.right;
-        const across = p.align === 'span' ? { left: start, right: end }
-            : p.align === 'middle' ? { left: start, right: end, center: true }
-                : p.align === 'start' ? { left: start + p.offset } : { right: end + p.offset };
-        return {
-            kind: p.kind, ...across, y: zoneTop[p.zone] + p.dy, height: p.height,
-            ...(p.align !== 'span' && p.width != null && p.kind !== 'text' ? { width: p.width } : {}),
-            ...(p.align === 'middle' && p.kind !== 'text' && p.width != null ? { width: p.width } : {}),
-            ...(p.color ? { color: p.color } : {}),
-            ...(p.text !== undefined ? { text: p.text, fontSize: p.fontSize, ...(p.font ? { font: p.font } : {}), ...(p.fontWeight != null ? { fontWeight: p.fontWeight } : {}), ...(p.fontStyle ? { fontStyle: p.fontStyle } : {}) } : {}),
-            ...(p.src ? { src: p.src, ...(p.alt ? { alt: p.alt } : {}) } : {}),
-            ...(p.href ? { href: p.href } : {}),
-        };
-    });
+    const built = headerFurnitureItems(header, base);
     spec.usermeta = { ...(spec.usermeta ?? {}), [CANVAS_FURNITURE_KEY]: [...readCanvasFurniture(spec), ...built] };
 }
 

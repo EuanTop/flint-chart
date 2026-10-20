@@ -22,6 +22,7 @@ export {
     CANVAS_FURNITURE_KEY,
     readCanvasFurniture,
     canvasFurnitureMarkup,
+    headerFurnitureItems,
     appendCanvasFurniture,
     placeCanvasFurniture,
     svgDataUri,

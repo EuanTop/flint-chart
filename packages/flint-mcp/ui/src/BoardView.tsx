@@ -11,9 +11,9 @@
  * and the card sends one model context that covers every chart.
  */
 import type { App, McpUiHostContext } from '@modelcontextprotocol/ext-apps';
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
-import type { ChartAssemblyInput, ChartTable, ChartUpdate, ChartWarning, UpdateCheck } from 'flint-chart';
-import { assembleVegaLite, drawsAsTable, resolveThemeSpec, validateChart } from 'flint-chart';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import type { ChartAssemblyInput, ChartTable, ChartUpdate, ChartWarning, ClosingRule, UpdateCheck } from 'flint-chart';
+import { assembleVegaLite, canvasFurnitureMarkup, drawsAsTable, headerFurnitureItems, planFrameFurniture, validateChart } from 'flint-chart';
 import type { ChartChange, ChartState, InteractiveChartSurface } from 'flint-chart/interactive';
 import { FlintChart, FlintTable } from 'flint-chart/react';
 import { expressionInterpreter } from 'vega-interpreter';
@@ -115,32 +115,6 @@ function checksOf(chart: BoardChart): readonly UpdateCheck[] | undefined {
   return checksCache.get(chart);
 }
 
-/** A branding mark of the theme, drawn once on the board's frame instead of in every cell. */
-interface Furniture {
-  kind: string;
-  at?: string;
-  align?: 'start' | 'end';
-  anchor?: string;
-  color?: string;
-  width?: number;
-  height?: number;
-}
-
-/** A tab over the board's title: the Economist's red block (`tab`, or the earlier `mastheadTab`). */
-function isTitleTab(mark: Furniture): boolean {
-  return mark.kind === 'mastheadTab' || (mark.kind === 'tab' && mark.at !== 'belowTitle');
-}
-
-/** A rule under the board's title (`rule` at `belowTitle`, or the earlier `headerRule`). */
-function isTitleRule(mark: Furniture): boolean {
-  return mark.kind === 'headerRule' || (mark.kind === 'rule' && mark.at === 'belowTitle');
-}
-
-/** Whether a mark sits at its frame's far end. */
-function atEnd(mark: Furniture): boolean {
-  return mark.align === 'end' || mark.anchor === 'topRight' || mark.anchor === 'bottomRight';
-}
-
 /** The fonts and colours of the board's frame, read from the theme its charts draw in. */
 interface BoardStyle {
   background: string;
@@ -148,7 +122,6 @@ interface BoardStyle {
   muted: string;
   font: string;
   titleFont: string;
-  furniture: Furniture[];
 }
 
 const DEFAULT_STYLE: BoardStyle = {
@@ -157,7 +130,6 @@ const DEFAULT_STYLE: BoardStyle = {
   muted: '#6b6b6b',
   font: 'Arial, Roboto, "Helvetica Neue", sans-serif',
   titleFont: 'Arial, Roboto, "Helvetica Neue", sans-serif',
-  furniture: [],
 };
 
 function boardStyle(theme: ChartAssemblyInput['theme_spec']): BoardStyle {
@@ -169,14 +141,7 @@ function boardStyle(theme: ChartAssemblyInput['theme_spec']): BoardStyle {
       chart_spec: { chartType: 'Bar Chart', title: 't', subtitle: 's', encodings: { x: { field: 'a' }, y: { field: 'b' } } },
     } as ChartAssemblyInput) as { background?: unknown; config?: { font?: string; title?: Record<string, unknown> } };
     const title = spec.config?.title ?? {};
-    let furniture: Furniture[] = [];
-    try {
-      furniture = (resolveThemeSpec(theme as Parameters<typeof resolveThemeSpec>[0]) as { furniture?: Furniture[] } | undefined)?.furniture ?? [];
-    } catch {
-      furniture = [];
-    }
     return {
-      furniture,
       background: typeof spec.background === 'string' ? spec.background : DEFAULT_STYLE.background,
       ink: typeof title.color === 'string' ? title.color : DEFAULT_STYLE.ink,
       muted: typeof title.subtitleColor === 'string' ? title.subtitleColor : DEFAULT_STYLE.muted,
@@ -186,6 +151,38 @@ function boardStyle(theme: ChartAssemblyInput['theme_spec']): BoardStyle {
   } catch {
     return DEFAULT_STYLE;
   }
+}
+
+/** The theme every chart that sets one sets, when they agree on one. */
+function sharedChartTheme(charts: readonly BoardChart[]): ChartAssemblyInput['theme_spec'] {
+  const themes = new Map(charts
+    .filter((chart) => chart.input.theme_spec !== undefined)
+    .map((chart) => [JSON.stringify(chart.input.theme_spec), chart.input.theme_spec]));
+  return themes.size === 1 ? [...themes.values()][0] : undefined;
+}
+
+/** The board's outer width and its margin, which the theme's furniture on its frame is placed against. */
+interface FrameBox {
+  width: number;
+  left: number;
+  right: number;
+  top: number;
+}
+
+function readFrameBox(node: HTMLElement | null): FrameBox | undefined {
+  if (!node || node.clientWidth === 0) return undefined;
+  const style = getComputedStyle(node);
+  return {
+    width: node.clientWidth,
+    left: parseFloat(style.paddingLeft) || 0,
+    right: parseFloat(style.paddingRight) || 0,
+    top: parseFloat(style.paddingTop) || 0,
+  };
+}
+
+/** A rule of the theme across the board, as a chart draws it across its block. */
+function ruleStyle(rule: ClosingRule, ink: string): CSSProperties {
+  return { height: rule.height, background: rule.color ?? ink, ...(rule.stated ? { width: rule.width } : {}) };
 }
 
 /** The chart with its heading lifted out to the cell, as the chart card plans it for a room up to `height` tall. */
@@ -783,8 +780,12 @@ export function BoardView({ app, initial, hostContext }: { app: App; initial: Bo
     // The server did not keep it: the card still shows it.
     setNotice('The theme could not be saved on the board; it shows here until the card reloads.');
   }, [writeBoard]);
-  const style = useMemo(() => boardStyle(theme), [theme]);
-  const titleRule = style.furniture.find(isTitleRule);
+  // The frame is drawn in the board's theme, the reader's pick, or else the one theme the charts share.
+  const frameTheme = useMemo(
+    () => (readerTheme !== undefined || theme !== undefined ? theme : sharedChartTheme(charts)),
+    [readerTheme, theme, charts],
+  );
+  const style = useMemo(() => boardStyle(frameTheme), [frameTheme]);
   // The page behind the board takes its paper, so a dark theme has no light edge.
   useEffect(() => {
     document.documentElement.style.background = style.background;
@@ -918,6 +919,24 @@ export function BoardView({ app, initial, hostContext }: { app: App; initial: Bo
   };
 
   const boardElement = useRef<HTMLElement | null>(null);
+  // The theme's furniture is drawn once, on the board's frame, as a chart of the theme draws it on its own.
+  const [frameBox, setFrameBox] = useState<FrameBox | undefined>();
+  useLayoutEffect(() => {
+    const next = readFrameBox(boardElement.current);
+    setFrameBox((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
+  }, [boardWidth, hostContext?.safeAreaInsets]);
+  const frame = useMemo(() => {
+    if (!frameBox) return undefined;
+    try {
+      return planFrameFurniture(frameTheme as Parameters<typeof planFrameFurniture>[0], frameBox.width - frameBox.left - frameBox.right);
+    } catch {
+      return undefined;
+    }
+  }, [frameTheme, frameBox]);
+  const header = frame?.header;
+  const headerItems = header && frameBox ? headerFurnitureItems(header, frameBox) : [];
+  const topRules = frame?.rules.filter((rule) => rule.edge === 'top') ?? [];
+  const footRules = frame?.rules.filter((rule) => rule.edge === 'bottom') ?? [];
   const exportBoard = useCallback(async () => {
     const root = boardElement.current;
     if (!root) return;
@@ -985,23 +1004,26 @@ export function BoardView({ app, initial, hostContext }: { app: App; initial: Bo
         '--inset-left': `${hostContext?.safeAreaInsets?.left ?? 0}px`,
       } as CSSProperties}
     >
+      {headerItems.length > 0 && frameBox && (
+        <svg
+          className="board-furniture"
+          aria-hidden="true"
+          width={frameBox.width}
+          height={Math.max(...headerItems.map((item) => (item.y ?? 0) + item.height))}
+          dangerouslySetInnerHTML={{ __html: canvasFurnitureMarkup(headerItems, frameBox.width) }}
+        />
+      )}
       <header
-        className={titleRule ? 'board-header board-header-ruled' : 'board-header'}
-        style={titleRule?.color ? { borderBottomColor: titleRule.color } : undefined}
+        className={topRules.length ? 'board-header board-header-themed' : 'board-header'}
+        style={header ? { paddingTop: header.edge + header.line } : undefined}
       >
-        {style.furniture.filter(isTitleTab).map((mark, at) => (
-          <span
-            key={at}
-            className="board-tab"
-            style={{ background: mark.color, width: mark.width ?? 44, height: mark.height ?? 12, ...(atEnd(mark) ? { alignSelf: 'flex-end' } : {}) }}
-          />
-        ))}
-        <div className="board-heading">
+        <div className="board-heading" style={header ? { paddingLeft: header.beside.start, paddingRight: header.beside.end } : undefined}>
           <div className="board-heading-text">
             {board.title && <h1 className="board-title">{board.title}</h1>}
             {board.subtitle && <p className="board-subtitle">{board.subtitle}</p>}
           </div>
         </div>
+        {topRules.map((rule, at) => <div key={at} className="board-rule" style={ruleStyle(rule, style.ink)} />)}
         {editing && <p className="board-hint">Drag a chart by its handle at the top right: dropped on a chart in its row the two swap; dropped on another row it is inserted there and the rest move down (Shift does the other). Drag the right or bottom edge, or a bottom corner, to resize.</p>}
         {notice && <p className="board-status">{notice}</p>}
         {standing !== 'newest' && <p className="board-status">{STANDING_NOTE[standing]}</p>}
@@ -1066,7 +1088,8 @@ export function BoardView({ app, initial, hostContext }: { app: App; initial: Bo
           ))}
         </div>
       )}
-      {board.source && <footer className="board-source">{board.source}</footer>}
+      {footRules.map((rule, at) => <div key={at} className="board-rule board-foot-rule" style={ruleStyle(rule, style.ink)} />)}
+      {board.source && <footer className={footRules.length ? 'board-source board-source-ruled' : 'board-source'}>{board.source}</footer>}
       {charts.length > 0 && (
         <div className="optionsbar board-bar" role="toolbar" aria-label="Board options">
           <div className="optionsbar-grid">
