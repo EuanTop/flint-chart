@@ -18,6 +18,10 @@
     "githubAriaStars": "GitHub 仓库，{{count}} 星",
     "githubTitle": "在 GitHub 上查看",
     "githubTitleStars": "在 GitHub 上查看（{{count}} 星）",
+    "wechatAria": "微信社群",
+    "wechatTitle": "加入微信群",
+    "discordAria": "Discord 社群",
+    "discordTitle": "加入 Discord",
     "langEn": "EN",
     "langZh": "中文",
     "langSwitchAria": "切换语言"
@@ -460,6 +464,9 @@
     "closingBody": "Flint 已开源，可直接使用。前往 GitHub 获取源码，或先浏览图表示例。",
     "viewGithub": "在 GitHub 上查看",
     "contributors": "贡献者",
+    "wechatTitle": "加入 Flint 用户微信群",
+    "wechatBody": "扫码加入 Flint 用户微信群，与其他用户交流。",
+    "wechatAlt": "Flint 用户微信群二维码",
     "features": {
       "semantic": {
         "title": "用<hl>语义类型</hl>描述数据",
