@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { changeset, parse, View } from 'vega';
+import { changeset, parse, View, type GroupMark } from 'vega';
 import { expressionInterpreter } from 'vega-interpreter';
 import { compile } from 'vega-lite';
 import { scaleAwareCanvasPicking } from '../src/vegalite/interactive';
@@ -128,6 +128,14 @@ import {
     resolveRetainedLegendPresentationTargets,
     resolvedLegendInteractionTarget,
 } from '../src/vegalite/interactions/runtime';
+import type { ChartTemplateDef } from '../src/core/types';
+
+type SemanticInteractionContext = Parameters<NonNullable<ChartTemplateDef['semanticInteractions']>>[0];
+
+/** These templates only read resolved encodings; Flint-level encodings and semantics stay empty. */
+const semanticContext = (
+    { resolvedEncodings }: Pick<SemanticInteractionContext, 'resolvedEncodings'>,
+): SemanticInteractionContext => ({ resolvedEncodings, encodings: {}, channelSemantics: {} });
 
 /** Hand-built semantics in this file offer every capability unless a test says otherwise. */
 const ALL_CAPABILITIES = [...INTERACTION_CAPABILITIES];
@@ -221,9 +229,9 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it('resolves a histogram bin to its range, count, and contributing records', () => {
-        const semantics = histogramDef.semanticInteractions!({
+        const semantics = histogramDef.semanticInteractions!(semanticContext({
             resolvedEncodings: { x: { field: 'Duration', type: 'quantitative' } },
-        });
+        }));
         const hit = {
             datum: {
                 [INTERACTION_KEY]: '3|3.5',
@@ -262,12 +270,12 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it('combines color contrast and outlines for Boxplot hover', () => {
-        const semantics = boxplotDef.semanticInteractions!({
+        const semantics = boxplotDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'Species', type: 'nominal' },
                 y: { field: 'Body mass', type: 'quantitative' },
             },
-        });
+        }));
 
         expect(semantics.renderHoverStyles).toEqual({
             rect: { opacity: 'contrast', stroke: MUTED_HOVER_STROKE, strokeWidth: 2 },
@@ -277,12 +285,12 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it('presents a Boxplot annotation from its computed summary', () => {
-        const semantics = boxplotDef.semanticInteractions!({
+        const semantics = boxplotDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'Species', type: 'nominal' },
                 y: { field: 'Body mass', type: 'quantitative' },
             },
-        });
+        }));
         const element = {
             value: {
                 Species: 'Gentoo',
@@ -640,7 +648,7 @@ describe('Vega-Lite semantic interactions', () => {
 
     it('uses a borderless spotlight for area hover', () => {
         const hoverStyle = (resolvedEncodings: Record<string, any>) =>
-            areaChartDef.semanticInteractions!({ resolvedEncodings }).renderHoverStyles?.area;
+            areaChartDef.semanticInteractions!(semanticContext({ resolvedEncodings })).renderHoverStyles?.area;
 
         expect(hoverStyle({})).toEqual({ opacity: 'spotlight' });
         expect(hoverStyle({ opacity: { field: 'confidence', type: 'quantitative' } }))
@@ -740,7 +748,7 @@ describe('Vega-Lite semantic interactions', () => {
             return found;
         };
         for (const expr of [undefined, expressionInterpreter]) {
-            const view = new View(parse(compiled, null, { ast: true } as any), { renderer: 'none', expr } as any);
+            const view = new View(parse(compiled, undefined, { ast: true } as any), { renderer: 'none', expr } as any);
             await view.runAsync();
             const full = xLabels(view);
             expect(full).toEqual(['1990', '1995', '2000', '2005', '2010', '2015']);
@@ -820,13 +828,13 @@ describe('Vega-Lite semantic interactions', () => {
         expect(() => addVegaLiteInteractions(scatter, [dragReorder()]))
             .toThrow('Interaction "drag-reorder" requires a discrete axis whose order can change; Scatter Plot has none.');
 
-        const facetedSemantics = barChartDef.semanticInteractions!({
+        const facetedSemantics = barChartDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'category', type: 'nominal' },
                 y: { field: 'value', type: 'quantitative' },
                 column: { field: 'region', type: 'nominal' },
             },
-        });
+        }));
         expect(facetedSemantics.reorderAxis).toBeUndefined();
     });
 
@@ -852,12 +860,12 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it.each(['quantitative', 'temporal'] as const)('rejects %s Bar category reorder semantics', (type) => {
-        const semantics = barChartDef.semanticInteractions!({
+        const semantics = barChartDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'category', type },
                 y: { field: 'value', type: 'quantitative' },
             },
-        });
+        }));
         expect(semantics.reorderAxis).toBeUndefined();
         expect(semantics.reorderAxes).toBeUndefined();
     });
@@ -1158,7 +1166,7 @@ describe('Vega-Lite semantic interactions', () => {
         const initial = view.scale('x').domain().map(Number);
         const controller = createVegaNavigationController(view, axes);
         const guard = { minVisibleFraction: 0.1, maxVisibleFraction: 1, overscrollFraction: 0 };
-        const zoomIn = async () => {
+        const zoomIn = async (): Promise<number[]> => {
             const update = controller.resolve({
                 type: 'navigation', phase: 'commit', operation: 'zoom', axes: 'x',
                 factor: 1.25, anchor: { x: 0.2, y: 0.5 },
@@ -1248,16 +1256,16 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it('declares proportional line focus and continuous-color region boundaries', () => {
-        expect(lineChartDef.semanticInteractions!({
+        expect(lineChartDef.semanticInteractions!(semanticContext({
             resolvedEncodings: { x: { field: 'Year', type: 'ordinal' }, y: { field: 'Value', type: 'quantitative' } },
-        }).renderSelectionStyles).toEqual({ line: { strokeWidthMultiplier: 1.2 } });
+        })).renderSelectionStyles).toEqual({ line: { strokeWidthMultiplier: 1.2 } });
 
-        expect(heatmapDef.semanticInteractions!({
+        expect(heatmapDef.semanticInteractions!(semanticContext({
             resolvedEncodings: { x: { field: 'Year', type: 'ordinal' }, y: { field: 'Country', type: 'nominal' }, color: { field: 'Value', type: 'quantitative' } },
-        }).renderSelectionStyles).toEqual({ rect: { boundary: 'contiguous-region' } });
-        expect(heatmapDef.semanticInteractions!({
+        })).renderSelectionStyles).toEqual({ rect: { boundary: 'contiguous-region' } });
+        expect(heatmapDef.semanticInteractions!(semanticContext({
             resolvedEncodings: { x: { field: 'X', type: 'ordinal' }, y: { field: 'Y', type: 'nominal' }, color: { field: 'Group', type: 'nominal' } },
-        }).renderSelectionStyles).toBeUndefined();
+        })).renderSelectionStyles).toBeUndefined();
     });
 
     it('resolves continuous-color selection boundaries from the active theme', () => {
@@ -1516,7 +1524,7 @@ describe('Vega-Lite semantic interactions', () => {
 
     it('keeps concatenated-chart hover paint geometry invariant', () => {
         const renderHoverStyles = (definition: typeof pyramidChartDef) =>
-            definition.semanticInteractions?.({ resolvedEncodings: {} }).renderHoverStyles;
+            definition.semanticInteractions?.(semanticContext({ resolvedEncodings: {} })).renderHoverStyles;
         expect(renderHoverStyles(pyramidChartDef)).toEqual({ rect: { opacity: 'contrast' } });
         expect(renderHoverStyles(barTableDef)).toEqual({ rect: { opacity: 'contrast' } });
     });
@@ -1594,13 +1602,13 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it('resolves a Rose category label to its label and all related arc segments', () => {
-        const resolve = roseChartDef.semanticInteractions!({
+        const resolve = roseChartDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'Month', type: 'nominal' },
                 y: { field: 'Value', type: 'quantitative' },
                 color: { field: 'Segment', type: 'nominal' },
             },
-        }).resolve!;
+        })).resolve!;
         const label = {
             datum: { [INTERACTION_KEY]: 'Jan', Month: 'Jan', [INTERACTION_ROLE]: 'text-label' },
             source: 'mark' as const,
@@ -1682,12 +1690,12 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it('formats a Rose sector from its encoded category and value fields', () => {
-        const semantics = roseChartDef.semanticInteractions!({
+        const semantics = roseChartDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'Month', type: 'nominal' },
                 y: { field: 'Rainfall (mm)', type: 'quantitative' },
             },
-        });
+        }));
         const element = {
             value: { [INTERACTION_KEY]: 'Jan' },
             records: [{
@@ -1709,19 +1717,19 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it('formats Bar Table and Bullet annotations from their authored measures', async () => {
-        const barTable = barTableDef.semanticInteractions!({
+        const barTable = barTableDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'GDP ($T)', type: 'quantitative' },
                 y: { field: 'Country', type: 'nominal' },
             },
-        });
-        const bullet = bulletChartDef.semanticInteractions!({
+        }));
+        const bullet = bulletChartDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'Share', type: 'quantitative' },
                 y: { field: 'Country', type: 'nominal' },
                 goal: { field: 'Target', type: 'quantitative' },
             },
-        });
+        }));
         const barTableElement = {
             value: { [INTERACTION_KEY]: 'China' },
             records: [{ Country: 'China', 'GDP ($T)': 17.8, period_end: 0 }],
@@ -1770,13 +1778,13 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it('resolves Bullet Chart goal-attainment legend keys to their bars', () => {
-        const semantics = bulletChartDef.semanticInteractions!({
+        const semantics = bulletChartDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 y: { field: 'Country', type: 'nominal' },
                 x: { field: 'Share', type: 'quantitative' },
                 goal: { field: 'Target', type: 'quantitative' },
             },
-        } as any);
+        }) as any);
         const below = {
             datum: { Country: 'Norway', Share: 98, Target: 100, __status: 'Below target' },
             markType: 'bar',
@@ -1837,15 +1845,15 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it('presents Choropleth regions and Density segments with semantic values', () => {
-        const choropleth = choroplethDef.semanticInteractions!({
+        const choropleth = choroplethDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 id: { field: 'State', type: 'nominal' },
                 color: { field: 'Value', type: 'quantitative' },
             },
-        });
-        const density = densityPlotDef.semanticInteractions!({
+        }));
+        const density = densityPlotDef.semanticInteractions!(semanticContext({
             resolvedEncodings: { x: { field: 'Score', type: 'quantitative' } },
-        });
+        }));
 
         const regionUpdate = choropleth.presentUpdate!(
             annotationUpdate(
@@ -1871,21 +1879,21 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it('presents transformed ECDF, Calendar, and Violin values', () => {
-        const ecdf = ecdfPlotDef.semanticInteractions!({
+        const ecdf = ecdfPlotDef.semanticInteractions!(semanticContext({
             resolvedEncodings: { x: { field: 'Score', type: 'quantitative' } },
-        });
-        const calendar = vlCalendarHeatmapDef.semanticInteractions!({
+        }));
+        const calendar = vlCalendarHeatmapDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'Day', type: 'temporal' },
                 color: { field: 'Commits', type: 'quantitative' },
             },
-        });
-        const violin = violinPlotDef.semanticInteractions!({
+        }));
+        const violin = violinPlotDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'Species', type: 'nominal' },
                 y: { field: 'Length', type: 'quantitative' },
             },
-        });
+        }));
 
         const ecdfUpdate = ecdf.presentUpdate!(
             annotationUpdate({ value: { [INTERACTION_KEY]: 'step' }, records: [{ Score: 42 }, { Score: 44 }] }),
@@ -2097,12 +2105,12 @@ describe('Vega-Lite semantic interactions', () => {
         const finalSegment = areaSegments.find((candidate) =>
             candidate.interactionGeometry.endDatum?.Users === 67);
         const hit = renderHit(finalSegment)!;
-        const semantics = areaChartDef.semanticInteractions!({
+        const semantics = areaChartDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'Year', type: 'temporal' },
                 y: { field: 'Users', type: 'quantitative' },
             },
-        });
+        }));
         const target = semantics.resolve(
             { gesture: 'click', role: 'mark', hits: [hit] },
             { allHits: [hit], keyField: INTERACTION_KEY },
@@ -2127,7 +2135,7 @@ describe('Vega-Lite semantic interactions', () => {
 
     it('adds a light hover fill only to shape-only scatter points', () => {
         const hoverStyle = (resolvedEncodings: Record<string, any>) =>
-            scatterPlotDef.semanticInteractions!({ resolvedEncodings }).renderHoverStyles?.symbol;
+            scatterPlotDef.semanticInteractions!(semanticContext({ resolvedEncodings })).renderHoverStyles?.symbol;
 
         expect(hoverStyle({ shape: { field: 'Shape', type: 'nominal' } })).toMatchObject({
             fill: MUTED_HOVER_FILL,
@@ -2139,13 +2147,13 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it('declares scatter detail encodings as semantic selector fields', () => {
-        const semantics = scatterPlotDef.semanticInteractions!({
+        const semantics = scatterPlotDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'GDP', type: 'quantitative' },
                 y: { field: 'Life', type: 'quantitative' },
                 detail: { field: 'Country', type: 'nominal' },
             },
-        });
+        }));
 
         expect(semantics.fields).toContain('Country');
     });
@@ -2463,9 +2471,9 @@ describe('Vega-Lite semantic interactions', () => {
             data: { values: [{ category: 'A', value: 1 }] },
             encoding: { x: { field: 'category', type: 'nominal' }, y: { field: 'value', type: 'quantitative' } },
             _interactionSemantics: {
-                ...barChartDef.semanticInteractions!({
+                ...barChartDef.semanticInteractions!(semanticContext({
                     resolvedEncodings: { x: { field: 'category', type: 'nominal' }, y: { field: 'value', type: 'quantitative' } },
-                }),
+                })),
                 capabilities: ['elements', 'cartesian-region'],
             },
         };
@@ -2477,9 +2485,9 @@ describe('Vega-Lite semantic interactions', () => {
             data: { values: [{ category: 'A', value: 1 }] },
             encoding: { theta: { field: 'value', type: 'quantitative' }, color: { field: 'category', type: 'nominal' } },
             _interactionSemantics: {
-                ...roseChartDef.semanticInteractions!({
+                ...roseChartDef.semanticInteractions!(semanticContext({
                     resolvedEncodings: { x: { field: 'category', type: 'nominal' }, y: { field: 'value', type: 'quantitative' } },
-                }),
+                })),
                 capabilities: ['elements', 'cartesian-region', 'angular-region'],
             },
         };
@@ -2495,13 +2503,13 @@ describe('Vega-Lite semantic interactions', () => {
                 color: { field: 'series', type: 'nominal' },
             },
             _interactionSemantics: {
-                ...radarChartDef.semanticInteractions!({
+                ...radarChartDef.semanticInteractions!(semanticContext({
                     resolvedEncodings: {
                         x: { field: 'metric', type: 'nominal' },
                         y: { field: 'value', type: 'quantitative' },
                         color: { field: 'series', type: 'nominal' },
                     },
-                }),
+                })),
                 capabilities: ['elements', 'cartesian-region', 'angular-region'],
             },
         };
@@ -2774,7 +2782,7 @@ describe('Vega-Lite semantic interactions', () => {
             records: [{ Country: 'India', Population: 1428.6, Population_end: 1428.6 }],
         };
         const makeUpdate = (definition: typeof barChartDef, resolvedEncodings: Record<string, any>) => {
-            const semantics = definition.semanticInteractions!({ resolvedEncodings });
+            const semantics = definition.semanticInteractions!(semanticContext({ resolvedEncodings }));
             return semantics.presentUpdate!(
                 annotationUpdate(element, { kind: 'mark', role: 'bar' }),
                 { chartType: definition.chart, selected: [] },
@@ -2935,13 +2943,13 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it('resolves a ranged-dot click to its connector and both endpoints', () => {
-        const semantics = rangedDotPlotDef.semanticInteractions!({
+        const semantics = rangedDotPlotDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'Life expectancy', type: 'quantitative' },
                 y: { field: 'Country', type: 'nominal' },
                 color: { field: 'Sex', type: 'nominal' },
             },
-        });
+        }));
         const male = {
             datum: { [INTERACTION_KEY]: 'Japan|81.5|Male', Country: 'Japan', Sex: 'Male' },
             source: 'mark' as const,
@@ -2998,12 +3006,12 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it('formats a pie slice from its encoded category and value fields', () => {
-        const semantics = pieChartDef.semanticInteractions!({
+        const semantics = pieChartDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 color: { field: 'Browser', type: 'nominal' },
                 size: { field: 'Share', type: 'quantitative' },
             },
-        });
+        }));
         const element = {
             value: { [INTERACTION_KEY]: 'Chrome' },
             records: [{ Browser: 'Chrome', Share: 65, Share_start: 0, Share_end: 65 }],
@@ -3022,13 +3030,13 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it('keeps ranged-dot hover on the physical endpoint', () => {
-        const resolve = rangedDotPlotDef.semanticInteractions!({
+        const resolve = rangedDotPlotDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'Life expectancy', type: 'quantitative' },
                 y: { field: 'Country', type: 'nominal' },
                 color: { field: 'Sex', type: 'nominal' },
             },
-        }).resolve;
+        })).resolve;
         const male = {
             datum: { [INTERACTION_KEY]: 'Japan|81.5|Male', Country: 'Japan', Sex: 'Male' },
             source: 'mark' as const,
@@ -3424,12 +3432,12 @@ describe('Vega-Lite semantic interactions', () => {
             datum: start,
             interactionGeometry: { endDatum: end },
         })!;
-        const resolve = lineChartDef.semanticInteractions!({
+        const resolve = lineChartDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'Month', type: 'nominal' },
                 y: { field: 'Sales', type: 'quantitative' },
             },
-        }).resolve;
+        })).resolve;
 
         const target = resolve(
             { gesture: 'click', role: 'mark', hits: [hit] },
@@ -3444,12 +3452,12 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it('keeps a mark click local without a declared series', () => {
-        const resolve = barChartDef.semanticInteractions!({
+        const resolve = barChartDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'Region', type: 'nominal' },
                 y: { field: 'Value', type: 'quantitative' },
             },
-        }).resolve;
+        })).resolve;
         const westConsumer = { datum: { [INTERACTION_KEY]: 'West|Consumer', Region: 'West' }, source: 'mark' as const };
         const westCorporate = { datum: { [INTERACTION_KEY]: 'West|Corporate', Region: 'West' }, source: 'mark' as const };
         const eastConsumer = { datum: { [INTERACTION_KEY]: 'East|Consumer', Region: 'East' }, source: 'mark' as const };
@@ -3467,13 +3475,13 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it('keeps a mark click local when a series field is declared', () => {
-        const resolve = barChartDef.semanticInteractions!({
+        const resolve = barChartDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'Region', type: 'nominal' },
                 y: { field: 'Value', type: 'quantitative' },
                 color: { field: 'Segment', type: 'nominal' },
             },
-        }).resolve;
+        })).resolve;
         const westConsumer = { datum: { [INTERACTION_KEY]: 'West|Consumer', Segment: 'Consumer' }, source: 'mark' as const };
         const westCorporate = { datum: { [INTERACTION_KEY]: 'West|Corporate', Segment: 'Corporate' }, source: 'mark' as const };
         const eastConsumer = { datum: { [INTERACTION_KEY]: 'East|Consumer', Segment: 'Consumer' }, source: 'mark' as const };
@@ -3491,13 +3499,13 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it.each(['click', 'hover'] as const)('lets the template resolver expand a legend %s to its series cohort', (gesture) => {
-        const resolve = barChartDef.semanticInteractions!({
+        const resolve = barChartDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'Region', type: 'nominal' },
                 y: { field: 'Value', type: 'quantitative' },
                 color: { field: 'Segment', type: 'nominal' },
             },
-        }).resolve;
+        })).resolve;
         const westConsumer = { datum: { [INTERACTION_KEY]: 'West|Consumer', Segment: 'Consumer' }, source: 'mark' as const };
         const westCorporate = { datum: { [INTERACTION_KEY]: 'West|Corporate', Segment: 'Corporate' }, source: 'mark' as const };
         const eastConsumer = { datum: { [INTERACTION_KEY]: 'East|Consumer', Segment: 'Consumer' }, source: 'mark' as const };
@@ -3573,13 +3581,13 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it('retains concrete keys for legend domains already hidden from the scene', () => {
-        const resolve = barChartDef.semanticInteractions!({
+        const resolve = barChartDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'Region', type: 'nominal' },
                 y: { field: 'Value', type: 'quantitative' },
                 color: { field: 'Segment', type: 'nominal' },
             },
-        }).resolve;
+        })).resolve;
         const consumer = {
             datum: { [INTERACTION_KEY]: 'West|Consumer', Segment: 'Consumer' },
             source: 'mark' as const,
@@ -3609,13 +3617,13 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it('resolves every domain in a combined hidden legend target', () => {
-        const resolve = barChartDef.semanticInteractions!({
+        const resolve = barChartDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'Region', type: 'nominal' },
                 y: { field: 'Value', type: 'quantitative' },
                 color: { field: 'Segment', type: 'nominal' },
             },
-        }).resolve;
+        })).resolve;
         const hits = ['Consumer', 'Corporate'].map((Segment) => ({
             datum: { [INTERACTION_KEY]: `West|${Segment}`, Segment },
             source: 'mark' as const,
@@ -3683,14 +3691,14 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it('resolves color and shape legends by their own fields', () => {
-        const resolve = scatterPlotDef.semanticInteractions!({
+        const resolve = scatterPlotDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'X', type: 'quantitative' },
                 y: { field: 'Y', type: 'quantitative' },
                 color: { field: 'Color', type: 'nominal' },
                 shape: { field: 'Shape', type: 'nominal' },
             },
-        }).resolve;
+        })).resolve;
         const hits = [
             { datum: { [INTERACTION_KEY]: 'a', Color: 'Blue', Shape: 'Circle' }, source: 'mark' as const },
             { datum: { [INTERACTION_KEY]: 'b', Color: 'Orange', Shape: 'Circle' }, source: 'mark' as const },
@@ -3712,14 +3720,14 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it('resolves a size legend independently from color', () => {
-        const resolve = scatterPlotDef.semanticInteractions!({
+        const resolve = scatterPlotDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'X', type: 'quantitative' },
                 y: { field: 'Y', type: 'quantitative' },
                 color: { field: 'Color', type: 'nominal' },
                 size: { field: 'Size', type: 'nominal' },
             },
-        }).resolve;
+        })).resolve;
         const hits = [
             { datum: { [INTERACTION_KEY]: 'a', Color: 'Blue', Size: 'Large' }, source: 'mark' as const },
             { datum: { [INTERACTION_KEY]: 'b', Color: 'Orange', Size: 'Large' }, source: 'mark' as const },
@@ -3925,7 +3933,7 @@ describe('Vega-Lite semantic interactions', () => {
             color: { field: 'Temperature', type: 'quantitative' },
         }],
     ] as const)('resolves a continuous %s legend interval to matching marks', (_name, chartDef, encodings) => {
-        const semantics = chartDef.semanticInteractions!({ resolvedEncodings: encodings });
+        const semantics = chartDef.semanticInteractions!(semanticContext({ resolvedEncodings: encodings }));
         const hits = [-17, -6, 6, 17].map((Temperature, index) => ({
             datum: {
                 [INTERACTION_KEY]: String(index), Temperature,
@@ -3964,12 +3972,12 @@ describe('Vega-Lite semantic interactions', () => {
         const view = new View(parse(compiled), { renderer: 'none' });
         await view.runAsync();
         const hits = sceneItems(view).map(renderHit).filter((hit): hit is NonNullable<typeof hit> => !!hit);
-        const semantics = vlCalendarHeatmapDef.semanticInteractions!({
+        const semantics = vlCalendarHeatmapDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'Date', type: 'temporal' },
                 color: { field: 'Temperature', type: 'quantitative' },
             },
-        });
+        }));
         const target = semantics.resolve({
             gesture: 'hover', role: 'legend-item', hits: [],
             legend: { field: 'Temperature', domain: { kind: 'interval', start: 70, end: 100 } },
@@ -4063,13 +4071,13 @@ describe('Vega-Lite semantic interactions', () => {
                 encodings: { longitude: 'lon', latitude: 'lat', size: 'pop' },
             },
         } as any) as any;
-        const semantics = mapDef.semanticInteractions!({
+        const semantics = mapDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 longitude: { field: 'lon', type: 'quantitative' },
                 latitude: { field: 'lat', type: 'quantitative' },
                 size: { field: 'pop', type: 'quantitative' },
             },
-        });
+        }));
         const legendEntry = {
             datum: { scales: { size: 'size' } },
             items: [0, 5, 10, 15].map((value) => ({ datum: { value } })),
@@ -4117,12 +4125,12 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it('resolves Waterfall synthesized legend entries to rendered bar cohorts', () => {
-        const semantics = waterfallChartDef.semanticInteractions!({
+        const semantics = waterfallChartDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'Step', type: 'ordinal' },
                 y: { field: 'Population', type: 'quantitative' },
             },
-        });
+        }));
         const hits = [
             { datum: { [INTERACTION_KEY]: '1950', Step: '1950', __wf_color: 'total' }, source: 'mark' as const },
             { datum: { [INTERACTION_KEY]: 'Asia', Step: 'Asia', __wf_color: 'increase' }, source: 'mark' as const },
@@ -4144,12 +4152,12 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it('presents derived Waterfall ranges after source provenance enrichment', () => {
-        const semantics = waterfallChartDef.semanticInteractions!({
+        const semantics = waterfallChartDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'Step', type: 'ordinal' },
                 y: { field: 'Population', type: 'quantitative' },
             },
-        });
+        }));
         const element = {
             value: { Step: 'Asia', __wf_prev_sum: 2_537, __wf_sum: 5_779 },
             records: [{ Step: 'Asia', Population: 3_242 }],
@@ -4162,13 +4170,13 @@ describe('Vega-Lite semantic interactions', () => {
     });
 
     it('presents a Sparkline segment transition', () => {
-        const semantics = sparklineDef.semanticInteractions!({
+        const semantics = sparklineDef.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'Month', type: 'temporal' },
                 y: { field: 'Value', type: 'quantitative' },
                 row: { field: 'Metric', type: 'nominal' },
             },
-        });
+        }));
         const element = {
             value: { Month: 'Mar', Metric: 'Active users', Value: 42 },
             records: [
@@ -4256,7 +4264,7 @@ describe('Vega-Lite semantic interactions', () => {
         ['Radar Chart', radarChartDef, ['line', 'point'], 'X'],
         ['Choropleth', choroplethDef, ['geoshape'], 'Region'],
     ] as const)('declares semantic marks and identity for %s', (_name, definition, marks, identityField) => {
-        const semantics = definition.semanticInteractions!({
+        const semantics = definition.semanticInteractions!(semanticContext({
             resolvedEncodings: {
                 x: { field: 'X', type: 'nominal' },
                 y: { field: 'Value', type: 'quantitative' },
@@ -4272,7 +4280,7 @@ describe('Vega-Lite semantic interactions', () => {
                 value: { field: 'Value', type: 'quantitative' },
                 id: { field: 'Region', type: 'nominal' },
             },
-        });
+        }));
 
         expect(semantics.selectableMarks).toEqual(marks);
         expect(semantics.fields).toContain(identityField);
@@ -4792,7 +4800,9 @@ describe('set-style visibility', () => {
         expect(spec.columns).toBe(2);
         expect(spec.spec.layer.map((layer: any) => layer.mark.type)).toEqual(['line', 'point']);
         expect(spec.spec.encoding.facet).toBeUndefined();
-        const panels = (compile(spec as any).spec.marks ?? []).find((mark: any) => mark.from?.facet);
+        const panels = (compile(spec as any).spec.marks ?? []).find(
+            (mark: any): mark is GroupMark & { from: { facet: { groupby: string | string[] } } } => Boolean(mark.from?.facet),
+        );
         expect(panels?.from.facet.groupby).toEqual(['Region']);
     });
 

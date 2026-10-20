@@ -3,12 +3,16 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { compile } from 'vega-lite';
-import { parse, View, textMetrics } from 'vega';
+import * as vega from 'vega';
+import { parse, View } from 'vega';
 import { tableTextMeasurer } from '../src/core/text-width';
 import { assembleVegaLite } from '../src';
 import { computeBandLabelLayout, fitTwoLineLabels } from '../src/core/decisions';
 import { genLollipopTests } from '../src/test-data/specialized-tests';
 import { TEST_GENERATORS } from '../src/test-data';
+
+/** vega re-exports vega-scenegraph's `textMetrics` at runtime, but vega's typings omit it. */
+const { textMetrics } = vega as unknown as { textMetrics: { width: (item: any, text?: any) => number } };
 
 /**
  * Regression: horizontal categorical x-axis labels must not overlap when the

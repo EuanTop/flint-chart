@@ -127,7 +127,7 @@ describe('a gridline under the other axis’s line', () => {
             }
             for (const child of item?.items ?? []) visit(child);
         };
-        visit(view.scenegraph().root);
+        visit((view.scenegraph() as any).root); // Scene typings omit the root item.
         const unique = new Map(out.map((line) => [Math.round(line.at * 10) / 10, line]));
         return [...unique.values()].sort((a, b) => a.at - b.at);
     }

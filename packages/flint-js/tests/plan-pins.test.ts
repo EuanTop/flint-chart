@@ -40,7 +40,7 @@ describe('pinned axis labels', () => {
         const pinned = openVegaLiteSession(structuredClone(crowded), { pins: { axisLabels: { x: { fontSize: 13, angle: 0 } } } });
         expect(pinned.axisLabels.x).toMatchObject({ fontSize: 13, angle: 0, align: 'center', baseline: 'top' });
         expect(pinned.axisLabels.x.crowdedFrom).toBeUndefined();
-        expect(pinned.axisLabels.x.straightFit).toBeUndefined();
+        expect(pinned.axisLabels.x.overflowFit).toBeUndefined();
         expect(xAxes(pinned.spec).some((axis) => axis.labelFontSize === 13 && axis.labelAngle === 0)).toBe(true);
     });
 

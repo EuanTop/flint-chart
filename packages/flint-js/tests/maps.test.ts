@@ -31,12 +31,13 @@ function buildChoropleth(
   rows: Row[],
   idField: string,
   valueField: string,
-  semanticType: string,
+  /** Omitted to let the chart infer the region from the values alone. */
+  semanticType?: string,
   region?: 'auto' | 'us' | 'world',
 ): ChoroplethResult {
   const spec = assembleVegaLite({
     data: { values: rows },
-    semantic_types: { [idField]: semanticType, [valueField]: 'Quantity' },
+    semantic_types: { ...(semanticType ? { [idField]: semanticType } : {}), [valueField]: 'Quantity' },
     chart_spec: {
       chartType: 'Choropleth',
       encodings: { id: idField, color: valueField },

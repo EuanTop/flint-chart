@@ -111,7 +111,7 @@ describe('series-end names follow the rows the chart draws', () => {
         await view.runAsync();
         if (values) {
             const { changeset } = await import('vega');
-            const source = view.getState({ data: (name: string) => /^source/.test(name ?? '') }).data;
+            const source = view.getState({ data: (name?: string) => /^source/.test(name ?? '') }).data;
             const name = Object.keys(source ?? {})[0] ?? 'source_0';
             view.change(name, changeset().remove(() => true).insert(values));
             await view.runAsync();
@@ -123,7 +123,7 @@ describe('series-end names follow the rows the chart draws', () => {
             }
             (item?.items ?? []).forEach(visit);
         };
-        visit(view.scenegraph().root);
+        visit((view.scenegraph() as any).root); // Scene typings omit the root item.
         return out;
     }
 
@@ -169,7 +169,7 @@ describe('the planned ticks of a time axis are the ones drawn', () => {
         await view.runAsync();
         const labels: string[] = [];
         const visit = (item: any) => { if (item?.mark?.role === 'axis-label' && item.text) labels.push(String(item.text)); (item?.items ?? []).forEach(visit); };
-        visit(view.scenegraph().root);
+        visit((view.scenegraph() as any).root); // Scene typings omit the root item.
         // The years survive: they are the labels a stride would have dropped.
         expect(labels.filter((label) => /^\d{4}$/.test(label)).length).toBeGreaterThan(1);
     });

@@ -1577,6 +1577,8 @@ describe('interaction definitions', () => {
                 y: { field: 'Value', type: 'quantitative' },
                 color: { field: 'Type', type: 'nominal' },
             },
+            encodings: {},
+            channelSemantics: {},
         });
         const target = {
             visual: { kind: 'mark' as const, role: 'bar' },

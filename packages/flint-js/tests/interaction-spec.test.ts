@@ -3,8 +3,15 @@ import { INTERACTION_PRESET_TYPES, type InteractionSpec } from '../src/core/inte
 import { INTERACTION_PRESETS, listInteractionPresets } from '../src/interactive/spec/registry';
 import type { InteractionPresetSpec } from '../src/interactive/spec/types';
 import { resolveInteractionSpec } from '../src/interactive/spec/resolve';
-import { brushX, navigate } from '../src/interactive/interactions';
+import { brushX, isCanvasInteraction, navigate } from '../src/interactive/interactions';
+import type { CanvasInteractionDef, InteractionDef } from '../src/interactive/interactions';
 import { contextMenu, isContextMenu, menuSelection } from '../src/interactive/context-menu';
+
+/** Narrows a resolved definition to a canvas one; every preset but `filter-controls` makes one. */
+const asCanvas = (definition: InteractionDef): CanvasInteractionDef => {
+    if (!isCanvasInteraction(definition)) throw new Error(`"${definition.id}" is an external interaction`);
+    return definition;
+};
 
 /** The comparable half of a definition: everything but the handler and the origin tag. */
 const dataOnly = (definition: object): Record<string, unknown> => Object.fromEntries(
@@ -57,15 +64,15 @@ describe('resolveInteractionSpec', () => {
             interactions: [{ type: 'brush-x', options: { mode: 'stateful', dimOpacity: 0.3 } }],
         });
         expect(interactions).toHaveLength(1);
-        expect(interactions[0].origin).toBe('spec');
+        expect(asCanvas(interactions[0]).origin).toBe('spec');
         expect(typeof interactions[0].handle).toBe('function');
         expect(dataOnly(interactions[0])).toEqual(dataOnly(brushX({ mode: 'stateful', dimOpacity: 0.3 })));
     });
 
     it('keeps a linked brush rectangle on screen when stated stateful, and a lasso never', () => {
         const source = (options: Record<string, unknown>) =>
-            resolveInteractionSpec({ interactions: [{ type: 'linked-brush', options: { groupBy: 'Country', ...options } }] })
-                .interactions[0].eventSource;
+            asCanvas(resolveInteractionSpec({ interactions: [{ type: 'linked-brush', options: { groupBy: 'Country', ...options } }] })
+                .interactions[0]).eventSource;
         expect(source({})).toMatchObject({ type: 'region', mode: 'ephemeral' });
         expect(source({ mode: 'stateful' })).toMatchObject({ type: 'region', mode: 'stateful' });
         expect(source({ mode: 'stateful', brush: 'lasso' })).toMatchObject({ regionGeometry: 'lasso', mode: 'ephemeral' });
@@ -91,7 +98,7 @@ describe('resolveInteractionSpec', () => {
             options: { axes: 'x', pan: false, reset: ['click-none'] },
         };
         const { interactions } = resolveInteractionSpec({ interactions: [entry] });
-        expect(interactions[0].eventSource).toMatchObject({
+        expect(asCanvas(interactions[0]).eventSource).toMatchObject({
             type: 'navigation', axes: 'x', pan: false, reset: ['click-none'],
         });
         expect(dataOnly(interactions[0])).toEqual(dataOnly(navigate({ axes: 'x', pan: false, reset: ['click-none'] })));

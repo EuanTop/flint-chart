@@ -61,7 +61,8 @@ describe('live values', () => {
                     if (change.width !== undefined) view.width(change.width);
                     if (change.height !== undefined) view.height(change.height);
                     view.resize();
-                    await view.runAsync('enter');
+                    // Vega's typings omit runAsync's optional encode-set argument.
+                    await (view as View & { runAsync(encode?: string): Promise<View> }).runAsync('enter');
                     const fresh = new View(parse(structuredClone(next)), { renderer: 'none' });
                     const drawn = await svgOf(view);
                     const expected = await svgOf(fresh);

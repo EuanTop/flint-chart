@@ -33,8 +33,8 @@ describe('FlintTable', () => {
     it('reads emphasis only from set-style layers that emphasize', () => {
         const test = emphasizedRows(table, [emphasize('Europe')])!;
         expect(table.rows.map((_row, i) => test(i))).toEqual([true, false, false]);
-        const hidden: ChartUpdate = { id: 'h', ops: [{ op: 'set-style', targets: [{ select: { key: { region: 'Asia' } } }], value: { state: 'hidden' } }] };
-        expect(emphasizedRows(table, [hidden])).toBeNull();
+        const muted: ChartUpdate = { id: 'm', ops: [{ op: 'set-style', targets: [{ select: { key: { region: 'Asia' } } }], value: { state: 'muted' } }] };
+        expect(emphasizedRows(table, [muted])).toBeNull();
     });
 
     it('sorts a measure descending first, then ascending, then as drawn', () => {

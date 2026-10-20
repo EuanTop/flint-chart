@@ -33,7 +33,8 @@ const INPUT = {
 };
 
 describe('public API smoke', () => {
-  it('renderSvg renders a static SVG through Vega-Lite and through ECharts', async () => {
+  // The first render loads both backends cold, which can outrun the 5 s default on a loaded runner.
+  it('renderSvg renders a static SVG through Vega-Lite and through ECharts', { timeout: 30_000 }, async () => {
     const vl = await renderSvg(INPUT as any);
     expect(vl.startsWith('<svg')).toBe(true);
     expect(vl).toContain('weight');

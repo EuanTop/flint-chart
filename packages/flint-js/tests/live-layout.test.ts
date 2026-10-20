@@ -94,7 +94,7 @@ describe('live layout of a navigated bar chart', () => {
         const freshY = findVegaAxisScale(freshSpec as any, 'y')!.name;
 
         for (const expr of [undefined, expressionInterpreter]) {
-            const view = new View(parse(vega, null, { ast: true } as any), { renderer: 'none', expr } as any);
+            const view = new View(parse(vega, undefined, { ast: true } as any), { renderer: 'none', expr } as any);
             await view.runAsync();
             // The fresh chart's x domain covers exactly the months it shows, so the same domain is the window.
             const domain = (fresh.scale(freshX).domain() as Date[]).map((value) => +value);

@@ -3,7 +3,7 @@ import { INTERACTION_RESET_GESTURES, normalizeResetGestures, SELECTION_RESET } f
 import { INTERACTION_PRESET_TYPES } from '../src/core/interaction-spec';
 import { INTERACTION_PRESETS } from '../src/interactive/spec/registry';
 import { resolveInteractionSpec } from '../src/interactive/spec/resolve';
-import { clickHighlight, hoverGroupFocus, legendToggle, navigate } from '../src/interactive/interactions';
+import { clickHighlight, hoverGroupFocus, isCanvasInteraction, legendToggle, navigate } from '../src/interactive/interactions';
 import type { InteractionEntry } from '../src/core/interaction-spec';
 
 const REQUIRED: Partial<Record<string, Record<string, unknown>>> = {
@@ -60,7 +60,7 @@ describe('reset in a spec', () => {
         const { interactions } = resolveInteractionSpec({
             interactions: [{ type: 'click-highlight', options: { reset: ['escape'] } }],
         });
-        expect(interactions[0].reset).toEqual(['escape']);
+        expect(interactions.filter(isCanvasInteraction)[0].reset).toEqual(['escape']);
     });
 
     it('rejects a reset on a preset that retains nothing', () => {
@@ -94,7 +94,7 @@ describe('the dispatcher picks interactions by their own list', () => {
 
 describe('admission: a double-click cannot both activate and reset', () => {
     const PLAN = { capabilities: ['elements', 'cartesian-region', 'navigation'] as const, navigationAxes: ['x'] as const };
-    const fromSpec = (entries: readonly InteractionEntry[]) => resolveInteractionSpec({ interactions: entries }).interactions;
+    const fromSpec = (entries: readonly InteractionEntry[]) => resolveInteractionSpec({ interactions: entries }).interactions.filter(isCanvasInteraction);
 
     it('drops the later spec entry with a warning', async () => {
         const { admitInteractions } = await import('../src/interactive/spec/admission');

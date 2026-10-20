@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { compile } from 'vega-lite';
 import { assembleECharts, assembleExcel, assembleVegaLite } from '../src';
+import type { ChartAssemblyInput } from '../src';
 
 const HEATMAP_DATA = [
   { day: 'Mon', hour: '09:00', value: 1 },
@@ -83,7 +84,7 @@ describe('heatmap color defaults', () => {
   });
 
   it('draws no grid through the cells, even on a banded temporal axis', () => {
-    const input = {
+    const input: ChartAssemblyInput = {
       data: { values: [
         { month: '2025-01-01', game: 'A', users: 3 },
         { month: '2025-02-01', game: 'A', users: 5 },
