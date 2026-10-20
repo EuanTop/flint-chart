@@ -155,7 +155,7 @@ export function assembleECharts(input: ChartAssemblyInput): any {
 
     const prelimConvertedData = convertTemporalData(data, semanticTypes);
     const prelimSemantics = resolveChannelSemantics(
-        normalized.encodings, data, semanticTypes, prelimConvertedData,
+        normalized.encodings, data, semanticTypes, prelimConvertedData, { chartType: chartTemplate.chart },
     );
     const typedRawEncodings: Record<string, ChartEncoding> = {};
     for (const [ch, enc] of Object.entries(normalized.encodings)) {
@@ -201,7 +201,7 @@ export function assembleECharts(input: ChartAssemblyInput): any {
     const convertedData = convertTemporalData(data, semanticTypes);
 
     const channelSemantics = resolveChannelSemantics(
-        encodings, data, semanticTypes, convertedData,
+        encodings, data, semanticTypes, convertedData, { chartType: chartTemplate.chart },
     );
 
     // Finalize zero-baseline (requires template mark knowledge)

@@ -25,6 +25,9 @@ import type {
     InstantiateContext,
     ChartWarning,
 } from '../core/types';
+import { isDateField } from '../core/decisions';
+import { crowdedCalendarLabels } from '../core/calendar-labels';
+import { toTypeString } from '../core/field-semantics';
 
 /**
  * Phase 2: Apply layout and semantic decisions to the Chart.js config object.
@@ -112,6 +115,29 @@ export function cjsApplyLayoutToSpec(
                 ...(config.options.scales.x.ticks.font || {}),
                 size: layout.xLabel.fontSize,
             };
+        }
+
+        // Dates on a category x axis: as written, or as a calendar names them where crowded.
+        const xcs = channelSemantics.x;
+        const labels = config.data?.labels;
+        if (Array.isArray(labels) && xcs?.field && (xcs.type === 'nominal' || xcs.type === 'ordinal')
+            && (config.options.scales.x.type ?? 'category') === 'category') {
+            const values: string[] = labels.map((label: unknown) => String(label));
+            const named = isDateField(toTypeString(context.semanticTypes?.[xcs.field]), values)
+                ? crowdedCalendarLabels(values, layout.xStep, layout.xLabel.fontSize ?? 12)
+                : undefined;
+            if (named) {
+                const byValue = new Map(values.map((value, index) => [value, named[index]]));
+                const ticks = config.options.scales.x.ticks;
+                // An array draws as lines, the year under the month.
+                ticks.callback = function (this: any, value: number) {
+                    const label = String(this.getLabelForValue(value));
+                    const lines = byValue.get(label);
+                    return lines ? (lines.length > 1 ? lines : lines[0]) : label;
+                };
+                ticks.minRotation = 0;
+                ticks.maxRotation = 0;
+            }
         }
         // Axis title (scale title) font — canvas-adaptive header size.
         if (config.options.scales.x.title?.display) {

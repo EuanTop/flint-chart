@@ -46,6 +46,101 @@ export interface EncodingTypeDecision {
     channelOverride: boolean;
     /** Whether the type was overridden by cardinality/fraction guard */
     cardinalityGuard: boolean;
+    /** A date drawn as a row of snapshots: discrete bands, one per date ({@link readsAsSnapshots}). */
+    snapshots?: boolean;
+}
+
+/** What the chart around a channel says about how its type is read. */
+export interface EncodingTypeContext {
+    /** The chart type the channel is drawn in. */
+    chartType?: string;
+}
+
+/**
+ * Charts whose position axis is a row of bands. A date on that axis is laid out as bands either
+ * way; a time scale there only places them, so where the dates read as a few snapshots the axis
+ * names each one instead.
+ */
+export const BANDED_CHART_TYPES: ReadonlySet<string> = new Set([
+    'Bar Chart', 'Stacked Bar Chart', 'Grouped Bar Chart', 'Lollipop Chart', 'Bar Table',
+    'Waterfall Chart', 'Pyramid Chart', 'Heatmap', 'Boxplot', 'Violin Plot', 'Strip Plot', 'Ranged Dot Plot',
+]);
+
+/** Up to this many dates, a banded axis names each one. */
+export const SNAPSHOT_MAX_DATES = 8;
+/** Dates filling less than this share of the periods between the first and the last are snapshots. */
+export const SNAPSHOT_MAX_COVERAGE = 0.5;
+/** Past this many dates, bands are too many to name: the axis stays a time scale. */
+export const SNAPSHOT_MAX_BANDS = 50;
+
+const DAY_MS = 86_400_000;
+
+/** A date value as UTC epoch ms, reading a bare year (2025, "2025") as its first day. */
+export function snapshotTime(value: unknown): number | undefined {
+    if (value instanceof Date) return Number.isFinite(value.getTime()) ? value.getTime() : undefined;
+    if (typeof value === 'number') {
+        if (Number.isInteger(value) && value >= 1000 && value <= 2999) return Date.UTC(value, 0, 1);
+        return Number.isFinite(value) ? value : undefined;
+    }
+    if (typeof value !== 'string') return undefined;
+    const text = value.trim();
+    if (/^\d{4}$/.test(text)) return Date.UTC(Number(text), 0, 1);
+    const time = Date.parse(text);
+    return Number.isFinite(time) ? time : undefined;
+}
+
+const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+
+/** A field of points in open time (dates, years, months of a year), not a cycle (months, weekdays). */
+export function isDateField(semanticType: string | undefined, values: readonly unknown[]): boolean {
+    if (semanticType && isRegistered(semanticType)) {
+        const entry = getRegistryEntry(semanticType);
+        return entry.t0 === 'Temporal' && entry.t1 !== 'Duration' && entry.domainShape !== 'cyclic';
+    }
+    return inferVisCategory([...values]) === 'temporal';
+}
+
+/**
+ * The distinct values of a date field in time order, as strings, where every value reads as a
+ * date; undefined where any does not (the field keeps the order its rows give).
+ */
+export function chronologicalOrder(values: readonly unknown[]): string[] | undefined {
+    const seen = new Map<string, number>();
+    for (const value of values) {
+        if (value == null || value === '') continue;
+        const key = value instanceof Date ? value.toISOString() : String(value);
+        if (seen.has(key)) continue;
+        const time = snapshotTime(value);
+        if (time === undefined) return undefined;
+        seen.set(key, time);
+    }
+    if (seen.size < 2) return undefined;
+    return [...seen.entries()].sort((a, b) => a[1] - b[1]).map(([key]) => key);
+}
+
+/**
+ * Whether dates on a banded axis read as a few snapshots rather than a run of time: few of them
+ * ({@link SNAPSHOT_MAX_DATES}), or calendar dates that fill under half the periods between the
+ * first and the last at their finest regular step (July and December fill two of six months;
+ * weekly dates fill every week). Dates off the calendar grid (times of day) count by number only.
+ */
+export function readsAsSnapshots(values: readonly unknown[]): boolean {
+    const times = [...new Set(values.map(snapshotTime).filter((time): time is number => time !== undefined))]
+        .sort((a, b) => a - b);
+    if (times.length < 2) return false;
+    if (times.length <= SNAPSHOT_MAX_DATES) return true;
+    if (times.length > SNAPSHOT_MAX_BANDS) return false;
+    const dates = times.map((time) => new Date(time));
+    const midnight = dates.every((d) => d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0);
+    if (!midnight) return false;
+    const monthly = dates.every((d) => d.getUTCDate() === 1);
+    const index = monthly
+        ? dates.map((d) => d.getUTCFullYear() * 12 + d.getUTCMonth())
+        : times.map((time) => Math.round(time / DAY_MS));
+    const step = index.slice(1).reduce((g, value, i) => gcd(g, value - index[i]), 0);
+    if (!(step > 0)) return false;
+    const periods = (index[index.length - 1] - index[0]) / step + 1;
+    return index.length / periods < SNAPSHOT_MAX_COVERAGE;
 }
 
 // ---------------------------------------------------------------------------
@@ -135,6 +230,8 @@ function resolveTemporalEncoding(
     data: any[],
     fieldName: string,
     fromRegistry: boolean,
+    context: EncodingTypeContext = {},
+    fieldValues: any[] = data.map(r => r[fieldName]),
 ): EncodingTypeDecision {
     // Temporal on facet/size channels → ordinal (VL limitation)
     if (['size', 'column', 'row'].includes(channel)) {
@@ -150,6 +247,11 @@ function resolveTemporalEncoding(
     // Validate temporal parsing
     if (!validateTemporalParsing(data, fieldName, fromRegistry)) {
         return { vlType: 'ordinal', visCategory, channelOverride: false, cardinalityGuard: false };
+    }
+    // A few dates along a row of bands are snapshots: each band is named, not placed on a time scale.
+    if ((channel === 'x' || channel === 'y') && context.chartType && BANDED_CHART_TYPES.has(context.chartType)
+        && readsAsSnapshots(fieldValues)) {
+        return { vlType: 'ordinal', visCategory, channelOverride: true, cardinalityGuard: true, snapshots: true };
     }
     return { vlType: 'temporal', visCategory, channelOverride: false, cardinalityGuard: false };
 }
@@ -225,14 +327,15 @@ function disambiguateMultiEncoding(
     data: any[],
     fieldName: string,
     fieldValues: any[],
+    context: EncodingTypeContext = {},
 ): EncodingTypeDecision {
     const has = (vc: VisCategory) => candidates.includes(vc);
 
-    // ── Temporal + Ordinal (Year, YearMonth, Decade, etc.) ────────
+    // ── Temporal + Ordinal (Year, YearMonth, Decade, …) ────────
     // Time-unit granules. Temporal for continuous time axes (x/y);
     // ordinal for grouping channels (color, facet, size).
     if (has('temporal') && has('ordinal')) {
-        return resolveTemporalEncoding('temporal', channel, data, fieldName, true);
+        return resolveTemporalEncoding('temporal', channel, data, fieldName, true, context, fieldValues);
     }
 
     // ── Quantitative + Ordinal (Score, Rating) ────────────────────
@@ -302,6 +405,7 @@ function disambiguateMultiEncoding(
  * @param channel        VL channel name (e.g. 'x', 'y', 'color')
  * @param data           Full data table (for computing unique value counts)
  * @param fieldName      Field name (for data lookups)
+ * @param context        The chart around the channel (its type)
  */
 export function resolveEncodingType(
     semanticType: string,
@@ -309,6 +413,7 @@ export function resolveEncodingType(
     channel: string,
     data: any[],
     fieldName: string,
+    context: EncodingTypeContext = {},
 ): EncodingTypeDecision {
     // ═══════════════════════════════════════════════════════════════════
     // Stage 1: Registry-driven resolution
@@ -322,7 +427,7 @@ export function resolveEncodingType(
 
         if (candidates.length > 1) {
             // Multiple encodings listed — disambiguate semantically
-            return disambiguateMultiEncoding(candidates, channel, data, fieldName, fieldValues);
+            return disambiguateMultiEncoding(candidates, channel, data, fieldName, fieldValues, context);
         }
 
         // Single encoding — use it directly with channel adjustments
@@ -349,7 +454,7 @@ export function resolveEncodingType(
         }
 
         if (baseType === 'temporal') {
-            return resolveTemporalEncoding(baseType, channel, data, fieldName, true);
+            return resolveTemporalEncoding(baseType, channel, data, fieldName, true, context, fieldValues);
         }
         if (baseType === 'ordinal') {
             return applyOrdinalGuards(baseType, channel, data, fieldName, fieldValues, true);
@@ -373,7 +478,7 @@ export function resolveEncodingType(
 
     switch (visCategory) {
         case 'temporal':
-            return resolveTemporalEncoding(visCategory, channel, data, fieldName, false);
+            return resolveTemporalEncoding(visCategory, channel, data, fieldName, false, context, fieldValues);
 
         case 'ordinal':
             return applyOrdinalGuards(visCategory, channel, data, fieldName, fieldValues, false);
@@ -758,6 +863,11 @@ export interface LabelSizingDecision {
     labelCut?: boolean;
     /** How names along x that did not stand flat and whole were set (`chooseXLabels`), for the renderers and the report. */
     overflow?: { step: LabelFitStep; trimmed: boolean; needed: number; band: number; shown?: string[] };
+    /**
+     * `calendar`: dates along x are named as a calendar names them (`labelLines`, by `labelValues`),
+     * because as written they would not stand flat and whole and the calendar's names read shorter.
+     */
+    labelForm?: 'calendar';
 }
 
 export function fitTwoLineLabels(labels: string[], fontSize: number, maxWidth: number, ellipsis = false,

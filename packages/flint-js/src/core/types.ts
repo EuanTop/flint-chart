@@ -149,6 +149,12 @@ export interface ChannelSemantics {
      * Resolved from semantic type + data characteristics + channel rules.
      */
     type: 'quantitative' | 'nominal' | 'ordinal' | 'temporal';
+    /**
+     * A position axis of dates drawn as a row of snapshots: discrete bands, one per date, because
+     * the dates are few or sparse along a banded chart. Every band keeps its name: the axis never
+     * thins its labels to round dates.
+     */
+    snapshots?: boolean;
 
     // --- Formatting ---
     /** Axis/legend number format */

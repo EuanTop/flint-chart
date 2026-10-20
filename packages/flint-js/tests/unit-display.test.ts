@@ -43,7 +43,8 @@ describe('explicit unit display policy', () => {
         expect(axis.title).toMatchObject({ unit: 'kg', placement: 'subtitle' });
         const encoding = spec.encoding ?? spec.layer.find((layer: any) => layer.encoding?.y)?.encoding;
         expect(encoding.y.axis.labelExpr).toContain('kg');
-        expect(spec.title.subtitle).toEqual(['gain (kg)']);
+        // No headline: the deck is drawn as the title.
+        expect(spec.title.text).toBe('gain (kg)');
     });
 
     it('normalizes conventional compact unit names', () => {

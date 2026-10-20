@@ -11,6 +11,7 @@
 
 import { ChartTemplateDef } from '../../core/types';
 import type { ChartPropertyDef, OptionEvalContext } from '../../core/types';
+import { BANDED_CHART_TYPES, readsAsSnapshots } from '../../core/decisions';
 
 // --- Individual chart imports ---
 import { scatterPlotDef, regressionDef, rangedDotPlotDef, boxplotDef } from './scatter';
@@ -175,14 +176,19 @@ const AXIS_DTYPE_CHARTS = new Set([
  *  continuous time scale makes sense, so the toggle is not offered. */
 const AXIS_DTYPE_MAX_CATEGORIES = 50;
 
-function makeAxisDtypeCheck(axis: 'x' | 'y') {
+function makeAxisDtypeCheck(axis: 'x' | 'y', banded: boolean) {
     return (ctx: OptionEvalContext): { applicable: boolean; recommendedValue?: any } => {
         const cs = ctx.channelSemantics?.[axis];
         if (!cs?.field) return { applicable: false };
+        // Dates read as snapshots along a banded chart are drawn discrete by default; a time
+        // scale stays one choice away.
+        const snapshots = Boolean(cs.snapshots) || (banded && cs.type === 'temporal'
+            && readsAsSnapshots((ctx.data ?? []).map(r => r[cs.field])));
+        const recommendedValue = snapshots ? 'nominal' : 'temporal';
         // Once the user picks a value the override flips cs.type, so keep
         // the control visible on any explicit choice.
         const choice = ctx.chartProperties?.[`${axis}AxisType`];
-        if (choice != null) return { applicable: true, recommendedValue: 'temporal' };
+        if (choice != null || cs.snapshots) return { applicable: true, recommendedValue };
         // Otherwise offer only the genuine dual-interpretation case: a
         // date-like axis the resolver made temporal, with a modest number of
         // distinct values so discrete bands stay readable.
@@ -191,28 +197,20 @@ function makeAxisDtypeCheck(axis: 'x' | 'y') {
             (ctx.data ?? []).map(r => r[cs.field]).filter(v => v != null && v !== ''),
         );
         const dual = distinct.size >= 2 && distinct.size <= AXIS_DTYPE_MAX_CATEGORIES;
-        return { applicable: dual, recommendedValue: 'temporal' };
+        return { applicable: dual, recommendedValue };
     };
 }
 
-const AXIS_DTYPE_PROPERTIES: ChartPropertyDef[] = [
-    {
-        key: 'xAxisType', label: 'X as', type: 'discrete',
+function axisDtypeProperties(banded: boolean): ChartPropertyDef[] {
+    return (['x', 'y'] as const).map((axis) => ({
+        key: `${axis}AxisType`, label: `${axis.toUpperCase()} as`, type: 'discrete' as const,
         options: [
             { value: 'temporal', label: 'Temporal' },
             { value: 'nominal', label: 'Discrete' },
         ],
-        check: makeAxisDtypeCheck('x'),
-    },
-    {
-        key: 'yAxisType', label: 'Y as', type: 'discrete',
-        options: [
-            { value: 'temporal', label: 'Temporal' },
-            { value: 'nominal', label: 'Discrete' },
-        ],
-        check: makeAxisDtypeCheck('y'),
-    },
-];
+        check: makeAxisDtypeCheck(axis, banded),
+    }));
+}
 
 /**
  * The reader's answer to "print the numbers on the marks?".
@@ -266,7 +264,7 @@ function withInjectedProperties(def: ChartTemplateDef): ChartTemplateDef {
         ...(supportsFacetAxisControl ? FACET_AXIS_PROPERTIES : []),
         ...(isPosition ? LOG_SCALE_PROPERTIES : []),
         ...(isPosition ? ZERO_BASELINE_PROPERTIES : []),
-        ...(wantsAxisDtype ? AXIS_DTYPE_PROPERTIES : []),
+        ...(wantsAxisDtype ? axisDtypeProperties(BANDED_CHART_TYPES.has(def.chart)) : []),
         ...(VALUE_LABEL_CHARTS.has(def.chart) ? VALUE_LABEL_PROPERTIES : []),
     ];
     if (extra.length === 0) return def;

@@ -27,16 +27,9 @@ import type {
     ChartWarning,
 } from '../core/types';
 import { computePaddedDomain } from '../core/semantic-types';
-import { getVisCategory } from '../core/semantic-types';
 import { toTypeString } from '../core/field-semantics';
-import {
-    looksLikeDateString,
-    analyzeTemporalField,
-    computeDataVotes,
-    pickBestLevel,
-    levelToFormat,
-    SEMANTIC_LEVEL,
-} from '../core/resolve-semantics';
+import { isDateField } from '../core/decisions';
+import { crowdedCalendarLabels } from '../core/calendar-labels';
 import { ColorDecisionResult } from '../core/color-decisions';
 import { getPaletteForScheme } from './colormap';
 import { DEFAULT_COLORS } from './templates/utils';
@@ -745,6 +738,30 @@ export function ecApplyLayoutToSpec(
         }
     }
 
+    // ── Dates on a category x axis: as written, or as a calendar names them where crowded ──
+    {
+        const xAxis = option.xAxis;
+        const xcs = channelSemantics.x;
+        if (xAxis && !Array.isArray(xAxis) && xAxis.type === 'category' && Array.isArray(xAxis.data) && xcs?.field
+            && (xcs.type === 'nominal' || xcs.type === 'ordinal')) {
+            const values: string[] = xAxis.data.map((d: any) => String(d?.value ?? d));
+            const semanticType = toTypeString(context.semanticTypes[xcs.field]);
+            const named = isDateField(semanticType, values)
+                ? crowdedCalendarLabels(values, layout.xStep, xAxis.axisLabel?.fontSize ?? layout.xLabel?.fontSize ?? 11)
+                : undefined;
+            if (named) {
+                const byValue = new Map(values.map((value, index) => [value, named[index].join('\n')]));
+                const existing = xAxis.axisLabel?.formatter;
+                xAxis.axisLabel = {
+                    ...xAxis.axisLabel,
+                    formatter: (value: string) => byValue.get(String(value))
+                        ?? (typeof existing === 'function' ? existing(value) : value),
+                    rotate: 0,
+                };
+            }
+        }
+    }
+
     // ── Adjust bottom margin for rotated x-axis labels ──────────────────
     // When x-axis labels are rotated (especially 90°), increase nameGap and
     // grid.bottom to prevent overlap between rotated labels and axis title.
@@ -844,37 +861,6 @@ export function ecApplyLayoutToSpec(
             if (yAxis.axisLabel.color == null) yAxis.axisLabel.color = '#333';
             if (!yAxis.nameTextStyle) yAxis.nameTextStyle = { fontSize: 12, color: '#333' };
         }
-    }
-
-    // ── Ordinal temporal: category axes with date-like labels ──────────────
-    // VL applyOrdinalTemporalFormat: format nominal/ordinal axis as dates when data looks like dates.
-    for (const axis of ['x', 'y'] as const) {
-        const axisObj = option[`${axis}Axis`];
-        if (!axisObj || axisObj.type !== 'category') continue;
-        const cs = channelSemantics[axis];
-        if (!cs?.field || (cs.type !== 'nominal' && cs.type !== 'ordinal')) continue;
-        const semanticType = toTypeString(context.semanticTypes[cs.field]);
-        if (getVisCategory(semanticType) !== 'temporal') continue;
-        const fieldVals = context.table.map((r: any) => r[cs.field]).filter((v: any) => v != null);
-        const datelikeCnt = fieldVals.filter((v: any) =>
-            typeof v !== 'string' || looksLikeDateString(String(v))
-        ).length;
-        if (datelikeCnt < fieldVals.length * 0.5) continue;
-        const analysis = analyzeTemporalField(fieldVals);
-        if (!analysis) continue;
-        const votes = computeDataVotes(analysis.same);
-        const semLevel = SEMANTIC_LEVEL[semanticType];
-        if (semLevel !== undefined) votes[semLevel] += 3;
-        const { level, score } = pickBestLevel(votes);
-        if (score < 5) continue;
-        const fmt = levelToFormat(level, analysis);
-        if (!fmt) continue;
-        if (!axisObj.axisLabel) axisObj.axisLabel = {};
-        const existingFormatter = axisObj.axisLabel.formatter;
-        axisObj.axisLabel.formatter = (value: string) => {
-            const formatted = formatCategoryTemporal(value, fmt);
-            return typeof existingFormatter === 'function' ? existingFormatter(formatted) : formatted;
-        };
     }
 
     // ── Temporal format (time / value axes) ──────────────────────────────
@@ -1323,16 +1309,6 @@ function convertTemporalFormat(d3Format: string): string {
 
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const MONTH_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-/**
- * Format a category-axis label as date when it parses as valid date.
- * Used for ordinal temporal (nominal/ordinal channel with date-like strings).
- */
-function formatCategoryTemporal(value: string, d3Format: string): string {
-    const d = new Date(value);
-    if (isNaN(d.getTime())) return value;
-    return formatTimestamp(d.getTime(), d3Format);
-}
 
 /**
  * Format a numeric timestamp using a d3-style format string.

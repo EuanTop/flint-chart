@@ -247,3 +247,37 @@ export function sampleRamp(stops: string[], n: number): string[] {
     }
     return out;
 }
+
+/** The most of a ramp its faint end may give up to reach the surface contrast. */
+const MAX_RAMP_TRIM = 0.5;
+
+/**
+ * `n` colours from a ramp, one per bin: each the ramp's colour at the middle of its bin, so no bin
+ * takes the ramp's palest end. The faint end (the one nearer the surface) is first trimmed to
+ * where the ramp stands `minContrast`:1 off `surface`, at most half of it. N ordered values and N
+ * bins of a measure take the same colours.
+ */
+export function sampleRampBins(stops: string[], n: number, surface?: string, minContrast = 1): string[] {
+    const parsed = stops.map((s) => parseColor(s)).filter(Boolean) as RGB[];
+    if (parsed.length === 0 || n <= 0) return [];
+    if (parsed.length === 1) return new Array(n).fill(toHex(parsed[0]));
+    const at = (t: number): string => {
+        const x = Math.max(0, Math.min(1, t)) * (parsed.length - 1);
+        const lo = Math.min(parsed.length - 2, Math.floor(x));
+        return toHex(mix(parsed[lo], parsed[lo + 1], x - lo));
+    };
+    let from = 0;
+    let to = 1;
+    if (surface && parseColor(surface) && minContrast > 1) {
+        const faintAtStart = contrastRatio(at(0), surface) <= contrastRatio(at(1), surface);
+        let trim = MAX_RAMP_TRIM;
+        for (let k = 0; k <= MAX_RAMP_TRIM * 100; k++) {
+            if (contrastRatio(at(faintAtStart ? k / 100 : 1 - k / 100), surface) >= minContrast) {
+                trim = k / 100;
+                break;
+            }
+        }
+        if (faintAtStart) from = trim; else to = 1 - trim;
+    }
+    return Array.from({ length: n }, (_, i) => at(from + (to - from) * (i + 0.5) / n));
+}

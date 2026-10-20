@@ -80,7 +80,7 @@ export function analyzeChart(
     // type-enriched encodings, then resolve semantics on the result below (so
     // that, e.g., a value-sort correctly suppresses the field's canonical
     // ordinal ordering).
-    const inferredTypes = resolveChannelTypes(normalized.encodings, data, semanticTypes);
+    const inferredTypes = resolveChannelTypes(normalized.encodings, data, semanticTypes, { chartType: template.chart });
     const typedRawEncodings: Record<string, ChartEncoding> = {};
     for (const [ch, enc] of Object.entries(normalized.encodings)) {
         typedRawEncodings[ch] = enc.type
@@ -95,7 +95,7 @@ export function analyzeChart(
     // encoding level so the whole pipeline (sorting, layout, formatting) honors
     // it — resolveChannelSemantics treats an explicit encoding.type as
     // authoritative. Whether each control is *offered* is decided by the
-    // property's own `check` (see AXIS_DTYPE_PROPERTIES).
+    // property's own `check` (see axisDtypeProperties).
     for (const axis of ['x', 'y'] as const) {
         const choice = chartProperties?.[`${axis}AxisType`];
         if ((choice === 'temporal' || choice === 'nominal') && typedRawEncodings[axis]?.field) {
@@ -152,7 +152,7 @@ export function analyzeChart(
     const convertedData = convertTemporalData(data, semanticTypes);
 
     const channelSemantics = resolveChannelSemantics(
-        encodings, data, semanticTypes, convertedData,
+        encodings, data, semanticTypes, convertedData, { chartType: template.chart },
     );
 
     // Finalize zero-baseline (requires template mark knowledge)

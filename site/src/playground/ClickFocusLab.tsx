@@ -1434,7 +1434,7 @@ export function ClickFocusLab({ source: initialSource = 'code', mode: selectedMo
     overscrollFraction: 0,
   });
   const [resetVersion, setResetVersion] = useState(0);
-  const [showSpec, setShowSpec] = useState(true);
+  const [showSpec, setShowSpec] = useState(false);
   const [probes, setProbes] = useState<Record<string, ProbeStatus>>({});
   const onProbe = useCallback((id: string, status: ProbeStatus) => {
     setProbes((current) => current[id] === status ? current : { ...current, [id]: status });
@@ -1509,27 +1509,6 @@ export function ClickFocusLab({ source: initialSource = 'code', mode: selectedMo
 
   return (
     <div className="dev-page cf-page">
-      {!embedded && <div className="cf-action-rail" role="toolbar" aria-label="Interaction mode">
-        {[unitInteractionModes, compositionInteractionModes].map((modes, sectionIndex) => (
-          <Fragment key={sectionIndex === 0 ? 'unit' : 'composition'}>
-            {sectionIndex > 0 && <div className="cf-action-divider" role="separator" />}
-            {modes.map(({ value, label, icon: Icon }) => (
-              <button
-                key={value}
-                type="button"
-                className={mode === value ? 'active' : ''}
-                aria-label={label}
-                aria-pressed={mode === value}
-                title={label}
-                onClick={() => setMode(value)}
-              >
-                <Icon size={15} strokeWidth={1.8} aria-hidden="true" />
-                <span>{label}</span>
-              </button>
-            ))}
-          </Fragment>
-        ))}
-      </div>}
       <header className={`dev-page-heading cf-heading${embedded ? ' cf-heading-with-code' : ''}`}>
         <div>
         {embedded ? <>
@@ -1550,32 +1529,27 @@ export function ClickFocusLab({ source: initialSource = 'code', mode: selectedMo
             <p className="cf-events-doc-link">See <LocaleLink to="/documentation/interaction-components" className="site-text-link">Interaction components</LocaleLink> for how to read and handle Flint events.</p>
           </section>}
         </> : <>
-        <h1>{source === 'spec' ? 'Interaction gallery, from a spec' : 'Interaction gallery'}</h1>
-        {source === 'spec' ? (
-          <p>
-            The same cases as Test cases, but every chart mounts from <code>interaction_spec</code> instead
-            of factory calls. Open <em>interaction_spec</em> on a card to read the JSON it used. A card marked
-            unsupported still rendered; the message under its header names the entry the chart dropped.
-          </p>
-        ) : (
-          <p>Choose an interaction mode, then try it across the compatible chart cases:</p>
-        )}
-        <ul className="cf-interaction-list">
-          <li><strong>Click highlight:</strong> Click a mark, legend entry, or categorical axis label to focus its cohort.</li>
-          <li><strong>Click group focus:</strong> Click a mark to focus related marks in the same category or series.</li>
-          <li><strong>Hover group focus:</strong> Hover a mark to preview matching semantic keys without changing retained state.</li>
-          <li><strong>Annotate:</strong> Click a mark to search nearby free space and connect its represented value.</li>
-          <li><strong>Select:</strong> Drag a rectangle to focus all marks within an area.</li>
-          <li><strong>Linked brush:</strong> Brush marks to highlight matching semantic groups across available views.</li>
-          <li><strong>X brush:</strong> Drag across an X interval; polar charts automatically use an angular sector.</li>
-          <li><strong>Y brush:</strong> Drag vertically to focus marks across a Y interval.</li>
-          <li><strong>Angle brush:</strong> Drag an angular sector across a pie, donut, rose, or radar chart.</li>
-          <li><strong>Stateful brush:</strong> Move the committed interval, resize either edge, or click outside to clear it.</li>
-          <li><strong>Pan & zoom:</strong> Drag continuous axes to pan; use the wheel, trackpad, or a two-finger pinch to zoom.</li>
-          <li><strong>Context menu:</strong> Select marks or open a mark menu, then let the host application provide contextual actions.</li>
-          <li><strong>Assisted and keyboard:</strong> Move to a target to see a shared indicator and compact semantic details.</li>
-          <li><strong>Accessible navigation:</strong> Tab into a chart and walk titles, axes, legends, headers, series, and marks; each step names the element and what it represents.</li>
-        </ul>
+        <h1>Interaction test cases</h1>
+        <p>Every compatible test case for one interaction mode{source === 'spec' ? ', mounted from its interaction_spec' : ''}.</p>
+        <div className="cf-action-rail cf-action-row" role="toolbar" aria-label="Interaction mode">
+          {[unitInteractionModes, compositionInteractionModes].map((modes, sectionIndex) => (
+            <Fragment key={sectionIndex === 0 ? 'unit' : 'composition'}>
+              {sectionIndex > 0 && <div className="cf-action-divider" role="separator" />}
+              {modes.map(({ value, label, icon: Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={mode === value ? 'active' : ''}
+                  aria-pressed={mode === value}
+                  onClick={() => setMode(value)}
+                >
+                  <Icon size={14} strokeWidth={1.8} aria-hidden="true" />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </Fragment>
+          ))}
+        </div>
         <div className="cf-summary">
           <span><strong>{visibleCases.length}</strong> test cases</span>
           <span className={tally.ready === visibleCases.length ? 'cf-summary-ok' : undefined}>

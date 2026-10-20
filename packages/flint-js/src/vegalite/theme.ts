@@ -40,7 +40,7 @@ import type { ValueLabelPlan } from '../core/value-label-plan';
 import { LABEL_SIDE, measureValueLabels } from '../core/value-label-measure';
 import { RADIAL_OUTSIDE_GAP } from '../core/arc-label-fit';
 import { groupPadding } from '../core/group-gaps';
-import { pointOutlineWidth, type LayoutPlan } from '../core/plan';
+import { coupledPointOpacity, MIN_HALO_DOT, pointHaloWidth, pointOutlineWidth, type LayoutPlan } from '../core/plan';
 import type { FurniturePlan } from '../core/furniture-plan';
 import type { SeriesEndLayout } from '../core/series-end';
 import type { LegendPlan, PlannedKey } from '../core/legend-plan';
@@ -357,9 +357,9 @@ function titleOf(enc: any): string | undefined {
 
 export function realizeThemeVegaLite(
     spec: any, d: DesignDecisions, table: any[] = [],
-    planned: Partial<Pick<LayoutPlan, 'axisLabels' | 'title' | 'valueLabels' | 'furniture' | 'legend' | 'points' | 'pointSize' | 'rules' | 'rowNames'>> = {},
+    planned: Partial<Pick<LayoutPlan, 'axisLabels' | 'title' | 'valueLabels' | 'furniture' | 'legend' | 'points' | 'pointSize' | 'lineWidth' | 'rules' | 'rowNames'>> = {},
 ): ThemeReport[] {
-    const { axisLabels, title, valueLabels, furniture, legend, points, pointSize, rules, rowNames } = planned;
+    const { axisLabels, title, valueLabels, furniture, legend, points, pointSize, lineWidth, rules, rowNames } = planned;
     const report: ThemeReport[] = [];
     const say: ReportDeparture = (path, code, message) => report.push({ stage: 'realize', path, code, message });
 
@@ -371,9 +371,9 @@ export function realizeThemeVegaLite(
     clearAxisCorner(spec, config, table);
     moveAxisTitlesToSubtitle(spec, d, title?.deck);
     applyZeroRule(spec, d, table);
-    applyMarks(spec, d, table, say, points, pointSize);
+    applyMarks(spec, d, table, say, points, pointSize, lineWidth);
     applySeriesInk(spec, d, table, say, legend);
-    harmonizeLinePoints(spec, d, table, say);
+    harmonizeLinePoints(spec, d, table, say, lineWidth);
     applyConnectors(spec, d);
     applyRedundantChannels(spec, d, say);
     if (legend?.demoted) say('legend.placement', legend.demotedFrom === 'inside' ? 'legend-inside-covered' : 'series-end-not-drawn', legend.demoted);
@@ -395,7 +395,7 @@ export function realizeThemeVegaLite(
     applyTypeCase(spec, config, d, table, say);
     applyDisplayType(spec, d);
     applyTableStyle(spec, d);
-    applyPointOpacity(config, d);
+    applyPointOpacity(config, d, say, pointSize);
     applyPointShape(spec, config, d);
     applyLegendSwatch(spec, d);
     applyMinorGrid(spec, config, d, table, say);
@@ -411,14 +411,80 @@ export function realizeThemeVegaLite(
 
 /**
  * How opaque the house's dots are. Vega-Lite draws unaggregated dots at 0.7 unless told; the
- * config tells it, and a chart that set its own opacity on the mark keeps it.
+ * config tells it, and a chart that set its own opacity on the mark keeps it. A fading house's dots
+ * that the plan shrank rise toward solid ({@link coupledPointOpacity}).
  */
-function applyPointOpacity(config: any, d: DesignDecisions): void {
-    const opacity = d.marks.point?.opacity;
-    if (opacity == null) return;
+function applyPointOpacity(config: any, d: DesignDecisions, say: ReportDeparture, pointSize?: number): void {
+    const house = d.marks.point?.opacity;
+    if (house == null) return;
+    const opacity = coupledPointOpacity(house, d.marks.point?.size, pointSize);
+    if (opacity !== house) {
+        say('marks.point.opacity', 'fade-follows-shrink',
+            `the plot is full, so the dots shrink to ${pointSize}px² and their opacity rises from ${house} to ${opacity}: a lone dot stays readable while piles still darken`);
+    }
     for (const family of ['point', 'circle', 'square'] as const) {
         config[family] = { ...(config[family] ?? {}), opacity };
     }
+}
+
+/**
+ * Whether standalone dots carry the house's halo: it declared one, the dots are solid, and no
+ * outline takes the stroke. A halo and an opacity are two answers to overlap, and they cancel: a
+ * ring cuts a clean edge through the solid dot beneath it, while an opacity lets stacked dots add up
+ * to a darker pile, which the rings would break into a lattice. A house that fades its dots keeps the
+ * opacity.
+ */
+function dotHaloOn(d: DesignDecisions): boolean {
+    const dot = d.marks.point;
+    // A hollow dot is its ring: one in the page's colour would leave nothing to see.
+    return Boolean(dot?.haloDots && dot.haloColor && !d.marks.outline && dot.filled !== false && (dot.opacity ?? 1) >= 1);
+}
+
+/** Whether a dot mark sets its own opacity, on the mark or as an encoding: the chart's choice, which the halo yields to. */
+function dotFadedByChart(node: any): boolean {
+    const opacity = typeof node.mark === 'object' ? node.mark?.opacity : undefined;
+    return (typeof opacity === 'number' && opacity < 1) || node.encoding?.opacity !== undefined;
+}
+
+/**
+ * The house's halo on standalone dots: a ring in the plot's colour, a quarter of the dot's radius
+ * so it does not eat small dots, at most the house's width ({@link pointHaloWidth}). Dots under
+ * {@link MIN_HALO_DOT} px² keep no ring: it would be most of the dot. Ringed dots, and a halo house's
+ * dots too small for one, are solid; Vega-Lite would otherwise draw them at 0.7. A chart that fades
+ * its own dots keeps its opacity and loses the ring.
+ */
+function applyDotHalo(spec: any, config: any, d: DesignDecisions, say: ReportDeparture, pointSize?: number): void {
+    const dot = d.marks.point;
+    if (dot?.haloDots && (dot.opacity ?? 1) < 1) {
+        say('marks.point.halo', 'halo-yields-to-opacity',
+            'the house fades its dots, and a ring would break the darker pile an opacity shows into a lattice, so the dots carry no ring');
+    }
+    if (!dotHaloOn(d)) return;
+    const size = pointSize ?? dot!.size ?? 30;
+    const ringed = size >= MIN_HALO_DOT;
+    if (!ringed) {
+        say('marks.point.halo', 'halo-dropped-small-dots',
+            `the dots are ${size}px², too small for a ring that would be most of the dot, so they are drawn solid without one`);
+    }
+    const width = pointHaloWidth(d, size);
+    // `circle` and `square` are filled dots; a bare `point` is hollow unless the house fills it, and
+    // its config also styles a line's dots, which take their halo from `config.line.point`.
+    const families = dot!.filled === true ? (['point', 'circle', 'square'] as const) : (['circle', 'square'] as const);
+    for (const family of families) {
+        config[family] = { ...(config[family] ?? {}), ...(ringed ? { stroke: dot!.haloColor, strokeWidth: width } : {}), opacity: 1 };
+    }
+    if (!ringed) return;
+    let saidChart = false;
+    walk(spec, (node) => {
+        const type = markTypeOf(node.mark);
+        if (type !== 'point' && type !== 'circle' && type !== 'square') return;
+        if (!dotFadedByChart(node)) return;
+        node.mark = { ...normalizeMark(node.mark), strokeWidth: 0 };
+        if (!saidChart) {
+            say('marks.point.halo', 'halo-yields-to-opacity', 'the chart fades its dots, so they carry no ring');
+            saidChart = true;
+        }
+    });
 }
 
 /** Vega's names for the house's glyphs. */
@@ -2024,6 +2090,7 @@ function applyRadarMarks(spec: any, d: DesignDecisions): void {
 
 function applyMarks(
     spec: any, d: DesignDecisions, table: any[], say: ReportDeparture, points?: LayoutPlan['points'], pointSize?: number,
+    lineWidth?: number,
 ): void {
     const config = spec.config;
     const m = d.marks;
@@ -2031,7 +2098,8 @@ function applyMarks(
     const plotHeight = spec.config?.view?.continuousHeight ?? spec._height ?? 300;
 
     applyRadarMarks(spec, d);
-    config.line = { ...(config.line ?? {}), strokeWidth: m.strokeWidth };
+    // The plan thins the house's weight where many series share the plot (`plan.lineWidth`).
+    config.line = { ...(config.line ?? {}), strokeWidth: lineWidth ?? m.strokeWidth };
     config.trail = { ...(config.trail ?? {}), size: m.strokeWidth };
     if (m.strokeCap) { config.line.strokeCap = m.strokeCap; config.rule = { ...(config.rule ?? {}), strokeCap: m.strokeCap }; }
     if (m.strokeJoin) config.line.strokeJoin = m.strokeJoin;
@@ -2083,7 +2151,7 @@ function applyMarks(
             }
         }
     }
-    protectDashEncoding(spec, config, m.strokeWidth);
+    protectDashEncoding(spec, config, lineWidth ?? m.strokeWidth);
 
     // Dots whose size this house deliberately cut to fit the room its panel
     // gives them. The ring-writing passes below hand a bare `point: true` the
@@ -2102,9 +2170,9 @@ function applyMarks(
             ...(m.point.filled === false
                 ? { strokeWidth: m.point.haloWidth ?? m.outline?.width ?? 1.5 }
                 : m.outline
-                    ? { stroke: m.outline.color, strokeWidth: m.outline.width }
+                    ? { stroke: m.outline.color, strokeWidth: pointOutlineWidth(d, m.point.vertexSize ?? m.point.size ?? 24) }
                     : m.point.haloColor
-                        ? { stroke: m.point.haloColor, strokeWidth: m.point.haloWidth ?? 1 }
+                        ? { stroke: m.point.haloColor, strokeWidth: pointHaloWidth(d, m.point.vertexSize ?? m.point.size ?? 24) }
                         : {}),
         };        // A point on a line marks a reading. A fitted line has no readings —
         // it is sampled wherever the fit needs sampling, which for a straight
@@ -2213,13 +2281,17 @@ function applyMarks(
             if (!mark.point) return;
             const point = typeof mark.point === 'object' ? mark.point : {};
             const hollow = (point.filled ?? dot.filled) === false;
+            const size = dot.size ?? point.size ?? 30;
             mark.point = {
                 ...point,
                 ...(point.filled == null ? { filled: dot.filled !== false } : {}),
                 ...(dot.size != null ? { size: dot.size } : {}),
                 // A hollow dot is its ring: a stroke in the page's colour would leave nothing to see.
                 ...(hollow ? {} : { stroke: m.outline?.color ?? dot.haloColor }),
-                strokeWidth: m.outline?.width ?? dot.haloWidth ?? 1,
+                // A filled dot's ring follows its size; a hollow dot's ring is the dot, drawn at the house's width.
+                strokeWidth: hollow
+                    ? m.outline?.width ?? dot.haloWidth ?? 1
+                    : m.outline ? pointOutlineWidth(d, size) : pointHaloWidth(d, size),
             };
             node.mark = mark;
         });
@@ -2283,6 +2355,7 @@ function applyMarks(
             });
         }
     }
+    applyDotHalo(spec, config, d, say, pointSize);
 
     padScaleForDots(spec, points, table);
 
@@ -2647,6 +2720,7 @@ function harmonizeLinePoints(
     d: DesignDecisions,
     table: any[],
     say: ReportDeparture,
+    lineWidth?: number,
 ): void {
     let saidDensity = false;
     walk(spec, (node) => {
@@ -2677,10 +2751,10 @@ function harmonizeLinePoints(
             const size = Math.round(d.marks.point.size * shrink * shrink);
             point.size = size;
             if (point.stroke === d.marks.outline.color) {
-                point.strokeWidth = Math.max(1, Number((d.marks.outline.width * shrink).toFixed(1)));
+                point.strokeWidth = pointOutlineWidth(d, size);
             }
             if (shrink < 1) {
-                mark.strokeWidth = Math.max(1, Number((d.marks.strokeWidth * shrink).toFixed(1)));
+                mark.strokeWidth = Math.max(1, Number(((lineWidth ?? d.marks.strokeWidth) * shrink).toFixed(1)));
                 if (!saidDensity) {
                     say('marks.point.size', 'dots-shrunk',
                         `${readings} connected readings shrink the house's dots to ${size}px² and its line to ${mark.strokeWidth}px together, so the dot stays the same bead on the same string`);
@@ -3107,11 +3181,22 @@ function niceSpan(start: number, stop: number, count: number): [number, number] 
  * the scale to the renderer.
  */
 function roundedFieldDomain(enc: any, table: any[], count: number): [number, number] | undefined {
+    const extent = plainFieldExtent(enc, table);
+    if (!extent) return undefined;
+    const [lo, hi] = extent;
+    const [a, b] = niceSpan(lo, hi, count);
+    // Rounding only ever pushes outward; anything else means the arithmetic
+    // disagreed with the data, and a domain inside it would clip.
+    if (!(a <= lo && b >= hi)) return undefined;
+    return [a, b];
+}
+
+/** The smallest and largest value of a plain numeric field, read off the table, or nothing. */
+function plainFieldExtent(enc: any, table: any[]): [number, number] | undefined {
     if (!Array.isArray(table) || !table.length) return undefined;
     if (typeof enc?.field !== 'string') return undefined;
     if (enc.aggregate || enc.bin || enc.timeUnit || enc.stack) return undefined;
     if (enc.type && enc.type !== 'quantitative') return undefined;
-
     let lo = Infinity;
     let hi = -Infinity;
     for (const row of table) {
@@ -3120,13 +3205,18 @@ function roundedFieldDomain(enc: any, table: any[], count: number): [number, num
         if (v < lo) lo = v;
         if (v > hi) hi = v;
     }
-    if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi <= lo) return undefined;
+    return Number.isFinite(lo) && Number.isFinite(hi) && hi > lo ? [lo, hi] : undefined;
+}
 
-    const [a, b] = niceSpan(lo, hi, count);
-    // Rounding only ever pushes outward; anything else means the arithmetic
-    // disagreed with the data, and a domain inside it would clip.
-    if (!(a <= lo && b >= hi)) return undefined;
-    return [a, b];
+/**
+ * Whether a domain pinned at both ends already keeps every dot clear of the plot's edges: the
+ * data stops at least one dot radius short of each end, at the axis's planned length.
+ */
+function domainClearsDots(domain: [number, number] | undefined, data: [number, number] | undefined, length: number | undefined, radius: number): boolean {
+    if (!domain || !data || !length || length <= 0 || !(domain[1] > domain[0])) return false;
+    if (data[0] < domain[0] || data[1] > domain[1]) return false;
+    const room = Math.min(data[0] - domain[0], domain[1] - data[1]) / (domain[1] - domain[0]);
+    return room * length >= radius;
 }
 
 /**
@@ -3189,9 +3279,16 @@ function padScaleForDots(spec: any, points: LayoutPlan['points'], table: any[]):
             const count = typeof enc.scale?.nice === 'number' ? enc.scale.nice : undefined;
             const rounded = count != null ? roundedFieldDomain(enc, table, count) : undefined;
             if (rounded) pinned[ch] = rounded;
+            // Where the domain's ends, rounded here or by the axis ruler, already leave a dot's radius
+            // of room, padding would only pull the end ticks off the plot's edge: the axis line drawn
+            // there would sit below the zero it stands for.
+            const ends: [number, number] | undefined = rounded
+                ?? (typeof enc.scale?.domainMin === 'number' && typeof enc.scale?.domainMax === 'number'
+                    ? [enc.scale.domainMin, enc.scale.domainMax] : undefined);
+            const roomy = domainClearsDots(ends, plainFieldExtent(enc, table), points.lengths?.[ch], radius);
             enc.scale = {
                 ...(enc.scale ?? {}),
-                padding: radius,
+                ...(roomy ? {} : { padding: radius }),
                 ...(rounded ? { domainMin: rounded[0], domainMax: rounded[1] } : {}),
                 nice: false,
             };
@@ -6240,7 +6337,7 @@ function applyPointEmphasis(spec: any, d: DesignDecisions, say: ReportDeparture)
                 filled: true,
                 size: policy.size,
                 ...(d.marks.point?.haloColor
-                    ? { stroke: d.marks.point.haloColor, strokeWidth: d.marks.point.haloWidth ?? 1 }
+                    ? { stroke: d.marks.point.haloColor, strokeWidth: pointHaloWidth(d, policy.size) }
                     : {}),
                 ...(colourEnc ? {} : { color: d.series.single }),
             },

@@ -701,7 +701,7 @@ describe('Vega-Lite semantic interactions', () => {
         expect(groups(lines).find((mark) => mark.type === 'line').clip).toBe(true);
 
         const bars = navigated({
-            chart_spec: { chartType: 'Stacked Bar Chart', encodings: { x: { field: 'Month' }, y: { field: 'Price' }, color: { field: 'Food' } } },
+            chart_spec: { chartType: 'Stacked Bar Chart', encodings: { x: { field: 'Month', type: 'temporal' }, y: { field: 'Price' }, color: { field: 'Food' } } },
             semantic_types: { Month: 'YearMonth', Price: 'Number', Food: 'Category' },
             theme_spec: { extends: 'datawrapper', geometry: { band: { cornerRadius: 2 } } },
             data: { values: ['2020-01', '2020-02', '2020-03'].flatMap((Month) => ['A', 'B'].map((Food, index) => ({ Month, Food, Price: 1 + index }))) },

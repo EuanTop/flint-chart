@@ -64,14 +64,14 @@ describe('parseTemporalByType', () => {
 describe('YearMonth integers in a chart', () => {
   const rows = [202501, 202502, 202503].flatMap((period) => ['A', 'B'].map((game, i) => ({ period, game, users: period % 100 + i })));
 
-  it('converts the rows and resolves a temporal axis', () => {
+  it('converts the rows and reads three months on a heatmap as discrete bands', () => {
     expect(convertTemporalData(rows, { period: 'YearMonth' })[0].period).toBe('2025-01');
     const vl = assembleVegaLite({
       data: { values: rows },
       semantic_types: { period: 'YearMonth', game: 'Category', users: 'Quantity' },
       chart_spec: { chartType: 'Heatmap', encodings: { x: { field: 'period' }, y: { field: 'game' }, color: { field: 'users' } } },
     }) as any;
-    expect(vl.encoding.x.type).toBe('temporal');
+    expect(vl.encoding.x.type).toBe('ordinal');
     expect(vl.data.values.map((r: any) => r.period)).toContain('2025-02');
   });
 });

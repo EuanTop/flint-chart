@@ -473,6 +473,12 @@ export interface ThemeMarks {
          * every line, the dots shrinking to fit; `sparse` — only where readings stand 20px apart or more.
          */
         density?: 'countable' | 'all' | 'sparse';
+        /**
+         * A ring in the plot's surface colour around each dot, so dots that overlap, or sit on a line,
+         * stay countable. A line's dots get one wherever lines can cross unless this says `omit`; a
+         * scatter's dots get one only where it is declared. An `outline` takes its place (a dot has
+         * one stroke). A halo and an opacity below 1 are not combined: ringed dots are solid.
+         */
         halo?: { presence?: Presence; width?: number };
     };
     connector?: {
@@ -909,13 +915,21 @@ export interface PointGeometry {
     shape?: PointShape;
     /**
      * How opaque a dot is, 0–1. Unset, the renderer's own: Vega-Lite draws a scatter's dots at 0.7
-     * so overlaps show through. A house whose marks are flat planes states 1. A chart's own
+     * so overlaps show through. A house whose marks are flat planes states 1. Dots a full plot shrinks
+     * rise toward solid, holding diameter × opacity. A chart's own
      * `opacity` property still wins.
      */
     opacity?: number;
     /** The ink of a line's vertex dots: `series` (default), `text`, or a colour. */
     ink?: 'series' | 'text' | string;
     outlineWidth?: number;
+    /**
+     * A ring in the plot's colour around each dot, so overlapping dots stay countable. A line's dots
+     * get one wherever lines can cross unless this says `omit`; a scatter's dots only where it is
+     * declared. A quarter of the dot's radius, at most `width`; a scatter's dots under 28px² get
+     * none. An outline takes its place. Not combined with an `opacity` below 1: ringed dots are solid.
+     */
+    halo?: { presence?: Presence; width?: number };
     /**
      * Which lines keep the dots (M5): `countable` (default) — lines of up to 12 readings; `all` —
      * every line, the dots shrinking to fit; `sparse` — only where readings stand 20px apart or more.
@@ -1423,6 +1437,8 @@ export interface ResolvedMarks {
         density: 'countable' | 'all' | 'sparse';
         haloColor?: string;
         haloWidth?: number;
+        /** Set where the house declared a halo: standalone dots (a scatter's) carry it too, not only a line's. */
+        haloDots?: boolean;
     };
     /** The area a sized mark may take, smallest to largest, in px². */
     sizeRange?: [number, number];

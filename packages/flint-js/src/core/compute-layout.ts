@@ -45,7 +45,7 @@
  */
 
 import { applyTextCase, type TextCase } from './text-case';
-import { chooseXLabels, type LabelFitThresholds } from './band-label-choice';
+import { chooseXLabels, EXPANSION_COST, SHRINK_COST, type LabelFitThresholds, type XLabelChoice } from './band-label-choice';
 import { DEFAULT_LABEL_OVERFLOW, DEFAULT_SEQUENCE_OVERFLOW } from './axis-labels';
 import type { SequenceKind } from './label-sequence';
 import type {
@@ -68,9 +68,11 @@ import {
     computeLabelSizing,
     computeFontSizing,
     DEFAULT_GAS_PRESSURE_PARAMS,
+    isDateField,
     type ElasticStretchParams,
     type GasPressureParams,
 } from './decisions';
+import { calendarLabels } from './calendar-labels';
 import { planBandDodge } from './band-dodge';
 import { naturalAspectRange, shapeDivergence, widenRange, FALLBACK_WIDEN, type AspectRange } from './natural-shape';
 
@@ -185,6 +187,35 @@ export function resolveStretchCaps(options: AssembleOptions): { x: number; y: nu
 /** Default base (target) chart size in pixels when the spec omits `baseSize`. */
 export const DEFAULT_BASE_SIZE = { width: 400, height: 320 } as const;
 
+/** What renaming dates as a calendar names them costs a reader, over the names as written. */
+const CALENDAR_COST = 0.05;
+
+/**
+ * Calendar names set flat and whole: at each size from the stated one to the floor, in bands
+ * widened to hold the widest line where the plot has room. The cheapest, as the band-label choice
+ * costs a smaller size and wider bands; undefined where none stands.
+ */
+function flatCalendarFit(
+    lines: string[][],
+    at: { stated: number; floor: number; measure: (fontSize: number) => (text: string) => number; step: number; baseSpan: number; gapEm?: number },
+): XLabelChoice | undefined {
+    const span = Math.max(1, at.baseSpan);
+    const count = lines.length;
+    let best: XLabelChoice | undefined;
+    for (let size = at.stated; size >= at.floor - 1e-9; size -= 0.5) {
+        const widthOf = at.measure(size);
+        const gap = at.gapEm !== undefined ? at.gapEm * size : Math.max(6, size / 2);
+        const needed = Math.max(0, ...lines.flat().map(widthOf)) + gap;
+        const band = Math.max(at.step, needed);
+        // Bands widen only as far as the plot has room; bands already wider need none.
+        if (band > at.step && band * count > span + 1e-9) continue;
+        const cost = SHRINK_COST * (at.stated - size) / at.stated
+            + EXPANSION_COST * Math.max(0, band * count - at.step * count) / span;
+        if (!best || cost < best.cost) best = { step: 'fit', trimmed: false, fontSize: size, angle: 0, band, needed, cost };
+    }
+    return best;
+}
+
 /** The widest a band label runs before it is cut, as Vega draws it by default. */
 export const AXIS_LABEL_LIMIT = 180;
 
@@ -244,8 +275,8 @@ export function planBandLabels(
         // The width a canvas fit gives the names down y, so the chart area takes the width its box leaves.
         const givenRowWidth = channel === 'y' ? assembleOptions.canvasTreatment?.rowNames : undefined;
         const ownGutter = rowLabelLimit(options.fit, canvasSize.width, layout.subplotWidth);
-        const fitAt = (fontSize: number, stretchToFit = false, compareBaseline = true, gutterLimit = givenRowWidth ?? ownGutter) => computeBandLabelLayout({
-            labels: shown, axis: channel, fontSize, step,
+        const fitAt = (fontSize: number, stretchToFit = false, compareBaseline = true, gutterLimit = givenRowWidth ?? ownGutter, texts = shown) => computeBandLabelLayout({
+            labels: texts, axis: channel, fontSize, step,
             baseSpan, maxSpan, gutterLimit,
             baselineLimit: sizing.labelLimit,
             elasticity: assembleOptions.elasticity ?? 0.5,
@@ -258,16 +289,39 @@ export function planBandLabels(
             const sequence = options.overflow ?? (options.sequence ? DEFAULT_SEQUENCE_OVERFLOW : DEFAULT_LABEL_OVERFLOW);
             const floor = Math.min(stated, Math.max(options.minFontSize ?? 0, stated * 0.75));
             const measure = options.measure ?? ((fontSize: number) => (text: string) => text.length * fontSize * APPROX_CHAR_WIDTH_RATIO);
-            const choice = chooseXLabels({
+            const choiceInput = {
                 values: labels, shown, stated, floor, measure, step,
                 fillStep: Math.floor(baseSpan / labels.length), baseSpan,
-                wrapAt: (fontSize, stretch) => fitAt(fontSize, stretch, false),
+                wrapAt: (fontSize: number, stretch: boolean) => fitAt(fontSize, stretch, false),
                 steps: sequence,
                 ...(options.sequence ? { sequence: options.sequence } : {}),
                 noTrim: options.noLimit === true,
                 thresholds: labelFitThresholds(options.fit, layout.subplotHeight),
-            });
+            };
+            let choice = chooseXLabels(choiceInput);
             if (!choice) continue;
+            // Dates that would shrink, turn, wrap or be cut as written take the calendar's names (`Jul`
+            // over `2025`, `Aug`, … for `2025-07`, `2025-08`, …) where every line of those stands flat
+            // and whole, and costs less.
+            let calendar: string[][] | undefined;
+            if ((choice.step !== 'fit' || choice.fontSize < stated) && isDateField(semantics.semanticAnnotation?.semanticType, labels)) {
+                const order = semantics.ordinalSortOrder?.map(String);
+                const axisOrder = order && labels.every((label) => order.includes(label))
+                    ? order.filter((value) => labels.includes(value)) : labels;
+                const named = calendarLabels(axisOrder);
+                if (named) {
+                    const byValue = new Map(axisOrder.map((value, index) => [value, named[index]]));
+                    const lines = labels.map((label) => (byValue.get(label) ?? [label]).map((line) => applyTextCase(line, options.textCase)));
+                    const alt = flatCalendarFit(lines, {
+                        stated, floor, measure, step, baseSpan,
+                        gapEm: labelFitThresholds(options.fit, layout.subplotHeight).gapEm,
+                    });
+                    if (alt && alt.cost + CALENDAR_COST < choice.cost) {
+                        choice = alt;
+                        calendar = lines;
+                    }
+                }
+            }
             layout.xStep = choice.band;
             const flat = choice.angle === 0;
             Object.assign(sizing, {
@@ -279,7 +333,13 @@ export function planBandLabels(
                     : flat ? Math.ceil(Math.max(choice.needed, Math.min(choice.needed * 1.15, choice.band - 4))) + 2
                     // Turned names nothing may cut run whole.
                     : options.noLimit ? 0 : sizing.labelLimit,
-                ...(choice.lines ? { labelValues: labels, labelLines: choice.lines, labelLineHeight: choice.lineHeight } : { labelValues: undefined, labelLines: undefined, labelLineHeight: undefined }),
+                ...(choice.lines ? { labelValues: labels, labelLines: choice.lines, labelLineHeight: choice.lineHeight }
+                    : calendar ? {
+                        labelValues: labels, labelLines: calendar,
+                        labelLineHeight: calendar.some((lines) => lines.length > 1) ? Math.ceil(choice.fontSize * 1.2) : undefined,
+                    }
+                    : { labelValues: undefined, labelLines: undefined, labelLineHeight: undefined }),
+                labelForm: calendar ? 'calendar' : undefined,
                 ...(choice.fontSize < stated ? { fittedFontSize: choice.fontSize } : { fittedFontSize: undefined }),
                 ...(choice.step === 'fit' ? { overflow: undefined } : {
                     overflow: {

@@ -139,8 +139,12 @@ How series colour holds up past the palette and on the page:
   `geometry.point.density` (`countable`, `all`, `sparse`) says which lines keep
   dots; `geometry.point.shape` (`circle`, `square`, `diamond`, `triangle`,
   `cross`) is the glyph every dot is drawn as, and `geometry.point.opacity`
-  how opaque (unset, a scatter's dots are 0.7); `geometry.arc.order` (`data`,
-  `largestFirst`), `startAngle` and `hole` state pie rules.
+  how opaque (unset, a scatter's dots are 0.7; on a full plot shrunk dots rise
+  toward solid); `geometry.point.halo: { presence, width }` rings a scatter's
+  dots in the plot colour (declare it only where the house's dots carry a ring;
+  a halo and an opacity below 1 are not combined, so declare one or the other);
+  `geometry.arc.order` (`data`, `largestFirst`), `startAngle` and `hole` state
+  pie rules.
 - `marks.redundantChannels: ["texture"]` with `marks.texture` draws pattern
   fills on bars, wedges and areas: `pattern: "vary" | "hatch"`, or the guide's
   own order as `patterns` (`solid`, `diagonal`, `antidiagonal`, `horizontal`,

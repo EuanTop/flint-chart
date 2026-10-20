@@ -36,6 +36,9 @@ import {
 } from './semantic-types';
 import {
     resolveEncodingType as resolveEncodingTypeDecision,
+    chronologicalOrder,
+    isDateField,
+    type EncodingTypeContext,
 } from './decisions';
 import { hasTemporalParsers, parseTemporalByType } from './temporal-parse';
 import {
@@ -244,6 +247,10 @@ function inferImplicitSemanticType(fieldName: string, values: any[]): string {
     return allYears ? 'Year' : '';
 }
 
+/** Strings that open as an ISO date, which every engine reads alike. */
+const ISO_PREFIX = /^\d{4}-\d{2}/;
+
+
 function looksLikeDateString(s: string): boolean {
     const t = s.trim();
     return /^\d|^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(t);
@@ -444,7 +451,9 @@ export function convertTemporalData(
         for (const temporalKey of temporalKeys) {
             const val = r[temporalKey];
             const st = effectiveSemanticTypes[temporalKey];
-            const parsed = parseTemporalByType(val, st);
+            // An untyped full date in a spelling only some engines parse is read here, once.
+            const parsed = parseTemporalByType(val, st)
+                ?? (!st && typeof val === 'string' && !ISO_PREFIX.test(val.trim()) ? parseTemporalByType(val, 'Date') : null);
 
             if (parsed !== null) {
                 r[temporalKey] = parsed;
@@ -511,7 +520,8 @@ function resolveFieldChannelType(
     fieldName: string,
     data: any[],
     semanticTypes: Record<string, string | SemanticAnnotation>,
-): { semanticType: string; fieldValues: any[]; type: ChannelSemantics['type'] } {
+    context: EncodingTypeContext = {},
+): { semanticType: string; fieldValues: any[]; type: ChannelSemantics['type']; snapshots: boolean } {
     const rawAnnotation = semanticTypes[fieldName];
     const suppliedSemanticType = typeof rawAnnotation === 'string'
         ? (rawAnnotation || '')
@@ -531,7 +541,7 @@ function resolveFieldChannelType(
         }
     }
     const typeDecision = resolveEncodingTypeDecision(
-        semanticType, decisionValues, channel, decisionData, fieldName,
+        semanticType, decisionValues, channel, decisionData, fieldName, context,
     );
 
     // Apply explicit type override
@@ -552,7 +562,9 @@ function resolveFieldChannelType(
             type = 'temporal';
         }
     }
-    return { semanticType, fieldValues, type };
+    // An explicit discrete type keeps the dates' reading as snapshots; a time scale drops it.
+    const snapshots = typeDecision.snapshots === true && (type === 'ordinal' || type === 'nominal');
+    return { semanticType, fieldValues, type, snapshots };
 }
 
 /**
@@ -563,6 +575,7 @@ export function resolveChannelTypes(
     encodings: Record<string, ChartEncoding>,
     data: any[],
     semanticTypes: Record<string, string | SemanticAnnotation>,
+    context: EncodingTypeContext = {},
 ): Record<string, ChannelSemantics['type']> {
     const types: Record<string, ChannelSemantics['type']> = {};
     for (const [channel, encoding] of Object.entries(encodings)) {
@@ -573,7 +586,7 @@ export function resolveChannelTypes(
         }
         types[channel] = encoding.aggregate
             ? 'quantitative'
-            : resolveFieldChannelType(channel, encoding, fieldName, data, semanticTypes).type;
+            : resolveFieldChannelType(channel, encoding, fieldName, data, semanticTypes, context).type;
     }
     return types;
 }
@@ -594,12 +607,14 @@ export function resolveChannelTypes(
  * @param semanticTypes   Field name -> semantic type string
  * @param convertedData   Pre-converted temporal data (from convertTemporalData).
  *                        If omitted, falls back to data for temporal format detection.
+ * @param context         The chart around the channels (its type).
  */
 export function resolveChannelSemantics(
     encodings: Record<string, ChartEncoding>,
     data: any[],
     semanticTypes: Record<string, string | SemanticAnnotation>,
     convertedData?: any[],
+    context: EncodingTypeContext = {},
 ): SemanticResult {
     const result: SemanticResult = {};
 
@@ -624,8 +639,8 @@ export function resolveChannelSemantics(
         if (!fieldName) continue;
 
         const rawAnnotation = semanticTypes[fieldName];
-        const { semanticType, fieldValues, type: resolvedType } = resolveFieldChannelType(
-            channel, encoding, fieldName, data, semanticTypes,
+        const { semanticType, fieldValues, type: resolvedType, snapshots } = resolveFieldChannelType(
+            channel, encoding, fieldName, data, semanticTypes, context,
         );
 
         // Build ChannelSemantics entry
@@ -659,6 +674,7 @@ export function resolveChannelSemantics(
             tickConstraint,
             reversed: reversed || undefined,
             stackable,
+            ...(snapshots && !encoding.aggregate ? { snapshots: true } : {}),
         };
 
         // Adjust field name for aggregated fields (the derived column is either
@@ -724,6 +740,10 @@ export function resolveChannelSemantics(
                 const ordinalSort = inferOrdinalSortOrder(semanticType, fieldValues);
                 if (ordinalSort) {
                     cs.ordinalSortOrder = ordinalSort;
+                } else if (isDateField(semanticType, fieldValues)) {
+                    // Dates drawn as categories run in time order, whatever order the rows come in.
+                    const chronological = chronologicalOrder(temporalData.map(r => r[fieldName]));
+                    if (chronological) cs.ordinalSortOrder = chronological;
                 }
             }
         }

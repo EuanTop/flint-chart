@@ -248,17 +248,31 @@ describe('axis titles', () => {
         expect(spec.title.subtitle).toEqual(['Price (USD)']);
     });
 
-    it('renders an omitted title as a subtitle when there is no headline', async () => {
+    it('draws an omitted title as the deck when there is no headline', async () => {
         const spec = bars(house({ axisTitles: 'omit' }));
         expect(axisTitle(spec, 'y')).toBeNull();
-        expect(spec.title).toMatchObject({ text: '', subtitle: ['Rainfall'] });
+        // Vega-Lite drops a title with no text, deck and all, so the deck is drawn as the title, in its own weight.
+        expect(spec.title).toMatchObject({ text: 'Rainfall', fontWeight: 'normal' });
+        expect(spec.title.subtitle).toBeUndefined();
         const view = new View(parse(compile(spec).spec), { renderer: 'none' });
         try {
             await view.runAsync();
-            expect(await view.toSVG()).toContain('Rainfall');
+            const svg = await view.toSVG();
+            const titleGroup = svg.slice(svg.indexOf('role-title'));
+            expect(svg).toContain('role-title');
+            expect(titleGroup).toContain('>Rainfall<');
         } finally {
             view.finalize();
         }
+    });
+
+    it('draws an author\'s subtitle when the chart has no title', () => {
+        const spec = assembleVegaLite({
+            data: { values: [{ Month: 'Jan', Rainfall: 3 }, { Month: 'Feb', Rainfall: 5 }] },
+            semantic_types: { Month: 'Category', Rainfall: 'Quantity' },
+            chart_spec: { chartType: 'Bar Chart', subtitle: 'Two wet months', encodings: { x: 'Month', y: 'Rainfall' } },
+        } as any) as any;
+        expect(spec.title).toMatchObject({ text: 'Two wet months', fontWeight: 'normal' });
     });
 
     it('keeps the measure in the subtitle when the ruler is dropped for printed values', () => {

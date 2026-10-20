@@ -200,7 +200,7 @@ export function assembleExcel(input: ChartAssemblyInput): ExcelChartSpec {
     // ── Phase 0 (reused core): resolve per-channel semantics ────────────────
     let convertedData = convertTemporalData(rawData, semanticTypes);
     const sem: SemanticResult = resolveChannelSemantics(
-        encodings, rawData, semanticTypes, convertedData,
+        encodings, rawData, semanticTypes, convertedData, { chartType: flintType },
     );
     const typeOf = (ch: string) => sem[ch]?.type;
     const isMeasure = (ch: string) => typeOf(ch) === 'quantitative';

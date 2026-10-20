@@ -108,8 +108,13 @@ export interface LayoutPlan {
     legend: LegendPlan;
     /** The area the theme's dots are drawn at, in px²: its size, less where dots would ink more than 12% of a panel. */
     pointSize?: number;
+    /** Where many dots touch another at the size drawn: their share, their number, and that size in px². Noted, not acted on. */
+    crowding?: { share: number; points: number; size: number };
+    /** The width lines are drawn at, in px, where their number thins them below the house's (or Vega-Lite's) weight. */
+    lineWidth?: number;
     /** The px each dot scale opens past its ends so the outermost dot shows whole: the dot's radius, on the axes of dots nothing anchors. */
-    points?: { radius: number; channels: Array<'x' | 'y'> };
+    /** The dots' outer radius, the axes it opens, and each axis's planned length in px. */
+    points?: { radius: number; channels: Array<'x' | 'y'>; lengths?: { x: number; y: number } };
     /** The span each banded continuous axis draws, half a band past its data at each end; dates in epoch ms. */
     bandSpans: Partial<Record<'x' | 'y', { span: [number, number]; temporal: boolean }>>;
     /** The ruler each themed measure axis draws, where Flint owns it. */
@@ -212,15 +217,101 @@ function unanchoredDots(structure: ChartStructure, design: DesignDecisions, rows
     return structure.marks.some((mark) => DOT_MARKS.has(mark)) && !structure.marks.some((mark) => ANCHORED_MARKS.has(mark)) && !zeroRuled;
 }
 
-/** The area below which a dot stops reading as a dot, about 5 px across, in px². */
-const MIN_DENSE_POINT_SIZE = 20;
+/** The least a dense chart takes a dot down to, in px²: about 6 px across, still a dot to see and point at. */
+const MIN_DENSE_POINT_SIZE = 30;
+/** The least share of the house's dot a dense chart keeps, by area, so its dot keeps its character. */
+const MIN_DENSE_POINT_SHARE = 0.5;
 /** The share of a panel a chart's dots may ink between them. */
 const DOT_INK_SHARE = 0.12;
+/** The share of dots touching another past which the chart notes the crowding. */
+const CROWDED_SHARE = 0.4;
+/** The fewest dots worth a note about crowding. */
+const CROWDED_MIN_POINTS = 50;
+/** The most dots the overlap count reads; past it, an even sample stands for the rest. */
+const OVERLAP_SAMPLE = 2000;
+/** Vega-Lite's own dot area, which a chart without a house's size draws. */
+const VEGA_DOT_SIZE = 30;
+
+/** The panels a faceted chart draws, and so the panels its rows are shared among. */
+function panelCount(rows: any[], channelSemantics: Record<string, ChannelSemantics>): number {
+    let panels = 1;
+    for (const field of [channelSemantics.column?.field, channelSemantics.row?.field]) {
+        if (field) panels *= Math.max(1, new Set(rows.map((row) => row?.[field]).filter((value) => value != null)).size);
+    }
+    return panels;
+}
+
+/** A field's values as numbers along a continuous axis: dates as epoch ms, a log axis by its logarithm. */
+function axisPositions(rows: any[], field: string, temporal: boolean, log: boolean): (number | undefined)[] {
+    return rows.map((row) => {
+        const raw = row?.[field];
+        const value = temporal ? (raw instanceof Date ? raw.getTime() : typeof raw === 'number' ? raw : Date.parse(String(raw))) : Number(raw);
+        if (raw == null || raw === '' || !Number.isFinite(value) || (log && value <= 0)) return undefined;
+        return log ? Math.log(value) : value;
+    });
+}
+
+/**
+ * The share of dots that touch another at `size` px², placed by their own extent on the panel. The
+ * extent fills the panel, so the count errs low, never high. Undefined where the dots are not placed
+ * on two continuous axes.
+ */
+function dotTouchShare(
+    rows: any[], plot: { width: number; height: number }, size: number, channelSemantics: Record<string, ChannelSemantics>,
+    typeOf: (channel: 'x' | 'y') => string | undefined,
+): { share: number; points: number } | undefined {
+    const axes = (['x', 'y'] as const).map((channel) => {
+        const field = channelSemantics[channel]?.field;
+        const type = typeOf(channel);
+        if (!field || (type !== 'quantitative' && type !== 'temporal')) return undefined;
+        return axisPositions(rows, field, type === 'temporal', channelSemantics[channel]?.scaleType === 'log');
+    });
+    const [xs, ys] = axes;
+    if (!xs || !ys) return undefined;
+    const placed: [number, number][] = [];
+    for (let index = 0; index < rows.length; index++) {
+        if (xs[index] !== undefined && ys[index] !== undefined) placed.push([xs[index]!, ys[index]!]);
+    }
+    if (placed.length < 2) return undefined;
+    const step = Math.max(1, Math.floor(placed.length / OVERLAP_SAMPLE));
+    const sample = step > 1 ? placed.filter((_, index) => index % step === 0) : placed;
+    const extent = (pick: 0 | 1) => {
+        let lo = Infinity;
+        let hi = -Infinity;
+        for (const point of sample) { lo = Math.min(lo, point[pick]); hi = Math.max(hi, point[pick]); }
+        return { lo, span: hi - lo || 1 };
+    };
+    const ex = extent(0);
+    const ey = extent(1);
+    const px = sample.map(([x, y]) => [((x - ex.lo) / ex.span) * plot.width, ((y - ey.lo) / ey.span) * plot.height] as const);
+    const diameter = 2 * Math.sqrt(size / Math.PI);
+    const grid = new Map<string, number[]>();
+    const key = (cx: number, cy: number) => `${cx},${cy}`;
+    px.forEach(([x, y], index) => {
+        const cell = key(Math.floor(x / diameter), Math.floor(y / diameter));
+        const list = grid.get(cell);
+        if (list) list.push(index); else grid.set(cell, [index]);
+    });
+    let touching = 0;
+    px.forEach(([x, y], index) => {
+        const cx = Math.floor(x / diameter);
+        const cy = Math.floor(y / diameter);
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+                const hit = grid.get(key(cx + dx, cy + dy))?.some((other) => other !== index
+                    && (px[other][0] - x) ** 2 + (px[other][1] - y) ** 2 < diameter * diameter);
+                if (hit) { touching++; return; }
+            }
+        }
+    });
+    return { share: touching / px.length, points: placed.length };
+}
 
 /**
  * The area a theme's dots are drawn at: its size, shrunk where the chart's dots would ink more than
- * 12% of the panel they are drawn in between them, to no less than 20 px². Facets share the rows
- * among their panels.
+ * 12% of the panel they are drawn in between them, to no less than 30 px² or half the house's dot.
+ * Size answers how full the plot is as a whole. Dots that pile up in one place are not separated by
+ * smaller dots (ties never are) and every other dot pays for it, so crowding is noted, not shrunk.
  */
 function planPointSize(
     design: DesignDecisions, structure: ChartStructure, rows: any[], plot: { width: number; height: number },
@@ -228,15 +319,11 @@ function planPointSize(
 ): number | undefined {
     const house = design.marks.point?.size;
     if (house == null) return undefined;
-    let panels = 1;
-    for (const field of [channelSemantics.column?.field, channelSemantics.row?.field]) {
-        if (field) panels *= Math.max(1, new Set(rows.map((row) => row?.[field]).filter((value) => value != null)).size);
-    }
-    const perPanel = rows.length / panels;
+    const perPanel = rows.length / panelCount(rows, channelSemantics);
     const cloud = rows.length > 0 && structure.marks.some((mark) => DOT_MARKS.has(mark));
-    const size = cloud
-        ? Math.min(house, Math.max(MIN_DENSE_POINT_SIZE, Math.floor((plot.width * plot.height * DOT_INK_SHARE) / perPanel)))
-        : house;
+    if (!cloud) return house;
+    const floor = Math.min(house, Math.max(MIN_DENSE_POINT_SIZE, Math.round(house * MIN_DENSE_POINT_SHARE)));
+    const size = Math.min(house, Math.max(floor, Math.floor((plot.width * plot.height * DOT_INK_SHARE) / perPanel)));
     if (size !== house) {
         report.push({
             stage: 'ground',
@@ -248,10 +335,96 @@ function planPointSize(
     return size;
 }
 
+/**
+ * How crowded a single panel's dots are at the size they are drawn: noted where more than 40% of 50 or
+ * more dots touch another, so an author can choose what shows the pile-up (an opacity, a halo).
+ * Undefined where the chart sets its own opacity, or the dots are not on two continuous axes.
+ */
+function planCrowding(
+    structure: ChartStructure, rows: any[], plot: { width: number; height: number }, size: number,
+    channelSemantics: Record<string, ChannelSemantics>, typeOf: (channel: 'x' | 'y') => string | undefined,
+    chartProperties: Record<string, any> | undefined,
+): LayoutPlan['crowding'] {
+    if (!structure.marks.some((mark) => DOT_MARKS.has(mark)) || rows.length < CROWDED_MIN_POINTS) return undefined;
+    if (chartProperties?.opacity != null || panelCount(rows, channelSemantics) > 1) return undefined;
+    const touch = dotTouchShare(rows, plot, size, channelSemantics, typeOf);
+    if (!touch || touch.points < CROWDED_MIN_POINTS || touch.share <= CROWDED_SHARE) return undefined;
+    return { share: Math.round(touch.share * 100) / 100, points: touch.points, size };
+}
+
+/** The stroke below which a line stops reading as a line on screen, in px. */
+const MIN_DENSE_STROKE = 0.75;
+/** The share of a panel's height a chart's lines may ink between them. */
+const LINE_INK_SHARE = 0.15;
+/** Vega-Lite's own line width, which an unthemed chart draws. */
+const DEFAULT_STROKE = 2;
+
+/**
+ * The width a chart's lines are drawn at: the house's weight (Vega-Lite's 2 px without one), thinned
+ * where the series would ink more than 15% of the panel between them, to no less than 0.75 px. A
+ * line runs the panel's width, so its ink is its width against the panel's height; 7 series at 2 px
+ * stay as they are, 30 thin to 1.5 px, 160 to the floor. Undefined where nothing changes.
+ */
+function planLineWidth(
+    design: DesignDecisions | undefined, structure: ChartStructure, rows: any[], plot: { width: number; height: number },
+    channelSemantics: Record<string, ChannelSemantics>, report: ThemeReport[],
+): number | undefined {
+    if (!structure.marks.includes('line') || rows.length === 0 || plot.height <= 0) return undefined;
+    const base = design?.marks.strokeWidth ?? DEFAULT_STROKE;
+    const seriesFields = (['color', 'detail', 'strokeDash'] as const)
+        .map((channel) => channelSemantics[channel]?.field)
+        .filter((field): field is string => !!field);
+    if (seriesFields.length === 0) return undefined;
+    const facetFields = [channelSemantics.column?.field, channelSemantics.row?.field].filter((field): field is string => !!field);
+    const keys = new Set(rows.map((row) => [...facetFields, ...seriesFields].map((field) => String(row?.[field])).join('\u0000')));
+    const perPanel = keys.size / panelCount(rows, channelSemantics);
+    const width = Math.max(MIN_DENSE_STROKE, Math.min(base, Math.round(((plot.height * LINE_INK_SHARE) / perPanel) * 100) / 100));
+    if (width >= base) return undefined;
+    report.push({
+        stage: 'ground',
+        path: 'marks.strokeWeight',
+        code: 'lines-thinned',
+        message: `${Math.round(perPanel)} lines share the ${Math.round(plot.height)}px-tall plot: at ${base}px they would ink too much of it, so they thin to ${width}px`,
+    });
+    return width;
+}
+
+/** A halo's share of its dot's radius: enough to cut one dot from the next without eating it. */
+export const HALO_RADIUS_SHARE = 0.25;
+/** An outline's share of its dot's radius: the house's drawn edge, heavier than a halo. */
+export const OUTLINE_RADIUS_SHARE = 0.35;
+/** The thinnest outline drawn; below it a ring renders as a blur. */
+export const MIN_OUTLINE_WIDTH = 0.6;
+/** The smallest scatter dot (px², about 6 px across) that keeps a halo; on less the ring is most of the dot. */
+export const MIN_HALO_DOT = 28;
+
+/** A ring for a dot of `size` px²: `share` of the radius, at least `floor`, never more than the house's width. */
+export function ringWidth(size: number, share: number, houseWidth: number, floor = 0): number {
+    const radius = Math.sqrt(size / Math.PI);
+    return Math.min(houseWidth, Math.max(floor, Number((radius * share).toFixed(2))));
+}
+
+/** The halo a theme's dots are drawn with: a quarter of the radius, at most the house's width. */
+export function pointHaloWidth(design: DesignDecisions, size: number | undefined): number {
+    const house = design.marks.point?.haloWidth ?? 1;
+    return size != null ? ringWidth(size, HALO_RADIUS_SHARE, house) : house;
+}
+
 /** The outline a theme's dots are drawn with: thinner on small dots, so the ring does not fill them. */
 export function pointOutlineWidth(design: DesignDecisions, size: number | undefined): number | undefined {
     const outline = design.marks.outline;
-    return outline && size != null ? Math.min(outline.width, Math.max(1.2, Math.sqrt(size) * 0.22)) : outline?.width;
+    return outline && size != null ? ringWidth(size, OUTLINE_RADIUS_SHARE, outline.width, MIN_OUTLINE_WIDTH) : outline?.width;
+}
+
+/**
+ * The opacity a fading house's dots take once the plan has shrunk them. A smaller dot at the same
+ * opacity inks less, and a lone dot fades out; holding diameter × opacity raises the opacity with the
+ * lost diameter, so a lone dot stays readable while a pile still darkens. Holding area × opacity
+ * would undo the fade outright at half size.
+ */
+export function coupledPointOpacity(opacity: number, houseSize: number | undefined, size: number | undefined): number {
+    if (opacity >= 1 || houseSize == null || size == null || size >= houseSize) return opacity;
+    return Math.min(1, Number((opacity * Math.sqrt(houseSize / size)).toFixed(2)));
 }
 
 /**
@@ -262,6 +435,7 @@ function pointPadding(
     structure: ChartStructure, design: DesignDecisions, rows: any[], size: number | undefined,
     domains: Partial<Record<'x' | 'y', MeasureDomain>>, bandSpans: LayoutPlan['bandSpans'],
     typeOf: (channel: 'x' | 'y') => string | undefined, channelSemantics: Record<string, ChannelSemantics>,
+    plot: { width: number; height: number },
 ): LayoutPlan['points'] {
     if (!unanchoredDots(structure, design, rows)) return undefined;
     const radius = Math.ceil(Math.sqrt((size ?? 30) / Math.PI) + (pointOutlineWidth(design, size) ?? 0) / 2);
@@ -271,7 +445,7 @@ function pointPadding(
         return Boolean(channelSemantics[channel]?.field) && (type === 'quantitative' || type === 'temporal')
             && domains[channel]?.zero !== true && !bandSpans[channel] && !(bounds?.min !== undefined && bounds.max !== undefined);
     });
-    return radius > 0 && channels.length ? { radius, channels } : undefined;
+    return radius > 0 && channels.length ? { radius, channels, lengths: { x: plot.width, y: plot.height } } : undefined;
 }
 
 interface RulerContext {
@@ -484,7 +658,9 @@ function xLabelOverflow(theme: ThemeSpec | undefined, chartProperties: Record<st
     const sequence = sequenceKindOf(semanticType);
     // An identifier cut short names nothing: codes are never truncated, whatever the theme allows.
     const code = IDENTIFIER_TYPES.has(semanticType);
-    const overflow = resolveLabelOverflow(theme?.labels, chartProperties?.labelOverflow, sequence ? 'sequence' : 'names');
+    // Dates read as snapshots are each a separate observation: every one keeps its name.
+    const overflow = resolveLabelOverflow(theme?.labels, chartProperties?.labelOverflow, sequence ? 'sequence' : 'names')
+        .filter((step) => !(channelSemantics.x?.snapshots && step === 'skip'));
     return {
         overflow,
         ...(sequence ? { sequence } : {}),
@@ -1648,7 +1824,11 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
         }
         : undefined;
     const pointSize = theme ? planPointSize(design, structure, values, plot, channelSemantics, report) : undefined;
-    const points = theme ? pointPadding(structure, design, values, pointSize, domains, bandSpans, typeOf, channelSemantics) : undefined;
+    // A house that already fades its dots shows the pile-up; the note is for charts that do not.
+    const fadedByHouse = theme && (design.marks.point?.opacity ?? 1) < 1;
+    const crowding = fadedByHouse ? undefined : planCrowding(structure, values, plot, pointSize ?? VEGA_DOT_SIZE, channelSemantics, typeOf, chartProperties);
+    const lineWidth = planLineWidth(theme ? design : undefined, structure, values, plot, channelSemantics, report);
+    const points = theme ? pointPadding(structure, design, values, pointSize, domains, bandSpans, typeOf, channelSemantics, plot) : undefined;
     const furniture = planFurniture({
         structure, design: theme ? design : undefined, channelSemantics, declaration, layout: layoutResult,
         options: effectiveOptions, rows: values, data, canvas: size.baseSize, chartProperties,
@@ -1855,6 +2035,8 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
         domains,
         bandSpans,
         ...(pointSize !== undefined ? { pointSize } : {}),
+        ...(lineWidth !== undefined ? { lineWidth } : {}),
+        ...(crowding ? { crowding } : {}),
         ...(points ? { points } : {}),
         orders,
         ...(sizes ? { sizes } : {}),

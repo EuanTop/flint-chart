@@ -157,7 +157,7 @@ export function assemblePlotly(input: ChartAssemblyInput): any {
     // `typedRawEncodings` step (a cheap preliminary semantics pass).
     const prelimConverted = convertTemporalData(data, semanticTypes);
     const prelimSemantics = resolveChannelSemantics(
-        normalized.encodings, data, semanticTypes, prelimConverted,
+        normalized.encodings, data, semanticTypes, prelimConverted, { chartType: chartTemplate.chart },
     );
     const typedRawEncodings: Record<string, ChartEncoding> = {};
     for (const [ch, enc] of Object.entries(normalized.encodings)) {
@@ -193,7 +193,7 @@ export function assemblePlotly(input: ChartAssemblyInput): any {
     const convertedData = convertTemporalData(data, semanticTypes);
 
     const channelSemantics = resolveChannelSemantics(
-        encodings, data, semanticTypes, convertedData,
+        encodings, data, semanticTypes, convertedData, { chartType: chartTemplate.chart },
     );
 
     // Finalize zero-baseline (requires template mark knowledge)

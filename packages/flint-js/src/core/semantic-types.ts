@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 
 import { getRegistryEntry, getRegisteredTypes, isRegistered, type VisCategory } from './type-registry';
+import { parseTemporalByType } from './temporal-parse';
 export type { VisCategory } from './type-registry';
 
 /**
@@ -247,6 +248,23 @@ export function getVisCategory(semanticType: string): VisCategory | null {
 }
 
 
+/** ISO 8601 calendar dates and times: `2025-07`, `2025-07-01`, `2025-07-01T09:30:00Z`. */
+const ISO_DATE = /^\d{4}-\d{2}(-\d{2}([T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?)?$/;
+/** US slash dates (`7/1/2025`), which every engine reads the same way. */
+const US_SLASH_DATE = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
+
+/**
+ * Whether an untyped string is a date every renderer reads the same way: an ISO date or time,
+ * or a full calendar date Flint reads itself (`Jan 15, 2025`, `2025/01/15`). Labels that only some
+ * engines parse (`2025-July`, `Jul 2025`) stay categories unless a semantic type says otherwise.
+ */
+export function isUnambiguousDateString(value: string): boolean {
+    const text = value.trim();
+    if (ISO_DATE.test(text)) return Number.isFinite(Date.parse(text));
+    if (US_SLASH_DATE.test(text)) return Number.isFinite(Date.parse(text));
+    return parseTemporalByType(text, 'Date') !== null;
+}
+
 /**
  * Infer a VisCategory from raw data values when no semantic type is available.
  * Mirrors the DataType → VL encoding type mapping:
@@ -256,12 +274,9 @@ export function inferVisCategory(values: any[]): VisCategory {
     if (values.length === 0) return 'nominal';
     const isBoolean = (v: any) => v === true || v === false || Object.prototype.toString.call(v) === '[object Boolean]';
     const isNumber = (v: any) => !isNaN(+v) && !(Object.prototype.toString.call(v) === '[object Date]');
-    // Date.parse is too permissive in V8 — "FY 2018", "hello world 2018" all parse.
-    // Require the string to start with a digit or a known month-name prefix.
-    const looksLikeDate = (s: string) => /^\d|^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(s.trim());
     const isDate = (v: any) => {
         if (v instanceof Date) return !isNaN(v.getTime());
-        if (typeof v === 'string') return looksLikeDate(v) && !isNaN(Date.parse(v));
+        if (typeof v === 'string') return isUnambiguousDateString(v);
         return !isNaN(Date.parse(v));
     };
     const nonNull = values.filter(v => v != null);

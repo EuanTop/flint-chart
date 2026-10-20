@@ -77,12 +77,17 @@ export function categoryOrder(inputs: CategoryOrderInputs): CategoryOrder | unde
         }
         return value;
     });
+    // Numbers in time order (years, decades) sort by value: the same order, whatever type each stage holds them in.
+    const canonicalOrder = cs?.ordinalSortOrder;
+    const ascendingNumbers = fieldIsNumeric && Boolean(canonicalOrder?.length) && canonicalOrder!.every((value, index) =>
+        Number.isFinite(Number(value)) && (index === 0 || Number(value) > Number(canonicalOrder![index - 1])));
 
     if (encoding.sortBy !== undefined || encoding.sortOrder !== undefined) {
         const explicit = inspectEncodingSort(encoding, channel, encodings, dataFields).sort;
         if (encoding.sortBy === undefined) {
             if (!encoding.sortOrder) return undefined;
             const canonical = cs?.ordinalSortOrder;
+            if (ascendingNumbers) return { by: 'value', descending: encoding.sortOrder === 'descending' };
             return canonical?.length
                 ? { by: 'values', values: keepTypes(encoding.sortOrder === 'descending' ? [...canonical].reverse() : canonical) }
                 : { by: 'value', descending: encoding.sortOrder === 'descending' };
@@ -110,7 +115,7 @@ export function categoryOrder(inputs: CategoryOrderInputs): CategoryOrder | unde
         return undefined;
     }
     if (type !== 'nominal' && type !== 'ordinal') return undefined;
-    if (cs?.ordinalSortOrder && cs.ordinalSortOrder.length > 0) return { by: 'values', values: keepTypes(cs.ordinalSortOrder) };
+    if (cs?.ordinalSortOrder && cs.ordinalSortOrder.length > 0 && !ascendingNumbers) return { by: 'values', values: keepTypes(cs.ordinalSortOrder) };
     if (fieldIsNumeric && fieldName) return { by: 'value', descending: false };
     return { by: 'data' };
 }

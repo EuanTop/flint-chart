@@ -240,7 +240,7 @@ describe('cartoon mark character', () => {
         expect(dotSize(dense)).toBeLessThan(170);
         expect(dotSize(dense)).toBeGreaterThanOrEqual(20);
         expect(dense.config.point.strokeWidth).toBeLessThan(2.5);
-        expect(JSON.stringify(dense._theme?.report ?? [])).toContain('cover too much');
+        expect((dense._theme?.report ?? []).some((entry: any) => entry.code === 'dots-shrunk')).toBe(true);
     });
 
     it('leaves area axis geometry to Vega-Lite', () => {
@@ -750,7 +750,7 @@ describe('theme annotation.unitsInAxisTitle', () => {
         try {
             const svg = await view.toSVG();
             const labels = [...svg.matchAll(/<text[^>]*>([^<]*)<\/text>/g)]
-                .map((match) => match[1]).filter((label) => label.includes('$'));
+                .map((match) => match[1]).filter((label) => label.includes('$') && /\d/.test(label));
             expect(labels.length).toBeGreaterThan(0);
             expect(labels.every((label) => /^\$\d/.test(label))).toBe(true);
         } finally {
@@ -1658,18 +1658,26 @@ describe('plot edges', () => {
     for (const id of Object.keys(THEME_PRESETS)) {
         it(`${id}: dots are given room to sit inside the axes`, () => {
             const spec = strip(id);
-            const pads: number[] = [];
+            const scores = STRIP.map((row) => row.Score);
+            const [lo, hi] = [Math.min(...scores), Math.max(...scores)];
+            const room: boolean[] = [];
             const visit = (n: any): void => {
                 if (!n || typeof n !== 'object') return;
                 if (Array.isArray(n)) { n.forEach(visit); return; }
-                const p = n.encoding?.y?.scale?.padding;
-                if (typeof p === 'number') pads.push(p);
+                const scale = n.encoding?.y?.scale;
+                if (scale) {
+                    // Either padding for the radius of the dot the house draws, or a rounded domain
+                    // whose ends already stand clear of the data (and then no padding moves them).
+                    const padded = typeof scale.padding === 'number' && scale.padding > 0;
+                    const clear = typeof scale.domainMin === 'number' && typeof scale.domainMax === 'number'
+                        && scale.domainMin < lo && scale.domainMax > hi;
+                    room.push(padded || clear);
+                }
                 for (const k of Object.keys(n)) if (k !== 'data') visit(n[k]);
             };
             visit(spec);
-            expect(pads.length).toBeGreaterThan(0);
-            // Room enough for the radius of the dot the house draws.
-            expect(Math.min(...pads)).toBeGreaterThan(0);
+            expect(room.length).toBeGreaterThan(0);
+            expect(room.every(Boolean)).toBe(true);
         });
 
         it(`${id}: a grid never repaints the spine it lands on`, () => {

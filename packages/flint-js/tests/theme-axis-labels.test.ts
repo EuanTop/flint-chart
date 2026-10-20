@@ -144,8 +144,8 @@ describe('Pop axis label clearance', () => {
             const axis = pop.config[channel];
             expect(axis.domainWidth).toBe(4.5);
             expect(axis.labelPadding + Math.max(0, axis.tickSize + (axis.tickOffset ?? 0))).toBe(7);
-            // Swiss sets its labels flush: 2px past the plot, or past the tick on its ticked measure axis.
-            expect(swiss.config[channel].labelPadding).toBe(2);
+            // Swiss sets its labels flush: 4px past the plot, or past the tick on its ticked measure axis.
+            expect(swiss.config[channel].labelPadding).toBe(4);
         }
     });
 });
@@ -281,7 +281,7 @@ describe('temporal axis year context', () => {
                 data: { values },
                 semantic_types: { Date: 'Date', Value: 'Quantity' },
                 chart_spec: {
-                    chartType: 'Bar Chart', encodings: { x: 'Date', y: 'Value' },
+                    chartType: 'Bar Chart', encodings: { x: { field: 'Date', type: 'temporal' }, y: 'Value' },
                     baseSize: { width, height: 300 },
                 },
                 theme_spec: theme,
@@ -312,7 +312,7 @@ describe('temporal axis year context', () => {
         const spec: any = assembleVegaLite({
             data: { values: [{ date: '2022-03-01', value: 10 }, { date: '2022-09-01', value: 20 }] },
             semantic_types: { date: 'Date', value: 'Quantity' },
-            chart_spec: { chartType: 'Bar Chart', encodings: { x: 'date', y: 'value' } },
+            chart_spec: { chartType: 'Bar Chart', encodings: { x: { field: 'date', type: 'temporal' }, y: 'value' } },
             theme_spec: 'datawrapper',
         });
         const view = new View(parse(compile(spec).spec), { renderer: 'none' });

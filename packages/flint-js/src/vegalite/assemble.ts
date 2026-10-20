@@ -609,11 +609,17 @@ function emitVegaLite(input: ChartAssemblyInput, prepared: VegaLitePreparation, 
             vgObj.config = { ...vgObj.config, title: { ...vgObj.config?.title, offset: UNTHEMED_TITLE_OFFSET } };
         }
         applyChartValueColors(vgObj, channelSemantics, values);
+        // Many series thin Vega-Lite's 2 px lines, as they thin a house's (`plan.lineWidth`).
+        if (plan.lineWidth !== undefined) {
+            vgObj.config = { ...vgObj.config, line: { ...vgObj.config?.line, strokeWidth: plan.lineWidth } };
+        }
     }
     // The header — a figure label, a rule on the canvas edge, a logo beside the headline — is the
     // chart's as much as the theme's: drawn with or without one.
     applyHeaderFurniture(vgObj, plan.header);
     applySourceLine(vgObj, plan.source);
+    drawDeckWithoutHeadline(vgObj);
+    if (plan.crowding) warnings.push(crowdingWarning(plan.crowding));
     const liveLabels = design.dataLabels.liveSignal;
     if (liveLabels) {
         vgObj.params = [...(vgObj.params ?? []), {
@@ -878,6 +884,48 @@ function emitVegaLite(input: ChartAssemblyInput, prepared: VegaLitePreparation, 
         result._pivot = legacyPivot.surface;
     }
     return { spec: result, plotAsPlanned };
+}
+
+/** A note that many dots overlap, and the explicit choices that show where they pile up. */
+function crowdingWarning(crowding: NonNullable<LayoutPlan['crowding']>): ChartWarning {
+    return {
+        severity: 'info',
+        code: 'dots-crowded',
+        message: `${Math.round(crowding.share * 100)}% of the ${crowding.points} dots touch another at ${crowding.size}px². `
+            + 'Smaller dots would not separate them; to show where they pile up, set chartProperties.opacity (e.g. 0.5), '
+            + 'or give the theme a ring around dots (geometry.point.halo).',
+    };
+}
+
+/** The deck's own type, as Vega-Lite names it on a title and in `config.title`, and the title key it becomes. */
+const DECK_TYPE: [deck: string, title: string][] = [
+    ['subtitleFont', 'font'], ['subtitleFontSize', 'fontSize'], ['subtitleFontStyle', 'fontStyle'],
+    ['subtitleFontWeight', 'fontWeight'], ['subtitleColor', 'color'], ['subtitleLineHeight', 'lineHeight'],
+];
+
+/**
+ * A deck with no headline above it: an author's subtitle alone, or the axis titles a house writes in
+ * the deck on a chart with no title. Vega-Lite drops a title whose text is empty, deck and all, so
+ * the deck is drawn as the title, in the deck's own type.
+ */
+function drawDeckWithoutHeadline(spec: any): void {
+    const title = spec.title;
+    if (!title || typeof title !== 'object' || Array.isArray(title)) return;
+    const headline = [title.text ?? []].flat().filter((line: unknown) => typeof line === 'string').join('').trim();
+    const deck = [title.subtitle ?? []].flat().filter((line: unknown): line is string => typeof line === 'string' && line.trim() !== '');
+    if (headline || deck.length === 0) return;
+    const config = spec.config?.title ?? {};
+    const drawn: Record<string, unknown> = { ...title, text: deck.length === 1 ? deck[0] : deck };
+    delete drawn.subtitle;
+    delete drawn.subtitlePadding;
+    for (const [deckKey, titleKey] of DECK_TYPE) {
+        const value = title[deckKey] ?? config[deckKey];
+        delete drawn[deckKey];
+        if (value !== undefined) drawn[titleKey] = value;
+    }
+    // Vega-Lite sets a headline bold; a deck is not, wherever its weight went unsaid.
+    drawn.fontWeight ??= 'normal';
+    spec.title = drawn;
 }
 
 export function assembleVegaLite(input: ChartAssemblyInput): any {

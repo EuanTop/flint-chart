@@ -32,6 +32,7 @@ import { BandStretchingLab } from './playground/BandStretchingLab';
 import { LabelExperimentLab } from './playground/LabelExperimentLab';
 import { AxisLabelLab } from './playground/AxisLabelLab';
 import { CalendarAxisLab } from './playground/CalendarAxisLab';
+import { CategoricalTemporalLab } from './playground/CategoricalTemporalLab';
 import { ReleaseExamples100 } from './playground/release-examples/1.0.0';
 import { TestExamples } from './playground/release-examples/test-examples';
 import { OverflowViewportLab } from './playground/OverflowViewportLab';
@@ -46,7 +47,6 @@ import { InteractionConflictsLab } from './playground/InteractionConflictsLab';
 import { ChartApiDesign } from './playground/ChartApiDesign';
 import { AnnotationLab } from './playground/AnnotationLab';
 import { InteractionDashboardLab } from './playground/InteractionDashboardLab';
-import { InteractionCandidates } from './playground/InteractionCandidates';
 import { ExternalToChartLab } from './playground/ExternalToChartLab';
 import { ChartToExternalLab } from './playground/ChartToExternalLab';
 import { InteractiveDataReportLab } from './playground/InteractiveDataReportLab';
@@ -54,6 +54,8 @@ import { StyleReferences } from './playground/StyleReferences';
 import { FullTestCases } from './playground/FullTestCases';
 import { DebugGym } from './playground/DebugGym';
 import { AgentComparison } from './playground/AgentComparison';
+import { DenseMarks } from './playground/DenseMarks';
+import { DensityLab } from './playground/DensityLab';
 import { LocaleProvider, useLocale } from './i18n/LocaleContext';
 import type { Locale } from './i18n/locales';
 import { localePath } from './i18n/paths';
@@ -118,6 +120,7 @@ function AppRoutes({ locale }: { locale: Locale }) {
           <Route path="label-experiment" element={<LabelExperimentLab />} />
           <Route path="axis-label" element={<AxisLabelLab />} />
           <Route path="calendar-axis" element={<CalendarAxisLab />} />
+          <Route path="categorical-temporal" element={<CategoricalTemporalLab />} />
           <Route path="release-examples">
             <Route index element={<Navigate to="1.0.0" replace />} />
             <Route path="1.0.0" element={<ReleaseExamples100 />} />
@@ -129,7 +132,8 @@ function AppRoutes({ locale }: { locale: Locale }) {
           <Route path="zoom-clipping" element={<ZoomClippingLab />} />
           <Route path="layout-inspector" element={<LayoutInspector />} />
           <Route path="layout-plan" element={<LayoutPlanLab />} />
-          <Route path="click-focus" element={<ClickFocusLab />} />
+          <Route path="interaction-test-cases" element={<ClickFocusLab />} />
+          <Route path="click-focus" element={<Navigate to="../interaction-test-cases" replace />} />
           <Route path="annotation-lab" element={<AnnotationLab />} />
           <Route path="interaction-coverage" element={<InteractionCoverageLab />} />
           <Route path="interaction-conflicts" element={<InteractionConflictsLab />} />
@@ -140,10 +144,11 @@ function AppRoutes({ locale }: { locale: Locale }) {
           <Route path="chart-to-external" element={<ChartToExternalLab />} />
           <Route path="bespoke-interaction" element={<Navigate to={localePath('/interactions/advanced', locale)} replace />} />
           <Route path="interactive-data-report" element={<InteractiveDataReportLab />} />
-          <Route path="interaction-candidates" element={<InteractionCandidates />} />
           <Route path="style-references/:house?" element={<StyleReferences />} />
           <Route path="debug-gym" element={<DebugGym />} />
           <Route path="agent-comparison" element={<AgentComparison />} />
+          <Route path="dense-marks" element={<DenseMarks />} />
+          <Route path="density" element={<DensityLab />} />
           <Route path="year-legend" element={<Navigate to="../debug-gym" replace />} />
           {/* The Swiss and cartoon labs were the same page twice; keep the
               links they were reached by working. */}

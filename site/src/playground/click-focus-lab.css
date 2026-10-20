@@ -1139,3 +1139,29 @@ nav.ig-breadcrumb [aria-current] { color: #1f2328; }
 .cf-json-type { color: #0078d4; font-weight: 600; }
 .cf-json-string { color: #0b6e4f; }
 .cf-json-number { color: #8250df; }
+
+/* Interaction test cases: the modes as one wrapping row in the page, not a floating rail. */
+.cf-action-rail.cf-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  position: static;
+  top: auto;
+  right: auto;
+  width: auto;
+  max-height: none;
+  transform: none;
+  gap: 2px;
+  margin: 12px 0 10px;
+  padding: 4px;
+  box-shadow: none;
+}
+
+.cf-action-rail.cf-action-row button {
+  width: auto;
+}
+
+.cf-action-rail.cf-action-row .cf-action-divider {
+  width: 1px;
+  height: auto;
+  margin: 3px 4px;
+}
