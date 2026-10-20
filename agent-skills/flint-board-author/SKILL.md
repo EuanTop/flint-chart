@@ -1,16 +1,16 @@
 ---
 name: flint-board-author
-description: "Use when: several Flint charts should be read together in one view: a dashboard, KPI tiles over a trend, a side-by-side comparison, an overview with its detail; or a board on screen should change (add, retitle, resize, reconnect a chart). Produce one create_board call whose headline, chart choice, layout and connected fields are decided, refine it from the report, then show it once with show_board."
+description: "Use when: several Flint charts should be read together in one view: a dashboard, KPI tiles over a trend, a side-by-side comparison, an overview with its detail; or a board on screen should change (add, retitle, resize, reconnect a chart). Produce one create_board call whose headline, chart choice, layout and connected fields are decided, refine it from the report, then put it on screen once with show."
 ---
 
 # flint-board: several charts, one view
 
 A board holds several Flint charts under one headline. The agent builds it
 with `create_board` and changes it with `add_chart`, `update_chart`,
-`remove_chart` and `update_board`; none of these draws anything. `show_board`
+`remove_chart` and `update_board`; none of these draws anything. `show`
 puts the board's current version on screen in a new card, below the
 conversation's latest message, and earlier cards keep the version they showed.
-So call `show_board` once a turn, after the board is right. A new
+So call `show` once a turn, after the board is right. A new
 `create_board` starts a second board, so it is only for a second board.
 
 Each chart on a board is a full chart spec (`flint-chart-author`), plus an
@@ -62,10 +62,12 @@ Give each chart its own data, aggregated to what it draws: a bar, a slice or
 a cell is one row. Rows that repeat a category (monthly rows under a by-product
 bar) draw as a stack of thin slices; sum them first, or set the measure's
 `aggregate: "sum"`. A KPI tile takes
-one row: `{ metric, value, goal }`. It prints `value` as given and draws
-progress only when `value` and `goal` are both numbers, so pass them in the
-units the reader reads and name the unit in `metric`:
-`{ "metric": "Gross margin, %", "value": 37.8, "goal": 40 }`.
+one row: `{ metric, value, goal }`. It draws progress only when `value` and
+`goal` are both numbers. Pass raw numbers and declare the value field's unit
+in `semantic_types`: the tile prints `{ "semanticType": "Amount", "unit": "USD" }`
+as `$1.18M`, a `Percentage` of 0.378 as `37.8%`, and compacts amounts and
+counts from 10,000 up. A value already scaled says so in `metric`
+(`"Revenue, $m"`) and is not compacted again. A string `value` prints as given.
 
 ## Step 3 — give each chart a heading
 
@@ -183,10 +185,11 @@ it:
 - `Review:` what the board should still fix: a missing headline, deck or chart
   title, too many tiles or charts, themes set per chart.
 
-Fix each `✗` and each review note with the narrowest call: `update_chart` for
-one chart (pass only the fields that change), `update_board` for the headline,
+Each call takes the board's `id` from the report. Fix each `✗` and each review
+note with the narrowest call: `update_chart` with `chart_id` for one chart
+(pass only the fields that change), `update_board` for the headline,
 theme, columns, order or `link_spec`, `remove_chart` for a chart the board does not
-need. Then call `show_board` once. In a later turn, change the board the same
+need. Then call `show` once. In a later turn, change the board the same
 way and show it again: the reader gets a new card at the bottom of the
 conversation, and the earlier one stays as it was.
 

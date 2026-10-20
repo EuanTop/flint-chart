@@ -109,6 +109,16 @@ the entries below describe implemented changes, not the remaining checklist.
 
 ### Changed
 
+- **Breaking (MCP):** charts and boards are built off screen and drawn by one
+  tool. `create_chart` and `create_board` return a report and an id;
+  `update_chart`, `add_chart`, `remove_chart` and `update_board` change it by
+  `id` (was `board_id`); `show` opens the one card a turn with the current
+  version, and earlier cards keep the version they showed. `create_chart_view`,
+  `restore_chart_view`, `show_board` and `read_board` are removed, and the UI
+  resource is `ui://flint-chart/view.html`. Charts now live in server memory
+  between calls, as boards did, so a scaled HTTP deployment needs one instance
+  or sticky sessions.
+
 - `onChange` fires only when the chart's state changes, not after every
   render. A `ChartChange` now carries `source` (`reader` for a gesture, `host`
   for `applyUpdate`, `clearUpdate`, or `setUpdates`), `changed` (the facets

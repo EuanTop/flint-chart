@@ -2,16 +2,15 @@
 // Licensed under the MIT License.
 
 /**
- * Flint board MCP App: several charts in one card.
+ * The board card: several charts under one headline.
  *
- * Each show_board call opens a new card with the board's current version; a card
+ * Each show call opens a new card with the board's current version; a card
  * keeps the version it was handed. The reader arranges and restyles the newest card in
  * place; the server keeps nothing the reader changes on an earlier card. Links
  * turn a reader's selection on one chart into an emphasis layer on the others,
  * and the card sends one model context that covers every chart.
  */
 import type { App, McpUiHostContext } from '@modelcontextprotocol/ext-apps';
-import { useApp } from '@modelcontextprotocol/ext-apps/react';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import type { ChartAssemblyInput, ChartTable, ChartUpdate, ChartWarning, UpdateCheck } from 'flint-chart';
 import { assembleVegaLite, drawsAsTable, resolveThemeSpec, validateChart } from 'flint-chart';
@@ -44,20 +43,21 @@ import { APP_PREVIEW_CANVAS_SIZE, usesAutoPreviewSize, withAppPreviewDefaults } 
 import { boardPng } from './board-export';
 import { SelectionChips, chipText, impliedParts, partText } from './selection-chips';
 import { ViewSwitch, useCellViews, useChartTable, type CellView } from './chart-table-view';
-import { ActionButton, ThemeControl } from './FlintApp';
+import { ActionButton, ThemeControl } from './controls';
+import { STANDING_NOTE, useStanding } from './standing';
 import { LINK_LAYER, conditionUpdates, gestureParts, shownFields, type ChartLink, type LinkCondition, type LinkSpec } from 'flint-chart/interactive';
 
-declare const __FLINT_MCP_VERSION__: string;
-
-interface BoardChart {
+export interface BoardChart {
   id: string;
   input: ChartAssemblyInput;
   updates?: ChartUpdate[];
   layout?: ChartLayout;
+  view?: CellView;
 }
 
-interface Board {
+export interface Board {
   id: string;
+  kind: 'chart' | 'board';
   title?: string;
   subtitle?: string;
   source?: string;
@@ -70,14 +70,6 @@ interface Board {
   link_spec?: LinkSpec;
   linked?: Record<string, ChartLink>;
 }
-
-/** Whether the card saves the reader's changes: the newest version does; a passed or offline one does not. */
-type Standing = 'newest' | 'passed' | 'offline';
-
-const STANDING_NOTE: Record<Exclude<Standing, 'newest'>, string> = {
-  passed: 'An earlier version of this board: the newest is further down the conversation.',
-  offline: 'Not live: showing the board as it was drawn.',
-};
 
 const EXPORT_LABEL = {
   idle: 'Copy board as PNG',
@@ -532,9 +524,8 @@ function useStableCharts(board: Board): BoardChart[] {
   }, [board]);
 }
 
-function BoardView({ app, initial, hostContext }: { app: App; initial: Board; hostContext?: McpUiHostContext }) {
+export function BoardView({ app, initial, hostContext }: { app: App; initial: Board; hostContext?: McpUiHostContext }) {
   const [board, setBoard] = useState(initial);
-  const [standing, setStanding] = useState<Standing>('newest');
   // The board's one selection, from the chart the reader selected on last, with the layers that hold it there.
   // The board's one condition, and the chart each part came from, which names its values.
   // A theme picked in the bar shows at once; the board the server returns then carries it.
@@ -566,36 +557,13 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
 
   useEffect(() => setBoard(initial), [initial]);
 
-  // The card hands its board to the server once: one that restarted takes it back, one past it says so,
-  // and one that holds it returns it with what the reader saved since.
-  useEffect(() => {
-    if (!app.getHostCapabilities()?.serverTools) {
-      setStanding('offline');
-      return;
-    }
-    let stopped = false;
-    app.callServerTool({ name: 'restore_board', arguments: { board: initial } }).then(
-      (result) => {
-        if (stopped) return;
-        const held = (result.structuredContent as { board?: Board } | undefined)?.board;
-        if (result.isError || !held) setStanding('offline');
-        else if (held.version > initial.version) setStanding('passed');
-        else setBoard(held);
-      },
-      () => {
-        if (!stopped) setStanding('offline');
-      },
-    );
-    return () => {
-      stopped = true;
-    };
-  }, [app, initial]);
+  const [standing, setStanding] = useStanding(app, initial, setBoard);
 
   /** Saves a reader change on the board; false when the server did not keep it. */
   const writeBoard = useCallback(async (name: 'set_board_theme' | 'set_board_layout', args: Record<string, unknown>) => {
     const current = boardRef.current;
     try {
-      const result = await app.callServerTool({ name, arguments: { board_id: current.id, version: current.version, ...args } });
+      const result = await app.callServerTool({ name, arguments: { id: current.id, version: current.version, ...args } });
       const { board: saved, version } = (result.structuredContent ?? {}) as { board?: Board; version?: number };
       if (!result.isError && saved) {
         setBoard(saved);
@@ -698,7 +666,7 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
   const sendContext = useCallback(() => {
     const current = boardRef.current;
     const lines = [
-      `Board ${current.id}${current.title ? ` "${current.title}"` : ''}: ${current.charts.length} charts, as the reader sees them now. Change it with add_chart, update_chart, remove_chart and update_board, then show it again with show_board.`,
+      `Board ${current.id} version ${current.version}${current.title ? ` "${current.title}"` : ''}: ${current.charts.length} charts, as the reader sees them now. Change it with add_chart, update_chart, remove_chart and update_board, then show it again with show.`,
     ];
     for (const chart of chartsRef.current) {
       const state = states.current.get(chart.id);
@@ -1128,72 +1096,4 @@ function BoardView({ app, initial, hostContext }: { app: App; initial: Board; ho
       )}
     </main>
   );
-}
-
-/** How long the card waits for its result before it says the board cannot be redrawn here. */
-const RESULT_WAIT_MS = 6000;
-const NOT_REDRAWN =
-  'This board cannot be redrawn here: the call that showed it did not reach this card again, as can happen when a conversation is reopened. Ask Claude to show the board again.';
-
-export function BoardApp() {
-  const [board, setBoard] = useState<Board | null>(null);
-  const [failed, setFailed] = useState<string | null>(null);
-  const [hostContext, setHostContext] = useState<McpUiHostContext | undefined>();
-  const boardSeen = useRef(false);
-  boardSeen.current = board !== null;
-
-  const { app, error } = useApp({
-    appInfo: { name: 'Flint Board', version: __FLINT_MCP_VERSION__ },
-    capabilities: {},
-    autoResize: true,
-    onAppCreated: (app) => {
-      app.onteardown = async () => ({});
-      app.onerror = (err) => console.error(err);
-      app.onhostcontextchanged = (params) => setHostContext((prev) => ({ ...prev, ...params }));
-      app.ontoolresult = (result) => {
-        const { _meta, content } = result as { _meta?: { flint?: { board?: Board } }; content?: { type: string; text?: string }[] };
-        if (result.isError) {
-          setFailed(content?.find((part) => part.type === 'text')?.text ?? '');
-          return;
-        }
-        const next = _meta?.flint?.board;
-        if (next) {
-          setFailed(null);
-          setBoard(next);
-        }
-      };
-    },
-  });
-
-  useEffect(() => {
-    if (app) setHostContext(app.getHostContext());
-  }, [app]);
-
-  // A reopened conversation may not hand the card its result again; the card then says so instead of waiting.
-  useEffect(() => {
-    if (!app) return;
-    const handle = window.setTimeout(() => {
-      if (!boardSeen.current) setFailed((reason) => reason ?? NOT_REDRAWN);
-    }, RESULT_WAIT_MS);
-    return () => window.clearTimeout(handle);
-  }, [app]);
-
-  if (error) {
-    return (
-      <div className="status">
-        <strong>App error:</strong> {error.message}
-      </div>
-    );
-  }
-  if (!app) return <div className="status">Connecting…</div>;
-  if (failed !== null) {
-    return (
-      <div className="status">
-        <strong>Board not drawn</strong>
-        {failed && <div className="status-reason">{failed}</div>}
-      </div>
-    );
-  }
-  if (!board) return <div className="status">Waiting for the board…</div>;
-  return <BoardView app={app} initial={board} hostContext={hostContext} />;
 }

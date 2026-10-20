@@ -2,7 +2,7 @@
 // Licensed under the MIT License.
 
 /**
- * Flint chart MCP App.
+ * The chart card.
  *
  * Renders a Flint chart spec live (client-side Flint -> Vega-Lite -> SVG) and
  * offers a data-driven customization panel built entirely from Flint's own
@@ -11,15 +11,16 @@
  * options, with no server round-trips.
  */
 import type { App, McpUiHostContext } from '@modelcontextprotocol/ext-apps';
-import { useApp } from '@modelcontextprotocol/ext-apps/react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import type { ChartAssemblyInput, ChartOption, ChartUpdate, ChartWarning } from 'flint-chart';
-import { THEME_PRESETS, DEFAULT_THEME_ICON, drawsAsTable, getChartTransform, validateChart, validateLinks } from 'flint-chart';
+import { drawsAsTable, getChartTransform, validateChart, validateLinks } from 'flint-chart';
 import type { ChartChange, ChartState, InteractiveChartSurface } from 'flint-chart/interactive';
 import { FlintChart, FlintTable } from 'flint-chart/react';
 import { expressionInterpreter } from 'vega-interpreter';
 
+import { ActionButton, ThemeControl } from './controls';
+import { STANDING_NOTE, useStanding } from './standing';
+import type { Board } from './BoardView';
 import { assemblePreviewSpec, renderFlintSvg, usesAutoPreviewSize, withAppPreviewDefaults } from './render';
 import { chartIconFor } from './chart-icons';
 import { SelectionChips, chipText, impliedParts, partText, type SelectionChip } from './selection-chips';
@@ -35,8 +36,6 @@ import {
   type PanelModel,
   type ResolvedAction,
 } from './options';
-
-declare const __FLINT_MCP_VERSION__: string;
 
 const UPDATE_WARNINGS = new Set(['unsupported_update', 'partially_applied_update']);
 
@@ -341,188 +340,6 @@ function TransformControl(props: {
   );
 }
 
-/** A theme preset's icon as an `<img>`-ready URL. */
-function themeIconUrl(svg: string): string {
-  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
-}
-
-type ThemeValue = ChartAssemblyInput['theme_spec'];
-type ThemeChoice = { value: ThemeValue; label: string; icon: string; description: string };
-
-const THEME_CHOICES: ThemeChoice[] = [
-  {
-    value: undefined,
-    label: 'Flint default',
-    icon: DEFAULT_THEME_ICON,
-    description: "Flint's own defaults \u2014 no house applied.",
-  },
-  ...Object.values(THEME_PRESETS).map((preset) => ({
-    value: preset.id,
-    label: preset.label,
-    icon: preset.icon,
-    description: preset.description,
-  })),
-];
-
-/**
- * The house switch, first in the bar. A theme is the outermost decision on the
- * chart — it settles the surface, the ink and the type that everything the
- * other controls touch is then drawn in — so it reads left of them.
- *
- * It borrows the chart-type switch's chrome rather than growing its own: the
- * two are the same gesture (a small picture of the result, a caret, a list),
- * and giving them different shapes would suggest they are different kinds of
- * control.
- */
-export function ThemeControl(props: {
-  themeSpec: ThemeValue;
-  customTheme?: Exclude<ThemeValue, string | undefined>;
-  onTheme: (theme: ThemeValue) => void;
-}) {
-  const { themeSpec, customTheme, onTheme } = props;
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const retainedCustom = customTheme ?? (typeof themeSpec === 'object' ? themeSpec : undefined);
-  const inheritedPreset = retainedCustom?.extends
-    ? THEME_PRESETS[retainedCustom.extends]
-    : undefined;
-  const customChoice: ThemeChoice | undefined = retainedCustom
-    ? {
-        value: retainedCustom,
-        label: retainedCustom.label ?? retainedCustom.id ?? 'Custom theme',
-        icon: inheritedPreset?.icon ?? DEFAULT_THEME_ICON,
-        description: 'Custom ThemeSpec supplied with this chart.',
-      }
-    : undefined;
-  const choices = customChoice ? [customChoice, ...THEME_CHOICES] : THEME_CHOICES;
-  const current = typeof themeSpec === 'object'
-    ? customChoice ?? THEME_CHOICES[0]
-    : THEME_CHOICES.find((choice) => choice.value === themeSpec) ?? THEME_CHOICES[0];
-
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [open]);
-
-  return (
-    <div className="transform-control tc-theme" ref={rootRef}>
-      <button
-        type="button"
-        className="tc-type tc-type-theme"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label={`Theme: ${current.label}`}
-        title={`Theme: ${current.label}`}
-        onClick={() => setOpen((o) => !o)}
-      >
-        <img className="tc-icon" src={themeIconUrl(current.icon)} alt="" />
-        <svg className="tc-caret" width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M3 4.5 L6 7.5 L9 4.5" />
-        </svg>
-      </button>
-
-      {open && (
-        <ul className="tc-menu" role="listbox" aria-label="Theme">
-          {choices.map((choice) => {
-            const selected = choice === current;
-            return (
-              <li
-                key={typeof choice.value === 'string' ? choice.value : choice.value ? 'custom' : 'default'}
-                role="option"
-                aria-selected={selected}
-                title={choice.description}
-                className={selected ? 'tc-opt tc-opt-selected' : 'tc-opt'}
-                onClick={() => {
-                  onTheme(choice.value);
-                  setOpen(false);
-                }}
-              >
-                <img className="tc-opt-icon" src={themeIconUrl(choice.icon)} alt="" />
-                <span>{choice.label}</span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-export function ActionButton(props: {
-  label: string;
-  className?: string;
-  disabled?: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  const { label, className = '', disabled = false, onClick, children } = props;
-  const [showTip, setShowTip] = useState(false);
-  const [tipPosition, setTipPosition] = useState({ left: 0, top: 0 });
-  const anchorRef = useRef<HTMLSpanElement>(null);
-  const tipRef = useRef<HTMLSpanElement>(null);
-
-  useLayoutEffect(() => {
-    if (!showTip || !anchorRef.current || !tipRef.current) return;
-    const anchor = anchorRef.current.getBoundingClientRect();
-    const tip = tipRef.current.getBoundingClientRect();
-    const gutter = 6;
-    const left = Math.min(
-      window.innerWidth - tip.width - gutter,
-      Math.max(gutter, anchor.left + (anchor.width - tip.width) / 2),
-    );
-    const above = anchor.top - tip.height - gutter;
-    const top = above >= gutter ? above : anchor.bottom + gutter;
-    setTipPosition({ left, top });
-  }, [label, showTip]);
-
-  useEffect(() => {
-    if (!showTip) return;
-    const hide = () => setShowTip(false);
-    window.addEventListener('scroll', hide, true);
-    window.addEventListener('resize', hide);
-    return () => {
-      window.removeEventListener('scroll', hide, true);
-      window.removeEventListener('resize', hide);
-    };
-  }, [showTip]);
-
-  return (
-    <span
-      ref={anchorRef}
-      className="action-tip-anchor"
-      onMouseEnter={() => setShowTip(true)}
-      onMouseLeave={() => setShowTip(false)}
-      onFocus={() => setShowTip(true)}
-      onBlur={() => setShowTip(false)}
-    >
-      <button
-        type="button"
-        className={`bar-link ${className}`.trim()}
-        onClick={onClick}
-        disabled={disabled}
-        aria-label={label}
-      >
-        {children}
-      </button>
-      {showTip && createPortal(
-        <span
-          ref={tipRef}
-          className="action-tooltip"
-          role="tooltip"
-          style={{ left: tipPosition.left, top: tipPosition.top }}
-        >
-          {label}
-        </span>,
-        document.body,
-      )}
-    </span>
-  );
-}
-
 function OptionsBar(props: {
   input: ChartAssemblyInput;
   customTheme?: Exclude<ChartAssemblyInput['theme_spec'], string | undefined>;
@@ -752,15 +569,9 @@ function OptionsBar(props: {
   );
 }
 
-export function FlintAppInner(props: {
-  app: App;
-  input: ChartAssemblyInput;
-  updates?: readonly ChartUpdate[];
-  /** The view the agent opened the chart in. */
-  initialView?: CellView;
-  hostContext?: McpUiHostContext;
-}) {
-  const { app, input, updates = NO_UPDATES, initialView = 'chart', hostContext } = props;
+export function ChartView({ app, shown, hostContext }: { app: App; shown: Board; hostContext?: McpUiHostContext }) {
+  const { id, version, charts: [{ input, updates = NO_UPDATES, view: initialView = 'chart' }] } = shown;
+  const [standing] = useStanding(app, shown);
   const [current, setCurrent] = useState<ChartAssemblyInput>(input);
   const [surfaceWarnings, setSurfaceWarnings] = useState<readonly ChartWarning[]>([]);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copying' | 'copied' | 'downloaded' | 'error'>('idle');
@@ -938,13 +749,14 @@ export function FlintAppInner(props: {
       gestures: gestures.current,
       table,
     });
-    if (context.text === lastContext.current) return;
-    lastContext.current = context.text;
+    const text = `Chart ${id} version ${version}: change it with update_chart, then show it again.\n${context.text}`;
+    if (text === lastContext.current) return;
+    lastContext.current = text;
     void app.updateModelContext({
-      content: [{ type: 'text', text: context.text }],
+      content: [{ type: 'text', text }],
       structuredContent: context.data,
     }).catch((err) => console.warn('The host declined the chart context', err));
-  }, [app, input, current, agentView, shownView, updates, checks, table]);
+  }, [app, id, version, input, current, agentView, shownView, updates, checks, table]);
   useEffect(() => {
     const state = shownSurface.current?.getState() ?? undefined;
     if (state || tableType) sendContext(state);
@@ -1031,6 +843,7 @@ export function FlintAppInner(props: {
       }}
     >
       <div className="preview">
+        {standing === 'passed' && <p className="board-status">{STANDING_NOTE.passed}</p>}
         {shownError ? (
           <div className="error">
             <strong>Could not render chart</strong>
@@ -1100,120 +913,7 @@ export function FlintAppInner(props: {
 
 const NO_UPDATES: readonly ChartUpdate[] = [];
 
-/** How long the card waits for the call's result before it draws the chart from the call itself. */
-const RESULT_WAIT_MS = 2500;
-/** How long it waits for anything at all before it says the chart cannot be redrawn here. */
-const NOTHING_WAIT_MS = 6000;
-const NOT_REDRAWN =
-  'This chart cannot be redrawn here: the call that made it did not reach this card again, as can happen when a conversation is reopened. Ask Claude to show the chart again.';
-
-type ViewPayload = { input?: ChartAssemblyInput; updates?: ChartUpdate[]; view?: CellView; error?: string };
-
-export function FlintApp() {
-  const [input, setInput] = useState<ChartAssemblyInput | null>(null);
-  const [updates, setUpdates] = useState<readonly ChartUpdate[]>(NO_UPDATES);
-  const [view, setView] = useState<CellView | undefined>();
-  // The reason a rejected call drew nothing; the card keeps it, since a fix opens a new card.
-  const [notDrawn, setNotDrawn] = useState<string | null>(null);
-  const [hostContext, setHostContext] = useState<McpUiHostContext | undefined>();
-  const toolArgs = useRef<(ChartAssemblyInput & { updates?: ChartUpdate[] }) | undefined>(undefined);
-  const resultFailed = useRef(false);
-  const inputSeen = useRef(false);
-  inputSeen.current = input !== null;
-
-  const { app, error } = useApp({
-    appInfo: { name: 'Flint Chart', version: __FLINT_MCP_VERSION__ },
-    capabilities: {},
-    autoResize: true,
-    onAppCreated: (app) => {
-      app.onteardown = async () => ({});
-      app.onerror = (err) => console.error(err);
-      app.onhostcontextchanged = (params) =>
-        setHostContext((prev) => ({ ...prev, ...params }));
-      // The raw args wait for the result: a call the server rejects draws nothing.
-      app.ontoolinput = (params) => {
-        toolArgs.current = params?.arguments as (ChartAssemblyInput & { updates?: ChartUpdate[] }) | undefined;
-      };
-      app.ontoolresult = (result) => {
-        // The view's payload is in `_meta.flint`, which the model does not read;
-        // `structuredContent` is the fallback, then the raw args when they carry
-        // inline rows (a local `data.url` cannot be read in the browser).
-        const { _meta, structuredContent } = result as { _meta?: { flint?: ViewPayload }; structuredContent?: ViewPayload };
-        const structured = _meta?.flint ?? structuredContent;
-        if (result.isError) {
-          resultFailed.current = true;
-          setNotDrawn(structured?.error ?? '');
-          return;
-        }
-        const args = toolArgs.current;
-        const next = structured?.input?.chart_spec && Array.isArray(structured.input.data?.values)
-          ? structured.input
-          : args?.chart_spec && Array.isArray(args.data?.values) ? args : undefined;
-        if (!next) return;
-        setUpdates(structured?.updates ?? args?.updates ?? NO_UPDATES);
-        setView(structured?.view);
-        setNotDrawn(null);
-        setInput(next);
-      };
-    },
-  });
-
-  useEffect(() => {
-    if (app) setHostContext(app.getHostContext());
-  }, [app]);
-
-  // A reopened conversation may not hand the card its result again. The card then asks the server
-  // to draw the chart from the call's own arguments; with nothing to draw from, it says so.
-  useEffect(() => {
-    if (!app) return;
-    let stopped = false;
-    const redraw = async () => {
-      if (stopped || inputSeen.current || resultFailed.current) return;
-      const args = toolArgs.current;
-      if (!args?.chart_spec) return;
-      try {
-        const result = await app.callServerTool({ name: 'restore_chart_view', arguments: args as unknown as Record<string, unknown> });
-        const payload = result.structuredContent as ViewPayload | undefined;
-        if (stopped || inputSeen.current || resultFailed.current) return;
-        if (result.isError || !payload?.input) {
-          setNotDrawn(payload?.error ?? NOT_REDRAWN);
-          return;
-        }
-        setUpdates(payload.updates ?? NO_UPDATES);
-        setView(payload.view);
-        setInput(payload.input);
-      } catch {
-        if (!stopped && !inputSeen.current) setNotDrawn(NOT_REDRAWN);
-      }
-    };
-    const first = window.setTimeout(() => void redraw(), RESULT_WAIT_MS);
-    const last = window.setTimeout(() => {
-      if (!stopped && !inputSeen.current && !resultFailed.current && !toolArgs.current) setNotDrawn(NOT_REDRAWN);
-    }, NOTHING_WAIT_MS);
-    return () => {
-      stopped = true;
-      window.clearTimeout(first);
-      window.clearTimeout(last);
-    };
-  }, [app]);
-
-  if (error) {
-    return (
-      <div className="status">
-        <strong>App error:</strong> {error.message}
-      </div>
-    );
-  }
-  if (!app) return <div className="status">Connecting…</div>;
-  if (notDrawn !== null) {
-    return (
-      <div className="status">
-        <strong>Chart not drawn</strong>
-        {notDrawn && <div className="status-reason">{notDrawn}</div>}
-      </div>
-    );
-  }
-  if (!input) return <div className="status">Waiting for chart data…</div>;
-
-  return <FlintAppInner app={app} input={input} updates={updates} initialView={view} hostContext={hostContext} />;
+/** One chart as a shown view, for a card drawn outside a show call. */
+export function shownChart(input: ChartAssemblyInput): Board {
+  return { id: 'chart-example', kind: 'chart', version: 1, charts: [{ id: 'chart', input }] };
 }

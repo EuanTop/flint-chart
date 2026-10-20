@@ -95,8 +95,11 @@ function renderBridgeHtml(instance) {
           }, "*");
           event.source.postMessage({
             jsonrpc: "2.0",
-            method: "ui/notifications/tool-input",
-            params: { arguments: chartInput }
+            method: "ui/notifications/tool-result",
+            params: {
+              content: [],
+              _meta: { flint: { board: { id: "chart", kind: "chart", version: 1, charts: [{ id: "chart", input: chartInput }] } } }
+            }
           }, "*");
           return;
         }

@@ -148,4 +148,4 @@ mountChart(container, input, { interactions: [clickHighlight({ dimOpacity: 0.2 }
 
 ## 在哪里生效
 
-`mountChart()` 从输入中读取 `interaction_spec`。MCP 工具 `create_chart_view` 挂载同一交互层，因此智能体可以在请求图表的同一份 JSON 中请求行为。站点的编辑器和图库同样从 spec 挂载。
+`mountChart()` 从输入中读取 `interaction_spec`。MCP 的 `show` 卡片挂载同一交互层，因此智能体可以在请求图表的同一份 JSON 中请求行为。站点的编辑器和图库同样从 spec 挂载。

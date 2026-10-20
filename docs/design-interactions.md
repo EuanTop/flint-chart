@@ -360,7 +360,7 @@ Which fact is decided where:
 - **`mountChart()`** reads `interaction_spec` from the input and merges it with code
   definitions. `<FlintChart>` mounts through it, so a host passes the spec and nothing else:
   a chart that declares no interactions renders static, with no runtime. The MCP
-  `create_chart_view`, the site editor, and the site gallery mount this way.
+  the MCP `show` card, the site editor, and the site gallery mount this way.
 - **`getState()` and `onChange()`** give a host the chart as context. The MCP view sends the
   state to the model after each committed change; an application panel follows a hover or a
   brush live through the previews.

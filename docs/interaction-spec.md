@@ -144,5 +144,5 @@ A malformed entry is an error, not a drop: an unknown `type`, an option outside 
 
 ## Where it runs
 
-`mountChart()` reads `interaction_spec` from the input. The MCP tool `create_chart_view` mounts the same surface, so an agent can ask for behaviour in the same JSON that asks for the chart. The site's editor and gallery mount from the spec too.
+`mountChart()` reads `interaction_spec` from the input. The MCP `show` card mounts the same surface, so an agent can ask for behaviour in the same JSON that asks for the chart. The site's editor and gallery mount from the spec too.
 

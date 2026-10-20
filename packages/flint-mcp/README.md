@@ -29,8 +29,11 @@ renders **locally**.
 | `list_chart_types` | `backend?` | chart types, encoding channels, and supported interaction presets per backend |
 | `list_interaction_presets` | `chartType?`, `type?` | interaction presets: what each does, what it needs from the chart, reset gestures, and every option it accepts |
 | `list_themes` | optional preset `id` | shipped visual themes, plus guidance for a selected theme |
-| `get_flint_skill` | `skill` (`chart`/`theme`/`interaction`) + `section?` | a bundled skill as markdown, or one `## ` section of it |
-| `create_chart_view` | spec + optional `updates` | live chart **UI** (MCP App): SVG preview + editing panel, opened with the given ChartUpdate layers applied |
+| `get_flint_skill` | `skill` (`chart`/`theme`/`interaction`/`board`) + `section?` | a bundled skill as markdown, or one `## ` section of it |
+| `create_chart` | spec + optional `updates`, `view` | a chart built off screen: its report (✓/✗ per update op) and its id |
+| `create_board` | headline, deck, source, `charts`, optional `link_spec` | a board of several charts built off screen: its report, layout, links and review |
+| `update_chart`, `add_chart`, `remove_chart`, `update_board` | `id` + the fields to change | the next version's report; nothing is drawn |
+| `show` | `id` | a live **UI** card (MCP App) with the chart or board's current version: SVG preview + editing panel, with its ChartUpdate layers applied |
 
 ## Visual themes
 
@@ -59,14 +62,21 @@ for supported fields and merge behavior.
 
 ## MCP App: live chart view
 
-In hosts that support MCP App UIs (e.g. Claude Desktop), `create_chart_view`
-opens a view that renders the spec live (Vega-Lite → SVG) and shows
+In hosts that support MCP App UIs (e.g. Claude Desktop), `show` opens a card
+with a chart or board built by `create_chart` or `create_board`. The agent fixes
+what the report asks before it calls `show`, so each turn shows one card; later
+changes open a new card and earlier cards keep the version they showed. The
+card renders the spec live (Vega-Lite → SVG) and shows
 a customization panel built from Flint's own option model — chart type, channel
 bindings, chart properties (corner radius, stack mode, donut hole, …), and
 encoding actions (sort), plus Flint's visual theme presets. Rendering and edits
 run entirely in the host UI; no data leaves the host. The UI is a single
 self-contained HTML bundle served as the
-`ui://flint-chart/chart-view.html` resource and built with `npm run build:ui`.
+`ui://flint-chart/view.html` resource and built with `npm run build:ui`.
+
+Charts and boards live in the server process's memory between `create_chart`
+and `show`, so a deployment behind a load balancer needs one instance or sticky
+sessions.
 
 ## Resources and prompts
 
@@ -76,7 +86,8 @@ self-contained HTML bundle served as the
 | `flint://theme-skill` | resource | Bundled instructions for translating a visual identity into a valid reusable `ThemeSpec`. |
 | `flint://interaction-skill` | resource | Bundled instructions for adding behaviour to a chart: a gesture or an intent mapped to presets, as one valid `interaction_spec`. |
 | `flint://chart-types` | resource | Browsable chart-type catalog and encoding channels across backends. |
-| `ui://flint-chart/chart-view.html` | resource | Bundled UI for the `create_chart_view` MCP App (live chart + customization panel). |
+| `flint://board-skill` | resource | Bundled instructions for a board of several charts: headline, chart choice, layout, links. |
+| `ui://flint-chart/view.html` | resource | Bundled UI for the `show` MCP App card (live chart or board + customization panel). |
 | `author_flint_chart` | prompt | Embeds the bundled skill so prompt-aware clients can load the chart-spec rules before tool calls. |
 | `author_flint_theme` | prompt | Embeds the theme-author skill for creating, translating, refining, or reviewing a `ThemeSpec`. |
 | `author_flint_interaction` | prompt | Embeds the interaction-author skill: presets as an `interaction_spec`, the `ChartUpdate` for a mounted chart, reading the chart state, linking charts, and bespoke interactions. |
@@ -85,7 +96,7 @@ The server instructions tell the agent to call `get_flint_skill` before it
 writes a spec, so the skills reach the agent in hosts that do not surface MCP
 resources or prompts to the model. You can also include `flint://agent-skill` or
 run the `author_flint_chart` prompt before asking the agent to call
-`create_chart_view`, `render_chart`, `compile_chart`, or `validate_chart`.
+`create_chart`, `render_chart`, `compile_chart`, or `validate_chart`.
 
 When creating or substantially customizing a visual theme, load
 `flint://theme-skill` or run `author_flint_theme`. Use `list_themes` separately
