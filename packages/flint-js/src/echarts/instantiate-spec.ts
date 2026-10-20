@@ -251,10 +251,10 @@ function pyramidNiceTickStep(niceMax: number): number {
 }
 
 /**
- * Overlay companions: the scatter series a boxplot draws alongside itself for
- * its outliers or for the full raw sample. They are separate series only
- * because ECharts needs a different series type to draw them, so they must
- * take the colour of the box they sit on rather than the next palette slot.
+ * Companions: series that take the colour of the series before them rather
+ * than the next palette slot. A boxplot draws its outliers or full raw sample
+ * as scatter companions, because ECharts needs a different series type for
+ * them; a Line Chart draws a colour value's other dash styles as companions.
  */
 const COMPANION_SUFFIX = / \((?:outliers|points)\)$/;
 const isCompanionSeries = (s: any): boolean => s?._companion === true;
@@ -1350,6 +1350,9 @@ function buildEncodingTooltipFormatter(option: any): ((params: any) => string) |
         const categoryFormat = enc.categoryFormat;
         const temporalFormat = enc.temporalFormat ?? '%b %d, %Y';
         const filterScatterOnly = !!enc.filterScatterOnly;
+        // Series that share a name (a colour value's dash styles in a Line Chart)
+        // carry a category index in each point, which names the line after it.
+        const seriesSuffix = enc.seriesSuffix as { index: number; categoryNames: string[] } | undefined;
         return (params: any) => {
             const rawList = Array.isArray(params) ? params : [params];
             const list = filterScatterOnly
@@ -1371,8 +1374,12 @@ function buildEncodingTooltipFormatter(option: any): ((params: any) => string) |
                 // itself (`__…`) and that draws no group is not listed — its name is not the reader's.
                 const lane = item?.data && typeof item.data === 'object' && !Array.isArray(item.data) ? item.data.laneGroup : undefined;
                 if (lane === undefined && String(item?.seriesName ?? '').startsWith('__')) continue;
-                const name = lane ?? item.seriesName ?? valueLabel;
+                let name = lane ?? item.seriesName ?? valueLabel;
                 let val = item.value != null ? item.value : (Array.isArray(item.data) ? item.data[item.dataIndex] : item.data);
+                if (seriesSuffix && Array.isArray(val)) {
+                    const suffix = seriesSuffix.categoryNames[Number(val[seriesSuffix.index])];
+                    if (suffix) name = `${name} · ${suffix}`;
+                }
                 // Line/area series data is [x, y]; ECharts may pass the full point — use y (index 1) for value.
                 if (Array.isArray(val) && val.length >= 2) val = val[1];
                 if (val && typeof val === 'object' && 'value' in val) val = (val as any).value;
