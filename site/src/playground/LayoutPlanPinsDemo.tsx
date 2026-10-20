@@ -86,7 +86,8 @@ function read(input: ChartAssemblyInput, pins: Pins = {}): { spec: any; reading:
       angle: Math.abs(x.angle ?? 0),
       size: x.fontSize,
       sizeAsked: x.crowdedFrom,
-      straightRefused: Boolean(x.straightRefused),
+      // The plan reports an overflow fit only when the names are too wide to stand upright in their band.
+      straightRefused: Boolean(x.overflowFit),
       legend: facts.legend,
       values: facts.values,
       rowsCut: cut,
