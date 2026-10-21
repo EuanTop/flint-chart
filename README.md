@@ -9,12 +9,8 @@
 [![WeChat](https://img.shields.io/badge/wechat-group-07C160?logo=wechat&logoColor=white)](#community)
 
 [**Project site**](https://microsoft.github.io/flint-chart/) ·
-[**Gallery**](https://microsoft.github.io/flint-chart/#/gallery) ·
-[**Visual themes**](https://microsoft.github.io/flint-chart/#/themes) ·
-[**Interactions**](https://microsoft.github.io/flint-chart/#/interactions) ·
-[**MCP server**](https://microsoft.github.io/flint-chart/#/mcp) ·
-[**Docs**](https://microsoft.github.io/flint-chart/#/documentation) ·
-[**中文主页**](https://microsoft.github.io/flint-chart/#/zh)
+[**中文主页**](https://microsoft.github.io/flint-chart/#/zh) ·
+[**MCP server**](https://microsoft.github.io/flint-chart/#/mcp)
 
 Flint is a visualization intermediate language that lets **AI agents reliably
 create expressive, good-looking and interactive charts from simple,
