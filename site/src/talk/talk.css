@@ -164,14 +164,16 @@
 .talk-dashboard .idash-heading h1 { font-size: 44px; line-height: 1.1; max-width: none; }
 
 /* Call to action: one card per audience, each with its section color on top. */
-.talk-cta-wrap { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 32px; }
+.talk-cta-wrap { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 22px; }
+/* The three use cases, as the act 4 sketch draws them, above the card for each. */
+.talk-cta-sketch { flex: 1 1 200px; min-height: 140px; max-height: 240px; position: relative; }
 .talk-cta-wrap > .talk-cta { flex: none; align-items: stretch; gap: 28px; }
-.talk-slide .talk-collab { margin: 0; font-size: 30px; line-height: 1.45; padding: 22px 28px; }
-.talk-cta-card { background: var(--panel); border-radius: 12px; border-top: 6px solid #2f6db5; padding: 22px 26px; }
+.talk-slide .talk-collab { margin: 0; font-size: 27px; line-height: 1.4; padding: 16px 26px; }
+.talk-cta-card { background: var(--panel); border-radius: 12px; border-top: 6px solid #2f6db5; padding: 18px 24px; }
 .talk-cta-card.look { border-top-color: #e8954a; }
 .talk-cta-card.behavior { border-top-color: #d9534f; }
 .talk-cta-card h3 { margin: 0 0 14px; }
-.talk-cta-card p { font-size: 26px; line-height: 1.45; margin: 0; }
+.talk-cta-card p { font-size: 23px; line-height: 1.4; margin: 0; }
 
 /* A side-by-side demo stacked for a narrow slot: the chart on top, the table below it. */
 .talk-slide .talk-stacked-demo .ig-continent-cohort .it-workspace { grid-template-columns: minmax(0, 1fr); }
@@ -196,3 +198,10 @@
   box-shadow: 0 8px 22px rgba(0, 40, 90, 0.12); overflow: hidden;
 }
 .talk-themes-card:hover { z-index: 20 !important; }
+
+/* Labels under the use-case sketch: one column per panel, in the deck's own type. */
+.talk-usecases { flex: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px; padding: 0 3%; }
+.talk-usecases h3 { margin: 0 0 6px; text-align: center; }
+.talk-usecases p { margin: 0; font-size: 24px; line-height: 1.4; text-align: center; }
+.talk-usecases .on h3 { color: #c0392b; }
+.talk-usecases .off { opacity: 0.4; }

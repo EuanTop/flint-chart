@@ -617,3 +617,76 @@ Object.assign(SKETCHES, {
     });
   },
 });
+
+// ---------------------------------------------------------------- act 4: three ways to use Flint
+
+/** The three use cases side by side; with `focus`, that one is circled and spelled out, the others fade back. */
+function useCases(focus?: number): Draw {
+  return (ctx, w, h) => {
+    const s = Math.min(w / 1500, h / 410);
+    const X = (v: number) => v * s + (w - 1500 * s) / 2, Y = (v: number) => v * s + (h - 410 * s) / 2, S = (v: number) => v * s;
+    const PW = 420, PH = 330, xs = [45, 540, 1035], py = 40;
+    const frame = (x: number, seed: number) => {
+      card(ctx, X(x), Y(py), S(PW), S(PH), { seed, color: C.ink, fill: C.paper, w: 2.5 });
+      line(ctx, X(x), Y(py + 34), X(x + PW), Y(py + 34), { w: S(2), color: C.soft, seed: seed + 1 });
+      [0, 1, 2].forEach((i) => dot(ctx, X(x + 20 + i * 18), Y(py + 17), S(5), [C.red, C.amber, C.green][i], { seed: seed + 2 + i }));
+    };
+
+    // 1. a chat with a chart card in the reply
+    {
+      const x = xs[0];
+      frame(x, 1100);
+      washRect(ctx, X(x + 150), Y(py + 52), S(250), S(46), C.blue, { alpha: 0.22, seed: 1106 });
+      line(ctx, X(x + 166), Y(py + 70), X(x + 376), Y(py + 70), { w: S(3), color: C.blue, seed: 1107 });
+      line(ctx, X(x + 166), Y(py + 84), X(x + 320), Y(py + 84), { w: S(3), color: C.blue, seed: 1108 });
+      dot(ctx, X(x + 32), Y(py + 128), S(12), C.ink, { seed: 1109 });
+      card(ctx, X(x + 54), Y(py + 116), S(346), S(196), { seed: 1110, color: C.soft, fill: '#ffffff', w: 2 });
+      miniLines(ctx, X(x + 74), Y(py + 140), S(306), S(150), { seed: 1111, series: 3 });
+    }
+    // 2. an app: a table, a chart, and the link between them
+    {
+      const x = xs[1];
+      frame(x, 1200);
+      text(ctx, '<FlintChart />', X(x + 20), Y(py + 66), { size: S(22), kind: 'mono', color: C.meaning, maxWidth: S(220), maxLines: 1 });
+      rect(ctx, X(x + 20), Y(py + 86), S(150), S(220), { w: S(2), color: C.soft, seed: 1201 });
+      for (let i = 0; i < 6; i++) {
+        line(ctx, X(x + 32), Y(py + 112 + i * 32), X(x + 158), Y(py + 112 + i * 32), { w: S(i === 2 ? 4 : 2), color: i === 2 ? C.amber : C.soft, seed: 1202 + i });
+      }
+      card(ctx, X(x + 196), Y(py + 86), S(204), S(220), { seed: 1210, color: C.soft, fill: '#ffffff', w: 2 });
+      miniBars(ctx, X(x + 212), Y(py + 110), S(172), S(180), { seed: 1211, bars: 5, color: [C.soft, C.soft, C.amber, C.soft, C.soft] });
+      arrow(ctx, X(x + 162), Y(py + 176), X(x + 252), Y(py + 176), { w: S(3), color: C.amber, seed: 1212, head: S(12) });
+    }
+    // 3. a theme: swatches and a typeface, carried onto three charts
+    {
+      const x = xs[2];
+      frame(x, 1300);
+      text(ctx, 'Aa', X(x + 28), Y(py + 100), { size: S(48), kind: 'handBold', color: C.ink, maxWidth: S(90), maxLines: 1 });
+      ['#1f3b73', '#1b998b', '#e3a72f', '#8d99ae', '#c8553d'].forEach((c, i) => dot(ctx, X(x + 140 + i * 52), Y(py + 82), S(17), c, { seed: 1301 + i }));
+      const pal = ['#1f3b73', '#1b998b', '#e3a72f'];
+      [0, 1, 2].forEach((i) => {
+        const cx = x + 22 + i * 132;
+        card(ctx, X(cx), Y(py + 136), S(118), S(170), { seed: 1310 + i * 3, color: C.soft, fill: '#ffffff', w: 2 });
+        if (i === 0) miniBars(ctx, X(cx + 12), Y(py + 160), S(94), S(130), { seed: 1320, bars: 4, color: pal[0] });
+        if (i === 1) miniLines(ctx, X(cx + 10), Y(py + 160), S(98), S(130), { seed: 1321, series: 2, colors: pal });
+        if (i === 2) miniHeatmap(ctx, X(cx + 12), Y(py + 164), S(94), S(118), { rows: 4, cols: 4, seed: 1322, palette: pal, frame: false });
+      });
+    }
+
+    // the focus: the others fade back, and this one is circled
+    if (focus !== undefined) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.66)';
+      xs.forEach((x, i) => { if (i !== focus) ctx.fillRect(X(x - 20), Y(0), S(PW + 40), S(410)); });
+      ctx.restore();
+      const cx = xs[focus] + PW / 2;
+      ellipse(ctx, X(cx), Y(py + PH / 2), S(PW / 2 + 30), S(PH / 2 + 26), { w: S(5), color: C.red, seed: 1400 + focus });
+    }
+  };
+}
+
+Object.assign(SKETCHES, {
+  useCases: useCases(),
+  useCase1: useCases(0),
+  useCase2: useCases(1),
+  useCase3: useCases(2),
+});

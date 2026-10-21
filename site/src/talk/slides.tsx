@@ -4,13 +4,13 @@ import { THEME_PRESETS } from 'flint-chart';
 import { SizingPlayground } from '../components/SizingPlayground';
 import { ThemeExplorer } from './ThemeExplorer';
 import { WorldCupScorersDemo } from '../playground/WorldCupScorersDemo';
-import { CountryTableStage } from '../playground/ExternalToChartLab';
+import { CarOriginTableStage, CountryTableStage } from '../playground/ExternalToChartLab';
+import { McpChatTurn } from '../routes/McpExperience';
 import { GlobeWarmingStage } from '../playground/GlobeWarmingStage';
 import { RetailDrilldownStage } from '../playground/RetailDrilldownStage';
 import { YouDrawItStage } from '../playground/YouDrawItStage';
 import { ArticleSection } from '../playground/InteractiveDataReportLab';
 import { TIME_USE } from '../playground/interactive-data-report-content';
-import { InteractionDashboardLab } from '../playground/InteractionDashboardLab';
 import {
   FLINT_BASE, LONG_ROWS, TYPES_FLINT, typesCompiled, CARS, flintInput, flintShown, linkedYears, PICKED_GAME, PICKED_ROWS, STEPS, VL, foodLines, gameBars, heatmap, lineByType,
   penguins, picked, withData, type FlintState,
@@ -64,18 +64,18 @@ const DIFF = {
 };
 const GLUE_LINES = glue.trimEnd().split('\n').length;
 
-/** A playful theme an agent might write from a one-line prompt; the slide shows this exact object. */
-const FUN_THEME = {
-  extends: 'cartoon',
-  id: 'theme-park',
-  label: 'Theme park',
+/** A brand theme an agent might write from a short style guide; the slide shows this exact object. */
+const BRAND_THEME = {
+  extends: 'swiss',
+  id: 'northwind',
+  label: 'Northwind',
   ink: {
-    surface: { source: 'house', canvas: '#fdf6ff', plot: '#fdf6ff' },
-    series: { categorical: ['#ff6fb5', '#4cb8ff', '#ffc93c', '#9b6cff', '#38d39f', '#ff8a5c'] },
-    accent: '#ff6fb5',
+    text: { primary: '#14213d', secondary: '#4a5568' },
+    series: { single: '#1f3b73', categorical: ['#1f3b73', '#1b998b', '#e3a72f', '#8d99ae', '#c8553d', '#5b8e7d'] },
+    accent: '#1b998b',
   },
-  type: { headline: { family: "'Chalkboard SE', 'Comic Neue', cursive", weight: 'bold' } },
-  marks: { cornerRadius: 12, strokeWeight: 5 },
+  type: { headline: { family: "Georgia, 'Times New Roman', serif", weight: 'bold' } },
+  structure: { grid: { measure: 'quiet', category: 'omit' } },
 } as unknown as ThemeSpec;
 
 const PRESETS: { caption: string; spec: ChartAssemblyInput }[] = [
@@ -108,6 +108,28 @@ const TLDR_SPEC = `{
 
 // After the Flint version: one request at a time, each starting where the last one left off.
 const FLINT_W = 52;
+
+/** The three use cases, labelled under the sketch's three panels. */
+const USE_CASES = [
+  { title: 'Explore data', short: 'A chart or a dashboard, right in your chat.', long: 'Ask, and a live chart or dashboard opens in your chat through the Flint MCP server.' },
+  { title: 'Build apps', short: 'Flint as a component in your app.', long: 'Your coding agent writes Flint into the app as a component and wires it to the rest of the page.' },
+  { title: 'Design', short: 'One theme for every chart.', long: 'Write your house style once as a theme, and every chart in every library follows it.' },
+];
+
+/** The use-case sketch with readable labels under its panels; `focus` circles one and spells it out. */
+const UseCases = ({ focus }: { focus?: number }) => (
+  <div className="talk-body column" style={{ gap: 8 }}>
+    <div className="talk-fit"><Sketch name={focus === undefined ? 'useCases' : `useCase${focus + 1}`} /></div>
+    <div className="talk-usecases">
+      {USE_CASES.map((u, i) => (
+        <div key={u.title} className={focus === undefined ? undefined : focus === i ? 'on' : 'off'}>
+          <h3>{i + 1}. {u.title}</h3>
+          <p>{focus === i ? u.long : u.short}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+);
 
 /** The "draw your guess" demo's interaction, condensed: a trigger, and a handler that answers with an update. */
 const BESPOKE_ROWS: CodeRow[] = [
@@ -599,36 +621,57 @@ export const SLIDES: SlideDef[] = [
     </>),
   },
 
-  // Summary
-  // ======================================================== Act 4
   {
-    id: 'act4', kind: 'section', render: () => (<>
-      <h1>What you can build with it</h1>
-      <p className="talk-lead">In a chat, in your app, and beyond the presets.</p>
-    </>),
-  },
-  {
-    id: 'chat', render: () => (<>
-      <h2>In a chat, tell your agent what you want</h2>
-      <div className="talk-body">
-        <div className="talk-col narrow middle">
-          <p className="talk-lead">Describe the chart and how it should behave. The agent writes the interaction spec next to the chart spec, and the chart appears in the conversation, ready to hover and read.</p>
+    id: 'bespoke-pair', render: () => (<>
+      <h2>More bespoke interactions, built the same way</h2>
+      <div className="talk-grid" style={{ gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.3fr)' }}>
+        <div className="talk-cell">
+          <Stable width={560} height={580}><GlobeWarmingStage layout="stacked" /></Stable>
+          <p className="talk-caption">Drag to turn the globe; the country facing you is the focus.</p>
         </div>
-        <div className="talk-col wide">
-          <div className="talk-chat">
-            <p className="talk-chat-user">Visualize U.S. egg and bread prices since 2015, and let me hover to read both at any month.</p>
-            <div className="talk-chat-agent">
-              <p>Here it is. Hover along the timeline to read both prices.</p>
-              <Chart spec={foodLines([{ type: 'inspect-index', options: { show: 'all' } }])} />
-            </div>
-          </div>
+        <div className="talk-cell">
+          <Stable width={900} height={580}><RetailDrilldownStage /></Stable>
+          <p className="talk-caption">Scroll to zoom the months, and the bars, axis, and labels are laid out again.</p>
         </div>
       </div>
     </>),
   },
+
+  // Summary
+  // ======================================================== Act 4
+  {
+    id: 'act4', render: () => (<>
+      <h2>What you can build with it</h2>
+      <UseCases />
+    </>),
+  },
+  {
+    id: 'uc-explore', render: () => (<>
+      <h2>1. When you explore data</h2>
+      <UseCases focus={0} />
+    </>),
+  },
+  {
+    id: 'chat-chart', render: () => (<>
+      <h2>Ask for a chart, and a live chart opens in the chat</h2>
+      <div className="talk-body column"><Stable width={900} height={700}><McpChatTurn kind="chart" /></Stable></div>
+    </>),
+  },
+  {
+    id: 'chat-board', render: () => (<>
+      <h2>Ask for a dashboard, and its charts work together</h2>
+      <div className="talk-body column"><Stable width={900} height={820}><McpChatTurn kind="board" /></Stable></div>
+    </>),
+  },
+  {
+    id: 'uc-apps', render: () => (<>
+      <h2>2. When you build apps</h2>
+      <UseCases focus={1} />
+    </>),
+  },
   {
     id: 'app', render: () => (<>
-      <h2>In your app, events go out and updates come in</h2>
+      <h2>Your agent writes Flint as a component of your app</h2>
       <div className="talk-body">
         <div className="talk-col" style={{ flex: '0.85 1 0', gap: 16 }}>
           <p className="talk-task talk-task-sm">"Show goals by team, and when I click a team, list its scorers in the panel beside it."</p>
@@ -642,17 +685,11 @@ export const SLIDES: SlideDef[] = [
     </>),
   },
   {
-    id: 'bespoke-code', render: () => (<>
-      <h2>Beyond presets, write your own interaction</h2>
-      <div className="talk-body">
-        <div className="talk-col" style={{ flex: '0.9 1 0', gap: 16 }}>
-          <p className="talk-task talk-task-sm">"Let readers draw where they think coal's share of U.S. electricity went, then reveal the real line."</p>
-          <Code rows={BESPOKE_ROWS} max={19} />
-        </div>
-        <div className="talk-col" style={{ flex: '1.1 1 0' }}>
-          <Stable width={900} height={620}><YouDrawItStage /></Stable>
-          <p className="talk-caption">Draw the line past the cutoff, and the real data appears when you finish.</p>
-        </div>
+    id: 'app-tables', render: () => (<>
+      <h2>Connect charts to your own components and tables</h2>
+      <div className="talk-body column">
+        <Stable width={1000} height={420}><CarOriginTableStage /></Stable>
+        <p className="talk-caption">Pick a row in the table, and the chart follows; select points in the chart, and the table follows.</p>
       </div>
     </>),
   },
@@ -666,9 +703,24 @@ export const SLIDES: SlideDef[] = [
     </>),
   },
   {
-    id: 'dashboard', render: () => (<>
-      <h2>Create dashboards where every chart works together</h2>
-      <div className="talk-body column talk-dashboard"><Stable width={1900} height={760}><InteractionDashboardLab /></Stable></div>
+    id: 'bespoke-code', render: () => (<>
+      <h2>Create bespoke interactions beyond the presets</h2>
+      <div className="talk-body">
+        <div className="talk-col" style={{ flex: '0.9 1 0', gap: 16 }}>
+          <p className="talk-task talk-task-sm">"Let readers draw where they think coal's share of U.S. electricity went, then reveal the real line."</p>
+          <Code rows={BESPOKE_ROWS} max={19} />
+        </div>
+        <div className="talk-col" style={{ flex: '1.1 1 0' }}>
+          <Stable width={900} height={620}><YouDrawItStage /></Stable>
+          <p className="talk-caption">Draw the line past the cutoff, and the real data appears when you finish.</p>
+        </div>
+      </div>
+    </>),
+  },
+  {
+    id: 'uc-design', render: () => (<>
+      <h2>3. When you design</h2>
+      <UseCases focus={2} />
     </>),
   },
   {
@@ -676,30 +728,14 @@ export const SLIDES: SlideDef[] = [
       <h2>You can create your own theme like a designer</h2>
       <div className="talk-body">
         <div className="talk-col" style={{ flex: '0.85 1 0', gap: 16 }}>
-          <p className="talk-task talk-task-sm">"Create a theme inspired by a Disneyland day out: candy colors, rounded shapes, and a playful font."</p>
-          <Code rows={specLayout({ theme_spec: FUN_THEME })} max={18} />
+          <p className="talk-task talk-task-sm">"Here is our brand guide: navy and teal, slate for supporting series, Georgia for headlines, and quiet grids. Write a Flint theme so every chart in our reports matches."</p>
+          <Code rows={specLayout({ theme_spec: BRAND_THEME })} max={18} />
         </div>
         <div className="talk-grid" style={{ flex: '1.15 1 0', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gridTemplateRows: '1fr 1fr' }}>
-          <Cell><Chart spec={lineByType({ theme_spec: FUN_THEME } as Partial<ChartAssemblyInput>)} /></Cell>
-          <Cell><Chart spec={gameBars(8, { theme_spec: FUN_THEME } as Partial<ChartAssemblyInput>)} /></Cell>
-          <Cell><Chart spec={{ ...penguins(), theme_spec: FUN_THEME } as ChartAssemblyInput} /></Cell>
-          <Cell><Chart spec={{ ...foodLines(), theme_spec: FUN_THEME } as ChartAssemblyInput} /></Cell>
-        </div>
-      </div>
-    </>),
-  },
-
-  {
-    id: 'bespoke-pair', render: () => (<>
-      <h2>More bespoke interactions, built the same way</h2>
-      <div className="talk-grid" style={{ gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.3fr)' }}>
-        <div className="talk-cell">
-          <Stable width={560} height={580}><GlobeWarmingStage layout="stacked" /></Stable>
-          <p className="talk-caption">Drag to turn the globe; the country facing you is the focus.</p>
-        </div>
-        <div className="talk-cell">
-          <Stable width={900} height={580}><RetailDrilldownStage /></Stable>
-          <p className="talk-caption">Scroll to zoom the months, and the bars, axis, and labels are laid out again.</p>
+          <Cell><Chart spec={lineByType({ theme_spec: BRAND_THEME } as Partial<ChartAssemblyInput>)} /></Cell>
+          <Cell><Chart spec={gameBars(8, { theme_spec: BRAND_THEME } as Partial<ChartAssemblyInput>)} /></Cell>
+          <Cell><Chart spec={{ ...penguins(), theme_spec: BRAND_THEME } as ChartAssemblyInput} /></Cell>
+          <Cell><Chart spec={{ ...foodLines(), theme_spec: BRAND_THEME } as ChartAssemblyInput} /></Cell>
         </div>
       </div>
     </>),
@@ -719,18 +755,19 @@ export const SLIDES: SlideDef[] = [
     id: 'try', render: () => (<>
       <h2>Let's build with Flint</h2>
       <div className="talk-cta-wrap">
+      <div className="talk-cta-sketch"><Sketch name="useCases" /></div>
       <div className="talk-body talk-cta">
         <div className="talk-col talk-cta-card meaning">
-          <h3>If you work with data</h3>
-          <p>Add the Flint MCP server to GitHub Copilot or your own agent with <code>npx -y flint-chart-mcp</code>, and ask for styled, interactive charts, reports, and dashboards right in the chat.</p>
+          <h3>1. If you explore data</h3>
+          <p>Add the Flint MCP server to GitHub Copilot or your own agent with <code>npx -y flint-chart-mcp</code>, and ask for charts and dashboards right in the chat.</p>
         </div>
         <div className="talk-col talk-cta-card behavior">
-          <h3>If you build interactive apps</h3>
+          <h3>2. If you build apps</h3>
           <p>Build Flint into your product with <code>npm install flint-chart</code>. Give your agent the Flint skills, and its charts will talk to your tables, widgets, and app state.</p>
         </div>
         <div className="talk-col talk-cta-card look">
-          <h3>If you design</h3>
-          <p>Let's work on new themes together. Your team's style guide can become a Flint theme that every chart, on every library, follows.</p>
+          <h3>3. If you design</h3>
+          <p>Let's work on new themes together. Your team's style guide can become a Flint theme that every chart follows.</p>
         </div>
       </div>
       <p className="talk-task talk-collab"><strong>We want to collaborate!</strong> Ping me and I'm happy to demonstrate Flint to your team, and to work together on the next generation of interactive artifacts.</p>
