@@ -19,7 +19,6 @@ import { FlintChart, FlintTable } from 'flint-chart/react';
 import { expressionInterpreter } from 'vega-interpreter';
 
 import { ActionButton, ThemeControl } from './controls';
-import { STANDING_NOTE, useStanding } from './standing';
 import type { Board } from './BoardView';
 import { assemblePreviewSpec, renderFlintSvg, usesAutoPreviewSize, withAppPreviewDefaults } from './render';
 import { chartIconFor } from './chart-icons';
@@ -570,8 +569,7 @@ function OptionsBar(props: {
 }
 
 export function ChartView({ app, shown, hostContext }: { app: App; shown: Board; hostContext?: McpUiHostContext }) {
-  const { id, version, charts: [{ input, updates = NO_UPDATES, view: initialView = 'chart' }] } = shown;
-  const [standing] = useStanding(app, shown);
+  const { charts: [{ input, updates = NO_UPDATES, view: initialView = 'chart' }] } = shown;
   const [current, setCurrent] = useState<ChartAssemblyInput>(input);
   const [surfaceWarnings, setSurfaceWarnings] = useState<readonly ChartWarning[]>([]);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copying' | 'copied' | 'downloaded' | 'error'>('idle');
@@ -749,14 +747,18 @@ export function ChartView({ app, shown, hostContext }: { app: App; shown: Board;
       gestures: gestures.current,
       table,
     });
-    const text = `Chart ${id} version ${version}: change it with update_chart, then show it again.\n${context.text}`;
+    // The reader's panel edits live on this card only: the agent keeps them by passing the spec they leave.
+    const edited = JSON.stringify(current.chart_spec) !== JSON.stringify(input.chart_spec)
+      ? `\nTo keep the reader's edits in the next show, pass chart_spec: ${JSON.stringify(current.chart_spec)}.`
+      : '';
+    const text = `Chart on screen, as the reader sees it now. To change it, change the spec and call show again.\n${context.text}${edited}`;
     if (text === lastContext.current) return;
     lastContext.current = text;
     void app.updateModelContext({
       content: [{ type: 'text', text }],
       structuredContent: context.data,
     }).catch((err) => console.warn('The host declined the chart context', err));
-  }, [app, id, version, input, current, agentView, shownView, updates, checks, table]);
+  }, [app, input, current, agentView, shownView, updates, checks, table]);
   useEffect(() => {
     const state = shownSurface.current?.getState() ?? undefined;
     if (state || tableType) sendContext(state);
@@ -843,7 +845,6 @@ export function ChartView({ app, shown, hostContext }: { app: App; shown: Board;
       }}
     >
       <div className="preview">
-        {standing === 'passed' && <p className="board-status">{STANDING_NOTE.passed}</p>}
         {shownError ? (
           <div className="error">
             <strong>Could not render chart</strong>
@@ -915,5 +916,5 @@ const NO_UPDATES: readonly ChartUpdate[] = [];
 
 /** One chart as a shown view, for a card drawn outside a show call. */
 export function shownChart(input: ChartAssemblyInput): Board {
-  return { id: 'chart-example', kind: 'chart', version: 1, charts: [{ id: 'chart', input }] };
+  return { id: 'chart-example', kind: 'chart', charts: [{ id: 'chart', input }] };
 }
