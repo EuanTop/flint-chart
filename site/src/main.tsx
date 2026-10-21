@@ -29,6 +29,7 @@ import { ThemeImprovement } from './playground/theme-improvement/ThemeImprovemen
 import { LabelAngles } from './playground/label-angles/LabelAngles';
 import { CanvasSqueeze } from './playground/canvas-squeeze/CanvasSqueeze';
 import { ColorLab } from './playground/ColorLab';
+import { TalkDeck } from './talk/TalkDeck';
 import { BandStretchingLab } from './playground/BandStretchingLab';
 import { LabelExperimentLab } from './playground/LabelExperimentLab';
 import { AxisLabelLab } from './playground/AxisLabelLab';
@@ -92,6 +93,7 @@ function AppRoutes({ locale }: { locale: Locale }) {
         <Route path="wall" element={<WallRedirect />} />
         <Route path="wall/:backend" element={<WallRedirect />} />
         <Route path="editor" element={<Editor />} />
+        <Route path="talk" element={<TalkDeck />} />
         <Route path="mcp" element={<McpServer />} />
         <Route path="themes" element={<Themes />} />
         <Route path="theme-lab" element={<PublicThemeLab />} />

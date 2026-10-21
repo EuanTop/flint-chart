@@ -118,7 +118,7 @@ export const cjsBumpChartDef: ChartTemplateDef = {
                                         const opts: Intl.DateTimeFormatOptions = spanDays > 60
                                             ? { month: 'short', year: 'numeric' }
                                             : { month: 'short', day: 'numeric', year: 'numeric' };
-                                        return new Date(n).toLocaleDateString(undefined, opts);
+                                        return new Date(n).toLocaleDateString(undefined, { ...opts, timeZone: 'UTC' });
                                     },
                                 }
                                 : {}),

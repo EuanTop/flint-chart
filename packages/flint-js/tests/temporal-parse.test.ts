@@ -86,3 +86,17 @@ describe('Date values in update keys', () => {
     expect(temporalFieldValue('At', instant, { At: 'DateTime' })).toBe(instant.getTime());
   });
 });
+
+describe('Chart.js date ticks', () => {
+  it('label UTC calendar months as themselves, west of UTC too', async () => {
+    const { assembleChartjs } = await import('../src');
+    const rows = ['2025-01', '2025-02', '2025-03', '2025-04'].map((period, i) => ({ period, users: 10 + i }));
+    const cj = assembleChartjs({
+      data: { values: rows },
+      semantic_types: { period: 'YearMonth', users: 'Quantity' },
+      chart_spec: { chartType: 'Line Chart', encodings: { x: 'period', y: 'users' } },
+    } as any) as any;
+    const tick = cj.options.scales.x.ticks.callback(Date.UTC(2025, 0, 1));
+    expect(tick).toMatch(/Jan/);
+  });
+});
