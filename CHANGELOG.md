@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Plotly: a Line or Area Chart's `chartProperties.interpolate` now outranks the theme's line
+  curve, an explicit `linear` included. A theme such as Cartoon (`monotone`) or De Stijl (`step`)
+  only supplies a curve when the chart asks for none (#149).
+- MCP: a small chart whose rows were passed inline also rides in `show`'s `structuredContent`, so
+  a card that VS Code's Agent Host draws again (it drops `_meta`) can still render it. Rows read
+  from a local `data.url` file never do (microsoft/vscode#343243).
+- The npm publish workflow waits up to 20 minutes for a new version and asks the registry
+  directly, instead of a cached answer.
+
 ## [1.0.0] - 2026-10-19
 
 Released together for `flint-chart`, `flint-chart-mcp`, and the Copilot Canvas plugin.
