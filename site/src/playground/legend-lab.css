@@ -1,0 +1,15 @@
+.ll-page { gap: 22px; padding-bottom: 60px; }
+.ll-heading { width: min(100%, 1180px); }
+.ll-heading p { margin: 8px 0 0; color: #444; line-height: 1.55; max-width: 920px; }
+.ll-controls { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; margin-top: 12px; font-size: 13px; }
+.ll-sizes { display: inline-flex; flex-wrap: wrap; gap: 12px; }
+.ll-sizes label { display: inline-flex; gap: 4px; align-items: center; }
+
+.ll-block { width: 100%; }
+.ll-block h2 { font-size: 17px; margin: 0 0 6px; }
+.ll-row h3 { font-size: 14px; margin: 16px 0 6px; }
+.ll-row h3 span { font-weight: 400; color: #666; }
+.ll-cells { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
+.ll-cells figure { margin: 0; border: 1px solid #e5e5e5; border-radius: 6px; padding: 8px; background: #fff; max-width: 100%; overflow-x: auto; }
+.ll-cells figcaption { display: flex; flex-direction: column; font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: #555; margin-bottom: 6px; }
+.ll-cells figcaption b { font: 600 12px/1.4 system-ui, sans-serif; color: #222; }

@@ -25,9 +25,13 @@ import type {
 } from '../core/types';
 import { isRegistered } from '../core/type-registry';
 import { toTypeString } from '../core/field-semantics';
+import { resolveEncodingSort } from '../core/resolve-semantics';
 import { assembleVegaLite } from '../vegalite/assemble';
 import { resolveInteractionSpec } from '../interactive/spec/resolve';
 import { admitInteractions } from '../interactive/spec/admission';
+import { isCanvasInteraction, type CanvasInteractionDef } from '../interactive/interactions';
+import type { ChartUpdate } from '../core/interaction-contracts';
+import { checkUpdates, updateShapeErrors, type UpdateCheck } from './updates';
 import { vlGetTemplateDef } from '../vegalite/templates';
 import { assembleECharts } from '../echarts/assemble';
 import { ecGetTemplateDef } from '../echarts/templates';
@@ -57,6 +61,8 @@ export interface ValidateChartOptions {
     maxDataRows?: number;
     /** Maximum `baseSize` / `canvasSize` dimension in pixels. Default: 4000. */
     maxCanvasDim?: number;
+    /** ChartUpdates to check against the chart, as JSON from a caller; see {@link ValidateResult.updates}. */
+    updates?: unknown;
 }
 
 export interface AssembleResult {
@@ -81,6 +87,12 @@ export interface ValidateResult {
     errors: ChartWarning[];
     /** Computed layout size from Flint's stretch model, if available. */
     computedSize?: { width: number; height: number };
+    /**
+     * With `options.updates` on a Vega-Lite chart: what each update will do, op by op.
+     * An op that will not apply is also an `update_not_applied` warning; a malformed
+     * list is an `invalid_updates` error and leaves this out.
+     */
+    updates?: UpdateCheck[];
 }
 
 const ASSEMBLERS: Record<ValidationBackend, (input: ChartAssemblyInput) => any> = {
@@ -98,6 +110,13 @@ const TEMPLATE_LOOKUP: Record<
     echarts: ecGetTemplateDef,
     chartjs: cjsGetTemplateDef,
     plotly: plGetTemplateDef,
+};
+
+const FIELD_SORT: Record<ValidationBackend, boolean> = {
+    vegalite: true,
+    echarts: false,
+    chartjs: false,
+    plotly: false,
 };
 
 /**
@@ -166,18 +185,24 @@ function validateEncodings(
         throw new Error('input.chart_spec.encodings must be a channel-to-encoding object');
     }
     const entries = Object.entries(encodings);
-    if (entries.length === 0) {
+    const template = backend ? TEMPLATE_LOOKUP[backend]?.(chartType) : undefined;
+    if (entries.length === 0 && template?.channels.length !== 0) {
         throw new Error('input.chart_spec.encodings must bind at least one channel');
     }
 
     if (backend) {
-        const template = TEMPLATE_LOOKUP[backend]?.(chartType);
         if (!template) return;
         validateEncodingsAgainstTemplate(chartType, backend, template, encodings);
     }
 
     const dataFields = new Set(rows.flatMap((row) => Object.keys(row)));
     for (const [channel, encoding] of entries) {
+        for (const entry of Array.isArray(encoding) ? encoding : [encoding]) {
+            if (!isRecord(entry)) continue;
+            resolveEncodingSort(entry, channel, encodings, dataFields, {
+                fieldSort: backend ? FIELD_SORT[backend] : true,
+            });
+        }
         for (const field of encodingFields(encoding)) {
             if (!dataFields.has(field)) {
                 throw new Error(
@@ -195,6 +220,9 @@ function validateEncodingsAgainstTemplate(
     encodings: Record<string, unknown>,
 ): void {
     const allowed = new Set(template.channels ?? []);
+    if (allowed.size === 0 && Object.keys(encodings).length > 0) {
+        throw new Error(`${chartType} takes no encodings (encodings: {}); it shows the fields of data.values in their order, so shape the rows to what it should show`);
+    }
     for (const channel of Object.keys(encodings)) {
         if (!allowed.has(channel)) {
             throw new Error(
@@ -303,6 +331,34 @@ export function assembleForBackend(
     return { spec, warnings, width, height };
 }
 
+/** The interactions the mount would admit, and the warnings `interaction_spec` would produce. */
+function admitSpecInteractions(
+    input: ChartAssemblyInput,
+    backend: ValidationBackend,
+    assembled: unknown,
+): { admitted: readonly CanvasInteractionDef[]; warnings: ChartWarning[] } {
+    if (!input.interaction_spec) return { admitted: [], warnings: [] };
+    if (backend !== 'vegalite') {
+        return {
+            admitted: [],
+            warnings: [{
+                severity: 'info',
+                code: 'interactions_ignored',
+                message: `Interactions are ignored: backend "${backend}" does not run interactions, so the chart renders static.`,
+            }],
+        };
+    }
+    try {
+        const resolved = resolveInteractionSpec(input.interaction_spec);
+        const { _interactionSemantics: plan } = assembled as { _interactionSemantics: Parameters<typeof admitInteractions>[0] };
+        const admission = admitInteractions(plan, resolved.interactions.filter(isCanvasInteraction));
+        return { admitted: admission.admitted, warnings: [...admission.warnings] };
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { admitted: [], warnings: [{ severity: 'error', code: 'invalid_interaction_spec', message }] };
+    }
+}
+
 /**
  * The warnings `interaction_spec` would produce at mount: a malformed spec is an
  * error, an entry the assembled chart cannot honour is a warning, and a backend
@@ -313,23 +369,43 @@ export function validateInteractionSpec(
     backend: ValidationBackend,
     assembled: unknown,
 ): ChartWarning[] {
-    if (!input.interaction_spec) return [];
-    if (backend !== 'vegalite') {
-        return [{
-            severity: 'info',
-            code: 'interactions_ignored',
-            message: `interaction_spec is ignored: backend "${backend}" does not run interactions.`,
-        }];
-    }
-    try {
-        const resolved = resolveInteractionSpec(input.interaction_spec);
-        const { _interactionSemantics: plan } = assembled as { _interactionSemantics: Parameters<typeof admitInteractions>[0] };
-        return [...admitInteractions(plan, resolved.interactions).warnings];
-    } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return [{ severity: 'error', code: 'invalid_interaction_spec', message }];
-    }
+    return admitSpecInteractions(input, backend, assembled).warnings;
 }
+
+interface UpdatesOutcome {
+    checks?: UpdateCheck[];
+    warnings: ChartWarning[];
+}
+
+/** What `updates` will do on the chart, and the warnings for the ops that will not apply. */
+function checkSpecUpdates(
+    input: ChartAssemblyInput,
+    backend: ValidationBackend,
+    assembled: unknown,
+    admitted: readonly CanvasInteractionDef[],
+    updates: readonly ChartUpdate[],
+): UpdatesOutcome {
+    if (backend !== 'vegalite') {
+        return {
+            warnings: [{
+                severity: 'info',
+                code: 'updates_ignored',
+                message: `Updates are ignored: backend "${backend}" does not run them.`,
+            }],
+        };
+    }
+    const checks = checkUpdates(input, updates, assembled, admitted);
+    const warnings = checks.flatMap((check) => check.ops.flatMap((op): ChartWarning[] => (op.ok ? [] : [{
+        severity: 'warning',
+        code: 'update_not_applied',
+        message: `Update "${check.id}" will not apply ${op.text}: ${op.reason}`,
+    }])));
+    return { checks, warnings };
+}
+
+export type { UpdateCheck, UpdateOpCheck } from './updates';
+export { validateLinks } from './links';
+export type { ChartLink, LinkCondition, LinkGesture, LinkPart, LinkSpec } from '../interactive/link';
 
 /**
  * Validate a {@link ChartAssemblyInput} for a backend: report warnings/errors,
@@ -338,7 +414,8 @@ export function validateInteractionSpec(
  * `semantic_types` labels are included as warnings (see
  * {@link validateSemanticTypes}) and do not affect `valid`. An
  * `interaction_spec` is checked the way the mount checks it (see
- * {@link validateInteractionSpec}).
+ * {@link validateInteractionSpec}). `options.updates` is checked for its shape
+ * and then op by op against the chart (see {@link ValidateResult.updates}).
  */
 export function validateChart(
     input: ChartAssemblyInput,
@@ -349,9 +426,14 @@ export function validateChart(
         ? input.chart_spec.chartType
         : '(unknown)';
     const semanticTypeWarnings = validateSemanticTypes(input?.semantic_types);
+    const updateErrors = options.updates === undefined ? [] : updateShapeErrors(options.updates);
     try {
         const { spec, warnings, width, height } = assembleForBackend(backend, input, options);
-        const all = [...warnings, ...semanticTypeWarnings, ...validateInteractionSpec(input, backend, spec)];
+        const interactions = admitSpecInteractions(input, backend, spec);
+        const updates: UpdatesOutcome = options.updates === undefined || updateErrors.length > 0
+            ? { warnings: updateErrors }
+            : checkSpecUpdates(input, backend, spec, interactions.admitted, options.updates as ChartUpdate[]);
+        const all = [...warnings, ...semanticTypeWarnings, ...interactions.warnings, ...updates.warnings];
         const errors = all.filter((w) => w.severity === 'error');
         return {
             backend,
@@ -361,6 +443,7 @@ export function validateChart(
             errors,
             computedSize:
                 width !== undefined && height !== undefined ? { width, height } : undefined,
+            ...(updates.checks ? { updates: updates.checks } : {}),
         };
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -368,8 +451,8 @@ export function validateChart(
             backend,
             chartType,
             valid: false,
-            warnings: semanticTypeWarnings,
-            errors: [{ severity: 'error', code: 'assembly_failed', message }],
+            warnings: [...semanticTypeWarnings, ...updateErrors],
+            errors: [{ severity: 'error', code: 'assembly_failed', message }, ...updateErrors],
         };
     }
 }

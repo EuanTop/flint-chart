@@ -1,0 +1,109 @@
+{
+  "id": "salesforce",
+  "org": "Salesforce Lightning Design System (SLDS 2) — Charts",
+  "urls": [
+    "https://lightningdesignsystem.com/guidelines/charts/",
+    "https://www.lightningdesignsystem.com/2e1ef8501/p/7139a1",
+    "https://www.lightningdesignsystem.com/2e1ef8501/p/723868",
+    "https://github.com/salesforce-ux/design-system/blob/master/design-tokens/extensions/ui-analytics/base.yml"
+  ],
+  "access": "partial",
+  "accessNotes": "The old /guidelines/charts/ URL now redirects to the SLDS 2 zeroheight site, which is JS-rendered and blocked to web_fetch; web.archive.org was temporarily offline. The full SLDS 2 'Patterns / Data visualization / Charts' page was read by rendering it in a headless browser (text + chart image URLs). The Data Visualization overview page redirected to the cover and was not read. The SLDS GitHub repo contains no chart-specific tokens; the ui-analytics token file only gives a system font stack and generic sizes. Typography sizes, gridline colours and axis specs are therefore not stated and are left null except where visible in example images.",
+  "summary": "Enterprise CRM product-UI chart guidance (Salesforce/Tableau CRM charting library): clean white canvases, light grey gridlines, rounded sans labels, and a set of six-colour named palettes (Default, Color Safe, Light, Dark, Bluegrass, Sunrise, Water, Watermelon). The guide is chart-selection oriented (comparison, trending, relationship, composition, distribution, metric, location, pipeline) with Do/Don't rules such as zero baselines, ≤4 lines, 2–5 pie slices and single colour per measure.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#52B7D8", "#E16032", "#FFB03B", "#54A77B", "#4FD2D2", "#E287B2"],
+    "categoricalNotes": "This is the 'Default Palette' (midtone hues from around the colour wheel). Other selectable themes: Color Safe (accessible, WCAG 2.0) #529EE0, #D9A6C2, #08916D, #F59B00, #006699, #F0E442; Light #3296ED, #77B9F2, #9D53F2, #C398F5, #26ABA4, #4ED4CD; Dark #0E70C7, #3296ED, #7719E3, #9D53F2, #067D77, #26ABA4. Non-default themes pair hues roughly 180° apart. Five colours recommended as a practical maximum (short-term memory). Same metric = same colour across all bars/charts; different categories in donut/treemap get distinct hues (not shades). Note: the guide's example images actually use the Light palette (#3296ED, #77B9F2, #9D53F2).",
+    "sequential": ["#96F2EE", "#68CEEE", "#2D9CED", "#0E6ECE", "#073E92", "#051C61"],
+    "diverging": [],
+    "highlight": null,
+    "context": null,
+    "positive": null,
+    "negative": null,
+    "background": "#FFFFFF",
+    "text": null,
+    "textSecondary": null,
+    "gridline": null,
+    "axis": null,
+    "notes": "Sequential listed is the 'Water' palette. Other ramp-like themes: Bluegrass #C7F296, #94E7A8, #51D2BB, #27AAB0, #116985, #053661; Sunrise #F5DE98, #F5C062, #F59623, #CE6716, #762F3D, #300561; Watermelon #F598A7, #F56580, #F4284E, #C11C2F, #5C3F22, #0A611B. Continuous values: one hue or a gradient of one hue. Red=bad / green=good metaphor acceptable only within a single culture. Background white is from example images."
+  },
+  "typography": {
+    "family": "Salesforce Sans (as seen in example images); analytics token stack is system UI",
+    "fallback": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    "title": { "size": null, "weight": null, "align": null, "case": null, "color": null },
+    "subtitle": { "size": null, "weight": null, "style": null, "color": null },
+    "axisLabel": { "size": null, "color": null },
+    "axisTitle": { "size": null, "weight": "regular", "placement": "rotated beside axis, very light grey (example dual-axis line chart)" },
+    "dataLabel": { "size": null, "weight": null },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "ui-analytics tokens: font sizes 0.625rem, 0.75rem, 0.875rem, 1rem, 1.125rem, 1.25rem, 1.5rem; weights 300/400/700. Example images: grey-blue axis tick labels, dark navy category labels, medium grey legend text. Charts are shown without in-image titles (titles are page captions such as 'Bar Chart: Sales by Account')."
+  },
+  "structure": {
+    "gridlines": "Light grey solid gridlines perpendicular to the value axis only (vertical for horizontal bars, horizontal for line/column charts), as seen in examples.",
+    "axisLine": "No visible axis lines in examples; faint baseline only.",
+    "ticks": "No tick marks in examples.",
+    "zeroLine": "Zero baseline required (bars and scatter axes must start at 0) but not visually emphasised.",
+    "yAxisPlacement": "left (secondary measure on right for dual-measure line chart)",
+    "yAxisTitle": "rotated, pale grey, outside tick labels (dual-axis example)",
+    "unitPlacement": "On every tick with abbreviations ($10M ... $50M)",
+    "frame": "none in examples (charts live inside Lightning cards in product)",
+    "background": "white",
+    "notes": "Horizontal-bar example places value-axis labels along the TOP of the chart."
+  },
+  "legend": {
+    "placement": "bottom, centred",
+    "directLabels": null,
+    "title": "not shown",
+    "swatchShape": "circle",
+    "notes": "Legend row of filled circles + label beneath the plot in both stacked bar and donut examples."
+  },
+  "marks": {
+    "bars": "Square-cornered bars with small gaps (~10-15% of band); stacked segments abut with no separator; ordinal data sorted ascending or descending; single colour for one measure.",
+    "lines": "Thick (~4px) lines, straight segments, no point markers; up to four lines; optional pale translucent fill underneath each line.",
+    "areas": "Low-opacity tinted fill of the line colour (pale lilac / pale blue) beneath lines.",
+    "points": "Dot plots / scatter: circles with size and colour/intensity as 3rd/4th measures.",
+    "pies": "2–5 values; descending order starting at 12 o'clock moving clockwise; example is a thin-ring donut with no labels on the ring and circle-swatch legend below.",
+    "notes": "Treemaps sorted by size (larger at left/bottom). Gauges (flat, polar, ratings) should include a target/average reference point."
+  },
+  "labels": {
+    "dataLabels": "Not shown in examples.",
+    "numberFormat": "Abbreviated currency on axes ($10M, $5M); plain integers (0, 200, 400).",
+    "dates": "Short month names (Jan, Feb, Mar, Apr).",
+    "notes": "Always pair colour with symbols or text."
+  },
+  "furniture": {
+    "title": "Chart titles in the guide are captions of the form '<Chart type>: <Measure> by <Dimension>' (e.g. 'Bar Chart: Sales by Account'); no headline-style titles.",
+    "source": null,
+    "logo": null,
+    "other": "Charts sit within product UI (Lightning cards/dashboards)."
+  },
+  "annotations": "Use colour and size to highlight patterns and identify outliers; outliers should be identified by colour variation.",
+  "layout": null,
+  "interaction": "Not covered on the Charts page; users can select colour themes from the Salesforce charting library.",
+  "accessibility": "Color Safe theme passes WCAG 2.0 contrast; always use symbols or text in addition to colour; prefer colour-safe themes.",
+  "chartTypes": {
+    "preferred": ["bar", "column", "stacked bar", "dot plot", "line", "scatter", "pie/donut", "treemap", "heatmap", "matrix", "flat gauge", "polar gauge", "ratings", "map", "bubble map", "funnel", "waterfall", "origami", "sankey"],
+    "discouraged": ["line charts with >4 series or mixed measures", "pies with >5 slices", "dense dot plots", "non-zero baselines"],
+    "notes": "Bar chart described as 'the workhorse of analytics'."
+  },
+  "distinctiveRules": [
+    { "rule": "Default categorical palette is #52B7D8, #E16032, #FFB03B, #54A77B, #4FD2D2, #E287B2 (six midtone hues around the wheel).", "source": "https://www.lightningdesignsystem.com/2e1ef8501/p/7139a1", "quote": "Default Palette: #52B7D8, #E16032, #FFB03B, #54A77B, #4FD2D2, #E287B2" },
+    { "rule": "Bars and scatter axes always start at zero.", "source": "https://www.lightningdesignsystem.com/2e1ef8501/p/7139a1", "quote": "Don't set the baseline to any number other than zero." },
+    { "rule": "One colour for all bars of the same measure; no decorative colouring.", "source": "https://www.lightningdesignsystem.com/2e1ef8501/p/7139a1", "quote": "Do use a single color to represent all values compared against the same measure." },
+    { "rule": "Line charts carry at most four series.", "source": "https://www.lightningdesignsystem.com/2e1ef8501/p/7139a1", "quote": "Do use a line chart to represent data with four or fewer related values." },
+    { "rule": "Pie/donut: 2–5 slices, descending, starting at 12 o'clock clockwise.", "source": "https://www.lightningdesignsystem.com/2e1ef8501/p/7139a1", "quote": "Do show data in descending order, starting at the 12 o'clock point and moving clockwise." },
+    { "rule": "Donut/treemap categories use distinct hues, never shades of one hue; continuous values use one hue or its gradient.", "source": "https://www.lightningdesignsystem.com/2e1ef8501/p/7139a1", "quote": "Do not use the shades of the same color on a donut or tree-map." },
+    { "rule": "Limit to five colours as a practical maximum.", "source": "https://www.lightningdesignsystem.com/2e1ef8501/p/7139a1", "quote": "making five a good maximum for color choices" },
+    { "rule": "Legend is a centred row of filled circle swatches beneath the chart.", "source": "https://www.lightningdesignsystem.com/uploads/yo1OhTFc-9K06NyhSOw_vQ.png", "quote": "Observed in stacked bar and donut example images." },
+    { "rule": "Gridlines only along the value axis, light grey; no axis lines or tick marks.", "source": "https://www.lightningdesignsystem.com/uploads/IAaeeVnWGkFxELJRxq-7DQ.png", "quote": "Observed in example images." },
+    { "rule": "Lines are thick (~4px) without markers, with a pale translucent area fill beneath.", "source": "https://www.lightningdesignsystem.com/uploads/IAaeeVnWGkFxELJRxq-7DQ.png", "quote": "Observed in 'Line Chart (Two Values)' example." },
+    { "rule": "Ordinal data shown in ascending or descending order; treemap parents sorted by size, larger at left/bottom.", "source": "https://www.lightningdesignsystem.com/2e1ef8501/p/7139a1", "quote": "Do sort parent rectangles by size (most commonly with larger ones at the left and/or bottom of the chart)." },
+    { "rule": "Gauges/ratings must include a reference point (target or average).", "source": "https://www.lightningdesignsystem.com/2e1ef8501/p/7139a1", "quote": "Do add context with a reference point representing target or average value." },
+    { "rule": "Selectable accessible 'Color Safe' theme: #529EE0, #D9A6C2, #08916D, #F59B00, #006699, #F0E442; colour always paired with symbols or text.", "source": "https://www.lightningdesignsystem.com/2e1ef8501/p/7139a1", "quote": "When using color to distinguish chart elements, always use symbols or text as well." }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/salesforce/stacked_bar.png", "url": "https://www.lightningdesignsystem.com/uploads/yo1OhTFc-9K06NyhSOw_vQ.png", "describes": "Stacked horizontal bar chart 'Sales by Account and Product' on white. Value-axis labels 0/200/400/600 in light grey-blue across the TOP; light grey vertical gridlines; no axis lines or ticks. Dark navy category labels 'Account A–E' left. Square-cornered bars, small gaps, segments in #3296ED-like blue, light blue (#77B9F2-ish) and purple (#9D53F2-ish). Bottom-centred legend with filled circles 'Product A/B/C'. No title, source or logo in image." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/salesforce/line_two_values.png", "url": "https://www.lightningdesignsystem.com/uploads/IAaeeVnWGkFxELJRxq-7DQ.png", "describes": "Dual-axis line chart: thick purple and blue lines with no markers, each with a pale translucent fill (lilac / periwinkle) to baseline. Horizontal light grey gridlines only; left ticks $0–$50M and right ticks $0–$5M in medium grey; rotated very pale grey axis titles 'Sales' (left) and 'Profit' (right). x labels Jan/Feb/Mar/Apr. No axis lines, ticks, legend or title." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/salesforce/pie.png", "url": "https://www.lightningdesignsystem.com/uploads/SFlMrx6E4YXsqw4-mw7Crg.png", "describes": "Thin-ring donut (large hole) with three segments blue, light blue, purple starting at 12 o'clock going clockwise; no slice gaps or labels on ring. Centred legend below with filled circles and grey labels 'Email', 'Call', 'Text'." }
+  ]
+}

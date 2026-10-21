@@ -43,6 +43,11 @@ body {
   color: var(--muted);
 }
 
+.status-reason {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
 .app {
   display: flex;
   flex-direction: column;
@@ -92,6 +97,12 @@ body {
 .chart-interactive {
   display: block;
   width: 100%;
+}
+
+/* FlintChart lays the chart out for the frame and scales any overflow itself. */
+.chart .chart-interactive svg {
+  max-width: none;
+  max-height: none;
 }
 
 .chart-pending {
@@ -770,3 +781,470 @@ input[type="checkbox"] {
   color: var(--muted);
   opacity: 0.4;
 }
+
+/* --- board view ---
+   The frame takes the theme's paper, ink and type (read off an assembled chart
+   into the --board-* variables), so the headline and the cell headings belong
+   to the same house as the charts under them. */
+.board {
+  --board-rule: color-mix(in srgb, var(--board-muted) 28%, transparent);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding:
+    calc(18px + var(--inset-top, 0px))
+    calc(20px + var(--inset-right, 0px))
+    calc(14px + var(--inset-bottom, 0px))
+    calc(20px + var(--inset-left, 0px));
+  background: var(--board-bg);
+  color: var(--board-ink);
+  font-family: var(--board-font);
+}
+
+.board-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--board-rule);
+}
+
+.board-title {
+  margin: 0;
+  font-family: var(--board-title-font);
+  font-size: 22px;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.board-subtitle {
+  margin: 0;
+  color: var(--board-muted);
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+
+.board-status {
+  margin: 2px 0 0;
+  color: var(--warn);
+  font-size: 11.5px;
+}
+
+.board-row {
+  display: grid;
+  column-gap: 24px;
+}
+
+.board-cell {
+  position: relative;
+  min-width: 0;
+}
+
+.board-row + .board-row:not(.board-row-kpi) .board-cell {
+  padding-top: 14px;
+  border-top: 1px solid var(--board-rule);
+}
+
+.board-furniture {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.board-header.board-header-themed {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.board-rule {
+  flex: none;
+  margin-top: 8px;
+}
+
+.board-foot-rule {
+  margin-top: 0;
+}
+
+.board-source.board-source-ruled {
+  padding-top: 0;
+  border-top: none;
+}
+
+.board-cell-chart {
+  min-width: 0;
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+.board-cell-chart .chart-interactive {
+  max-width: 100%;
+  /* FlintChart centres the chart in its box and scales an overflow about its centre; a cell
+     starts the chart under its heading, so it scales from the same corner. */
+  justify-content: flex-start !important;
+  align-items: flex-start !important;
+}
+
+.board-cell-chart .chart-interactive > div {
+  transform-origin: left top !important;
+}
+
+.board-cell-kpi .board-cell-chart .chart-interactive {
+  justify-content: center !important;
+}
+
+.board-cell-kpi .board-cell-chart .chart-interactive > div {
+  transform-origin: center top !important;
+}
+
+.board-cell-chart .chart-interactive > [data-flint-chart-id] {
+  max-width: 100%;
+}
+
+.board-cell-chart svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.board-empty {
+  padding: 24px 0;
+  color: var(--board-muted);
+}
+
+.board-source {
+  padding-top: 8px;
+  border-top: 1px solid var(--board-rule);
+  color: var(--board-muted);
+  font-size: 11px;
+}
+
+.board-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.board-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.board-heading-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.board-tools {
+  display: flex;
+  gap: 6px;
+  flex: none;
+  padding-top: 2px;
+}
+
+.board-tool {
+  font: inherit;
+  font-size: 12px;
+  color: var(--board-ink);
+  background: transparent;
+  border: 1px solid var(--board-rule);
+  border-radius: 4px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.board-tool:hover {
+  border-color: var(--board-muted);
+}
+
+.board-tool-primary {
+  background: var(--board-ink);
+  border-color: var(--board-ink);
+  color: var(--board-bg);
+}
+
+.board-hint {
+  margin: 2px 0 0;
+  color: var(--board-muted);
+  font-size: 12px;
+}
+
+/* --- arranged board: charts at their places on a 12-column grid --- */
+.board-grid {
+  position: relative;
+}
+
+.board-tile {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--board-rule);
+  transition: left 120ms ease, top 120ms ease, width 120ms ease, height 120ms ease;
+}
+
+.board-tile.board-cell-kpi {
+  border-top-color: transparent;
+}
+
+.board-tile-chart {
+  flex: 1;
+  min-height: 0;
+}
+
+
+/* Edit mode draws its frame outside the tile's box, so no chart changes size when it starts. */
+.board-editing .board-tile {
+  outline: 1px dashed var(--board-muted);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
+.board-editing .board-tile-chart {
+  pointer-events: none;
+}
+
+.board-tile-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--board-rule, var(--hairline));
+  border-radius: 4px;
+  background: var(--board-bg);
+  color: var(--board-muted);
+  cursor: grab;
+  touch-action: none;
+}
+
+.board-tile-handle:hover,
+.board-tile-handle:focus-visible {
+  color: var(--board-ink);
+  border-color: var(--board-muted);
+}
+
+.board-tile-active {
+  z-index: 2;
+  transition: none;
+  outline-style: solid !important;
+  outline-color: var(--board-ink) !important;
+  background: var(--board-bg);
+}
+
+.board-tile-active .board-tile-handle {
+  cursor: grabbing;
+  color: var(--board-ink);
+}
+
+.board-tile-edge,
+.board-tile-corner {
+  position: absolute;
+  touch-action: none;
+  z-index: 3;
+}
+
+.board-tile-edge-right {
+  top: 0;
+  right: 0;
+  width: 10px;
+  height: 100%;
+  cursor: ew-resize;
+}
+
+.board-tile-edge-bottom {
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 10px;
+  cursor: ns-resize;
+}
+
+.board-tile-corner {
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  border-right: 2px solid var(--board-muted);
+  border-bottom: 2px solid var(--board-muted);
+  border-bottom-right-radius: 3px;
+}
+
+.board-tile-corner-left {
+  left: 0;
+  right: auto;
+  cursor: nesw-resize;
+  border-right: none;
+  border-left: 2px solid var(--board-muted);
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 3px;
+}
+
+/* A selection in a bar, the board's or a chart's: a chip per part the reader acted on, and a way
+   to clear it. It takes the room it needs and no more; the board's colours where there is a board. */
+.board-selection {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.board-chip {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 10px;
+  border: 1px solid var(--board-rule, var(--hairline));
+  border-radius: 999px;
+  font-size: 11.5px;
+  color: var(--board-ink, var(--ink));
+  white-space: nowrap;
+}
+
+.board-chip-text {
+  min-width: 0;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.board-chip-removable {
+  padding-right: 3px;
+}
+
+.board-chip-more {
+  flex: none;
+  color: var(--board-muted, var(--muted));
+}
+
+.board-chip-clear,
+.board-selection-clear-all {
+  flex: none;
+  font: inherit;
+  color: var(--board-muted, var(--muted));
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.board-chip-clear {
+  font-size: 13px;
+  line-height: 1;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+}
+
+.board-chip-clear:hover {
+  color: var(--board-ink, var(--ink));
+  background: var(--board-rule, var(--hairline));
+}
+
+.board-selection-clear-all {
+  font-size: 11.5px;
+  padding: 0 4px;
+}
+
+.board-selection-clear-all:hover {
+  color: var(--board-ink, var(--ink));
+  text-decoration: underline;
+}
+
+/* The board's own bar, under the board as the chart card's is under its chart: the theme for every
+   chart on the left, the layout and export on the right. */
+.board-bar {
+  margin-top: 4px;
+  padding: 6px 0 0;
+  color: var(--board-muted);
+}
+
+.board-bar .optionsbar-grid {
+  gap: 6px;
+}
+
+.board-bar-fill {
+  flex: 1;
+}
+
+.board-bar .bar-link,
+.board-view-switch {
+  color: var(--board-muted);
+}
+
+.board-bar .bar-link:hover,
+.board-view-switch:hover {
+  color: var(--board-ink);
+  background: var(--board-rule);
+}
+
+.board-bar .bar-link:disabled {
+  opacity: 0.35;
+  cursor: default;
+  background: transparent;
+}
+
+/* A chart shown as its table: the chart stays laid out under it, hidden, and the table takes its box. */
+.view-table {
+  position: relative;
+}
+
+.view-table > .chart-interactive {
+  visibility: hidden;
+}
+
+.view-table > .flint-table {
+  position: absolute;
+  inset: 0;
+}
+
+/* A chart type that is a table takes the frame's width and grows to its rows, up to the chart's cap. */
+.table-cell > .flint-table {
+  height: 100%;
+}
+
+.chart.chart-table {
+  align-items: stretch;
+}
+
+.chart-table > .flint-table {
+  width: 100%;
+  max-height: var(--chart-max-height);
+}
+
+/* The switch floats over the chart's top end, shown on hover or focus and while on. */
+.board-view-switch {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.board-cell:hover .board-view-switch,
+.board-tile:hover .board-view-switch,
+.board-view-switch:focus-visible,
+.board-view-switch[aria-pressed="true"] {
+  opacity: 1;
+}
+

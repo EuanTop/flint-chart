@@ -133,7 +133,7 @@ describe('theme geometry — conditional on what the compiler already knows', ()
 });
 
 describe('theme geometry — what a chart cannot hear', () => {
-    it('drops geometry the template does not build, and says so', () => {
+    it('drops geometry the template does not build, without reporting it as a departure', () => {
         const { geometry, report } = resolveGeometry(
             { id: 'h', geometry: { arc: { gap: 4 }, line: { width: 2 } } },
             'Line Chart',
@@ -141,7 +141,7 @@ describe('theme geometry — what a chart cannot hear', () => {
         );
         expect(geometry.arc).toBeUndefined();
         expect(geometry.line?.width).toBe(2);
-        expect(JSON.stringify(report)).toContain('builds no arc');
+        expect(report).toEqual([]);
     });
 
     it('keeps the whole profile for a template that has not declared its shapes', () => {
@@ -153,9 +153,9 @@ describe('theme geometry — what a chart cannot hear', () => {
         expect(geometry.arc?.gap).toBe(4);
     });
 
-    it('reports the drop on the assembled chart, not only in the resolver', () => {
+    it('leaves the drop out of the assembled chart\'s report', () => {
         const spec = bar({ id: 'h', geometry: { arc: { gap: 4 }, band: { fraction: 0.6 } } });
-        expect(reportOf(spec)).toContain('builds no arc');
+        expect(reportOf(spec)).not.toContain('builds no arc');
     });
 });
 

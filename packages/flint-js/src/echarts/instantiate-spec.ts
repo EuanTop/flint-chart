@@ -27,16 +27,9 @@ import type {
     ChartWarning,
 } from '../core/types';
 import { computePaddedDomain } from '../core/semantic-types';
-import { getVisCategory } from '../core/semantic-types';
 import { toTypeString } from '../core/field-semantics';
-import {
-    looksLikeDateString,
-    analyzeTemporalField,
-    computeDataVotes,
-    pickBestLevel,
-    levelToFormat,
-    SEMANTIC_LEVEL,
-} from '../core/resolve-semantics';
+import { isDateField } from '../core/decisions';
+import { crowdedCalendarLabels } from '../core/calendar-labels';
 import { ColorDecisionResult } from '../core/color-decisions';
 import { getPaletteForScheme } from './colormap';
 import { DEFAULT_COLORS } from './templates/utils';
@@ -258,10 +251,10 @@ function pyramidNiceTickStep(niceMax: number): number {
 }
 
 /**
- * Overlay companions: the scatter series a boxplot draws alongside itself for
- * its outliers or for the full raw sample. They are separate series only
- * because ECharts needs a different series type to draw them, so they must
- * take the colour of the box they sit on rather than the next palette slot.
+ * Companions: series that take the colour of the series before them rather
+ * than the next palette slot. A boxplot draws its outliers or full raw sample
+ * as scatter companions, because ECharts needs a different series type for
+ * them; a Line Chart draws a colour value's other dash styles as companions.
  */
 const COMPANION_SUFFIX = / \((?:outliers|points)\)$/;
 const isCompanionSeries = (s: any): boolean => s?._companion === true;
@@ -745,6 +738,30 @@ export function ecApplyLayoutToSpec(
         }
     }
 
+    // ── Dates on a category x axis: as written, or as a calendar names them where crowded ──
+    {
+        const xAxis = option.xAxis;
+        const xcs = channelSemantics.x;
+        if (xAxis && !Array.isArray(xAxis) && xAxis.type === 'category' && Array.isArray(xAxis.data) && xcs?.field
+            && (xcs.type === 'nominal' || xcs.type === 'ordinal')) {
+            const values: string[] = xAxis.data.map((d: any) => String(d?.value ?? d));
+            const semanticType = toTypeString(context.semanticTypes[xcs.field]);
+            const named = isDateField(semanticType, values)
+                ? crowdedCalendarLabels(values, layout.xStep, xAxis.axisLabel?.fontSize ?? layout.xLabel?.fontSize ?? 11)
+                : undefined;
+            if (named) {
+                const byValue = new Map(values.map((value, index) => [value, named[index].join('\n')]));
+                const existing = xAxis.axisLabel?.formatter;
+                xAxis.axisLabel = {
+                    ...xAxis.axisLabel,
+                    formatter: (value: string) => byValue.get(String(value))
+                        ?? (typeof existing === 'function' ? existing(value) : value),
+                    rotate: 0,
+                };
+            }
+        }
+    }
+
     // ── Adjust bottom margin for rotated x-axis labels ──────────────────
     // When x-axis labels are rotated (especially 90°), increase nameGap and
     // grid.bottom to prevent overlap between rotated labels and axis title.
@@ -844,37 +861,6 @@ export function ecApplyLayoutToSpec(
             if (yAxis.axisLabel.color == null) yAxis.axisLabel.color = '#333';
             if (!yAxis.nameTextStyle) yAxis.nameTextStyle = { fontSize: 12, color: '#333' };
         }
-    }
-
-    // ── Ordinal temporal: category axes with date-like labels ──────────────
-    // VL applyOrdinalTemporalFormat: format nominal/ordinal axis as dates when data looks like dates.
-    for (const axis of ['x', 'y'] as const) {
-        const axisObj = option[`${axis}Axis`];
-        if (!axisObj || axisObj.type !== 'category') continue;
-        const cs = channelSemantics[axis];
-        if (!cs?.field || (cs.type !== 'nominal' && cs.type !== 'ordinal')) continue;
-        const semanticType = toTypeString(context.semanticTypes[cs.field]);
-        if (getVisCategory(semanticType) !== 'temporal') continue;
-        const fieldVals = context.table.map((r: any) => r[cs.field]).filter((v: any) => v != null);
-        const datelikeCnt = fieldVals.filter((v: any) =>
-            typeof v !== 'string' || looksLikeDateString(String(v))
-        ).length;
-        if (datelikeCnt < fieldVals.length * 0.5) continue;
-        const analysis = analyzeTemporalField(fieldVals);
-        if (!analysis) continue;
-        const votes = computeDataVotes(analysis.same);
-        const semLevel = SEMANTIC_LEVEL[semanticType];
-        if (semLevel !== undefined) votes[semLevel] += 3;
-        const { level, score } = pickBestLevel(votes);
-        if (score < 5) continue;
-        const fmt = levelToFormat(level, analysis);
-        if (!fmt) continue;
-        if (!axisObj.axisLabel) axisObj.axisLabel = {};
-        const existingFormatter = axisObj.axisLabel.formatter;
-        axisObj.axisLabel.formatter = (value: string) => {
-            const formatted = formatCategoryTemporal(value, fmt);
-            return typeof existingFormatter === 'function' ? existingFormatter(formatted) : formatted;
-        };
     }
 
     // ── Temporal format (time / value axes) ──────────────────────────────
@@ -1325,16 +1311,6 @@ const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep
 const MONTH_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 /**
- * Format a category-axis label as date when it parses as valid date.
- * Used for ordinal temporal (nominal/ordinal channel with date-like strings).
- */
-function formatCategoryTemporal(value: string, d3Format: string): string {
-    const d = new Date(value);
-    if (isNaN(d.getTime())) return value;
-    return formatTimestamp(d.getTime(), d3Format);
-}
-
-/**
  * Format a numeric timestamp using a d3-style format string.
  * Used for 'value' axes that hold temporal data (timestamps).
  * Exported for scatter (temporal color visualMap labels).
@@ -1374,6 +1350,9 @@ function buildEncodingTooltipFormatter(option: any): ((params: any) => string) |
         const categoryFormat = enc.categoryFormat;
         const temporalFormat = enc.temporalFormat ?? '%b %d, %Y';
         const filterScatterOnly = !!enc.filterScatterOnly;
+        // Series that share a name (a colour value's dash styles in a Line Chart)
+        // carry a category index in each point, which names the line after it.
+        const seriesSuffix = enc.seriesSuffix as { index: number; categoryNames: string[] } | undefined;
         return (params: any) => {
             const rawList = Array.isArray(params) ? params : [params];
             const list = filterScatterOnly
@@ -1391,10 +1370,19 @@ function buildEncodingTooltipFormatter(option: any): ((params: any) => string) |
             }
             const parts = [`${categoryLabel}: ${cat}`];
             for (const item of list) {
-                const name = item.seriesName ?? valueLabel;
+                // A bar drawn in a lane is named by the group it draws; a series the template names for
+                // itself (`__…`) and that draws no group is not listed — its name is not the reader's.
+                const lane = item?.data && typeof item.data === 'object' && !Array.isArray(item.data) ? item.data.laneGroup : undefined;
+                if (lane === undefined && String(item?.seriesName ?? '').startsWith('__')) continue;
+                let name = lane ?? item.seriesName ?? valueLabel;
                 let val = item.value != null ? item.value : (Array.isArray(item.data) ? item.data[item.dataIndex] : item.data);
+                if (seriesSuffix && Array.isArray(val)) {
+                    const suffix = seriesSuffix.categoryNames[Number(val[seriesSuffix.index])];
+                    if (suffix) name = `${name} · ${suffix}`;
+                }
                 // Line/area series data is [x, y]; ECharts may pass the full point — use y (index 1) for value.
                 if (Array.isArray(val) && val.length >= 2) val = val[1];
+                if (val && typeof val === 'object' && 'value' in val) val = (val as any).value;
                 parts.push(`${name}: ${fmtNumForTooltip(val)}`);
             }
             return parts.join('<br/>');
@@ -1411,7 +1399,7 @@ function buildEncodingTooltipFormatter(option: any): ((params: any) => string) |
         for (const p of parts) {
             let val: unknown;
             if (p.from === 'series') {
-                val = params.seriesName ?? params.name;
+                val = params.data?.laneGroup ?? params.seriesName ?? params.name;
             } else if (p.from === 'name') {
                 val = params.name;
             } else if (p.from === 'value') {

@@ -1,0 +1,116 @@
+{
+  "id": "airbnb-visx",
+  "org": "Airbnb (visx)",
+  "urls": [
+    "https://airbnb.io/visx",
+    "https://visx.airbnb.tech/",
+    "https://github.com/airbnb/visx/blob/master/packages/visx-xychart/src/theme/buildChartTheme.ts",
+    "https://github.com/airbnb/visx/blob/master/packages/visx-xychart/src/theme/colors.ts",
+    "https://github.com/airbnb/visx/blob/master/packages/visx-xychart/src/theme/themes/light.ts",
+    "https://github.com/airbnb/visx/blob/master/packages/visx-xychart/src/theme/themes/dark.ts",
+    "https://github.com/airbnb/visx/blob/master/packages/visx-demo/src/sandboxes/visx-xychart/customTheme.ts",
+    "https://github.com/airbnb/visx/blob/master/packages/visx-demo/src/sandboxes/visx-bars/Example.tsx",
+    "https://github.com/airbnb/visx/blob/master/packages/visx-demo/src/sandboxes/visx-barstack/Example.tsx",
+    "https://github.com/airbnb/visx/blob/master/packages/visx-tooltip/src/tooltips/Tooltip.tsx",
+    "https://github.com/airbnb/visx/blob/master/packages/visx-axis/src/axis/AxisRenderer.tsx",
+    "https://github.com/airbnb/visx/blob/master/packages/visx-axis/src/axis/Ticks.tsx",
+    "https://github.com/airbnb/visx/blob/master/packages/visx-grid/src/grids/GridRows.tsx",
+    "https://github.com/airbnb/visx/blob/master/README.md",
+    "https://superdesign.dev/blog/airbnb-design-system",
+    "https://www.designmd.co/d/airbnb"
+  ],
+  "access": "partial",
+  "accessNotes": "visx is a low-level chart primitive library, not a style guide; airbnb.io/visx redirects to visx.airbnb.tech, a client-rendered Next.js app (no readable HTML). Defaults were read from the visx source on GitHub: the @visx/xychart lightTheme/darkTheme (the only opinionated theme), @visx/axis, @visx/grid and @visx/tooltip default props, and gallery demo sandboxes. Airbnb has no public data-visualisation style guide; Airbnb DLS brand values (Rausch #FF385C, Cereal font, #222222 text) come only from third-party design-system write-ups (superdesign.dev, designmd.co found via web search) and are NOT verified first-party.",
+  "summary": "visx (Airbnb's React + D3 primitives library) is deliberately unopinionated, so its 'house look' is the XYChart light theme and the gallery demos: Open Color hues (dark cyan, light cyan, gold, coral, purples), gray #adb5bd gridlines, a heavy 2px near-black x-axis line, small bold-ish system-font labels. The gallery demos are playful and poster-like — full-bleed gradient backgrounds in rounded 14px cards with translucent white/teal marks and few or no axes. Airbnb's own product brand (Rausch red, Cereal) is not encoded in visx.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#0b7285", "#66d9e8", "#fcc419", "#ff8787", "#9c36b5", "#cc5de8", "#a61e4d"],
+    "categoricalNotes": "XYChart lightTheme 'defaultColors' in order: cyan[9], cyan[3], yellow[5], red[4], grape[8], grape[5], pink[9] from the Open Color scale (colors.ts 'allColors'). Dark theme order: #3bc9db, #c3fae8, #ffec99, #ff8787, #e599f7, #be4bdb, #faa2c1. Seven colours only; no count-specific palettes.",
+    "sequential": ["#e3fafc", "#c5f6fa", "#99e9f2", "#66d9e8", "#3bc9db", "#22b8cf", "#15aabf", "#1098ad", "#0c8599", "#0b7285"],
+    "diverging": [],
+    "highlight": "#ff385c",
+    "context": "#adb5bd",
+    "positive": null,
+    "negative": null,
+    "background": "#ffffff",
+    "text": "#495057",
+    "textSecondary": "#495057",
+    "gridline": "#adb5bd",
+    "axis": "#212529",
+    "notes": "No sequential/diverging scales are defined in visx; the 'sequential' entry above is the Open Color cyan ramp exported in xychart colors.ts (allColors.cyan, light→dark) and is only a convenient ramp, not a declared sequential palette. Light theme: background #fff, tick labels gray[7] #495057, axis labels gray[9] #212529, grid gray[5] #adb5bd, x-axis line gray[9] #212529. Dark theme: background #222, tick labels #e9ecef, axis labels #f8f9fa, grid #ced4da, x-axis line #f1f3f5. Raw primitive defaults (outside xychart): axis/ticks stroke #222, tick labels Arial 10px #222, GridRows/GridColumns stroke #eaf0f6. Gallery demo colours: barstack purples #6c5efb/#c998ff/#a44afe on #eaedff; bars demo rgba(23,233,217,.5) on GradientTealBlue. 'highlight' #ff385c is Airbnb's Rausch brand red per third-party DLS write-ups, not used by visx."
+  },
+  "typography": {
+    "family": "-apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, sans-serif",
+    "fallback": "Arial (raw @visx/axis default)",
+    "title": { "size": null, "weight": null, "align": null, "case": null, "color": null },
+    "subtitle": { "size": null, "weight": null, "style": null, "color": null },
+    "axisLabel": { "size": 11, "color": "#495057" },
+    "axisTitle": { "size": 12, "weight": "700", "placement": "x: centred below axis; y: rotated, offset dx -1.25em left of ticks" },
+    "dataLabel": { "size": 12, "weight": "700" },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "XYChart 'svgLabelBig' (axis titles, annotations): system stack, 700 weight, 12px, letter-spacing 0.4, text-anchor middle, #212529. 'svgLabelSmall' (tick labels): weight 200 (thin), 11px, #495057, letter-spacing 0.4. HTML labels (tooltips) inherit the 700/12px style. visx renders no chart titles; titles are left to the host app. Airbnb product font is Airbnb Cereal (third-party sources)."
+  },
+  "structure": {
+    "gridlines": "Optional Grid component; xychart theme grid stroke #adb5bd 1px solid; raw @visx/grid default #eaf0f6 1px. Demos typically show horizontal (rows) and/or vertical (columns) grids in light tints.",
+    "axisLine": "x-axis line heavy: 2px #212529 (gridColorDark); y-axis line light: 1px #adb5bd (gridColor).",
+    "ticks": "Yes, 4px tick marks in #adb5bd (light theme tickLength 4); raw @visx/axis default tickLength 8, stroke #222, square line-cap.",
+    "zeroLine": null,
+    "yAxisPlacement": "left (right supported)",
+    "yAxisTitle": "rotated",
+    "unitPlacement": null,
+    "frame": "none in the theme; gallery demos wrap each chart in a full-bleed coloured/gradient rect with rx=14 rounded corners",
+    "background": "#ffffff (light) / #222 (dark); demos use gradients (e.g. GradientTealBlue) or tints like #eaedff",
+    "notes": "Tick labels end-anchored on the y axis (dx -0.25em)."
+  },
+  "legend": {
+    "placement": "Demo barstack: legend in a row above the chart, centred, 14px text",
+    "directLabels": null,
+    "title": null,
+    "swatchShape": "square (LegendOrdinal default rect)",
+    "notes": "@visx/legend provides Ordinal/Linear/Threshold/Size legends; placement is left to the developer."
+  },
+  "marks": {
+    "bars": "Demo bars: band padding 0.4, square corners, no outline, translucent fill rgba(23,233,217,.5) over gradient. Stacked bars demo: purple shades, no gaps.",
+    "lines": "Gallery 'Lines' tile: thin 1px white curved lines on #222 dark background; no points.",
+    "areas": "Gallery areas fill with vertical white-to-transparent gradient (LinearGradient) under a light stroke; stacked areas use warm pink→yellow gradients.",
+    "points": "Gallery dots: small solid gold circles on pink→coral gradient.",
+    "pies": "Supported via @visx/shape Pie; no rules.",
+    "notes": "visx draws nothing by default; everything is composed explicitly."
+  },
+  "labels": {
+    "dataLabels": null,
+    "numberFormat": null,
+    "dates": null,
+    "notes": "Formatting left to d3-format/d3-time-format in user code."
+  },
+  "furniture": {
+    "title": "Gallery tiles: bold white chart-type title centred near the bottom of each card with the component name in monospace below (e.g. 'Bars' / '<Shape.Bar />').",
+    "source": null,
+    "logo": null,
+    "other": "Rounded (rx 14) full-bleed card backgrounds are the signature of the demo gallery."
+  },
+  "annotations": "@visx/annotation provides Connector + CircleSubject + Label (title bold, subtitle normal) with optional background box; styles user-defined.",
+  "layout": "Charts are responsive via ParentSize/withParentSize; demos use generous margins (bars demo verticalMargin 120).",
+  "interaction": "Default tooltip (@visx/tooltip defaultStyles): white background, text #666666, padding 0.3rem 0.5rem, border-radius 3px, 14px, box-shadow 0 1px 2px rgba(33,33,33,0.2), line-height 1em. Barstack demo tooltip: rgba(0,0,0,0.9) black box with white text, series name bold in its series colour, small date line. XYChart supports crosshair glyphs and shared tooltips.",
+  "accessibility": "@visx/pattern provides line/hatch/circle/wave/path patterns for texture fills (shown in the gallery 'Patterns' tile). XYChart demo honours prefers-reduced-motion.",
+  "chartTypes": {
+    "preferred": [],
+    "discouraged": [],
+    "notes": "visx is primitive-based; all chart types are possible."
+  },
+  "distinctiveRules": [
+    { "rule": "Default categorical order is dark teal #0b7285, light cyan #66d9e8, gold #fcc419, coral #ff8787, purple #9c36b5, orchid #cc5de8, burgundy #a61e4d (Open Color steps).", "source": "https://github.com/airbnb/visx/blob/master/packages/visx-xychart/src/theme/colors.ts", "quote": "defaultColors = [cyan[9], cyan[3], yellow[5], red[4], grape[8], grape[5], pink[9]]" },
+    { "rule": "x-axis domain line is heavy (2px, near-black #212529) while the y-axis line is thin (1px, #adb5bd grey).", "source": "https://github.com/airbnb/visx/blob/master/packages/visx-xychart/src/theme/buildChartTheme.ts", "quote": "x.bottom.axisLine { stroke: gridColorDark, strokeWidth: 2 } … y.left.axisLine { stroke: gridColor, strokeWidth: 1 }" },
+    { "rule": "Tick labels are 11px in a thin (200) weight with 0.4 letter-spacing; axis titles 12px bold (700).", "source": "https://github.com/airbnb/visx/blob/master/packages/visx-xychart/src/theme/buildChartTheme.ts", "quote": "baseTickLabel { fontWeight: 200, fontSize: 11 }; defaultLabelStyles { fontWeight: 700, fontSize: 12, letterSpacing: 0.4 }" },
+    { "rule": "Gridlines and tick marks share one grey #adb5bd at 1px; ticks are short (4px).", "source": "https://github.com/airbnb/visx/blob/master/packages/visx-xychart/src/theme/themes/light.ts", "quote": "gridColor: grayColors[5], tickLength: 4" },
+    { "rule": "Dark theme uses #222 background with lighter tints of the same hues (#3bc9db, #c3fae8, #ffec99, #ff8787, #e599f7, #be4bdb, #faa2c1).", "source": "https://github.com/airbnb/visx/blob/master/packages/visx-xychart/src/theme/themes/dark.ts", "quote": "backgroundColor: '#222', colors: [cyan[4], teal[1], yellow[2], red[4], grape[3], grape[6], pink[3]]" },
+    { "rule": "Gallery demos render charts inside full-bleed gradient-filled cards with 14px rounded corners and translucent marks, often without axes.", "source": "https://github.com/airbnb/visx/blob/master/packages/visx-demo/src/sandboxes/visx-bars/Example.tsx", "quote": "<rect width={width} height={height} fill=\"url(#teal)\" rx={14} /> … fill=\"rgba(23, 233, 217, .5)\"" },
+    { "rule": "Default tooltip is a small white card: #666 text, 14px, 3px radius, subtle 0 1px 2px shadow.", "source": "https://github.com/airbnb/visx/blob/master/packages/visx-tooltip/src/tooltips/Tooltip.tsx", "quote": "backgroundColor: 'white', color: '#666666', borderRadius: '3px', boxShadow: '0 1px 2px rgba(33,33,33,0.2)'" },
+    { "rule": "Raw primitive defaults (no theme): axis/tick stroke #222, tick labels Arial 10px #222, grid lines very pale #eaf0f6.", "source": "https://github.com/airbnb/visx/blob/master/packages/visx-axis/src/axis/AxisRenderer.tsx", "quote": "defaultTextProps { fontFamily: 'Arial', fontSize: 10, fill: '#222' }; GridRows stroke = '#eaf0f6'" },
+    { "rule": "Bar band padding 0.4 with square (non-rounded) bar ends in demos.", "source": "https://github.com/airbnb/visx/blob/master/packages/visx-demo/src/sandboxes/visx-bars/Example.tsx", "quote": "scaleBand({ padding: 0.4 })" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/airbnb-visx/visx-gallery.png", "url": "https://raw.githubusercontent.com/airbnb/visx/master/packages/visx-demo/public/static/visx-gallery.png", "describes": "3×2 grid of rounded-corner gallery cards, each a full-bleed chart with no axes: 'Lines' – thin white wiggly lines on near-black #222; 'Bars' – translucent pale-cyan bars on a cyan→blue vertical gradient; 'Dots' – small gold dots on a pink→coral gradient; 'Patterns' – black line/hatch/dot/wave textures on cream; 'Areas' – a white-to-transparent gradient area chart on mint green with faint white grid; 'Stacked Areas' – wavy peach/yellow stacked areas on coral. Each card has a bold centred title near the bottom (e.g. 'Bars') with the monospace component name below ('<Shape.Bar />'), text coloured to match the card. No legends, sources or logos." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/airbnb-visx/simplebar.png", "url": "https://raw.githubusercontent.com/airbnb/visx/master/assets/simplebar.png", "describes": "Minimal README example: ~26 thin vertical bars in solid bright red-orange on white, square ends, gaps roughly equal to bar width, no axes, gridlines, labels, title or legend — illustrating that visx draws only what you compose." }
+  ]
+}

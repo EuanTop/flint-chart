@@ -1,0 +1,242 @@
+{
+  "id": "ons",
+  "org": "UK Office for National Statistics (ONS) – Service Manual data visualisation",
+  "urls": [
+    "https://style.ons.gov.uk/category/data-visualisation/",
+    "https://service-manual.ons.gov.uk/data-visualisation",
+    "https://service-manual.ons.gov.uk/data-visualisation/colours/using-colours-in-charts",
+    "https://service-manual.ons.gov.uk/data-visualisation/build-specifications/chart-elements",
+    "https://service-manual.ons.gov.uk/data-visualisation/build-specifications/typography",
+    "https://service-manual.ons.gov.uk/data-visualisation/guidance/axes-and-gridlines",
+    "https://service-manual.ons.gov.uk/data-visualisation/guidance/chart-text",
+    "https://service-manual.ons.gov.uk/data-visualisation/guidance/annotations",
+    "https://service-manual.ons.gov.uk/data-visualisation/guidance/ordering-in-charts",
+    "https://service-manual.ons.gov.uk/data-visualisation/guidance/interactive-charts-and-animations",
+    "https://service-manual.ons.gov.uk/data-visualisation/chart-types/line-chart",
+    "https://service-manual.ons.gov.uk/data-visualisation/chart-types/bar-charts",
+    "https://service-manual.ons.gov.uk/data-visualisation/chart-types/pie-and-doughnut-charts"
+  ],
+  "access": "full",
+  "accessNotes": "style.ons.gov.uk/category/data-visualisation now redirects to service-manual.ons.gov.uk/data-visualisation; all relevant pages are server-rendered and were read. Embedded live chart examples (iframes) were not inspected; spec images from the chart-elements and typography pages were downloaded (one SVG rasterised with PyMuPDF). The Titles-and-source spec image annotates title 22px/subtitle 18px while the typography table specifies 20px/16px — the table values are used.",
+  "summary": "Government statistics house style for web charts: Open Sans (stylistic set 1) in near-black #222222, a bold descriptive headline stating the trend with a semibold statistical subtitle (measure, geography, period), a left-aligned legend with 12px circles above the plot, light grey #D9D9D9 gridlines with an emphasised #B3B3B3 zero line, and a grey 'Source:' line bottom-left. Ocean blue #206095 is the single-series colour; a 9-colour category palette and highlight orange are defined; no borders or backgrounds.",
+  "context": "government",
+  "colors": {
+    "categorical": [
+      "#206095",
+      "#a8bd3a",
+      "#871a5b",
+      "#f66068",
+      "#05341a",
+      "#27a0cc",
+      "#003c57",
+      "#22d0b6",
+      "#746cb1"
+    ],
+    "categoricalNotes": "Standard category palette in order: Ocean blue, Spring green, Beetroot purple, Coral pink, Dark leaf green, Sky blue, Night blue, Mint green, Lavender purple. 'Always use five colours or fewer'; never more than nine; never repeat a colour within a chart. Single-series charts use Ocean blue #206095. Same colour for all groups under subheadings. Keep category colours consistent across a release. Chartbuilder currently uses a different palette. Text-adjusted variants: spring green #8a9b2e, mint green #1aa590, highlight orange #f56927.",
+    "sequential": [],
+    "diverging": [],
+    "highlight": "#f39431",
+    "context": "#B3B3B3",
+    "positive": null,
+    "negative": null,
+    "background": "#ffffff",
+    "text": "#222222",
+    "textSecondary": "#707071",
+    "gridline": "#D9D9D9",
+    "axis": "#B3B3B3",
+    "notes": "Highlight orange #f39431 is Chartbuilder's highlight, complementary to the blues/greens; outside Chartbuilder use grey for less important categories and Ocean blue (or palette colour) for important data. Ordered categories use colour scales; diverging categories use a diverging palette with neutral middle (no hex given). Greys: Grey 10 #ECECEC (range annotation fill), Grey 20 #D9D9D9 (gridlines, ticks, guidelines), Grey 30 #C6C6C6 (confidence-interval legend square), Grey 40 #B3B3B3 (zero line, reference line), Grey 75 #707071 (axis labels/titles, new source), Grey 100 #414042 (category labels, legend, annotations, arrows), Black #222222 (titles); never #000000. 'context' here = Grey 40 for de-emphasised lines (example image uses light grey lines for context series)."
+  },
+  "typography": {
+    "family": "Open Sans",
+    "fallback": "Helvetica, Arial, sans-serif",
+    "title": {
+      "size": 20,
+      "weight": "700",
+      "align": "left",
+      "case": "sentence",
+      "color": "#222222"
+    },
+    "subtitle": {
+      "size": 16,
+      "weight": "600",
+      "style": "normal",
+      "color": "#222222"
+    },
+    "axisLabel": {
+      "size": 14,
+      "color": "#707071"
+    },
+    "axisTitle": {
+      "size": 14,
+      "weight": "400",
+      "placement": "y-axis title horizontal, left-aligned above the top of the y axis; x-axis title right-aligned"
+    },
+    "dataLabel": {
+      "size": 14,
+      "weight": "600"
+    },
+    "source": {
+      "size": 16,
+      "style": "regular 400, line-height 19.2px, prefixed 'Source:' (current Chartbuilder style: bold 700 #222222)",
+      "color": "#707071"
+    },
+    "notes": "Use OpenType stylistic set 1 (font-feature-settings: \"ss01\" 1) for the open-tail g and serifed capital I. Weights 400/600/700. Minimum 14px (12px allowed in small multiples). Title 20px/26px, subtitle 16px/20.8px. All text sentence case and horizontal — no rotated or diagonal text. Categorical y labels 14px #414042 right-aligned; numeric y labels right-aligned, numeric x labels centred, #707071. Category group titles bold 700 #414042. Legend 14px #414042. Direct labels on lines semibold in the data colour; bar value labels semibold #414042 (or white inside dark bars)."
+  },
+  "structure": {
+    "gridlines": "1px solid square-cap Grey 20 #D9D9D9 behind data; only on numeric axes (not time or categorical axes); typically one direction (horizontal for column/line, vertical for bar); both for scatter, extended past the top/right so grid isn't squared off. 6–10 gridlines desktop, 3–6 mobile; round-number intervals; every gridline labelled; no minor gridlines.",
+    "axisLine": "No separate axis lines; the zero gridline is emphasised instead.",
+    "ticks": "Time axes get 1px #D9D9D9 tick marks (no gridlines); categorical axes have neither ticks nor gridlines.",
+    "zeroLine": "Zero gridline 1.5px solid Grey 40 #B3B3B3; no emphasis on the first gridline if the axis doesn't start at zero; indexed data emphasise the 100 line.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "horizontal, short unit title left-aligned above the y axis (e.g. 'Percentage of adults', '£ million')",
+    "unitPlacement": "% and currency symbols on every axis label; other units only in axis title/subtitle",
+    "frame": "none — 'Do not add any other chart decoration, such as borders or backgrounds'",
+    "background": "white",
+    "notes": "Bars/areas start at zero; lines/scatter may be cropped with a gap of ~¼–⅓ of the chart below the first data point. Extend axis to the next gridline above the data. If values are positive and negative, at least one gridline either side of zero. Time on x axis left→right; categories on y axis. Avoid log scales and dual axes."
+  },
+  "legend": {
+    "placement": "top, above the chart, left-aligned with the chart area (and title), items flowing horizontally and wrapping; never stacked vertically",
+    "directLabels": "Preferred where possible (e.g. line end labels in semibold data colour with an end dot; pies labelled directly with category and value)",
+    "title": "no",
+    "swatchShape": "12px circles for fills; 20px×3px round-cap line for lines; 12px Grey 30 square only for ranges/confidence intervals; scatter symbols circle, square, triangle, diamond; 20px×4px square-cap #222222 line for discrete reference lines",
+    "notes": "Legend text 14px regular #414042; a label's text stays on one line (whole label wraps)."
+  },
+  "marks": {
+    "bars": "Single colour Ocean blue; logical order, usually largest to smallest; always from zero; gridlines kept even when bars are labelled; thin white separators between adjacent columns in examples.",
+    "lines": "No data markers unless needed; gaps where data are missing; end-of-line dot with direct label in examples; ~2–3px stroke.",
+    "areas": null,
+    "points": "Scatter symbol order circle, square, triangle, diamond.",
+    "pies": "≤6 categories, combine smallest into 'Other' (placed last); clockwise from 12 o'clock, largest to smallest; label categories and values directly; avoid multiple pies for comparison; only when differences are substantial.",
+    "notes": "Dashed horizontal guidelines (1px, dash 2 gap 2, #D9D9D9) for dot plots."
+  },
+  "labels": {
+    "dataLabels": "Bar value labels semibold 14px #414042 right-aligned (white on dark fills).",
+    "numberFormat": "Thousands comma separators (25,000); % and £ symbols in axis labels.",
+    "dates": "ONS format '[Date] [Month] [Year]'; four-digit years; months in full or Jan, Feb, Mar, Apr, May, June, July, Aug, Sept, Oct, Nov, Dec; quarters Q1–Q4 (e.g. 'Q2 2023'); example ticks '3 Jan 2020'.",
+    "notes": "Plain English, concise category labels."
+  },
+  "furniture": {
+    "title": "Required; front-loaded, active voice, sentence case, ≤15 words, describes the main trend; in bulletins/articles prefixed 'Figure X:'. Subtitle states statistical measure, geography, time period in that order, comma-separated (e.g. 'Number of homicide offences, England and Wales, year ending March 2003 to year ending March 2023').",
+    "source": "Bottom-left 'Source: …' in Open Sans regular 16px Grey 75 #707071 (Chartbuilder: bold #222222).",
+    "logo": "none",
+    "other": "No borders/backgrounds. Alt text 100–200 characters: 'A [chart type] showing that [chart title].'"
+  },
+  "annotations": "Point annotations: 14px regular #414042 text with a slightly curved 1px #414042 arrow with open arrowhead. Reference lines: 2px dashed (4/4) Grey 40 #B3B3B3 with explanatory text. Range highlights: Grey 10 #ECECEC band behind data. White space around annotation text; line/range annotations always explained.",
+  "layout": "Responsive: fewer gridlines on mobile (3–6). Consistent axis scales across comparable charts; small multiples allow 12px text.",
+  "interaction": "Separate guidance on interactive charts and animations (not detailed here).",
+  "accessibility": "Open Sans ss01 accessible glyphs; ≥14px text; text contrast ≥4.5:1 (darker text variants of light palette colours); limit to ≤5 colours; alt text pattern; avoid rotated text.",
+  "chartTypes": {
+    "preferred": [
+      "bar",
+      "clustered bar",
+      "stacked bar",
+      "column",
+      "line",
+      "small multiples",
+      "population pyramid",
+      "choropleth map",
+      "scatter",
+      "dot plot"
+    ],
+    "discouraged": [
+      "dual axis",
+      "log scales (except odds ratios on log2)",
+      "pie with >6 segments or multiple pies"
+    ],
+    "notes": null
+  },
+  "distinctiveRules": [
+    {
+      "rule": "All text Open Sans with stylistic set 1 (ss01), sentence case, horizontal only; titles #222222, never pure black.",
+      "source": "https://service-manual.ons.gov.uk/data-visualisation/build-specifications/typography",
+      "quote": "Use OpenType stylistic set 1 ... The default font colour ... is Black #222222 ... not full black #000000"
+    },
+    {
+      "rule": "Title 20px bold left; subtitle 16px semibold #222222 stating measure, geography, time period.",
+      "source": "https://service-manual.ons.gov.uk/data-visualisation/build-specifications/typography",
+      "quote": "Title new (descriptive) Bold (700) 20px ... Sub-title new (statistical) Semibold (600) 16px"
+    },
+    {
+      "rule": "Source line bottom-left, 'Source: …', 16px regular Grey 75 #707071.",
+      "source": "https://service-manual.ons.gov.uk/data-visualisation/build-specifications/typography",
+      "quote": "Source new Regular (400) 16px and 19.2px Grey 75 #707071 Left"
+    },
+    {
+      "rule": "Gridlines 1px #D9D9D9; zero line 1.5px #B3B3B3; no axis lines, borders or backgrounds.",
+      "source": "https://service-manual.ons.gov.uk/data-visualisation/build-specifications/chart-elements",
+      "quote": "Zero gridline 1.5px Solid Grey 40 #B3B3B3; All other gridlines 1px Grey 20 #D9D9D9 ... Do not add any other chart decoration, such as borders or backgrounds"
+    },
+    {
+      "rule": "Time axes get tick marks but no gridlines; categorical axes get neither.",
+      "source": "https://service-manual.ons.gov.uk/data-visualisation/guidance/axes-and-gridlines",
+      "quote": "time axes should have tick marks, but not gridlines; axes showing discrete categories should not have tick marks or gridlines"
+    },
+    {
+      "rule": "Legend above the chart, left-aligned, horizontal wrapping row; 12px circles for fills, 20px×3px round-cap lines for line series.",
+      "source": "https://service-manual.ons.gov.uk/data-visualisation/build-specifications/chart-elements",
+      "quote": "The legend should be above the chart, aligned to the left-hand side ... circles should have a 12-pixel diameter ... lines 20px wide, with a 3px stroke"
+    },
+    {
+      "rule": "Y-axis unit title sits horizontally at the top-left of the axis (not rotated); axis labels 14px #707071.",
+      "source": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/ons/Titles-and-source.png",
+      "quote": "'y axis label' printed horizontally above the 25,000 tick; Axis titles Regular 14px Grey 75"
+    },
+    {
+      "rule": "Single-series charts use Ocean blue #206095; category palette order #206095, #a8bd3a, #871a5b, #f66068, #05341a, #27a0cc, #003c57, #22d0b6, #746cb1; use ≤5 colours.",
+      "source": "https://service-manual.ons.gov.uk/data-visualisation/colours/using-colours-in-charts",
+      "quote": "we use Ocean blue when only one colour is needed ... Always use five colours or fewer"
+    },
+    {
+      "rule": "Highlight with orange #f39431 (Chartbuilder) or Ocean blue against grey context categories.",
+      "source": "https://service-manual.ons.gov.uk/data-visualisation/colours/using-colours-in-charts",
+      "quote": "use grey to show less important categories and use Ocean blue ... to highlight important data"
+    },
+    {
+      "rule": "Annotations: curved 1px #414042 arrow with open arrowhead; reference line 2px dashed 4/4 #B3B3B3; range band #ECECEC.",
+      "source": "https://service-manual.ons.gov.uk/data-visualisation/build-specifications/chart-elements",
+      "quote": "Arrow 1px Solid curved line, open arrowhead Grey 100 #414042 ... Range annotation Grey 10 #ECECEC"
+    },
+    {
+      "rule": "6–10 round-interval gridlines on desktop (3–6 mobile), each labelled; no minor gridlines; extend axis to next gridline above the data.",
+      "source": "https://service-manual.ons.gov.uk/data-visualisation/guidance/axes-and-gridlines",
+      "quote": "use 6 to 10 gridlines for a standard desktop view ... We do not use gridlines without labels"
+    },
+    {
+      "rule": "Line direct labels semibold in the data colour; bar value labels semibold #414042 or white inside dark bars.",
+      "source": "https://service-manual.ons.gov.uk/data-visualisation/build-specifications/typography",
+      "quote": "Direct labels – line chart (category) Semibold (600) Data colour ... bar chart (number) Semibold Grey 100 or White"
+    },
+    {
+      "rule": "Pies: ≤6 segments, clockwise from 12 o'clock largest to smallest with 'Other' last, labelled directly.",
+      "source": "https://service-manual.ons.gov.uk/data-visualisation/chart-types/pie-and-doughnut-charts",
+      "quote": "Arrange the segments clockwise starting from the 12 position ... ordered from largest to smallest, with the “other” category ... last"
+    },
+    {
+      "rule": "% and currency symbols appear on every axis label; other units only in axis title/subtitle.",
+      "source": "https://service-manual.ons.gov.uk/data-visualisation/guidance/chart-text",
+      "quote": "always include the relevant symbols (% or currency symbols) directly in the axis labels"
+    },
+    {
+      "rule": "Titles describe the trend (≤15 words, active voice), prefixed 'Figure X:' in bulletins and articles.",
+      "source": "https://service-manual.ons.gov.uk/data-visualisation/guidance/chart-text",
+      "quote": "The chart title should describe the main trend ... the title must always include a figure number, using the format “Figure X:”"
+    }
+  ],
+  "referenceImages": [
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/ons/Titles-and-source.png",
+      "url": "https://service-manual.ons.gov.uk/assets/_800xAUTO_crop_center-center_none/Titles-and-source.svg",
+      "describes": "Spec image (red notes at left are documentation). Bold #222222 Open Sans title left-aligned above plot, semibold two-line subtitle beneath. Legend row with filled circles (dark Ocean blue, sky blue) and grey labels, left-aligned. Horizontal grey 'y axis label' above the y axis; y ticks 0–25,000 right-aligned in grey with comma separators; light grey horizontal gridlines, slightly darker zero line, no axis lines. Stacked columns Ocean blue #206095 + sky blue #27a0cc with thin white gaps. X labels '3 Jan 2020'…'5 Nov 2021' with small tick marks (time axis). Grey 'Source: …' bottom-left."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/ons/Annotations.png",
+      "url": "https://service-manual.ons.gov.uk/assets/_800xAUTO_crop_center-center_none/Annotations.png",
+      "describes": "Line chart with context lines in light grey, two highlighted series (dark Ocean blue 'Category 1', sky blue 'Category 2') each ending in a dot with a semibold direct label in the series colour; no legend. Vertical dashed grey reference line with grey annotation text; light grey (#ECECEC) shaded range band with annotation; point annotation with a thin curved dark-grey arrow. Gridlines light grey horizontal, title/subtitle top-left, grey 'Source:' bottom-left."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/ons/Legend-bars-line.png",
+      "url": "https://service-manual.ons.gov.uk/assets/_800xAUTO_crop_center-center_none/Legend-bars-line.png",
+      "describes": "Stacked column + orange line combo. Legend above plot left-aligned with title: 12px circles for column categories (Ocean blue, sky blue) and a 20px orange line key with rounded caps for the line series; legend text Grey 100. Same gridline/axis styling, x tick marks on time axis, source line bottom-left."
+    }
+  ]
+}

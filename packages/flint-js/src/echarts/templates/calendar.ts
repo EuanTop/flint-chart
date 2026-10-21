@@ -15,6 +15,7 @@
  *   color (quantitative) → the cell value (defaults to a count of 1)
  */
 
+import { schemeName as namedScheme } from '../../core/color-controls';
 import { ChartTemplateDef, EncodingActionDef } from '../../core/types';
 import { getPaletteForScheme } from '../colormap';
 
@@ -108,7 +109,7 @@ export const ecCalendarHeatmapDef: ChartTemplateDef = {
         const canvasH = calTop + gridH + vmHeight;
 
         // ── Color scheme ─────────────────────────────────────────────────────
-        const encScheme = encodings?.color?.scheme;
+        const encScheme = namedScheme(encodings?.color?.scheme);
         const userScheme = (encScheme && encScheme !== 'default') ? encScheme : undefined;
         const schemeName = userScheme || 'viridis';
         const decision = colorDecisions?.color ?? colorDecisions?.group;
@@ -183,7 +184,7 @@ export const ecCalendarHeatmapDef: ChartTemplateDef = {
                     { value: 'purples', label: 'Purples' },
                 ],
             },
-            get: (enc) => enc.color?.scheme,
+            get: (enc) => namedScheme(enc.color?.scheme),
             set: (enc, value) => ({ ...enc, color: { ...enc.color, scheme: value } }),
         },
     ] as EncodingActionDef[],

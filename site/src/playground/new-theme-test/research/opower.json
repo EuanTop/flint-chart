@@ -1,0 +1,228 @@
+{
+  "id": "opower",
+  "org": "Opower (Oracle Utilities) — Opattern UX pattern library",
+  "urls": [
+    "https://ux.opower.com/opattern/how-to-charts.html",
+    "https://web.archive.org/web/20240524075137/https://ux.opower.com/opattern/how-to-charts.html",
+    "https://web.archive.org/web/2024/https://ux.opower.com/opattern/column-chart.html",
+    "https://web.archive.org/web/2024/https://ux.opower.com/opattern/line-chart.html",
+    "https://web.archive.org/web/2024/https://ux.opower.com/opattern/area-chart.html",
+    "https://web.archive.org/web/2024/https://ux.opower.com/opattern/pie-chart.html",
+    "https://web.archive.org/web/2024/https://ux.opower.com/opattern/color.html",
+    "https://web.archive.org/web/2024/https://ux.opower.com/opattern/typography.html",
+    "https://raw.githubusercontent.com/washuvis/styleguides/HEAD/src/lib/guidelines.json"
+  ],
+  "access": "partial",
+  "accessNotes": "The live site ux.opower.com returns 503. The Wayback Machine was intermittently 'Temporarily Offline' but eventually served the May 2024 snapshots of how-to-charts, column, line, area, pie, color and typography, which were read in full. The bar-chart page never loaded (Wayback stayed offline for it), so its rules come from the washuvis/styleguides guidelines.json dataset, which quotes the Opattern pages verbatim (org code 'OPR'). Example PNGs were downloaded from the archive (assets/images/examples/*.png); line-chart images failed to download.",
+  "summary": "Opattern is Opower's UX pattern library for utility-customer energy reports, covering web, email and print. Its charts are friendly consumer charts that pair data with a one-sentence interpretation to nudge energy-saving behaviour. The look is spare: Helvetica Neue (overridable per utility client), quiet grey 14px labels, light horizontal gridlines only, and solid primary blue (#107CB2), the 'you colour' for the user's own data. Green (#8DC63F) stands for efficiency and red-orange (#D8400F) for problems or inefficiency. Pies are plain (no donuts) with a right-hand legend.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": [
+      "#107CB2",
+      "#8DC63F",
+      "#D8400F",
+      "#990099",
+      "#F9E500"
+    ],
+    "categoricalNotes": "Opattern has no dedicated categorical chart palette; these are the named palette colours $primary-color, $success-color, $alert-color, $weather-color and $attention-color. Rules: the primary colour marks 'data points that represent the user (it's the \"you\" color)'. The success colour represents efficiency. The alert colour 'draws emphasis to unusual or undesirable data points' and is used sparingly. Missing data in pies is shown as grey 'Uncategorized'/'Other'. Palettes are meant to be overridden per utility-client brand. The pie example uses a dark slate blue (about #44506F) for the main slice.",
+    "sequential": [],
+    "diverging": [],
+    "highlight": "#107CB2",
+    "context": "#C1C1C1",
+    "positive": "#8DC63F",
+    "negative": "#D8400F",
+    "background": "#FFFFFF",
+    "text": "#1D1D1D",
+    "textSecondary": "#666666",
+    "gridline": null,
+    "axis": null,
+    "notes": "Light and lighter tints are 30% and 20% of each base (e.g. $primary-color-light = 30% of $primary-color), used for fills (the area-chart fill is a light blue tint). Greys: darkest #1D1D1D, dark #666666, medium #C1C1C1, light #E1E1E1, lightest #F1F1F1. All text pairs meet WCAG AA contrast: white on primary or alert, darkest-grey on success and on the light tints. Don't use the alert colour when the user isn't responsible or has no control. Gridline colour is not given: the guide only says 'light horizontal grid lines', and the examples show a very pale grey similar to $light-gray #E1E1E1."
+  },
+  "typography": {
+    "family": "Helvetica Neue",
+    "fallback": "Helvetica Neue, Helvetica, Arial, sans-serif (emails: Arial, sans-serif); overridden per client brand",
+    "title": {
+      "size": null,
+      "weight": "bold",
+      "align": "left",
+      "case": "sentence",
+      "color": "#1D1D1D"
+    },
+    "subtitle": {
+      "size": null,
+      "weight": "normal",
+      "style": "normal",
+      "color": "#1D1D1D"
+    },
+    "axisLabel": {
+      "size": 14,
+      "color": "#666666"
+    },
+    "axisTitle": {
+      "size": null,
+      "weight": null,
+      "placement": "omitted; the unit is on the tick labels ($40, 1.00 kWh)"
+    },
+    "dataLabel": {
+      "size": 14,
+      "weight": "normal"
+    },
+    "source": {
+      "size": 12,
+      "style": "aside text (quiet grey)",
+      "color": "#666666"
+    },
+    "notes": "Type scale: .heading-primary 24px bold, .heading-section 20px bold, .heading-section-subheading 16px bold, .paragraph 16px, .bar-chart-label 14px normal in $quiet-font-color (#666666), .text-label 14px UPPERCASE in quiet grey, .aside 12px quiet grey. Display sizes run 84/44/34/24/20px normal weight for the one key message. Headings are 3–5 words, sentence case, no punctuation. Body text is never bold and never uses all caps for emphasis. Avoid customising individual font sizes; scale everything with $root-font-size. Which heading level a chart title uses is not stated, so title/subtitle sizes here are the heading-primary / paragraph defaults."
+  },
+  "structure": {
+    "gridlines": "Light horizontal gridlines only ('Use light horizontal grid lines to help guide the eye across multiple columns'). 'Don't use vertical grid lines.' Very pale grey hairlines in the examples.",
+    "axisLine": "No axis lines in the examples; the 0 gridline is the baseline.",
+    "ticks": "None.",
+    "zeroLine": "Always start at a zero baseline (column, bar, area).",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "omitted; units go on the tick labels, e.g. '$40' or '1.00 kWh' on the top tick only",
+    "unitPlacement": "On tick labels: currency on every tick ('$10', '$20'), physical unit on the top tick only ('1.00 kWh'), and the bare baseline as '0'.",
+    "frame": "none",
+    "background": "white",
+    "notes": "Use logical increments. Labels are horizontal, never angled; switch to horizontal bars if labels don't fit. The area chart shows moon/sun icons under 12am, Noon and 11pm."
+  },
+  "legend": {
+    "placement": "Right of the pie: a vertical list of square swatch, category name and value columns ('Cooling $120').",
+    "directLabels": null,
+    "title": "none",
+    "swatchShape": "square",
+    "notes": "A 'Key' is an optional chart element. A date range caption sits centred under the pie in grey ('Jan 1, 2014 - Dec 31, 2014')."
+  },
+  "marks": {
+    "bars": "Flat solid primary-blue (#107CB2) columns with square corners, about 55–60% of the band. Bar page (via secondary source): order bars meaningfully (smallest to largest, oldest to newest, alphabetical); for a missing point leave a gap and add a footnote; if more than 2 of 10 bars are missing, don't make a bar chart. No more than 30 columns.",
+    "lines": "No more than 4 lines on one chart. Show at least 5 time points 'Otherwise, it will look like a squiggle.' The area example's line is about 3px solid primary blue with straight segments and no markers.",
+    "areas": "Used on the web to emphasise how much energy a person used: a light blue tint fill under a 3px primary-blue line, from a zero baseline. Avoid in print. 'If you're not sure whether to use an area chart, don't use one.'",
+    "points": null,
+    "pies": "Use a pie, not a donut. At most 7 slices, biggest first, with the main piece starting at 12 o'clock and running clockwise. It must add up to 100%; show missing data as 'uncategorized' or 'other' in light grey. Don't show multiple pies. No slice borders.",
+    "notes": "No 3D."
+  },
+  "labels": {
+    "dataLabels": "Not on bars in the examples. Pie values appear in the legend column.",
+    "numberFormat": "Currency with $ and no decimals on ticks ('$40', '$4'). kWh with two decimals ('0.25', '1.00 kWh'). The baseline is '0' without units.",
+    "dates": "Three-letter months ('Aug', 'Sep'). Daily axes as weekday over day number ('Mon' / '1'). Times as '12am', '6am', 'Noon', '6pm'. Ranges as 'Jan 1, 2014 - Dec 31, 2014'.",
+    "notes": "Every chart must have a heading, labels, units of measurement, a reference to time, and an insight or interpretation."
+  },
+  "furniture": {
+    "title": "A descriptive heading in sentence case (3–5 words, no punctuation), paired with a one-sentence insight such as 'Heating accounts for 36% of your energy use.'",
+    "source": null,
+    "logo": null,
+    "other": "Optional: key, caption (written as a full sentence), tooltips and related body copy. Charts sit inside energy-report modules on web, email and print layouts."
+  },
+  "annotations": "'Figure out what the most important aspect of the chart is, and call attention to that.' Use the alert colour for unusual or undesirable points, the success colour for efficient behaviour, and the primary colour for the user's own data.",
+  "layout": "Example charts are 900×500 px images with generous white margins. Responsive web, email and print layouts are documented separately.",
+  "interaction": "Tooltips are an optional chart element (there is a separate Opattern Tooltips component). Clickable elements use the primary colour.",
+  "accessibility": "AA contrast for all text and colour pairs. Avoid area charts in print because they 'can be less accessible to visually impaired people'.",
+  "chartTypes": {
+    "preferred": [
+      "column (discrete amounts over time)",
+      "horizontal bar (relative size, long labels)",
+      "line (trends, continuous series)",
+      "area (energy use on web)",
+      "pie (part-to-whole)"
+    ],
+    "discouraged": [
+      "donut",
+      "multiple pies",
+      "area charts in print",
+      "more than 30 columns",
+      "more than 4 lines",
+      "angled labels",
+      "3D"
+    ],
+    "notes": "Not every piece of data needs a chart; often a simple table or other visual comparison will do."
+  },
+  "distinctiveRules": [
+    {
+      "rule": "The user's own data is always drawn in the primary 'you' colour #107CB2.",
+      "source": "https://web.archive.org/web/2024/https://ux.opower.com/opattern/color.html",
+      "quote": "Use the primary color for data points that represent the user (it's the \"you\" color)."
+    },
+    {
+      "rule": "Green #8DC63F means efficiency and red-orange #D8400F flags inefficient or undesirable points. The alert colour is used sparingly.",
+      "source": "https://web.archive.org/web/2024/https://ux.opower.com/opattern/color.html",
+      "quote": "In a chart, the success color represents efficiency... In charts, the alert color draws emphasis to unusual or undesirable data points."
+    },
+    {
+      "rule": "Only light horizontal gridlines; never vertical gridlines; no axis lines or ticks.",
+      "source": "https://web.archive.org/web/2024/https://ux.opower.com/opattern/column-chart.html",
+      "quote": "Use light horizontal grid lines to help guide the eye across multiple columns. / Don't use vertical grid lines."
+    },
+    {
+      "rule": "No y-axis title: units sit on the tick labels ('$40' on each tick, or '1.00 kWh' on the top tick only) and the baseline reads '0'.",
+      "source": "https://web.archive.org/web/2024/https://ux.opower.com/opattern/area-chart.html",
+      "quote": "Example images: '$40 … $10, 0' and '1.00 kWh, 0.75, 0.50, 0.25, 0'"
+    },
+    {
+      "rule": "Axis and bar labels are 14px regular in quiet grey #666666, set in Helvetica Neue.",
+      "source": "https://web.archive.org/web/2024/https://ux.opower.com/opattern/typography.html",
+      "quote": ".bar-chart-label $font-size-small 14px normal; $bar-chart-label-font-color = $quiet-font-color ($dark-gray)"
+    },
+    {
+      "rule": "Every chart carries a sentence-case heading plus a one-sentence insight (e.g. 'Heating accounts for 36% of your energy use.'), along with units and a time reference.",
+      "source": "https://ux.opower.com/opattern/how-to-charts.html",
+      "quote": "Include in all chart types: Heading (descriptive, use sentence case), Labels, Units of measurement, Reference to time, Insight or interpretation"
+    },
+    {
+      "rule": "Use a plain pie, never a donut. Maximum 7 slices, biggest first, starting at 12 o'clock. Missing data appears as a grey 'Uncategorized' slice.",
+      "source": "https://web.archive.org/web/2024/https://ux.opower.com/opattern/pie-chart.html",
+      "quote": "Show 7 slices max, biggest one first. Align the main piece so it starts at 12 o'clock... Use a pie, not donut-style chart."
+    },
+    {
+      "rule": "The pie legend sits to the right: square swatch, category name, and a value column ('Cooling  $120'). A grey date-range caption sits under the pie.",
+      "source": "https://web.archive.org/web/2024/https://ux.opower.com/opattern/pie-chart.html",
+      "quote": "pie-chart-1.png example"
+    },
+    {
+      "rule": "At most 4 lines per line chart, and at least 5 time points.",
+      "source": "https://web.archive.org/web/2024/https://ux.opower.com/opattern/line-chart.html",
+      "quote": "Show an appropriate period of time (at least 5 items)... Don't include more than 4 lines on one chart."
+    },
+    {
+      "rule": "At most 30 columns. Never angle labels; use horizontal bars instead.",
+      "source": "https://web.archive.org/web/2024/https://ux.opower.com/opattern/column-chart.html",
+      "quote": "Avoid placing labels on an angle. If labels don't fit, try horizontal bars instead. Don't show more than 30 columns"
+    },
+    {
+      "rule": "Area charts (light-blue tint fill under a 3px primary-blue line from zero) are used on the web to show how much energy was used, never in print.",
+      "source": "https://web.archive.org/web/2024/https://ux.opower.com/opattern/area-chart.html",
+      "quote": "On the web, we use this style to emphasize how much energy a person used... don't use area charts in print layouts."
+    },
+    {
+      "rule": "Bars and columns start at zero. For missing bars, leave the gap and add a footnote; skip the bar chart if more than 2 of 10 bars are missing.",
+      "source": "https://raw.githubusercontent.com/washuvis/styleguides/HEAD/src/lib/guidelines.json",
+      "quote": "If a data point is missing, leave a space for the bar and add a footnote. If more than 2 out of 10 bars are missing, don't make a bar chart."
+    },
+    {
+      "rule": "The font stack is Helvetica Neue, Helvetica, Arial (Arial for email), deliberately overridable per utility client brand.",
+      "source": "https://web.archive.org/web/2024/https://ux.opower.com/opattern/typography.html",
+      "quote": "The Opattern default font stack is Helvetica Neue, Helvetica, Arial, sans-serif ... we intend for this to be overridden for each client"
+    }
+  ],
+  "referenceImages": [
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/opower/column-chart-1.png",
+      "url": "https://web.archive.org/web/2024im_/https://ux.opower.com/opattern/assets/images/examples/column-chart-1.png",
+      "describes": "Monthly cost column chart, Aug–Jul. Twelve flat solid blue (#107CB2-like) columns with square tops, each about 60% of its band. Very light grey horizontal gridlines at $10 intervals, no vertical gridlines, no axis lines, no ticks. Y tick labels '$40, $30, $20, $10, 0' in grey Helvetica/Arial at the left, right above each gridline. Month abbreviations in grey below. No title, legend or axis titles; white background with generous margins."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/opower/column-chart-2.png",
+      "url": "https://web.archive.org/web/2024im_/https://ux.opower.com/opattern/assets/images/examples/column-chart-2.png",
+      "describes": "Daily cost column chart for a month: about 30 narrow blue columns with small gaps. Light grey horizontal gridlines at $4 steps ('$16 … $4, 0'). Two-line x labels 'Mon' / '1', '8', '15', '22', '29' marking weekly Mondays. Grey sans-serif labels, no axis lines."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/opower/area-chart-1.png",
+      "url": "https://web.archive.org/web/2024im_/https://ux.opower.com/opattern/assets/images/examples/area-chart-1.png",
+      "describes": "Hourly energy-use area chart: a 3px primary-blue line with straight segments over a light-blue tinted fill down to zero. Light grey horizontal gridlines labelled '1.00 kWh', '0.75', '0.50', '0.25', '0' (unit only on the top tick). X labels '12am, 6am, Noon, 6pm, 11pm' in grey, with small grey moon and sun icons below. No axis lines or title."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/opower/pie-chart-1.png",
+      "url": "https://web.archive.org/web/2024im_/https://ux.opower.com/opattern/assets/images/examples/pie-chart-1.png",
+      "describes": "Plain pie (not a donut) with no slice borders. The main slice, 'Cooling', is dark slate blue starting at 12 o'clock and running clockwise; the rest is light grey 'Uncategorized'. Legend to the right: square swatches, category name and a right-hand value column ('$120', '----') in dark text. A grey centred caption under the pie: 'Jan 1, 2014 - Dec 31, 2014'."
+    }
+  ]
+}

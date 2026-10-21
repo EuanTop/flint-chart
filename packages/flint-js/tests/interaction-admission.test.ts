@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { admitInteractions } from '../src/interactive/spec/admission';
 import { resolveInteractionSpec } from '../src/interactive/spec/resolve';
-import { brushAngle, brushX, brushY, clickHighlight, dragReorder, navigate, select } from '../src/interactive/interactions';
+import { brushAngle, brushX, brushY, clickHighlight, dragReorder, isCanvasInteraction, navigate, select } from '../src/interactive/interactions';
 import type { CanvasInteractionDef } from '../src/interactive/interactions';
 import type { InteractionEntry } from '../src/core/interaction-spec';
 import { addVegaLiteInteractions } from '../src/vegalite/interactions/compile';
@@ -20,7 +20,7 @@ const NO_NAVIGATION = {
 const NO_SEMANTICS = { capabilities: [] as const };
 
 const fromSpec = (entries: readonly InteractionEntry[]): readonly CanvasInteractionDef[] =>
-    resolveInteractionSpec({ interactions: entries }).interactions;
+    resolveInteractionSpec({ interactions: entries }).interactions.filter(isCanvasInteraction);
 const ids = (interactions: readonly CanvasInteractionDef[]): string[] => interactions.map((interaction) => interaction.id);
 
 describe('admitInteractions', () => {

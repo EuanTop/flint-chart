@@ -1,0 +1,110 @@
+{
+  "id": "cato",
+  "org": "Cato Institute",
+  "urls": [
+    "https://github.com/glosophy/CatoDataVizGuidelines",
+    "https://raw.githubusercontent.com/glosophy/CatoDataVizGuidelines/master/README.md",
+    "https://raw.githubusercontent.com/glosophy/CatoDataVizGuidelines/master/PocketStyleBook.pdf"
+  ],
+  "access": "full",
+  "accessNotes": "The 25-page 'Data Visualization Guidelines' pocket stylebook (Luis Ahumada Abrigo & Guillermina Sutter Schneider) was downloaded from the GitHub repo; text extracted with pypdf and pages rendered with ImageMagick. Hex codes are stated in the PDF; the fourth categorical colour 'light purple' is not labelled on the chart page but matches the stated dark-purple tone #716A8A (verified by sampling the rendered example). Tables/web pages pages 11-13 are text-only.",
+  "summary": "Think-tank publication standard derived from Cato's Infogram style. Austere, print-report look: ITC Franklin Gothic in #222222, 'FIGURE 1' label above a short bold sentence-case title and regular subtitle, no gridlines, a plain baseline, data labels outside bars, round-dot legend centred at the bottom, and a strict colour order of dark purple #28223C, orange #ED8B00, grey #C7C7C7, light purple, with never more than four colours.",
+  "context": "report",
+  "colors": {
+    "categorical": ["#28223C", "#ED8B00", "#C7C7C7", "#716A8A"],
+    "categoricalNotes": "One group: dark purple. Two: dark purple + orange. Three: dark purple, orange, grey. Four: dark purple, orange, grey, light purple. Five or more groups are not allowed in one figure (consolidate or split into two or three charts); never more than four colours in a single layout. Use the same colour for the same variable across all charts in a publication. Grey for less important elements so primary colours stand out. Alternative system (use sparingly, not brand identifiers): election data Republican #B72025 (subset #D26563), Democrat #2565AA (subset #739CC8), Independent #F5AA1C (subset #F9D083); gender data Female #C01E65 (subset #DC7EA9), Male #117AB3 (subset #7CB6D6); grey scale #131313, #696A6A, #9C9C9C, #D9DAD9.",
+    "sequential": ["#28223C", "#D0CDDB"],
+    "diverging": [],
+    "highlight": "#ED8B00",
+    "context": "#C7C7C7",
+    "positive": null,
+    "negative": null,
+    "background": "#ffffff",
+    "text": "#222222",
+    "textSecondary": "#222222",
+    "gridline": null,
+    "axis": null,
+    "notes": "Primary colour tones: dark purple #28223C -> #716A8A -> #A9A4BD; orange #ED8B00 -> #F4C684 -> #FBDEB5; grey #C7C7C7 -> #E5E5E5. Sequential (maps): dark purple #28223C for highest value to light purple #D0CDDB for lowest, single hue varying opacity. All chart text #222222."
+  },
+  "typography": {
+    "family": "ITC Franklin Gothic Std",
+    "fallback": null,
+    "title": { "size": 19, "weight": "bold", "align": "left", "case": "sentence", "color": "#222222" },
+    "subtitle": { "size": 19, "weight": "regular", "style": "normal", "color": "#222222" },
+    "axisLabel": { "size": 16, "color": "#222222" },
+    "axisTitle": { "size": 17, "weight": "regular", "placement": "y-axis title rotated 90° beside the axis; x-axis title centred below the category labels" },
+    "dataLabel": { "size": 16, "weight": "regular" },
+    "source": { "size": 15, "style": "regular; 'Source:' lead-in bold and underlined", "color": "#222222" },
+    "notes": "Print spec (pt, all #222222): figure number 13pt ('FIGURE 1', uppercase); title 14pt bold; subtitle 14pt regular; axis labels 12pt; y-axis title 13pt; x-axis title 13pt; data labels 12pt; legend 12pt; notes 10pt; source 11pt. Pixel values above = pt x 4/3. 'Titles should be short with the first word capitalized'; 'Subtitles should also be short with the first word capitalized'. Don't use bold, italic, underline or distracting fonts within the chart."
+  },
+  "structure": {
+    "gridlines": "None in all examples.",
+    "axisLine": "Thin light-grey x baseline only; no y axis line.",
+    "ticks": "None.",
+    "zeroLine": "Baseline at zero shown as thin grey line.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "rotated vertical, left of the tick labels",
+    "unitPlacement": "subtitle or axis title",
+    "frame": "none",
+    "background": "white",
+    "notes": "Keep charts visually simple: no illustrations, drop shadows, ornamentation or 3D."
+  },
+  "legend": {
+    "placement": "bottom, centred, horizontal",
+    "directLabels": "Not specified.",
+    "title": "no",
+    "swatchShape": "circle",
+    "notes": "'Legends should be placed at the bottom of the chart.' Legend sits below the x-axis title, above notes and source."
+  },
+  "marks": {
+    "bars": "Flat solid fills, no outlines, no rounding; grouped bars touch within a group with clear gaps between groups. Column charts sorted with highest value on the left. Use bar (horizontal) charts for long labels.",
+    "lines": "Medium-thick (~2-3px) solid lines without markers; no more than two trend lines compared.",
+    "areas": "Area charts (stacked/100% stacked) for multiple categories over time.",
+    "points": "Scatter/grouped scatter/dot plot listed as allowed types.",
+    "pies": "Pie only with few values: no more than four slices, otherwise bar or column. Don't use multiple pies to compare sets of shares (use stacked bars). Doughnut and semicircle variants listed.",
+    "notes": "Line charts only for change over time; stacked columns should not be used for time data (use line/area)."
+  },
+  "labels": {
+    "dataLabels": "Print: placed outside (above/after) the bar or column, 12pt #222222. Web (Infogram): data labels turned off; values shown on hover.",
+    "numberFormat": null,
+    "dates": null,
+    "notes": "Tables: first column left-aligned; all other columns (headers and values) right-aligned."
+  },
+  "furniture": {
+    "title": "Stack above the plot, left-aligned: 'FIGURE 1' (13pt, uppercase) then short bold title (14pt) then short regular subtitle (14pt).",
+    "source": "Below legend and notes, left-aligned: 'Source: Author, Title (Publisher, year).' with 'Source' bold and underlined, 11pt.",
+    "logo": null,
+    "other": "Notes line preceded by asterisk ('*We have omitted ...') 10pt, above the source. Figures numbered."
+  },
+  "annotations": null,
+  "layout": "Fixed widths: Policy Analysis print figures/tables 750px; non-PA print figures 1,000px; web studies & blog posts 650px. Web tables with 7+ rows get a scroll bar; 5+ columns and 7+ rows get a search bar.",
+  "interaction": "Web figures built in Infogram show values on hover instead of persistent data labels.",
+  "accessibility": null,
+  "chartTypes": {
+    "preferred": ["line", "bar (stacked, grouped, 100% stacked)", "column (stacked, grouped, 100% stacked)", "area", "scatter", "dot plot", "pie (few values)", "maps", "heat map", "bubble charts"],
+    "discouraged": ["3D charts", "multiple pies to compare shares", "stacked columns for time data", "column charts with long labels", "more than two trend lines", "five or more groups"],
+    "notes": ""
+  },
+  "distinctiveRules": [
+    { "rule": "Colour assignment by group count: 1 = dark purple #28223C; 2 = + orange #ED8B00; 3 = + grey #C7C7C7; 4 = + light purple #716A8A.", "source": "https://raw.githubusercontent.com/glosophy/CatoDataVizGuidelines/master/PocketStyleBook.pdf", "quote": "For three color groups, use dark purple, orange, and grey." },
+    { "rule": "No more than four groups/colours in a figure; five or more must be consolidated or split.", "source": "https://raw.githubusercontent.com/glosophy/CatoDataVizGuidelines/master/PocketStyleBook.pdf", "quote": "There should not be five or more groups in a single figure." },
+    { "rule": "Legend at the bottom of the chart, centred, round dot swatches.", "source": "https://raw.githubusercontent.com/glosophy/CatoDataVizGuidelines/master/PocketStyleBook.pdf", "quote": "Legends should be placed at the bottom of the chart." },
+    { "rule": "Title block: uppercase 'FIGURE n' label, then 14pt bold title and 14pt regular subtitle, both sentence case, left-aligned, #222222.", "source": "https://raw.githubusercontent.com/glosophy/CatoDataVizGuidelines/master/PocketStyleBook.pdf", "quote": "Titles should be short with the first word capitalized; ITC Franklin Gothic Std 14 pt, Bold #222222" },
+    { "rule": "All chart text is ITC Franklin Gothic Std in #222222.", "source": "https://raw.githubusercontent.com/glosophy/CatoDataVizGuidelines/master/PocketStyleBook.pdf", "quote": "ITC Franklin Gothic, the font that will be used for all our figures and tables" },
+    { "rule": "Print data labels sit outside the bar/column end, 12pt #222222; web charts hide labels and use hover.", "source": "https://raw.githubusercontent.com/glosophy/CatoDataVizGuidelines/master/PocketStyleBook.pdf", "quote": "Should be placed outside the bar or column. Font size: 12 pt. Color: #222222." },
+    { "rule": "No gridlines; only a thin grey baseline; rotated y-axis title.", "source": "https://raw.githubusercontent.com/glosophy/CatoDataVizGuidelines/master/PocketStyleBook.pdf", "quote": "Specification figure shows y-axis title rotated, no gridlines" },
+    { "rule": "Source line bottom-left with bold underlined 'Source:' at 11pt; notes above it with asterisk at 10pt.", "source": "https://raw.githubusercontent.com/glosophy/CatoDataVizGuidelines/master/PocketStyleBook.pdf", "quote": "Source: James Gwartney et al., Economic Freedom of the World ..." },
+    { "rule": "Maps use a single-hue purple sequential scale: #28223C for highest, #D0CDDB for lowest.", "source": "https://raw.githubusercontent.com/glosophy/CatoDataVizGuidelines/master/PocketStyleBook.pdf", "quote": "Dark purple is strongly recommended for the highest value and light purple for the lowest value." },
+    { "rule": "Columns are ordered with the highest value on the left.", "source": "https://raw.githubusercontent.com/glosophy/CatoDataVizGuidelines/master/PocketStyleBook.pdf", "quote": "always create a column chart placing the highest value on the left and lower values to the right" },
+    { "rule": "Pie charts: maximum four slices.", "source": "https://raw.githubusercontent.com/glosophy/CatoDataVizGuidelines/master/PocketStyleBook.pdf", "quote": "A pie chart should be divided into no more than four slices." },
+    { "rule": "Fixed figure widths: 650px web, 750px Policy Analysis print, 1,000px other print studies.", "source": "https://raw.githubusercontent.com/glosophy/CatoDataVizGuidelines/master/PocketStyleBook.pdf", "quote": "figures in PAs must have a fixed width of 750 px ... Figures must have a fixed width of 650 px." },
+    { "rule": "Election and gender data use a separate alternative palette (Republican #B72025, Democrat #2565AA, Independent #F5AA1C; Female #C01E65, Male #117AB3) with lighter tints for subsets.", "source": "https://raw.githubusercontent.com/glosophy/CatoDataVizGuidelines/master/PocketStyleBook.pdf", "quote": "Use them to visualize gender or election data" },
+    { "rule": "Grey for less important elements so primary colours mark the most important data.", "source": "https://raw.githubusercontent.com/glosophy/CatoDataVizGuidelines/master/PocketStyleBook.pdf", "quote": "DO CONSIDER USING GREY FOR LESS IMPORTANT ELEMENTS" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/cato/p10.png", "url": "https://raw.githubusercontent.com/glosophy/CatoDataVizGuidelines/master/PocketStyleBook.pdf", "describes": "Print figure specification (page 10). Grouped column chart, left-aligned header: small uppercase 'FIGURE 1', bold title 'Titles should be short with the first word capitalized', regular subtitle beneath. Three groups of three touching columns in dark purple #28223C, orange #ED8B00, light grey; integer data labels above each column in small black; y tick labels 0-8 left, rotated 'Y-axis title'; no gridlines, no y-axis line, thin light-grey baseline; category labels 'Label' under groups; centred 'X-axis title'; legend centred below with round dots 'Set 1 / Set 2 / Set 3'; notes line beginning with '*' and 'Source:' (bold, underlined) bottom-left in small type. Orange callouts give sizes: figure no. 13pt, title 14pt Bold, subtitle 14pt, default font 12-13pt, notes 10pt, source 11pt, all #222222." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/cato/p9.png", "url": "https://raw.githubusercontent.com/glosophy/CatoDataVizGuidelines/master/PocketStyleBook.pdf", "describes": "Visual cues diagram (page 9): same grouped column chart annotated with red labels naming Figure number, Title, Subtitle, Axis label, Y-axis title, Data label, X-axis title, Legend, Notes and Source, confirming their positions (all left-aligned header stack, bottom-centred legend, notes and source bottom-left)." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/cato/p18.png", "url": "https://raw.githubusercontent.com/glosophy/CatoDataVizGuidelines/master/PocketStyleBook.pdf", "describes": "Colour implementation page: for one, two and three categories, column, horizontal bar and line mini-charts. One category all dark purple; two categories orange then dark purple; three categories add light grey. Flat bars with no axes or gridlines, lines thick without markers; tiny legend dots at bottom." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/cato/p19.png", "url": "https://raw.githubusercontent.com/glosophy/CatoDataVizGuidelines/master/PocketStyleBook.pdf", "describes": "Four categories add light purple #716A8A; five-category versions crossed out with red X; US choropleth in purple sequential ramp with swatches #28223C (dark) and #D0CDDB (light)." }
+  ]
+}

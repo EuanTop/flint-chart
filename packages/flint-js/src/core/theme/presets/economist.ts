@@ -154,8 +154,7 @@ export const economist: ThemePreset = {
             }
         },
         "labels": {
-            "truncation": "never",
-            "angle": "auto"
+            "truncation": "never"
         },
         "legend": {
             "show": "always",
@@ -164,8 +163,10 @@ export const economist: ThemePreset = {
                 "top"
             ],
             "direction": "horizontal",
-            "title": "omit",
-            "maxSwatches": 3
+            "title": "whenAmbiguous",
+            "maxSwatches": 3,
+            "arrangement": "row",
+            "titlePosition": "inline"
         },
         "dataLabels": {
             "show": "whenTheyFit",
@@ -184,8 +185,12 @@ export const economist: ThemePreset = {
                 // on a 160pt chart — about 1/10 of the width. On this ~460px
                 // plot that is ≈44px wide; a ~12px height keeps the 3–4:1 block
                 // proportion so it reads as the masthead tag, not a hairline.
-                "kind": "mastheadTab",
-                "anchor": "topLeft",
+                // It sits on the canvas's top edge, flush with the headline. (The current
+                // web charts no longer draw a thin red line along that edge.)
+                "kind": "tab",
+                "at": "canvasTop",
+                "frame": "content",
+                "align": "start",
                 "color": "#e3120b",
                 "width": 44,
                 "height": 12

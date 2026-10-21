@@ -27,6 +27,8 @@
  * This module has NO React, Redux, or UI framework dependencies.
  */
 
+import { authoredColorScale, withEncodingColorAnnotations } from '../core/color-controls';
+import { applyAuthoredColorScalePlotly } from './color-controls';
 import {
     ChartTemplateDef,
     ChartAssemblyInput,
@@ -36,20 +38,22 @@ import {
 } from '../core/types';
 import type { ChartWarning, ChartEncoding } from '../core/types';
 import { applyEncodingOverrides } from '../core/encoding-overrides';
-import { applyAggregation } from '../core/aggregate';
+import { applyAggregation, resolveImplicitAggregation } from '../core/aggregate';
 import { applyPivot, applyTransform, type PivotSurface, type TransformSurface } from '../core/pivot';
 import { plGetTemplateDef } from './templates';
-import { resolveChannelSemantics, convertTemporalData } from '../core/resolve-semantics';
+import { resolveChannelSemantics, convertTemporalData, repairEncodingSorts } from '../core/resolve-semantics';
 import { computeZeroDecision } from '../core/semantic-types';
 import { filterOverflow } from '../core/filter-overflow';
-import { computeLayout, computeChannelBudgets, deriveStretchCaps, resolveBaseSize, resolveFacetColumnsOption } from '../core/compute-layout';
+import { computeLayout, computeChannelBudgets, deriveStretchCaps, planBandLabels, resolveBaseSize, resolveFacetColumnsOption } from '../core/compute-layout';
 import { decideColorMaps } from '../core/color-decisions';
-import { plApplyCartesianAxisSpacing, plApplyLayoutToSpec, plApplyTooltips, plApplyAxisProperties } from './instantiate-spec';
+import { bandedSpan, plApplyBandLabels, plApplyCartesianAxisSpacing, plApplyLayoutToSpec, plApplyTooltips, plApplyAxisProperties } from './instantiate-spec';
 import { plCombineFacetPanels, niceBounds, type PlotlyFacetPanel } from './facet';
 import { normalizeStaticSeries } from '../core/static-series';
 import { normalizeChartProperties } from '../core/normalize-properties';
-import { groundTheme, resolveChartDefaults, resolveCompileDefaults } from '../core/theme/ground';
+import { analysisReadsProperty } from '../core/analyze';
+import { groundTheme, resolveChartDefaults, resolveCompileDefaults, resolveThemeFontSize } from '../core/theme/ground';
 import { resolveThemeSpec } from '../core/theme/presets';
+import { withChrome } from '../core/theme/chrome';
 import {
     realizeThemePlotly, realizeValueLabelsPlotly, plCollectMarkTypes, plCollectPositional, fitPlotlyTitle,
 } from './theme';
@@ -94,9 +98,11 @@ function applyFieldDisplayNames(figure: any, names: Record<string, string> | und
 
 export function assemblePlotly(input: ChartAssemblyInput): any {
     const chartType = input.chart_spec.chartType;
-    const semanticTypes = input.semantic_types ?? {};
+    // The colour encoding's own `colors` and `mid` speak for its field in this chart.
+    const semanticTypes = withEncodingColorAnnotations(input.semantic_types ?? {}, input.chart_spec.encodings as Record<string, unknown>);
     // `theme_spec` may name a house Flint ships rather than spell one out.
-    const themeSpec = resolveThemeSpec(input.theme_spec);
+    // A chart may turn off part of its house's chrome (a logo, the header, the footer).
+    const themeSpec = withChrome(resolveThemeSpec(input.theme_spec), input.chart_spec.chrome);
     // A house may prefer a size, a stretch budget, a facet gap. Those settle
     // before anything is measured, and in a fixed order: the chart spec first,
     // the theme's presets under it, flint's own defaults under that.
@@ -128,6 +134,7 @@ export function assemblePlotly(input: ChartAssemblyInput): any {
         ? resolveChartDefaults(
             themeSpec, chartType, chartTemplate.properties,
             input.chart_spec.chartProperties, chartProperties,
+            (key) => analysisReadsProperty(chartTemplate, key),
         )
         : [];
 
@@ -135,8 +142,10 @@ export function assemblePlotly(input: ChartAssemblyInput): any {
     // PRE-PHASE: Static Series Normalization
     // ═══════════════════════════════════════════════════════════════════════
     const rawData = input.data.values ?? [];
+    const sortRepair = repairEncodingSorts(input.chart_spec.encodings, rawData, { fieldSort: false });
+    warnings.push(...sortRepair.warnings);
     const normalized = normalizeStaticSeries(
-        input.chart_spec.encodings, rawData, semanticTypes, chartType,
+        sortRepair.encodings, rawData, semanticTypes, chartType,
     );
     let data = normalized.data;
     const staticSeries = normalized.staticSeries;
@@ -148,7 +157,7 @@ export function assemblePlotly(input: ChartAssemblyInput): any {
     // `typedRawEncodings` step (a cheap preliminary semantics pass).
     const prelimConverted = convertTemporalData(data, semanticTypes);
     const prelimSemantics = resolveChannelSemantics(
-        normalized.encodings, data, semanticTypes, prelimConverted,
+        normalized.encodings, data, semanticTypes, prelimConverted, { chartType: chartTemplate.chart },
     );
     const typedRawEncodings: Record<string, ChartEncoding> = {};
     for (const [ch, enc] of Object.entries(normalized.encodings)) {
@@ -165,7 +174,11 @@ export function assemblePlotly(input: ChartAssemblyInput): any {
         const swapped = plGetTemplateDef(transformed.chartType) as ChartTemplateDef | undefined;
         if (swapped) chartTemplate = swapped;
     }
-    const encodings = applyEncodingOverrides(chartTemplate, transformed.encodings, chartProperties);
+    const overridden = applyEncodingOverrides(chartTemplate, transformed.encodings, chartProperties);
+    // Several rows on one mark's key: aggregate the measure (and say so) rather than overplot.
+    const implicit = resolveImplicitAggregation(chartTemplate.chart, overridden, data, semanticTypes);
+    const encodings = implicit.encodings;
+    warnings.push(...implicit.warnings);
 
     // Optional aggregation transform — see vegalite/assemble for rationale.
     data = applyAggregation(encodings, data);
@@ -180,7 +193,7 @@ export function assemblePlotly(input: ChartAssemblyInput): any {
     const convertedData = convertTemporalData(data, semanticTypes);
 
     const channelSemantics = resolveChannelSemantics(
-        encodings, data, semanticTypes, convertedData,
+        encodings, data, semanticTypes, convertedData, { chartType: chartTemplate.chart },
     );
 
     // Finalize zero-baseline (requires template mark knowledge)
@@ -308,6 +321,13 @@ export function assemblePlotly(input: ChartAssemblyInput): any {
             background: 'light',
         }),
     };
+    if (chartType !== 'Bar Table') {
+        planBandLabels(instantiateContext, {
+            fontSize: themeSpec
+                ? resolveThemeFontSize(themeSpec, themeSpec.type?.axisLabel?.size, 10, layoutResult.subplotWidth || canvasSize.width)
+                : undefined,
+        });
+    }
 
     const colField = channelSemantics.column?.field;
     const rowField = channelSemantics.row?.field;
@@ -375,15 +395,13 @@ export function assemblePlotly(input: ChartAssemblyInput): any {
         const yIsDiscrete = layoutResult.yNominalCount > 0 || layoutResult.yContinuousAsDiscrete > 0;
         let panelWidth: number;
         let panelHeight: number;
-        if (xIsDiscrete && layoutResult.xStepUnit !== 'group') {
-            const n = layoutResult.xNominalCount || layoutResult.xContinuousAsDiscrete || 0;
-            panelWidth = n > 0 ? layoutResult.xStep * n : (layoutResult.subplotWidth || canvasSize.width);
+        if (xIsDiscrete) {
+            panelWidth = bandedSpan(instantiateContext, 'x') ?? (layoutResult.subplotWidth || canvasSize.width);
         } else {
             panelWidth = layoutResult.subplotWidth || canvasSize.width;
         }
-        if (yIsDiscrete && layoutResult.yStepUnit !== 'group') {
-            const n = layoutResult.yNominalCount || layoutResult.yContinuousAsDiscrete || 0;
-            panelHeight = n > 0 ? layoutResult.yStep * n : (layoutResult.subplotHeight || canvasSize.height);
+        if (yIsDiscrete) {
+            panelHeight = bandedSpan(instantiateContext, 'y') ?? (layoutResult.subplotHeight || canvasSize.height);
         } else {
             panelHeight = layoutResult.subplotHeight || canvasSize.height;
         }
@@ -434,19 +452,10 @@ export function assemblePlotly(input: ChartAssemblyInput): any {
             ),
         });
 
-        // Apply the shared x-label rotation / font decisions to every panel axis.
-        if (layoutResult.xLabel) {
-            for (const key of Object.keys(figure.layout)) {
-                if (!/^xaxis\d*$/.test(key)) continue;
-                const ax = figure.layout[key];
-                if (layoutResult.xLabel.labelAngle) {
-                    ax.tickangle = Math.abs(layoutResult.xLabel.labelAngle);
-                }
-                if (layoutResult.xLabel.fontSize) {
-                    ax.tickfont = { ...(ax.tickfont || {}), size: layoutResult.xLabel.fontSize };
-                }
-            }
-        }
+        // Apply the shared label rotation / wrapping / font decisions to every panel axis.
+        plApplyBandLabels(figure, layoutResult, {
+            temporal: (channel) => channelSemantics[channel]?.type === 'temporal',
+        });
         plApplyCartesianAxisSpacing(figure);
         plApplyAxisProperties(figure, instantiateContext);
         if (addTooltipsOpt) plApplyTooltips(figure);
@@ -509,6 +518,7 @@ export function assemblePlotly(input: ChartAssemblyInput): any {
             .join(' '),
         hostSurface: (input.options as any)?.background,
         valueLabels: resolvePlValueLabelChoice(chartProperties),
+        labelOverflow: chartProperties?.labelOverflow,
     });
 
     if (themeSpec) {
@@ -551,6 +561,9 @@ export function assemblePlotly(input: ChartAssemblyInput): any {
         figure._height = figure.layout.height;
     }
 
+    // The author's colour controls win over every default.
+    const authoredColor = authoredColorScale(input.chart_spec.encodings as Record<string, unknown>);
+    if (authoredColor) applyAuthoredColorScalePlotly(figure, authoredColor);
     if (warnings.length > 0) {
         figure._warnings = warnings;
     }

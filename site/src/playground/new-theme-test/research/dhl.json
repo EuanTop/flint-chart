@@ -1,0 +1,74 @@
+{
+  "id": "dhl",
+  "org": "DHL (DHL Group Brand Hub)",
+  "urls": [
+    "https://www.dpdhl-brands.com/en/dhl/tables-and-charts",
+    "https://www.brandhub.dhl/en/guide/user-interface",
+    "http://web.archive.org/web/20220926212209/http://www.dpdhl-brands.com/en/dhl/tables-and-charts",
+    "https://assets.dpdhl-brands.com/guides/dhl/guides/office/business-communication/dhl_group_ms-office_color-theme_manual_2024.pdf",
+    "https://brandingstyleguides.com/guide/dhl-group/",
+    "https://brandpalettes.com/dhl-colors/"
+  ],
+  "access": "none",
+  "accessNotes": "The 'Tables and Charts' guideline (dpdhl-brands.com/en/dhl/tables-and-charts) now redirects to brandhub.dhl/en/guide/user-interface, whose server response is a NEXT_REDIRECT to /en/guide/locked-content ('This content is only available for registered users.'). The 2022 Wayback snapshot of the original page only contains the JS shell (content was fetched client-side from a login-protected API) - it confirms the page 'Tables and Charts' existed under the DHL brand's 'Basic elements' section, next to 'Eye-Catchers'. The public MS Office corporate colour-theme manual (Dec 2024) only explains how to install the PowerPoint theme and states that only the highlighted top-row theme colours are corporate colours; it contains no hex values or chart rules. docs.uilibrary.dhl, dhl.com CSS, npm and Brandfetch were unreachable from this environment (timeouts/403). Brand colours below come only from web-search summaries citing Brandfetch and brand-palette sites and are NOT verified against an official source (two summaries disagreed on DHL red). No chart-specific rules could be verified, so distinctiveRules are limited to what the accessible documents state.",
+  "summary": "DHL's chart guidance lives in the login-protected DHL Group Brand Hub ('Tables and Charts' under Basic Elements), so its specific rules could not be read. The brand itself is defined by DHL Yellow and DHL Red with black/white and greys, and the Group provides an official PowerPoint/Office colour theme that is the sanctioned source for chart colours in business documents.",
+  "context": "brand",
+  "colors": {
+    "categorical": [],
+    "categoricalNotes": "Official chart colours are delivered as the MS Office theme embedded in the DHL Group PowerPoint template (shared by DHL Group, DHL and Post & Parcel). 'Only the colors highlighted [top row of Theme colors] are corporate colors(!). All other colors from the palette are not.' Excel only exposes the top row of theme colours. Actual theme hex values were not readable.",
+    "sequential": [],
+    "diverging": [],
+    "highlight": null,
+    "context": null,
+    "positive": null,
+    "negative": null,
+    "background": null,
+    "text": null,
+    "textSecondary": null,
+    "gridline": null,
+    "axis": null,
+    "notes": "UNVERIFIED secondary values (web-search summaries citing Brandfetch / brandpalettes): DHL Yellow #FFCC00 (one summary #FFCC01, Pantone 116 C); DHL Red #D40511 (another summary #D2002E, Pantone 199 C); black/'cod gray' #191919; white #FFFFFF. brandpalettes.com lists a red CMYK of 0/100/78/17.6. Do not treat as authoritative until checked against the Brand Hub."
+  },
+  "typography": {
+    "family": null,
+    "fallback": null,
+    "title": { "size": null, "weight": null, "align": null, "case": null, "color": null },
+    "subtitle": { "size": null, "weight": null, "style": null, "color": null },
+    "axisLabel": { "size": null, "color": null },
+    "axisTitle": { "size": null, "weight": null, "placement": null },
+    "dataLabel": { "size": null, "weight": null },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "Corporate typeface not confirmed from an accessible official source (DHL uses its own 'Delivery' typeface family in brand communications, per general knowledge - unverified here)."
+  },
+  "structure": {
+    "gridlines": null,
+    "axisLine": null,
+    "ticks": null,
+    "zeroLine": null,
+    "yAxisPlacement": null,
+    "yAxisTitle": null,
+    "unitPlacement": null,
+    "frame": null,
+    "background": null,
+    "notes": "Not accessible."
+  },
+  "legend": { "placement": null, "directLabels": null, "title": null, "swatchShape": null, "notes": "Not accessible." },
+  "marks": { "bars": null, "lines": null, "areas": null, "points": null, "pies": null, "notes": "Not accessible." },
+  "labels": { "dataLabels": null, "numberFormat": null, "dates": null, "notes": "Not accessible." },
+  "furniture": {
+    "title": null,
+    "source": null,
+    "logo": null,
+    "other": "Charts/tables guidance is grouped with 'Eye-Catchers' under the brand's basic design elements (from Brand Hub navigation in the 2022 snapshot)."
+  },
+  "annotations": null,
+  "layout": null,
+  "interaction": "The Brand Hub also has a 'User Interface' section with a 'UI dark mode' page (locked); no chart interaction rules read.",
+  "accessibility": null,
+  "chartTypes": { "preferred": [], "discouraged": [], "notes": "Not accessible." },
+  "distinctiveRules": [
+    { "rule": "Chart colours in Office documents must come from the official DHL Group theme saved from the PowerPoint template; only the top-row theme colours are corporate colours.", "source": "https://assets.dpdhl-brands.com/guides/dhl/guides/office/business-communication/dhl_group_ms-office_color-theme_manual_2024.pdf", "quote": "Reminder - only the colors highlighted ( 7 & 8 ) are corporate colors(!). All other colors from the palette are not." },
+    { "rule": "DHL Group, DHL and Post & Parcel share one colour theme.", "source": "https://assets.dpdhl-brands.com/guides/dhl/guides/office/business-communication/dhl_group_ms-office_color-theme_manual_2024.pdf", "quote": "DHL Group, DHL and Post and Parcel all share the same color theme" }
+  ],
+  "referenceImages": []
+}

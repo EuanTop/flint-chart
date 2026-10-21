@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-import { ChartTemplateDef, ChartPropertyDef, OptionEvalContext } from '../../core/types';
+import { ChartTemplateDef, ChartPropertyDef, InstantiateContext, OptionEvalContext, PlotPlanContext } from '../../core/types';
 import {
     resolveUsState, resolveCountry, GeoResolver,
     type MapScope, inferBubbleScope, inferChoroplethScope, semanticScope, pickMapScope,
@@ -10,9 +10,11 @@ import { toTypeString } from '../../core/field-semantics';
 import {
     GEO_LEVEL_SIGNAL,
     geoLevelGate,
+    isGlobeProjection,
     type GeoLevel,
     type GeoPreProjection,
-} from '../interactions/navigation-geo';
+} from '../interactions/geo-levels';
+import { withInteractionDecorative } from '../interaction-provenance';
 import {
     fieldsFromEncodingChannels,
     firstDiscreteEncodingField,
@@ -121,6 +123,91 @@ const regionProperty: ChartPropertyDef = {
     ],
     defaultValue: "auto",
 };
+
+/** Would this choropleth draw the world map? (Drives world-only property gating.) */
+function wouldBeWorldChoropleth(ctx: OptionEvalContext): boolean {
+    const idField = ctx.encodings?.id?.field;
+    const semType = idField ? toTypeString(ctx.channelSemantics?.id?.semanticAnnotation?.semanticType) : '';
+    return pickMapScope(ctx.chartProperties, semanticScope(semType), () => inferChoroplethScope(ctx.data ?? [], idField)) === 'world';
+}
+
+/** The world map's projection and centre, offered wherever the map is the world. */
+function projectionProperties(applicable: (ctx: OptionEvalContext) => boolean): ChartPropertyDef[] {
+    return [
+        {
+            key: "projection",
+            label: "Projection",
+            type: "discrete",
+            options: [
+                { value: "default", label: "Default" },
+                ...mapProjections.map(p => ({ value: p.value, label: p.label })),
+            ],
+            defaultValue: "default",
+            check: (ctx) => ({ applicable: applicable(ctx) }),
+        },
+        {
+            key: "projectionCenter",
+            label: "Center",
+            type: "discrete",
+            options: [
+                { value: undefined, label: "Default" },
+                ...projectionCenterPresets.map(p => ({
+                    value: p.center,
+                    label: `${p.label} [${p.center[0]}, ${p.center[1]}]`,
+                })),
+            ],
+            defaultValue: undefined,
+            check: (ctx) => ({ applicable: applicable(ctx) }),
+        },
+    ];
+}
+
+/** Point a world map's projection where the caller asked: its type, and the place at its centre. */
+function applyWorldProjection(projection: any, chartProperties: Record<string, any> | undefined): void {
+    if (!projection || !chartProperties) return;
+    const type = chartProperties.projection;
+    const center = chartProperties.projectionCenter;
+    if (typeof type === 'string' && type !== 'default') projection.type = type;
+    if (Array.isArray(center) && center.length >= 2 && projection.type !== 'albersUsa') {
+        projection.rotate = [-Number(center[0]), -Number(center[1]), 0];
+    }
+}
+
+/** The size a globe is drawn at: a disc wants a square plot. */
+const GLOBE_SIZE = 400;
+/** The sea behind a globe, its rim, and the land a country without a value stands on. */
+const GLOBE_SEA = '#eef2f5';
+const GLOBE_RIM = '#c5ccd3';
+const GLOBE_NO_DATA = '#d9d9d9';
+
+/**
+ * Draw a world choropleth as a globe. The projection fits the whole sphere
+ * rather than the countries in view, so the globe keeps its size as it turns.
+ * Behind the countries go the sea, as a disc with a rim, and every country in
+ * the no-data grey: a country the data does not name reads as land without a
+ * value, not as a hole in the sphere. Both are structure, not data, and take
+ * no part in interaction.
+ */
+function configureGlobe(spec: any): void {
+    spec.projection = { ...(spec.projection ?? {}), fit: { type: 'Sphere' } };
+    const { data, transform, mark, encoding } = spec;
+    delete spec.data;
+    delete spec.transform;
+    delete spec.mark;
+    delete spec.encoding;
+    const strokeWidth = typeof mark === 'object' ? mark.strokeWidth : undefined;
+    spec.layer = [
+        withInteractionDecorative({
+            data: { sphere: true },
+            mark: { type: 'geoshape', fill: GLOBE_SEA, stroke: GLOBE_RIM, strokeWidth: 1 },
+        }),
+        withInteractionDecorative({
+            data,
+            mark: { type: 'geoshape', fill: GLOBE_NO_DATA, stroke: 'white', ...(strokeWidth != null ? { strokeWidth } : {}) },
+        }),
+        { data, ...(transform ? { transform } : {}), mark, encoding },
+    ];
+}
 
 /**
  * Merge the compiler's resolved encodings onto a layer's point encoding, then
@@ -285,6 +372,31 @@ const levelProperty: ChartPropertyDef = {
     check: (ctx) => ({ applicable: ctx.chartProperties?.region !== 'world' }),
 };
 
+/** The region a bubble map shows: the caller's choice, else what the coordinates span. */
+function bubbleScope(ctx: PlotPlanContext, lonField: string | undefined, latField: string | undefined): MapScope {
+    const rows = ctx.fullTable ?? ctx.table ?? [];
+    return pickMapScope(ctx.chartProperties, undefined, () => inferBubbleScope(rows, lonField, latField));
+}
+
+/** The region a choropleth shows: the caller's choice, else the id field's semantic type, else its values. */
+function choroplethScope(ctx: PlotPlanContext, idField: string | undefined): MapScope {
+    const rows = ctx.fullTable ?? ctx.table ?? [];
+    const semType = idField ? toTypeString(ctx.semanticTypes?.[idField]) : '';
+    return pickMapScope(ctx.chartProperties, semanticScope(semType), () => inferChoroplethScope(rows, idField));
+}
+
+/** A map is drawn at its region's size. */
+function scopeSize(scope: MapScope): { width: number; height: number } {
+    const g = SCOPE_GEO[scope];
+    return { width: g.width, height: g.height };
+}
+
+function drawAtPlannedSize(spec: any, ctx: InstantiateContext): void {
+    if (!ctx.plot) return;
+    spec.width = ctx.plot.width;
+    spec.height = ctx.plot.height;
+}
+
 export const mapDef: ChartTemplateDef = {
     chart: "Map",
     template: {
@@ -332,13 +444,15 @@ export const mapDef: ChartTemplateDef = {
             )),
         };
     },
+    planPlot: (ctx) => scopeSize(bubbleScope(ctx, ctx.channelSemantics.longitude?.field, ctx.channelSemantics.latitude?.field)),
     instantiate: (spec, ctx) => {
         const rows = ctx.fullTable ?? ctx.table ?? [];
         const lonField = ctx.resolvedEncodings.longitude?.field;
         const latField = ctx.resolvedEncodings.latitude?.field;
-        const scope = pickMapScope(ctx.chartProperties, undefined, () => inferBubbleScope(rows, lonField, latField));
+        const scope = bubbleScope(ctx, lonField, latField);
 
         configureBubble(spec, scope);
+        drawAtPlannedSize(spec, ctx);
         // `baseMapUrl` swaps the region's base map for a GeoJSON
         // FeatureCollection of the host's own (a country's provinces, say);
         // the projection still fits to it.
@@ -352,52 +466,10 @@ export const mapDef: ChartTemplateDef = {
         // Projection controls only apply to the world map; the US map is fixed
         // to albersUsa (which insets Alaska + Hawaii).
         if (scope === 'world') {
-            const config = ctx.chartProperties;
-            if (config) {
-                const projection = config.projection;
-                const projectionCenter = config.projectionCenter;
-                const applyProjection = (obj: any) => {
-                    if (obj?.projection) {
-                        if (projection && projection !== 'default') {
-                            obj.projection.type = projection;
-                        }
-                        if (projectionCenter && obj.projection.type !== 'albersUsa') {
-                            obj.projection.rotate = [-projectionCenter[0], -projectionCenter[1], 0];
-                        }
-                    }
-                };
-                for (const layer of spec.layer) applyProjection(layer);
-            }
+            for (const layer of spec.layer) applyWorldProjection(layer.projection, ctx.chartProperties);
         }
     },
-    properties: [
-        regionProperty,
-        {
-            key: "projection",
-            label: "Projection",
-            type: "discrete",
-            options: [
-                { value: "default", label: "Default" },
-                ...mapProjections.map(p => ({ value: p.value, label: p.label })),
-            ],
-            defaultValue: "default",
-            check: (ctx) => ({ applicable: wouldBeWorld(ctx) }),
-        },
-        {
-            key: "projectionCenter",
-            label: "Center",
-            type: "discrete",
-            options: [
-                { value: undefined, label: "Default" },
-                ...projectionCenterPresets.map(p => ({
-                    value: p.center,
-                    label: `${p.label} [${p.center[0]}, ${p.center[1]}]`,
-                })),
-            ],
-            defaultValue: undefined,
-            check: (ctx) => ({ applicable: wouldBeWorld(ctx) }),
-        },
-    ] as ChartPropertyDef[],
+    properties: [regionProperty, ...projectionProperties(wouldBeWorld)] as ChartPropertyDef[],
 };
 
 /**
@@ -420,7 +492,9 @@ export const mapDef: ChartTemplateDef = {
  * (optional) = an explicit display name for tooltips (defaults to the `id`
  * field so the user always sees a readable label).
  */
-function buildChoroplethJoin(spec: any, ctx: any, resolver: GeoResolver): void {
+function buildChoroplethJoin(
+    spec: any, ctx: any, resolver: (value: unknown) => unknown, featureKey = 'id',
+): void {
     const idField: string | undefined = ctx.resolvedEncodings.id?.field;
     const colorEnc = ctx.resolvedEncodings.color;
     const valueField: string | undefined = colorEnc?.field;
@@ -439,7 +513,7 @@ function buildChoroplethJoin(spec: any, ctx: any, resolver: GeoResolver): void {
                 layer.transform = [
                     ...(layer.transform ?? []),
                     {
-                        lookup: 'id',
+                        lookup: featureKey,
                         from: { data: { name: GEO_JOIN_DATASET }, key: '__geo_id', fields: lookupFields },
                     },
                 ];
@@ -448,7 +522,7 @@ function buildChoroplethJoin(spec: any, ctx: any, resolver: GeoResolver): void {
             spec.transform = [
                 ...(spec.transform ?? []),
                 {
-                    lookup: 'id',
+                    lookup: featureKey,
                     from: { data: { values: joined }, key: '__geo_id', fields: lookupFields },
                 },
             ];
@@ -464,6 +538,86 @@ function buildChoroplethJoin(spec: any, ctx: any, resolver: GeoResolver): void {
     if (labelField) tooltip.push({ field: labelField, type: 'nominal' });
     if (valueField) tooltip.push({ field: valueField, type: colorEnc?.type ?? 'quantitative' });
     if (tooltip.length) spec.encoding.tooltip = tooltip;
+}
+
+/** One level of a choropleth over the caller's own geography: its regions, and the zoom it shows at. */
+interface CustomChoroplethLevel extends GeoLevel {
+    url: string;
+    /** The TopoJSON object holding the level's regions; unset, `url` is a GeoJSON FeatureCollection. */
+    feature?: string;
+}
+
+/**
+ * The caller's own geography, read from two chart properties: `levels`, each
+ * `{ value, url, feature?, enter?, exit? }` coarsest first (one level draws a
+ * plain choropleth), and `baseMapUrl`, a GeoJSON FeatureCollection drawn
+ * beneath them as land without data. Rows join a level's regions by the id
+ * channel against `featureKey` (default the feature's `id`), as given: no
+ * gazetteer is consulted, so the keys are the caller's own.
+ */
+function customChoroplethLevels(chartProperties: Record<string, any> | undefined): CustomChoroplethLevel[] | undefined {
+    const declared = chartProperties?.levels;
+    if (!Array.isArray(declared) || declared.length === 0) return undefined;
+    const levels = declared.flatMap((level: any): CustomChoroplethLevel[] => {
+        if (!level || typeof level !== 'object' || typeof level.value !== 'string' || typeof level.url !== 'string') return [];
+        return [{
+            name: level.value,
+            url: level.url,
+            ...(typeof level.feature === 'string' ? { feature: level.feature } : {}),
+            ...(typeof level.enter === 'number' ? { enter: level.enter } : {}),
+            ...(typeof level.exit === 'number' ? { exit: level.exit } : {}),
+        }];
+    });
+    return levels.length === declared.length ? levels : undefined;
+}
+
+/** The land a custom choropleth stands on, and the fill it gives a region without a value. */
+const CUSTOM_NO_DATA = '#e3e3e3';
+
+/**
+ * Draw a choropleth over the caller's geography. Each level is its own layer,
+ * gated behind the level signal like the US map's states and counties; with
+ * one level there is nothing to gate. The projection defaults to Mercator,
+ * which reads a single country without the bend of a world projection.
+ */
+function configureCustomChoropleth(spec: any, levels: CustomChoroplethLevel[], chartProperties: Record<string, any> | undefined): void {
+    const type = chartProperties?.projection;
+    spec.projection = { type: typeof type === 'string' && type !== 'default' ? type : 'mercator' };
+    const mark = typeof spec.mark === 'object' ? spec.mark : { type: 'geoshape' };
+    delete spec.mark;
+    delete spec.data;
+    const gated = levels.length > 1;
+    if (gated) {
+        spec.params = [{ name: GEO_LEVEL_SIGNAL, value: levels[0].name }];
+        spec._geoLevels = {
+            signal: GEO_LEVEL_SIGNAL,
+            levels: levels.map(({ name, enter, exit }) => ({
+                name,
+                ...(enter !== undefined ? { enter } : {}),
+                ...(exit !== undefined ? { exit } : {}),
+            })),
+        };
+    }
+    spec.data = { name: GEO_JOIN_DATASET };
+    spec.layer = levels.map((level, index) => ({
+        data: level.feature
+            ? { url: level.url, format: { type: 'topojson', feature: level.feature } }
+            : { url: level.url, format: { type: 'json', property: 'features' } },
+        ...(gated ? { transform: [{ filter: geoLevelGate(GEO_LEVEL_SIGNAL, level.name) }] } : {}),
+        // Finer levels draw thinner borders, so a county map is not all edges.
+        mark: { ...mark, type: 'geoshape', stroke: 'white', strokeWidth: Math.max(0.15, 0.6 / (index + 1)) },
+    }));
+}
+
+/** Put the land without data beneath the levels: a region the rows do not name reads as land, not as a hole. */
+function addCustomBaseMap(spec: any, url: unknown): void {
+    if (typeof url !== 'string' || !url || !Array.isArray(spec.layer)) return;
+    spec.layer.unshift(withInteractionDecorative({
+        data: { url, format: { type: 'json', property: 'features' } },
+        mark: { type: 'geoshape', stroke: 'white', strokeWidth: 0.5 },
+        // The levels' colour and tooltip sit on the spec and reach every layer; the land states its own.
+        encoding: { color: { value: CUSTOM_NO_DATA }, tooltip: null },
+    }));
 }
 
 export const choroplethDef: ChartTemplateDef = {
@@ -504,25 +658,38 @@ export const choroplethDef: ChartTemplateDef = {
             legendFields: colorField ? { color: colorField } : undefined,
         };
     },
+    planPlot: (ctx) => {
+        const scope = choroplethScope(ctx, ctx.channelSemantics.id?.field);
+        return scope === 'world' && isGlobeProjection(ctx.chartProperties?.projection)
+            ? { width: GLOBE_SIZE, height: GLOBE_SIZE }
+            : scopeSize(scope);
+    },
     instantiate: (spec, ctx) => {
-        const rows = ctx.fullTable ?? ctx.table ?? [];
         const idField = ctx.resolvedEncodings.id?.field;
-        const semType = idField ? toTypeString(ctx.semanticTypes?.[idField]) : '';
-        const semScope = semanticScope(semType);
-        const scope = pickMapScope(
-            ctx.chartProperties,
-            semScope,
-            () => inferChoroplethScope(rows, idField),
-        );
+        const custom = customChoroplethLevels(ctx.chartProperties);
+        if (custom) {
+            configureCustomChoropleth(spec, custom, ctx.chartProperties);
+            drawAtPlannedSize(spec, ctx);
+            const featureKey = typeof ctx.chartProperties?.featureKey === 'string' ? ctx.chartProperties.featureKey : 'id';
+            buildChoroplethJoin(spec, ctx, (value) => (value == null ? undefined : String(value)), featureKey);
+            addCustomBaseMap(spec, ctx.chartProperties?.baseMapUrl);
+            return;
+        }
+        const scope = choroplethScope(ctx, idField);
 
         const requestedLevel = ctx.chartProperties?.level;
         const level: ChoroplethLevel = requestedLevel === 'county' || requestedLevel === 'auto'
             ? requestedLevel
             : 'state';
         configureChoropleth(spec, scope, level);
+        drawAtPlannedSize(spec, ctx);
         // County rows carry numeric FIPS ids, which the state resolver passes through.
         const resolver: GeoResolver = scope === 'us' ? resolveUsState : resolveCountry;
         buildChoroplethJoin(spec, ctx, resolver);
+        if (scope === 'world') {
+            applyWorldProjection(spec.projection, ctx.chartProperties);
+            if (isGlobeProjection(spec.projection?.type)) configureGlobe(spec);
+        }
     },
-    properties: [regionProperty, levelProperty] as ChartPropertyDef[],
+    properties: [regionProperty, levelProperty, ...projectionProperties(wouldBeWorldChoropleth)] as ChartPropertyDef[],
 };

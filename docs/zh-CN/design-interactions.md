@@ -29,7 +29,7 @@
 | `theme_spec` | 图表长什么样 | Vega-Lite 装配器 |
 | `interaction_spec` | 图表如何响应 | Vega-Lite 交互层 |
 
-装配器从不读取 `interaction_spec`，静态渲染不受它影响。只有 `buildInteractiveChart()` 在图表装配完成后读取它。
+装配器从不读取 `interaction_spec`，静态渲染不受它影响。只有 `mountChart()` 在图表装配完成后读取它。
 
 行为来自**预设（preset）**：Flint 内置的、有名字的交互，如 `click-highlight` 或 `navigate`。代码通过工厂函数使用预设，`clickHighlight({ dimOpacity: 0.2 })`；spec 通过名字使用同一预设，`{ "type": "click-highlight", "options": { "dimOpacity": 0.2 } }`。注册表把名字映射到工厂函数，因此两者是同一定义的两种写法。下文的一切同时适用于两者。
 
@@ -79,11 +79,13 @@
 | `set-overlay`、`set-freeform-overlay` | 绘制引导线或自由路径 |
 | `set-data` | 替换某一层显示的行 |
 
-目标要么是对已解析元素的引用 `{ visual, elements }`，要么是按行键的选择器 `{ select: { key } }`。宿主通过 `surface.applyUpdate()` 和 `surface.setUpdates()` 从外部施加同一语言，因此叙事步骤与点击产生同类变化。
+目标可以是对已解析元素的引用 `{ visual, elements }`；按行键的选择器 `{ select: { key } }`；或者（仅限 `set-style`）按条件选取一组标记 `{ select: { where } }`，每个字段写成过滤器的形式：`in` 一个列表，或落在 `range` 之内。键与 where 编译为同一个谓词，按同一规则匹配。宿主通过 `surface.applyUpdate()` 和 `surface.setUpdates()` 从外部施加同一语言，因此叙事步骤与点击产生同类变化。
 
 ## §2.4 交互层
 
-`buildInteractiveChart(container, input, options)` 返回 `InteractiveChartSurface`：`ready`、`warnings`、`applyUpdate`、`setUpdates`、`clearUpdate`、`dispatch`、`refresh`、`destroy`。容器为每个语义事件派发 `flint-interaction` DOM 事件，携带交互 id 和已解析目标，宿主无需了解预设即可监听。
+`mountChart(container, input, options)` 返回 `InteractiveChartSurface`：`ready`、`warnings`、`layout`、`applyUpdate`、`setUpdates`、`clearUpdate`、`dispatch`、`getState`、`onChange`、`refresh`、`destroy`。容器为每个语义事件派发 `flint-interaction` DOM 事件，携带交互 id 和已解析目标，宿主无需了解预设即可监听。
+
+图表同时拥有自己的状态，宿主直接读取它，而不是回放手势。`getState()` 返回 `ChartState`：被强调的标记（`selected`，含预览；`entries` 按更新 id 区分各自的份额）、被隐藏的图例值、当前视口和分类滚动窗口。每个标记的 `value` 以字段表达它的含义：柱的类别与度量、图例项的通道与值、直方图柱的字段与区间。`onChange(callback)` 在每次渲染后触发，携带 `ChartChange`：阶段（手势进行中为 `preview`，已提交的变更或宿主调用为 `commit`，手势无提交而结束为 `cancel`）、手势自身的命中与几何，以及变更后的状态。DOM 事件是原始手势记录，在图表响应之前触发；`onChange` 是图表所显示的内容，在之后触发。数据行留在宿主一侧：宿主根据值和几何查询自己的数据，图表不交出数据副本。
 
 # §3 规范
 
@@ -111,7 +113,7 @@
 
 解析器 `resolveInteractionSpec()` 把 spec 变成定义并为每个打上 `origin: 'spec'`。它对图表一无所知。它拒绝格式错误：未知的 `type`、多余的键、非对象的 `options`、位于 `options` 内的 `id`、缺少 `groupBy` 等必需选项、未知或不支持的 `reset` 手势、重复 id、不属于这三个的顶层键（对曾经存在的 `dismiss` 与 `updates` 给出提示）。每条消息按索引和类型指出条目。
 
-`composeInteractiveOptions()` 把 spec 与代码传给 `buildInteractiveChart()` 的内容合并：spec 条目在前，代码在后；两边共用一个 id 是错误；交互层策略由代码设置时取代码，否则取 spec；不运行交互的后端以一条 `info` 警告忽略 spec。
+`composeInteractiveOptions()` 把 spec 与代码传给 `mountChart()` 的内容合并：spec 条目在前，代码在后；与 spec 条目同 id 的代码定义以 `info` 警告取代它；格式错误的 spec 或重复的代码 id 会抛出异常；交互层策略由代码设置时取代码，否则取 spec；不运行交互的后端以一条 `info` 警告忽略 spec。
 
 # §4 图表语义
 
@@ -186,7 +188,7 @@ _interactionSemantics: {
 
 | 预设 | 需要 |
 |---|---|
-| `click-highlight`、`click-group-focus`、`hover-group-focus`、`click-annotate`、`context-activate`、`long-press`、`double-activate`、`inspect` | `elements` |
+| `click-highlight`、`click-group-focus`、`hover-group-focus`、`click-annotate`、`context-activate`、`long-press`、`double-activate`、`inspect`、`accessible-navigation` | `elements` |
 | `select`、`lasso-select`、`brush-x`、`brush-y`、`linked-brush` | `elements`、`cartesian-region` |
 | `brush-angle` | `elements`、`angular-region` |
 | `navigate`、`brush-zoom` | `navigation` |
@@ -252,11 +254,13 @@ options.interactions ──► compose ────────────┤
 | 接纳什么、有哪些警告 | 编译步骤，通过准入 |
 | 命中如何变成行 | 字典，运行时 |
 | 哪个手势重置什么 | 分派器，来自各定义的列表 |
+| 图表此刻显示什么 | 运行时的状态，经由交互层读取 |
 
 # §8 宿主与发现
 
-- **`buildInteractiveChart()`** 从输入读取 `interaction_spec` 并与代码定义合并。MCP 的 `create_chart_view`、站点编辑器与图库在输入含交互条目时经由它挂载，否则静态渲染。
-- **`validateChart()`** 对装配后的语义运行解析器与准入，在任何渲染之前返回与挂载相同的警告。格式错误的 spec 是 `invalid_interaction_spec` 错误。MCP 的 `validate_chart` 返回同一列表。
+- **`mountChart()`** 从输入读取 `interaction_spec` 并与代码定义合并。`<FlintChart>` 经由它挂载，宿主只需传入 spec：未声明交互的图表以静态渲染，不挂载运行时。MCP 的 `show` 卡片、站点编辑器与图库都这样挂载。
+- **`getState()` 与 `onChange()`** 把图表作为上下文交给宿主。MCP 视图在每次已提交的变更后把状态发给模型；应用面板通过预览实时跟随悬停或刷选。
+- **`validateChart()`** 对装配后的语义运行解析器与准入，在任何渲染之前返回与挂载相同的警告。格式错误的 spec 是 `invalid_interaction_spec` 错误。MCP 的 `validate_chart` 返回同一列表。传入 `options.updates` 时，它会在同一次校验中对照图表检查每个更新 op（键所匹配的行、叠加层编码、视口或排序所需的预设），让 Agent 在图表绘制之前就知道哪些不会生效。
 - **`supportedInteractionPresets(def.interactionSupport)`** 列出图表类型按声明支持的预设。`list_chart_types` 按图表类型返回它，Vega-Lite 参考文档打印它。数据仍可能在挂载时移除某一项，指南对此有说明。
 - **交互实验室的覆盖页签**为每种图表类型装配一个代表性用例，展示每种图表类型对每个预设的情况：对该数据生效、类型支持但该数据未确认、或从不提供。
 
@@ -296,12 +300,14 @@ options.interactions ──► compose ────────────┤
 | Line Chart | ✓ | cartesian | x, y | ✓ | ✓ | ✓ | ✓ |
 | Lollipop Chart | ✓ | cartesian | x, y | ✓ | ✓ | ✓ |  |
 | Map | ✓ | cartesian | geo |  | ✓ |  |  |
+| Marginal Plot | ✓ |  |  |  | ✓ |  |  |
 | Pie Chart | ✓ | cartesian, angular |  |  | ✓ |  |  |
 | Pyramid Chart | ✓ | cartesian |  | ✓ | ✓ | ✓ |  |
 | Radar Chart | ✓ | cartesian, angular |  |  | ✓ |  |  |
 | Range Area Chart | ✓ | cartesian | x, y |  | ✓ | ✓ | ✓ |
 | Ranged Dot Plot | ✓ | cartesian | x, y | 含连接标记 | ✓ | ✓ |  |
 | Regression | ✓ | cartesian | x, y | ✓ | ✓ | ✓ | ✓ |
+| Ridgeline Plot | ✓ | cartesian | x |  |  |  | ✓ |
 | Rose Chart | ✓ | cartesian, angular |  |  | ✓ |  |  |
 | Scatter Plot | ✓ | cartesian | x, y | ✓ | ✓ | ✓ | ✓ |
 | Slope Chart | ✓ | cartesian | x, y | ✓ | ✓ | ✓ | ✓ |
@@ -309,6 +315,7 @@ options.interactions ──► compose ────────────┤
 | Stacked Bar Chart | ✓ | cartesian | x, y | ✓ | ✓ | ✓ |  |
 | Streamgraph | ✓ | cartesian | x, y | ✓ | ✓ | ✓ | ✓ |
 | Strip Plot | ✓ | cartesian | x, y | ✓ | ✓ | ✓ |  |
+| Table |  |  |  |  |  |  |  |
 | Violin Plot | ✓ | cartesian |  |  | ✓ | ✓ |  |
 | Waterfall Chart | ✓ | cartesian | x, y | rect 标记 | ✓ | ✓ |  |
 <!-- interaction-support:end -->

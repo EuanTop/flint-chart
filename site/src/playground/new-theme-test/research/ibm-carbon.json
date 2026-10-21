@@ -1,0 +1,280 @@
+{
+  "id": "ibm-carbon",
+  "org": "IBM Design Language / Carbon Design System — Data visualization (Carbon Charts)",
+  "urls": [
+    "https://www.ibm.com/design/language/data-visualization/overview",
+    "https://carbondesignsystem.com/data-visualization/color-palettes/",
+    "https://github.com/carbon-design-system/carbon-website/tree/main/src/pages/data-visualization",
+    "https://github.com/carbon-design-system/carbon-website/blob/main/src/pages/data-visualization/color-palettes/index.mdx",
+    "https://github.com/carbon-design-system/carbon-website/blob/main/src/pages/data-visualization/chart-anatomy/index.mdx",
+    "https://github.com/carbon-design-system/carbon-website/blob/main/src/pages/data-visualization/axes-and-labels/index.mdx",
+    "https://github.com/carbon-design-system/carbon-website/blob/main/src/pages/data-visualization/legends/index.mdx",
+    "https://github.com/carbon-design-system/carbon-website/blob/main/src/pages/data-visualization/dashboards/index.mdx",
+    "https://github.com/carbon-design-system/carbon-website/blob/main/src/data/data-visualization/palettes.js",
+    "https://github.com/carbon-design-system/carbon-charts/blob/master/packages/core/src/configuration.ts",
+    "https://github.com/carbon-design-system/carbon-charts/tree/master/packages/core/scss",
+    "https://github.com/carbon-design-system/carbon/blob/main/packages/themes/src/dtcg/themes.json",
+    "https://github.com/carbon-design-system/carbon/blob/main/packages/colors/tokens/colors.tokens.json"
+  ],
+  "access": "full",
+  "accessNotes": "ibm.com/design/language/data-visualization/overview is readable (principles only; it defers to Carbon). carbondesignsystem.com pages are JS-rendered (only a WIP banner came through), so the page MDX sources and the palette data file were read from the carbon-website GitHub repo, and concrete styling (font sizes, gridline/axis tokens, bar widths, point radii, tooltip, legend) from carbon-charts core SCSS and configuration.ts. The IBM v1 'experience/data-visualization' page was not separately read. Neutral token values were resolved from @carbon/themes DTCG themes.json and @carbon/colors tokens.",
+  "summary": "Carbon charts are enterprise product-UI charts set in IBM Plex Sans (titles) and IBM Plex Sans Condensed (axes, legend, tooltips): a 16px semibold left-aligned title, 12px grey tick labels without tick marks, a light full grid (both directions) and a 1.5px line weight. Colour comes from a strictly ordered 14-colour categorical sequence (purple 70, cyan 50, teal 70, magenta 70...) with curated fixed palettes for 1–5 series, and fully specified light (white/g10) and dark (g90/g100) themes. Interaction is first-class: tooltips with colour strips, legend checkboxes, hover-dimming to 30%, toolbar and zoom bar.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": [
+      "#6929c4",
+      "#1192e8",
+      "#005d5d",
+      "#9f1853",
+      "#fa4d56",
+      "#570408",
+      "#198038",
+      "#002d9c",
+      "#ee538b",
+      "#b28600",
+      "#009d9a",
+      "#012749",
+      "#8a3800",
+      "#a56eff"
+    ],
+    "categoricalNotes": "Light-theme categorical sequence (Purple 70, Cyan 50, Teal 70, Magenta 70, Red 50, Red 90, Green 60, Blue 80, Magenta 50, Yellow 50, Teal 50, Cyan 90, Orange 70, Purple 50) — 'applied in sequence strictly as described ... curated to maximize contrast between neighboring colors'. Dark-theme sequence: #8a3ffc, #33b1ff, #007d79, #ff7eb6, #fa4d56, #fff1f1, #6fdc8c, #4589ff, #d12771, #d2a106, #08bdba, #bae6ff, #ba4e00, #d4bbff. Override with fixed grouped palettes when series count is predictable (light): 1 colour options: #6929c4 | #002d9c | #1192e8 | #005d5d. 2: [#6929c4,#009d9a] | [#8a3ffc,#570408] | [#9f1853,#570408] | [#1192e8,#005d5d] | [#009d9a,#002d9c]. 3: [#a56eff,#005d5d,#9f1853] | [#9f1853,#fa4d56,#570408] | [#a56eff,#005d5d,#002d9c] | [#ee538b,#1192e8,#6929c4] | [#012749,#6929c4,#009d9a]. 4: [#9f1853,#fa4d56,#570408,#a56eff] | [#6929c4,#012749,#009d9a,#ee538b] | [#009d9a,#002d9c,#a56eff,#9f1853]. 5: [#6929c4,#1192e8,#005d5d,#9f1853,#570408] | [#002d9c,#009d9a,#9f1853,#570408,#a56eff]. Dark 1-colour options: #d4bbff | #4589ff | #33b1ff | #08bdba.",
+    "sequential": [
+      "#edf5ff",
+      "#d0e2ff",
+      "#a6c8ff",
+      "#78a9ff",
+      "#4589ff",
+      "#0f62fe",
+      "#0043ce",
+      "#002d9c",
+      "#001d6c",
+      "#001141"
+    ],
+    "diverging": [
+      "#750e13",
+      "#a2191f",
+      "#da1e28",
+      "#fa4d56",
+      "#ff8389",
+      "#ffb3b8",
+      "#ffd7d9",
+      "#fff1f1",
+      "#e5f6ff",
+      "#bae6ff",
+      "#82cfff",
+      "#33b1ff",
+      "#1192e8",
+      "#0072c3",
+      "#00539a",
+      "#003a6d"
+    ],
+    "highlight": null,
+    "context": null,
+    "positive": "#198038",
+    "negative": "#da1e28",
+    "background": "#ffffff",
+    "text": "#161616",
+    "textSecondary": "#525252",
+    "gridline": "#e0e0e0",
+    "axis": "#8d8d8d",
+    "notes": "Sequential monochromatic ramps (10 steps, 10→100) in blue (above), purple (#f6f2ff…#1c0f30), cyan (#e5f6ff…#012749), teal (#d9fbfb…#081a1c); 'In light themes, the darkest color denotes the largest values. In dark themes, the lightest color denotes the largest values.' Diverging palette 1 red–cyan (above, for hot-vs-cold); palette 2 purple–teal: #491d8b,#6929c4,#8a3ffc,#a56eff,#be95ff,#d4bbff,#e8daff,#f6f2ff,#d9fbfb,#9ef0f0,#3ddbd9,#08bdba,#009d9a,#007d79,#005d5d,#004144 (no temperature association); diverging palettes don't differ by theme. Alert palette light: red 60 #da1e28 (danger), orange 40 #ff832b (serious warning), yellow 30 #f1c21b (warning), green 60 #198038 (success); dark: #fa4d56, #ff832b, #f1c21b, #24a148. Gradients discouraged (single-category only, never in place of sequential). Theme tokens used by carbon-charts: text = text-primary, tick labels = text-secondary, gridlines = layer-accent-01, axis domain & zero line = border-strong-01, tooltip bg = layer-02, active gridline = focus (dashed 2px). Token resolution (themes.json + colors.tokens.json): white theme — background white, text-primary gray-100 #161616, text-secondary gray-70 #525252, layer-accent-01 (gridlines) gray-20 #e0e0e0, border-strong-01 (axis/zero line) gray-50 #8d8d8d, layer-02 (tooltip) white, focus blue-60 #0f62fe. g10 — background gray-10 #f4f4f4 (grid backdrop layer-01). g90 — background gray-90 #262626, text #f4f4f4/#c6c6c6, gridlines gray-70 #525252. g100 — background gray-100 #161616, text-primary gray-10 #f4f4f4, text-secondary gray-30 #c6c6c6, gridlines gray-80 #393939, axis gray-60 #6f6f6f, tooltip layer-02 gray-80 #393939, focus white. Themes: white, g10 (light), g90, g100 (dark)."
+  },
+  "typography": {
+    "family": "IBM Plex Sans (title, axis titles); IBM Plex Sans Condensed (tick labels, legend, tooltip)",
+    "fallback": "Carbon @carbon/type font-family('sans') / ('sans-condensed') stacks",
+    "title": {
+      "size": 16,
+      "weight": "600 (semibold)",
+      "align": "left",
+      "case": "sentence",
+      "color": "#161616"
+    },
+    "subtitle": {
+      "size": null,
+      "weight": null,
+      "style": null,
+      "color": null
+    },
+    "axisLabel": {
+      "size": 12,
+      "color": "#525252"
+    },
+    "axisTitle": {
+      "size": 12,
+      "weight": "600 per SCSS (text-primary)",
+      "placement": "y title rotated 90° left of axis, centred; x title centred below tick labels"
+    },
+    "dataLabel": {
+      "size": 12,
+      "weight": "400"
+    },
+    "source": {
+      "size": null,
+      "style": null,
+      "color": null
+    },
+    "notes": "All chart SVG text defaults to 12px / 400 / text-secondary. Title truncates with ellipsis on one line. 'Landmark labels': when time crosses into a new day/month/year the tick label is semibold (tick-label--primary bold), e.g. '8 Aug 2017', '9 Aug'... Meter titles 600. Gauge numbers weight 300. Use clear language, avoid acronyms in legends, titles and axis labels."
+  },
+  "structure": {
+    "gridlines": "Both horizontal and vertical gridlines, 1px solid layer-accent-01 (light grey); ~5 y gridlines and up to 15 x gridlines; hovered/active gridline becomes a dashed (2px dash) focus-colour line.",
+    "axisLine": "Left y-axis and bottom x-axis domain lines drawn in border-strong-01 (mid grey).",
+    "ticks": "No tick marks (g.tick line display:none).",
+    "zeroLine": "Zero line drawn in border-strong-01 when the domain crosses zero.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "rotated 90°, left of tick labels",
+    "unitPlacement": "In axis title (e.g. 'Clicks in thousands', '... / %').",
+    "frame": "Grid backdrop rectangle (white theme = background; g10 = layer-01) optionally stroked; charts typically sit in dashboard tiles/cards.",
+    "background": "#ffffff (white theme) / #161616 (g100)",
+    "notes": "Start numerical axes at zero for bar/area; line and scatter may crop. Axis breaks shown with a sinusoidal (wavy) line replacing the axis segment (x: fluid, min 16px; y: fixed 16px); data within a break drawn at 0.5px with point circles hidden. Never interpolate across data gaps; label start/end of gap. Never change tick increments to suit data."
+  },
+  "legend": {
+    "placement": "bottom, left-aligned (default); may be top (under title), left or right; overlay only for geospatial (80% background opacity)",
+    "directLabels": "Preferred: 'When possible, avoid using a legend and label data representations directly.' No legend for a single category.",
+    "title": "no legend title",
+    "swatchShape": "13×13px square checkbox swatch with 2px radius (unchecked = outlined)",
+    "notes": "Legend items 12px Plex Sans Condensed, text-secondary, 5px margins, wrap. Clickable: toggling hides series; 'Hovering over the legend of one category lowers the opacity of all other categories in the chart to 30 percent.' Textures may replace or supplement colour."
+  },
+  "marks": {
+    "bars": "Max bar width 16px, spacing factor 0.25; stacked bars separated by a 1.5px divider; zero baseline mandatory.",
+    "lines": "1.5px stroke, straight segments by default; points shown as hollow circles radius 3.",
+    "areas": "Filled areas; streamgraph/stacked area examples show thin dark dividers between layers.",
+    "points": "Scatter radius 4, filled with fill-opacity 0.3 (stroke in series colour).",
+    "pies": "Pie and donut allowed; labels show percentage of whole; slices <3° get a callout label; <1° not rendered; donut centre may hold a 'big number' KPI (number + one-word description).",
+    "notes": "Also: lollipop, bubble, radar, gauge, meter, treemap, heatmap, alluvial, Sankey-like flow, Gantt, choropleth, word cloud, circle pack, boxplot, bullet."
+  },
+  "labels": {
+    "dataLabels": "Direct labels preferred over legends when space is predictable; donut labels show percent.",
+    "numberFormat": "KPI examples '15,250 browsers', '$1.3M revenue' — comma thousands, M abbreviation.",
+    "dates": "Localized date/time formats where possible; default examples '8 Aug 2017', '9 Aug', 'Dec 10, 11:59:15 PM', '00:00:15'; landmark labels semibold at cycle changes.",
+    "notes": null
+  },
+  "furniture": {
+    "title": "Title 'should be descriptive and qualitative. It should also reflect the main insight the data reveals.' Top-left, semibold 16px, single line.",
+    "source": null,
+    "logo": null,
+    "other": "Toolbar (zoom in/out, overflow menu ⋮) top-right in the title row; optional zoom bar (mini area chart with brush handles) between title and plot."
+  },
+  "annotations": "Threshold lines and callouts are supported components; no editorial annotation style specified.",
+  "layout": "Charts responsive; dashboards built on the Carbon 2x grid in tiles. Mobile legend may stack.",
+  "interaction": "Tooltip on hover: white (layer-02) box, box-shadow 0 1px 6px rgba(0,0,0,.2), 12px Plex Sans Condensed, header row (e.g. 'Day  Aug 11' bold), one row per series with a coloured vertical strip at left, label left and value right-aligned; repeats values of both axes. Dashed vertical ruler line at hovered x with highlighted points. Legend hover dims others to 30%; legend click toggles series. Toolbar with zoom/overflow; zoom bar brushing; stock-style zoom/pan. Axis tick hover shows inverse highlight box.",
+  "accessibility": "Palette sequences curated for neighbour contrast; textures may be used instead of or with colour; avoid multiple gradients; data table view planned for small slices; keyboard access for slices >1°.",
+  "chartTypes": {
+    "preferred": [
+      "bar (simple/grouped/stacked)",
+      "line",
+      "area/stacked area",
+      "scatter",
+      "bubble",
+      "donut",
+      "pie",
+      "lollipop",
+      "boxplot",
+      "heatmap",
+      "treemap",
+      "radar",
+      "gauge",
+      "meter",
+      "alluvial",
+      "choropleth"
+    ],
+    "discouraged": [
+      "gradients representing progression",
+      "non-zero baseline bar/area charts"
+    ],
+    "notes": "Chart type guidance under 'Simple charts', 'Spatial charts', 'Flow charts', 'Gantt charts'."
+  },
+  "distinctiveRules": [
+    {
+      "rule": "Categorical colours applied strictly in the ordered 14-colour sequence starting Purple 70 #6929c4, Cyan 50 #1192e8, Teal 70 #005d5d, Magenta 70 #9f1853.",
+      "source": "https://carbondesignsystem.com/data-visualization/color-palettes/",
+      "quote": "The colors of this palette should be applied in sequence strictly as described below."
+    },
+    {
+      "rule": "When the series count (1–5) is known, use one of the fixed grouped palettes instead of the sequence (e.g. 2 series: #6929c4 + #009d9a).",
+      "source": "https://github.com/carbon-design-system/carbon-website/blob/main/src/data/data-visualization/palettes.js",
+      "quote": "You can override the categorical sequence with one of the following palettes if the exact number of data categories is predictable."
+    },
+    {
+      "rule": "Title: IBM Plex Sans 16px semibold, left-aligned, single line with ellipsis.",
+      "source": "https://github.com/carbon-design-system/carbon-charts/tree/master/packages/core/scss",
+      "quote": "p.title { font-size: 16px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis }"
+    },
+    {
+      "rule": "Axis tick labels, legend and tooltip use IBM Plex Sans Condensed 12px in text-secondary; no tick marks.",
+      "source": "https://github.com/carbon-design-system/carbon-charts/tree/master/packages/core/scss",
+      "quote": "axes font-family condensed; g.tick line { display: none }"
+    },
+    {
+      "rule": "Full grid in both directions (1px light grey), ~5 horizontal and up to 15 vertical gridlines; axis domain lines drawn darker.",
+      "source": "https://github.com/carbon-design-system/carbon-charts/blob/master/packages/core/src/configuration.ts",
+      "quote": "grid x numberOfTicks: 15, y numberOfTicks: 5; grid line stroke-width 1px layer-accent-01; path.domain stroke border-strong-01"
+    },
+    {
+      "rule": "Legend bottom-left by default, square 13px checkbox swatches with 2px radius.",
+      "source": "https://github.com/carbon-design-system/carbon-charts/blob/master/packages/core/src/configuration.ts",
+      "quote": "legend position: BOTTOM, alignment: LEFT; div.checkbox width 13px height 13px border-radius 2px"
+    },
+    {
+      "rule": "Hovering a legend item dims all other series to 30% opacity.",
+      "source": "https://carbondesignsystem.com/data-visualization/legends/",
+      "quote": "Hovering over the legend of one category lowers the opacity of all other categories in the chart to 30 percent."
+    },
+    {
+      "rule": "Lines 1.5px with hollow point markers radius 3; scatter points radius 4 with 30% fill opacity.",
+      "source": "https://github.com/carbon-design-system/carbon-charts/blob/master/packages/core/src/configuration.ts",
+      "quote": "line points radius 3, filled: false; scatter radius 4, fillOpacity 0.3; _line.scss stroke-width 1.5"
+    },
+    {
+      "rule": "Bars capped at 16px wide; stacked segments separated by 1.5px dividers.",
+      "source": "https://github.com/carbon-design-system/carbon-charts/blob/master/packages/core/src/configuration.ts",
+      "quote": "bars: { maxWidth: 16, spacingFactor: 0.25 }; dividerSize: 1.5"
+    },
+    {
+      "rule": "Time-axis 'landmark' labels are semibold when a new day/month/year begins.",
+      "source": "https://carbondesignsystem.com/data-visualization/axes-and-labels/",
+      "quote": "Whenever data crosses into a new time cycle ... semibold the label to make it a 'landmark' label"
+    },
+    {
+      "rule": "Axis breaks drawn as a sinusoidal line (16px on y); never interpolate across data gaps.",
+      "source": "https://carbondesignsystem.com/data-visualization/axes-and-labels/",
+      "quote": "When the axis contains a break, use a sinusoidal line to replace the straight axis line."
+    },
+    {
+      "rule": "Tooltip: white elevated box with shadow, header row, one row per series with a coloured left strip and right-aligned value; dashed vertical ruler at hovered x.",
+      "source": "https://carbondesignsystem.com/data-visualization/chart-anatomy/",
+      "quote": "A tooltip should repeat the corresponding values of the data point on both axes and any other relevant details."
+    },
+    {
+      "rule": "Donut: slices under 3° get a callout label, under 1° are not drawn; centre may show a big-number KPI.",
+      "source": "https://carbondesignsystem.com/data-visualization/chart-anatomy/",
+      "quote": "When the graphic translation of the data is less than 3 degrees, a callout is used ... less than 1 degree, a slice will not be rendered"
+    },
+    {
+      "rule": "Sequential: darkest = largest in light themes, lightest = largest in dark themes.",
+      "source": "https://carbondesignsystem.com/data-visualization/color-palettes/",
+      "quote": "In light themes, the darkest color denotes the largest values. In dark themes, the lightest color denotes the largest values."
+    },
+    {
+      "rule": "Toolbar (zoom in, zoom out, overflow ⋮) sits top-right in the title row, with an optional zoom-bar brush between title and plot.",
+      "source": "https://carbondesignsystem.com/data-visualization/chart-anatomy/",
+      "quote": "1. Chart title ... 6. Toolbar 7. Zoom bar"
+    }
+  ],
+  "referenceImages": [
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/ibm-carbon/chart-anatomy-1.png",
+      "url": "https://raw.githubusercontent.com/carbon-design-system/carbon-website/main/src/pages/data-visualization/chart-anatomy/images/chart-anatomy-1.png",
+      "describes": "Annotated anatomy (pink callouts 1–9). Title 'Clicks of CTA in emails over time' bold Plex Sans top-left; toolbar icons (zoom in/out, kebab) top-right; zoom bar mini area chart with dark brush handles below title. Plot: two straight lines (cyan #1192e8 'Open rate', dark teal #005d5d 'Unsubscribe rate'), light grey grid in both directions, grey left and bottom axis lines, grey condensed tick labels (0, 10, 20; '8 Aug 2017', '9 Aug'…), rotated y-title 'Clicks in thousands', x-title 'Day' centred below. Hover: dashed black vertical ruler at 11 Aug, filled dots on lines, white shadowed tooltip with header 'Day | Aug 11' and rows with coloured left strips 'Open rate 451', 'Unsubscribe rate 114'. Legend bottom-left with square swatches."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/ibm-carbon/axislabel-timeseries.png",
+      "url": "https://raw.githubusercontent.com/carbon-design-system/carbon-website/main/src/pages/data-visualization/axes-and-labels/images/axislabel-timeseries.png",
+      "describes": "Light theme single-series line chart 'Email CTA click rate over time' (semibold dark title top-left). Thin Blue 80 (#002d9c) line with small hollow circle markers; break in data shown as a gap plus a wavy (sinusoidal) segment on the x-axis. Full light-grey grid both directions; grey y-axis/x-axis lines; tick labels grey, rotated 45° on x, with landmark labels in bold ('Dec 10, 11:59:15 PM', 'Dec 11', 'Dec 12, 8:29:15 PM'); rotated y-title '... rate / %', x-title 'Time'."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/ibm-carbon/color_gallery_4.png",
+      "url": "https://raw.githubusercontent.com/carbon-design-system/carbon-website/main/src/pages/data-visualization/color-palettes/images/color_gallery_4.png",
+      "describes": "Dark theme (g100 #161616 background) streamgraph '2019 Optimization rates (overall)' with white semibold title top-left. Layers Teal 40 #08bdba, Purple 30 #d4bbff, Blue 50 #4589ff separated by thin dark outlines; faint dark vertical gridlines; grey x-axis labels rotated 45°; x-title 'Day'; legend bottom-left with square swatches and grey labels."
+    }
+  ]
+}

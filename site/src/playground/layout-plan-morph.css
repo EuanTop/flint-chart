@@ -1,0 +1,54 @@
+.lm-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-bottom: 12px;
+}
+
+.lm-targets button {
+  position: relative;
+}
+
+.lm-edge {
+  position: absolute;
+  top: 3px;
+  right: 2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #2f6fd0;
+}
+
+.lm-slider {
+  width: 150px;
+  font-size: 11px;
+}
+
+.lm-play:disabled,
+.lm-slider input:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.lm-stage,
+.lm-chart {
+  min-height: 300px;
+  margin-bottom: 10px;
+  overflow-x: auto;
+}
+
+.lm-stage svg,
+.lm-chart svg {
+  display: block;
+}
+
+.lm-summary {
+  min-height: 3em;
+}
+
+@media (max-width: 640px) {
+  .lm-slider {
+    width: 100%;
+  }
+}

@@ -125,6 +125,38 @@ const COUNTRIES: Array<[number, string, string, string]> = [
     [158, 'Taiwan', 'TW', 'TWN'], [64, 'Bhutan', 'BT', 'BTN'], [760, 'Syria', 'SY', 'SYR'],
     [203, 'Czechia', 'CZ', 'CZE'], [795, 'Turkmenistan', 'TM', 'TKM'], [860, 'Uzbekistan', 'UZ', 'UZB'],
     [31, 'Azerbaijan', 'AZ', 'AZE'], [51, 'Armenia', 'AM', 'ARM'], [558, 'Nicaragua', 'NI', 'NIC'],
+    // The rest of world-110m.json's countries, so every shape on a world map can take a value.
+    [8, 'Albania', 'AL', 'ALB'], [10, 'Antarctica', 'AQ', 'ATA'], [44, 'Bahamas', 'BS', 'BHS'],
+    [70, 'Bosnia and Herzegovina', 'BA', 'BIH'], [72, 'Botswana', 'BW', 'BWA'], [84, 'Belize', 'BZ', 'BLZ'],
+    [90, 'Solomon Islands', 'SB', 'SLB'], [96, 'Brunei', 'BN', 'BRN'], [108, 'Burundi', 'BI', 'BDI'],
+    [140, 'Central African Republic', 'CF', 'CAF'], [178, 'Republic of the Congo', 'CG', 'COG'],
+    [196, 'Cyprus', 'CY', 'CYP'], [204, 'Benin', 'BJ', 'BEN'], [222, 'El Salvador', 'SV', 'SLV'],
+    [226, 'Equatorial Guinea', 'GQ', 'GNQ'], [232, 'Eritrea', 'ER', 'ERI'], [238, 'Falkland Islands', 'FK', 'FLK'],
+    [242, 'Fiji', 'FJ', 'FJI'], [260, 'French Southern Territories', 'TF', 'ATF'], [262, 'Djibouti', 'DJ', 'DJI'],
+    [266, 'Gabon', 'GA', 'GAB'], [270, 'Gambia', 'GM', 'GMB'], [275, 'Palestine', 'PS', 'PSE'],
+    [304, 'Greenland', 'GL', 'GRL'], [324, 'Guinea', 'GN', 'GIN'], [328, 'Guyana', 'GY', 'GUY'],
+    [332, 'Haiti', 'HT', 'HTI'], [388, 'Jamaica', 'JM', 'JAM'], [417, 'Kyrgyzstan', 'KG', 'KGZ'],
+    [426, 'Lesotho', 'LS', 'LSO'], [430, 'Liberia', 'LR', 'LBR'], [442, 'Luxembourg', 'LU', 'LUX'],
+    [454, 'Malawi', 'MW', 'MWI'], [478, 'Mauritania', 'MR', 'MRT'], [498, 'Moldova', 'MD', 'MDA'],
+    [499, 'Montenegro', 'ME', 'MNE'], [516, 'Namibia', 'NA', 'NAM'], [540, 'New Caledonia', 'NC', 'NCL'],
+    [548, 'Vanuatu', 'VU', 'VUT'], [598, 'Papua New Guinea', 'PG', 'PNG'], [624, 'Guinea-Bissau', 'GW', 'GNB'],
+    [626, 'Timor-Leste', 'TL', 'TLS'], [630, 'Puerto Rico', 'PR', 'PRI'], [646, 'Rwanda', 'RW', 'RWA'],
+    [694, 'Sierra Leone', 'SL', 'SLE'], [728, 'South Sudan', 'SS', 'SSD'], [732, 'Western Sahara', 'EH', 'ESH'],
+    [740, 'Suriname', 'SR', 'SUR'], [748, 'Eswatini', 'SZ', 'SWZ'], [762, 'Tajikistan', 'TJ', 'TJK'],
+    [768, 'Togo', 'TG', 'TGO'], [780, 'Trinidad and Tobago', 'TT', 'TTO'], [807, 'North Macedonia', 'MK', 'MKD'],
+    // Small states the 110m map is too coarse to draw. They resolve all the same, so a backend that
+    // draws them (Plotly's own geography) or a finer base map can colour them.
+    [20, 'Andorra', 'AD', 'AND'], [28, 'Antigua and Barbuda', 'AG', 'ATG'], [48, 'Bahrain', 'BH', 'BHR'],
+    [52, 'Barbados', 'BB', 'BRB'], [132, 'Cape Verde', 'CV', 'CPV'], [174, 'Comoros', 'KM', 'COM'],
+    [212, 'Dominica', 'DM', 'DMA'], [296, 'Kiribati', 'KI', 'KIR'], [308, 'Grenada', 'GD', 'GRD'],
+    [336, 'Vatican', 'VA', 'VAT'], [344, 'Hong Kong', 'HK', 'HKG'], [438, 'Liechtenstein', 'LI', 'LIE'],
+    [446, 'Macao', 'MO', 'MAC'], [462, 'Maldives', 'MV', 'MDV'], [470, 'Malta', 'MT', 'MLT'],
+    [480, 'Mauritius', 'MU', 'MUS'], [492, 'Monaco', 'MC', 'MCO'], [520, 'Nauru', 'NR', 'NRU'],
+    [583, 'Micronesia', 'FM', 'FSM'], [584, 'Marshall Islands', 'MH', 'MHL'], [585, 'Palau', 'PW', 'PLW'],
+    [659, 'Saint Kitts and Nevis', 'KN', 'KNA'], [662, 'Saint Lucia', 'LC', 'LCA'],
+    [670, 'Saint Vincent and the Grenadines', 'VC', 'VCT'], [674, 'San Marino', 'SM', 'SMR'],
+    [678, 'Sao Tome and Principe', 'ST', 'STP'], [690, 'Seychelles', 'SC', 'SYC'], [702, 'Singapore', 'SG', 'SGP'],
+    [776, 'Tonga', 'TO', 'TON'], [798, 'Tuvalu', 'TV', 'TUV'], [882, 'Samoa', 'WS', 'WSM'],
 ];
 
 /** Extra colloquial names that should resolve to a country numeric id. */
@@ -141,6 +173,15 @@ const COUNTRY_ALIASES: Record<string, number> = {
     burma: 104, czechrepublic: 203, czechia: 203, uae: 784, unitedarabemirates: 784,
     holland: 528, thenetherlands: 528, turkiye: 792,
     laopdr: 418, laopeoplesdemocraticrepublic: 418,
+    // "Congo" alone is the Republic, as the UN and Our World in Data name it; DR Congo has its own name.
+    congo: 178, congobrazzaville: 178, republicofcongo: 178, congorep: 178,
+    democraticrepublicofcongo: 180, congodemrep: 180,
+    easttimor: 626, timor: 626, swaziland: 748, macedonia: 807, northmacedonia: 807,
+    bosnia: 70, bruneidarussalam: 96, kyrgyzrepublic: 417, republicofmoldova: 498,
+    thegambia: 270, gambiathe: 270, thebahamas: 44, bahamasthe: 44,
+    stateofpalestine: 275, palestinianterritories: 275, westbankandgaza: 275,
+    caboverde: 132, micronesiacountry: 583, micronesiafedsts: 583, hongkongsarchina: 344,
+    macaosarchina: 446, holysee: 336, saotomeandprincipe: 678,
 };
 
 // ---------------------------------------------------------------------------
@@ -281,15 +322,30 @@ export function inferBubbleScope(rows: any[], lonField?: string, latField?: stri
     return 'us';
 }
 
-/** Infer scope for a choropleth from its region keys (names / codes / ids). */
+/** US territory FIPS codes above the 1–56 state range: American Samoa, Guam, Northern Mariana Islands, Puerto Rico, Virgin Islands. */
+const US_TERRITORY_FIPS = new Set([60, 66, 69, 72, 78]);
+
+/**
+ * Infer scope for a choropleth from its region keys (names / codes / ids).
+ *
+ * Numeric ids are read by range, since a bare number resolves in both namespaces:
+ * US state FIPS run 1–56 (plus territories), county FIPS 1001 and up, and ISO 3166
+ * numeric country codes 4–894. Any id in 57–999 that is not a territory FIPS can only
+ * be a country, so a dataset keyed by ISO numeric codes (`map_id`) draws the world map.
+ */
 export function inferChoroplethScope(rows: any[], idField?: string): MapScope {
     if (!idField) return 'us';
     for (const r of rows) {
         const v = r[idField];
         if (v == null || v === '') continue;
-        // A value that resolves as a US state (by name, USPS code, FIPS id, or a
-        // bare numeric that passes straight through) keeps us in the US; the
-        // first value that doesn't flips the whole map to world.
+        const s = String(v).trim();
+        if (/^\d+$/.test(s)) {
+            const n = parseInt(s, 10);
+            if (n >= 57 && n <= 999 && !US_TERRITORY_FIPS.has(n)) return 'world';
+            continue;
+        }
+        // A value that resolves as a US state (by name or USPS code) keeps us in the US;
+        // the first value that doesn't flips the whole map to world.
         if (resolveUsState(v) === undefined) return 'world';
     }
     return 'us';

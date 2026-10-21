@@ -1,0 +1,109 @@
+{
+  "id": "sunlight",
+  "org": "Sunlight Foundation",
+  "urls": [
+    "https://sunlightfoundation.com/2014/03/12/datavizguide",
+    "https://github.com/amycesal/dataviz-style-guide/blob/master/Sunlight-StyleGuide-DataViz.pdf",
+    "https://github.com/brianckeegan/sunlight-data-liberation/blob/master/sunlight_blog/data/original/2014-03-12_datavizguide.html"
+  ],
+  "access": "full",
+  "accessNotes": "sunlightfoundation.com is defunct and web.archive.org was offline; the GitHub repo sunlightlabs/datavizguide no longer exists. The full 13-page PDF guide was downloaded from Amy Cesal's GitHub mirror (amycesal/dataviz-style-guide) and read via pypdf text extraction plus page renders; the original 2014 blog post was read from an archived HTML copy in brianckeegan/sunlight-data-liberation.",
+  "summary": "A 2014 non-profit/government-transparency web-graphic style: charts sit in a warm off-white (#F5F3F2 / #EFECEA) panel with white gridlines, an ITC Franklin Gothic condensed title with a bold-emphasis word, a Georgia italic explanatory deck, the Sunlight Foundation logo top-right and a Georgia bold/italic source strip at the bottom in a darker band. The palette is earthy (mustard, orange, teal, mauve, taupe) with dedicated political (Republican rust, Democrat blue) and money/pro/con colours.",
+  "context": "editorial",
+  "colors": {
+    "categorical": ["#E3BA22", "#E6842A", "#137B80", "#8E6C8A", "#978F80"],
+    "categoricalNotes": "'Main Colors' in order: a thing #E3BA22, a different thing #E6842A, another different thing #137B80, another different thing #8E6C8A, neutral thing #978F80; No Data #E5E2E0. Each has two 'subset' shades for grouped/stacked sub-categories: light #F2DA57, #F6B656, #42A5B3, #B396AD, #C1BAA9 and dark #BD8F22, #BA5F06, #005D6E, #684664, #7C715E. Network graphs: 30 colours ('TRY not to use them all').",
+    "sequential": ["#936B00", "#BD8F22", "#E3BA22", "#F2DA57", "#F1E8AE"],
+    "diverging": ["#BD2D28", "#C37A73", "#C8C6C6", "#75A999", "#0F8C79"],
+    "highlight": null,
+    "context": "#E5E2E0",
+    "positive": "#0F8C79",
+    "negative": "#BD2D28",
+    "background": "#F5F3F2",
+    "text": "#635F5D",
+    "textSecondary": "#8E8883",
+    "gridline": "#FFFFFF",
+    "axis": "#FFFFFF",
+    "notes": "Specialty colours: Republican #9A3E25 (subset #B37055), Democrat RGB 21,107,144 = #156B90 (the PDF misprints its hex as #E6842A; subset #688BAB), Independent #708259 (subset #95A17E), Con #BD2D28 (subset #E25A42), Pro #0F8C79 (subset #6BBBA1), Money #5C8100 (subset #A0B700). Base colours: Background Light #F5F3F2, Background Dark #EFECEA, White line #FFFFFF, Background Dark Accent #E5E2E0, Line Grey Accent #C0C0BB, Text Main #635F5D, Text Light #8E8883; dashed line 'Line Grey 80%' #CDCDC9. Choropleths (≤5 classes + No Data #E5E2E0): Anti→Pro diverging above; money green #0C4E00, #5C8100, #A0B700, #D2CF00, #E6E4A6; 'thing' yellow sequential above; Republican #712422, #9A3E25, #B37055, #D9A78D, #EDCEBC; Democrat #05426C, #E6842A(sic), #688BAB, #8CAEC6, #BAD2E2; R–D diverging #9A3E25, #D9A78D, #C8C6C6, #8CAEC6, #E6842A(sic)."
+  },
+  "typography": {
+    "family": "ITC Franklin Gothic Std",
+    "fallback": "Georgia (serif companion for deck, callouts and source)",
+    "title": { "size": 20, "weight": "Book Condensed with Demi Condensed emphasis word", "align": "left", "case": "sentence", "color": "#635F5D" },
+    "subtitle": { "size": 12, "weight": "normal (Georgia)", "style": "italic", "color": "#8E8883" },
+    "axisLabel": { "size": 12, "color": "#635F5D" },
+    "axisTitle": { "size": 12, "weight": "Book", "placement": "centred; x title below labels, y title rotated at far left" },
+    "dataLabel": { "size": 10, "weight": "Book" },
+    "source": { "size": 8, "style": "Georgia, bold 'Source:' then italic text, left-aligned, vertically centred", "color": "#8E8883" },
+    "notes": "Axis labels: ITC Franklin Gothic Std Demi 12px centred on line, #635F5D. Key labels: Franklin Gothic Book 10px left. Point labels: Franklin Gothic Book 10px right-aligned to point (Text Light in line example). Callout text: Georgia italic 10px left #635F5D. Pie labels Franklin Gothic Demi/Book 12px."
+  },
+  "structure": {
+    "gridlines": "Solid 1px white (#FFFFFF) gridlines in both directions on the light warm-grey plot background.",
+    "axisLine": "1px white axis lines; no dark axis lines.",
+    "ticks": "None; labels 5px from the axis.",
+    "zeroLine": "Bars and lines start at 0 (except scatter plots where the y axis can be altered/broken).",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "rotated, at far left, 22px from labels",
+    "unitPlacement": "Units on every y tick ('30 units', '$3,000'); bold numbers.",
+    "frame": "Outer panel #F5F3F2 with 1px light border; title band separated by 1px white rule; source strip in Background Dark #EFECEA below a 1px 4pt-dash/4pt-gap #CDCDC9 rule.",
+    "background": "#F5F3F2 (Background Light)",
+    "notes": "Spacing grid: 22px margins between all blocks (title, plot, axis title, source), 12px top band, 5px label offsets. Width 650px max for regular blog posts, 900px for feature posts; height variable."
+  },
+  "legend": {
+    "placement": "right, inside the plot area, in a key box",
+    "directLabels": "Values can be labelled at key points on lines (Text Light, 10px).",
+    "title": "not shown",
+    "swatchShape": "square for bars; short line for line charts",
+    "notes": "Key box fill Background Dark Accent #E5E2E0 with 1px Line Grey #C0C0BB border; labels Franklin Gothic Book 10px."
+  },
+  "marks": {
+    "bars": "Flat fills, no outlines; grouped/stacked bars use the subset shades of each main colour (light shade stacked on darker).",
+    "lines": "2px of colour; small dots at labelled points.",
+    "areas": null,
+    "points": "Scatter: change both colour and shape for groups; possible trend line 1px 4pt-dash 4pt-gap Line Grey.",
+    "pies": "Use very sparingly, for 2–3 things that add to 100% (include 'other/none'); 1px white stroke between slices; 1px Line Grey leader lines; labels 'Pro (94%)'.",
+    "notes": "Reference/average line: 1px 4pt dash 4pt gap Line Grey."
+  },
+  "labels": {
+    "dataLabels": "Selective point labels at key points; value labels in Text Light 10px.",
+    "numberFormat": "Thousands comma, currency prefix ($3,030); percentages in parentheses in pie labels.",
+    "dates": "Years (2000, 2010, 2020) in bold axis labels.",
+    "notes": null
+  },
+  "furniture": {
+    "title": "Title in Franklin Gothic condensed with one emphasised (Demi) word, e.g. 'Title of the **chart**', followed by a short Georgia italic explanatory line.",
+    "source": "Required source strip at bottom: 'Source:' in Georgia bold followed by italic URL/text, 8px, #8E8883, in a darker #EFECEA band.",
+    "logo": "Sunlight Foundation logo top-right, 100px wide, 22px from right edge, aligned opposite the title.",
+    "other": "Callout boxes: white fill, 1px Line Grey #C0C0BB border with pointer, Georgia italic 10px text."
+  },
+  "annotations": "Speech-bubble callouts with white fill and 1px #C0C0BB border pointing to bars; Georgia italic 10px #635F5D; dashed reference line labelled with a callout box.",
+  "layout": "650px max width (blog), 900px (feature); variable height; 22px spacing system; 12px top band; logo 100px wide.",
+  "interaction": "The blog mentions tooltip guidance but the PDF shows none.",
+  "accessibility": "Scatter groups should change colour and shape ('helps with sight issues'); choropleths ≤5 classes.",
+  "chartTypes": {
+    "preferred": ["bar/column", "grouped/stacked bar", "line", "scatter", "choropleth map", "network graph"],
+    "discouraged": ["pie charts (use very sparingly)", "maps when geography isn't primary"],
+    "notes": "Each type page gives 'When to use' bullets and 'Your data should look like' table."
+  },
+  "distinctiveRules": [
+    { "rule": "Plot panel background is warm light grey #F5F3F2 with WHITE 1px gridlines and axis lines (no dark axes).", "source": "https://github.com/amycesal/dataviz-style-guide/blob/master/Sunlight-StyleGuide-DataViz.pdf", "quote": "Background color: Background Light (#F5F3F2) ... 1px white (#FFFFFF)" },
+    { "rule": "Title in ITC Franklin Gothic Book Condensed 20px with one word in Demi Condensed for emphasis, left-aligned, #635F5D.", "source": "https://github.com/amycesal/dataviz-style-guide/blob/master/Sunlight-StyleGuide-DataViz.pdf", "quote": "ITC Franklin Gothic Std | Book Condensed with Demi Condensed emphasis | 20px | Left Aligned | #635F5D" },
+    { "rule": "Explanatory deck under the title in Georgia italic 12px #8E8883.", "source": "https://github.com/amycesal/dataviz-style-guide/blob/master/Sunlight-StyleGuide-DataViz.pdf", "quote": "Georgia | italic | 12px | left aligned | #8E8883 (Text Light)" },
+    { "rule": "Logo top-right opposite the title, 100px wide, 22px inset.", "source": "https://sunlightfoundation.com/2014/03/12/datavizguide", "quote": "where to put the logo (top right across from the title)" },
+    { "rule": "Source strip at the bottom: darker #EFECEA band separated by a 1px 4pt-dash grey rule; Georgia 8px, bold 'Source:' + italic text, #8E8883.", "source": "https://github.com/amycesal/dataviz-style-guide/blob/master/Sunlight-StyleGuide-DataViz.pdf", "quote": "Georgia bold and italic 8px Left aligned text, vertically centered Text light (#8E8883)" },
+    { "rule": "Axis tick labels in Franklin Gothic Demi 12px #635F5D with units on every tick ('30 units').", "source": "https://github.com/amycesal/dataviz-style-guide/blob/master/Sunlight-StyleGuide-DataViz.pdf", "quote": "ITC Franklin Gothic Demi 12px #635F5D" },
+    { "rule": "Legend is a key box on the right inside the plot: fill #E5E2E0, 1px #C0C0BB border.", "source": "https://github.com/amycesal/dataviz-style-guide/blob/master/Sunlight-StyleGuide-DataViz.pdf", "quote": "Possible Key: Fill: Background dark Accent (#E5E2E0) Line: Line Grey (#C0C0BB)" },
+    { "rule": "Main categorical order: mustard #E3BA22, orange #E6842A, teal #137B80, mauve #8E6C8A, taupe #978F80; no-data #E5E2E0.", "source": "https://github.com/amycesal/dataviz-style-guide/blob/master/Sunlight-StyleGuide-DataViz.pdf", "quote": "Main Colors: a thing #E3BA22, a different thing #E6842A ..." },
+    { "rule": "Political colours: Republican #9A3E25 (rust), Democrat #156B90 (steel blue), Independent #708259.", "source": "https://github.com/amycesal/dataviz-style-guide/blob/master/Sunlight-StyleGuide-DataViz.pdf", "quote": "Specialty Colors: Republican RGB 154,62,37 ... Democrat RGB 21,107,144" },
+    { "rule": "Lines are 2px; bars and lines start at 0 (only scatter y axes may be broken).", "source": "https://github.com/amycesal/dataviz-style-guide/blob/master/Sunlight-StyleGuide-DataViz.pdf", "quote": "2px of color ... Starts at 0 ... ONLY for scatter plots. The y axis CAN be altered and broken." },
+    { "rule": "Reference/trend lines are 1px, 4pt dash 4pt gap, Line Grey.", "source": "https://github.com/amycesal/dataviz-style-guide/blob/master/Sunlight-StyleGuide-DataViz.pdf", "quote": "Possible line: 1px 4pt dash 4pt gap Line Grey" },
+    { "rule": "Callouts are white boxes with 1px #C0C0BB border and pointer, Georgia italic 10px.", "source": "https://github.com/amycesal/dataviz-style-guide/blob/master/Sunlight-StyleGuide-DataViz.pdf", "quote": "Possible label: Fill: White (#FFF) Line: Line Grey (#C0C0BB)" },
+    { "rule": "22px spacing between all blocks; 650px max width for blog posts (900px features).", "source": "https://github.com/amycesal/dataviz-style-guide/blob/master/Sunlight-StyleGuide-DataViz.pdf", "quote": "650px max for a regular blog post (900px max for a feature post)" },
+    { "rule": "Pies only for 2–3 parts of 100%, 1px white slice strokes.", "source": "https://github.com/amycesal/dataviz-style-guide/blob/master/Sunlight-StyleGuide-DataViz.pdf", "quote": "Use them very sparingly ... You want to show the relative relationship between 2-3 things." }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/sunlight/page2.png", "url": "https://github.com/amycesal/dataviz-style-guide/blob/master/Sunlight-StyleGuide-DataViz.pdf (page 2, rendered)", "describes": "'Basic Structure' spec: warm light-grey panel with thin outer border. Title band: 'Title of the **chart**' in grey condensed Franklin Gothic with bold last word, Georgia italic deck beneath; yellow-circle SUNLIGHT FOUNDATION logo top-right; band separated by a 1px white rule. Plot: white horizontal and vertical gridlines, bold grey y labels '30 units/20 units/10 units/0', rotated 'Y Axis Title', bold category labels below, centred 'X Axis Title'. Bottom: dashed grey rule then slightly darker strip with 'Source: www.fruitsperbushel.com' in tiny Georgia bold+italic. Pink annotations give 22px spacings, 650px/900px widths and colours." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/sunlight/page6.png", "url": "https://github.com/amycesal/dataviz-style-guide/blob/master/Sunlight-StyleGuide-DataViz.pdf (page 6, rendered)", "describes": "Grouped stacked column chart Monday–Friday: mustard (apples) and orange (oranges) columns, each stacked with a lighter subset shade on top. White gridlines on #F5F3F2; dashed grey horizontal reference line with a white bordered callout box in Georgia italic; two speech-bubble callouts pointing at bars; legend key box at right with square swatches on #E5E2E0 fill and grey border; source strip at bottom; logo top-right." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/sunlight/page7.png", "url": "https://github.com/amycesal/dataviz-style-guide/blob/master/Sunlight-StyleGuide-DataViz.pdf (page 7, rendered)", "describes": "Political line graph: 2px rust Republican line and steel-blue Democrat line with small dots and grey value labels ($3,030, $2,100, $1,090, $590, $710, $930) at decade points. White gridlines, bold '$3,000 … 0' y labels and bold years 2000/2010/2020; legend key box upper right with short line swatches; rotated y title; source strip; logo top-right." }
+  ]
+}

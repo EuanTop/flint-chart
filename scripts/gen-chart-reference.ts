@@ -14,11 +14,11 @@
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
+import ts from 'typescript';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 import type { ChartTemplateDef, ChartPropertyDef } from '../packages/flint-js/src/core/types';
-import { supportedInteractionPresets } from '../packages/flint-js/src/core/interaction-spec';
 import type { ExcelTemplateDef } from '../packages/flint-js/src/excel/templates/types';
 import { vlTemplateDefs } from '../packages/flint-js/src/vegalite/templates/index';
 import { ecTemplateDefs } from '../packages/flint-js/src/echarts/templates/index';
@@ -105,6 +105,16 @@ const PARAM_DESCRIPTIONS: Record<string, string> = {
     stackMode: 'Stacking strategy for overlapping series.',
     binCount: 'Maximum bin cap; Auto lets the backend choose.',
     bandwidth: 'Kernel-density bandwidth (0 = auto).',
+    overlap: 'How many baselines up the tallest ridge reaches; above 1 the ridges overlap.',
+    order: 'Which order the ridges stand in: as given (a quantitative series lowest at the front), by their mean with the highest on top, or reversed.',
+    tailCut: 'Trim each ridge to where its density is at least this share of its own peak (0 = full extent).',
+    colorBy: 'Fill each ridge by its series, or with a ramp along the x axis.',
+    perspective: 'Stand the ridges on a floor seen in perspective; skew, tilt and overlap left unset are planned so the depth takes about 40% of the plot’s width and more of its height as ridges are added.',
+    skew: 'Shift the ridges behind the front one leftwards by this share of the x range, for a perspective view.',
+    tilt: 'Raise the x axis by this many baselines across its range, so the floor is seen in perspective.',
+    markAt: 'Dot and label each ridge’s value at the x ticks inside the range, joined across the ridges by a dashed line; an agent may pass a list of x values instead.',
+    valueMax: 'In perspective: the value a ridge’s full overlap height stands for, read on the value axis at the back-left corner (0 = the tallest peak).',
+    marginal: 'What each margin draws along its axis: a density, a histogram or a boxplot.',
     innerRadius: 'Inner radius as a percentage of the outer radius.',
     padAngle: 'Angular gap between radial segments.',
     alignment: 'Segment alignment for radial charts.',
@@ -207,6 +217,8 @@ const ICON_BY_CHART: Record<string, string> = {
     'Combo Chart': 'chart-icon-combo.svg',
     'Bar Table': 'chart-icon-bar-table.svg',
     'Density Plot': 'chart-icon-density.svg',
+    'Ridgeline Plot': 'chart-icon-ridgeline.svg',
+    'Marginal Plot': 'chart-icon-marginal.svg',
     'ECDF Plot': 'chart-icon-ecdf.svg',
     'Violin Plot': 'chart-icon-violin.svg',
     'Candlestick Chart': 'chart-icon-candlestick.svg',
@@ -310,11 +322,6 @@ function renderChart(def: ChartTemplateDef): string {
     const channels = (def.channels ?? []).map((c) => `\`${c}\``).join(', ') || '_none_';
     lines.push(`**Encoding channels:** ${channels}`);
     lines.push('');
-    if (def.interactionSupport) {
-        const presets = supportedInteractionPresets(def.interactionSupport).map((type) => `\`${type}\``).join(', ') || '_none_';
-        lines.push(`**Interactions:** ${presets}`);
-        lines.push('');
-    }
 
     const props = def.properties ?? [];
     if (props.length === 0) {
@@ -363,11 +370,6 @@ function renderBackend(spec: BackendSpec): string {
     out.push(
         '- **Options** — template-specific `chart_spec.chartProperties` keys, including control type, domain, default, availability, and description.',
     );
-    if (spec.name.toLowerCase().includes('vega')) {
-        out.push(
-            '- **Interactions** — the presets the chart type supports in `interaction_spec`. The data can still remove one at mount: a legend needs a bound discrete legend channel, navigation needs a continuous axis. See the [interaction guide](/documentation/interaction-spec).',
-        );
-    }
     out.push('');
     out.push('Use the chart type name exactly as shown in `chart_spec.chartType`.');
     out.push('');
@@ -410,10 +412,6 @@ function renderChartZh(def: ChartTemplateDef): string {
     lines.push(`### ${icon ? `![](${icon}) ` : ''}${def.chart}`, '');
     const channels = (def.channels ?? []).map((channel) => `\`${channel}\``).join(', ') || '_无_';
     lines.push(`**编码通道：** ${channels}`, '');
-    if (def.interactionSupport) {
-        const presets = supportedInteractionPresets(def.interactionSupport).map((type) => `\`${type}\``).join(', ') || '_无_';
-        lines.push(`**交互：** ${presets}`, '');
-    }
     const props = def.properties ?? [];
     if (props.length === 0) return [...lines, '_无模板专用参数。_', ''].join('\n');
     lines.push('| 参数 | 控件 | 取值范围 | 默认值 | 可用性 | 说明 |', '|---|---|---|---|---|---|');
@@ -592,3 +590,198 @@ for (const [locale, directory] of [['en', DOCS_DIR], ['zh-CN', ZH_DOCS_DIR]] as 
 writeFileSync(resolve(ZH_DOCS_DIR, 'reference-plotly.md'), renderPlotlyZh(), 'utf8');
 // eslint-disable-next-line no-console
 console.log(`Wrote zh-CN/reference-plotly.md (${Object.values(plTemplateDefs).flat().length} chart types)`);
+
+/** Every option each preset accepts, read from the factory option types: the catalogue `list_interaction_presets` serves. */
+function collectPresetOptions(): Record<string, { name: string; type: string; required: boolean; note: string }[]> {
+    const interactiveDir = resolve(__dirname, '../packages/flint-js/src/interactive');
+    const parse = (file: string): ts.SourceFile => {
+        const path = resolve(interactiveDir, file);
+        return ts.createSourceFile(path, readFileSync(path, 'utf8'), ts.ScriptTarget.Latest, true);
+    };
+    const optionsSources = [parse('interactions.ts'), parse('filter-controls.ts'), parse('context-menu.ts')];
+    const specSource = parse('spec/types.ts');
+
+    const declarations = new Map<string, ts.InterfaceDeclaration | ts.TypeAliasDeclaration>();
+    for (const source of optionsSources) {
+        source.forEachChild((node) => {
+            if (ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node)) declarations.set(node.name.text, node);
+        });
+    }
+
+    const ALIASES: Record<string, string> = {
+        'InteractionResetGesture[]': 'ResetGesture[]',
+        'NavigationResetGesture[]': 'ResetGesture[]',
+        'ClickHighlightTarget[]': "('mark' | 'legend' | 'discreteAxis')[]",
+        'AccessibleNavigationSection[]': "('titles' | 'axes' | 'legends' | 'headers' | 'data' | 'labels')[]",
+        'GroupBy': 'string | string[]',
+        'InspectMode': "'x' | 'y' | 'xy', with an optional comparison such as 'x>' or 'x<=;y>='",
+        'InspectMode[]': 'InspectMode[]',
+        'InspectIndexShow': "'all' | 'single' | { series: value }",
+        "NavigationAxes | 'available'": "'x' | 'y' | 'xy' | 'available'",
+        'NavigationTransition': '{ duration: ms }',
+        'RegionGuideOptions | false': '{ visible?, style?: { fill?, fillOpacity?, stroke?, strokeOpacity?, strokeWidth? } } | false',
+        'InspectGuideOptions | false': '{ visible?, style?: { color?, opacity?, width?, fillOpacity?, haloColor?, haloOpacity?, haloWidth? } } | false',
+        'SemanticTargetSelector': '{ select: { key } | { where } }',
+        'Partial<NavigationDomainGuard>': '{ minVisibleFraction?, maxVisibleFraction?, overscrollFraction? }',
+        '(string | FilterFieldOptions)[]': "(string | { field, widget?: 'auto' | 'checkboxes' | 'select' | 'range' | 'toggle', label?, all? })[]",
+        'FilterPlacement': "'auto' | 'top' | 'bottom'",
+        'Readonly<Record<string, FilterValue>>': 'Record<field, FilterValue>',
+        'ContextMenuItem[]': '{ id, label }[]',
+    };
+    const typeText = (node: ts.TypeNode): string => {
+        const text = node.getText().replace(/\breadonly /g, '').replace(/\s+/g, ' ');
+        return ALIASES[text] ?? text;
+    };
+    const noteOf = (member: ts.PropertySignature): string => {
+        const comments = ts.getJSDocCommentsAndTags(member)
+            .filter((doc): doc is ts.JSDoc => ts.isJSDoc(doc))
+            .map((doc) => (typeof doc.comment === 'string' ? doc.comment : doc.comment?.map((part) => part.text).join('') ?? ''));
+        return comments.join(' ').replace(/\s+/g, ' ').trim();
+    };
+
+    interface OptionRow { name: string; type: string; required: boolean; note: string }
+    const omittedKeys = (keys: ts.TypeNode): string[] => (ts.isUnionTypeNode(keys) ? keys.types : [keys])
+        .flatMap((literal) => ts.isLiteralTypeNode(literal) && ts.isStringLiteral(literal.literal) ? [literal.literal.text] : []);
+    const membersOf = (node: ts.Node, omit: ReadonlySet<string>): OptionRow[] => {
+        if (ts.isInterfaceDeclaration(node)) {
+            const inherited = (node.heritageClauses ?? []).flatMap((clause) =>
+                clause.types.flatMap((type) => membersOf(type, omit)));
+            const own = node.members.filter(ts.isPropertySignature).map((member) => ({
+                name: (member.name as ts.Identifier).text,
+                type: member.type ? typeText(member.type) : 'unknown',
+                required: !member.questionToken,
+                note: noteOf(member),
+            }));
+            const byName = new Map(inherited.map((row) => [row.name, row]));
+            for (const row of own) byName.set(row.name, row);
+            return [...byName.values()].filter((row) => !omit.has(row.name) && row.name !== 'id');
+        }
+        if (ts.isTypeAliasDeclaration(node)) return membersOf(node.type, omit);
+        if (ts.isIntersectionTypeNode(node)) {
+            const byName = new Map<string, OptionRow>();
+            for (const part of node.types) for (const row of membersOf(part, omit)) byName.set(row.name, row);
+            return [...byName.values()];
+        }
+        if (ts.isTypeLiteralNode(node)) {
+            return node.members.filter(ts.isPropertySignature).map((member) => ({
+                name: (member.name as ts.Identifier).text,
+                type: member.type ? typeText(member.type) : 'unknown',
+                required: !member.questionToken,
+                note: noteOf(member),
+            })).filter((row) => !omit.has(row.name) && row.name !== 'id');
+        }
+        if (ts.isTypeReferenceNode(node) || ts.isExpressionWithTypeArguments(node)) {
+            const name = ts.isTypeReferenceNode(node) ? node.typeName.getText() : node.expression.getText();
+            const [base, keys] = node.typeArguments ?? [];
+            if (name === 'Omit' && base && keys) return membersOf(base, new Set([...omit, ...omittedKeys(keys)]));
+            const declaration = declarations.get(name);
+            if (!declaration) throw new Error(`gen:reference: unknown option type ${name}`);
+            return membersOf(declaration, omit);
+        }
+        throw new Error(`gen:reference: cannot read option members from ${ts.SyntaxKind[node.kind]}`);
+    };
+
+    const presetOptions = specSource.statements.find((statement): statement is ts.InterfaceDeclaration =>
+        ts.isInterfaceDeclaration(statement) && statement.name.text === 'InteractionPresetOptions');
+    if (!presetOptions) throw new Error('gen:reference: InteractionPresetOptions not found');
+
+    const catalogue: Record<string, OptionRow[]> = {};
+    for (const member of presetOptions.members.filter(ts.isPropertySignature)) {
+        const preset = ts.isStringLiteral(member.name) ? member.name.text : (member.name as ts.Identifier).text;
+        let typeNode = member.type!;
+        const omit = new Set<string>();
+        if (ts.isTypeReferenceNode(typeNode) && typeNode.typeName.getText(specSource) === 'Omit' && typeNode.typeArguments) {
+            const [base, keys] = typeNode.typeArguments;
+            for (const key of omittedKeys(keys)) omit.add(key);
+            typeNode = base;
+        }
+        const name = ts.isTypeReferenceNode(typeNode) ? typeNode.typeName.getText(specSource) : null;
+        const declaration = name ? declarations.get(name) : undefined;
+        if (!declaration) throw new Error(`gen:reference: no option type for preset ${preset}`);
+        catalogue[preset] = membersOf(declaration, omit);
+    }
+    return catalogue;
+}
+
+{
+    const path = resolve(__dirname, '../packages/flint-js/src/interactive/spec/preset-options.ts');
+    const catalogue = collectPresetOptions();
+    const quote = (text: string) => JSON.stringify(text);
+    const entries = Object.entries(catalogue).map(([preset, options]) => {
+        const rows = options.map((option) =>
+            `        { name: ${quote(option.name)}, type: ${quote(option.type)}, required: ${option.required}, note: ${quote(option.note)} },`);
+        return `    '${preset}': [\n${rows.join('\n')}\n    ],`;
+    });
+    const source = [
+        '// Copyright (c) Microsoft Corporation.',
+        '// Licensed under the MIT License.',
+        '',
+        '// Generated by `npm run gen:reference` from the preset option types. Do not edit.',
+        '',
+        "import type { InteractionPresetType } from '../../core/interaction-spec';",
+        '',
+        '/** One option a preset accepts, as the catalogue describes it. */',
+        'export interface InteractionPresetOption {',
+        '    readonly name: string;',
+        '    /** The option\'s type, in the notation of the factory types. */',
+        '    readonly type: string;',
+        '    readonly required: boolean;',
+        '    readonly note: string;',
+        '}',
+        '',
+        '/** Every option each preset accepts. `id` is omitted: it sits on the spec entry. */',
+        'export const INTERACTION_PRESET_OPTIONS: Readonly<Record<InteractionPresetType, readonly InteractionPresetOption[]>> = {',
+        ...entries,
+        '};',
+        '',
+    ].join('\n');
+    writeFileSync(path, source, 'utf8');
+    // eslint-disable-next-line no-console
+    console.log('Wrote the preset option catalogue into packages/flint-js/src/interactive/spec/preset-options.ts');
+}
+
+/** The types a host reads from `onChange`, `getState()` and an event, printed as the source declares them. */
+function renderEventTypes(): string {
+    const srcDir = resolve(__dirname, '../packages/flint-js/src');
+    const sources = ['core/interaction-contracts.ts', 'interactive/types.ts'].map((file) => {
+        const path = resolve(srcDir, file);
+        return ts.createSourceFile(path, readFileSync(path, 'utf8'), ts.ScriptTarget.Latest, true);
+    });
+    const names = [
+        'ChartChange', 'ChartState', 'SemanticTarget', 'SemanticElement',
+        'LegendTargetValue', 'LegendDomain', 'AxisTargetValue',
+        'DomainGeometry', 'DomainCoordinate', 'DomainValue', 'DomainPoint',
+        'ChartHiddenValue', 'FilterValue',
+    ];
+    const printed = names.map((name) => {
+        for (const source of sources) {
+            const node = source.statements.find((statement) =>
+                (ts.isInterfaceDeclaration(statement) || ts.isTypeAliasDeclaration(statement)) && statement.name.text === name);
+            if (!node) continue;
+            const lines = node.getText(source)
+                .replace(/^export /, '')
+                .replace(/\breadonly /g, '')
+                .replace(/ extends Record<string, unknown>/, '')
+                .replace(/\/\*\*([\s\S]*?)\*\//g, (_, body: string) => `// ${body.replace(/^\s*\*\s?/gm, ' ').replace(/\s+/g, ' ').trim()}`)
+                .split('\n');
+            const base = source.getLineAndCharacterOfPosition(node.getStart(source)).character;
+            return lines.map((line, i) => (i === 0 ? line : line.slice(base))
+                .replace(/^( {4})+/, (run) => '  '.repeat(run.length / 4))).join('\n');
+        }
+        throw new Error(`gen:reference: event type ${name} not found`);
+    });
+    return ['```ts', printed.join('\n\n'), '```'].join('\n');
+}
+
+{
+    const path = resolve(__dirname, '../agent-skills/flint-interaction-author/SKILL.md');
+    const doc = readFileSync(path, 'utf8');
+    const start = '<!-- event-types:start -->';
+    const end = '<!-- event-types:end -->';
+    const from = doc.indexOf(start);
+    const to = doc.indexOf(end);
+    if (from < 0 || to < 0) throw new Error(`${path}: event type markers not found`);
+    writeFileSync(path, `${doc.slice(0, from + start.length)}\n${renderEventTypes()}\n${doc.slice(to)}`, 'utf8');
+    // eslint-disable-next-line no-console
+    console.log('Wrote the event types into agent-skills/flint-interaction-author/SKILL.md');
+}

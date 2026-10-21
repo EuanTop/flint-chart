@@ -1,0 +1,104 @@
+{
+  "id": "justice-innovation-lab",
+  "org": "Justice Innovation Lab",
+  "urls": ["https://knowledgehub.justiceinnovationlab.org/reports/JIL_Data_Visualization_Guide.pdf"],
+  "access": "full",
+  "accessNotes": "Full 20-page PDF (April 2024) downloaded and text-extracted with pypdf; chart examples are vector art so pages 10, 13 and 19 were rasterised with ImageMagick. Note: the rasterised colours look more saturated than the stated hex codes (likely a colour-profile artefact of rendering); the hex values quoted in the text are authoritative. Type sizes in the guide are in points; px values below are pt x 1.333.",
+  "summary": "A compact report/brief style guide for a criminal-justice non-profit. Charts are minimalist and white: no borders, no gridlines, a thin grey-blue x-axis baseline with ticks, Matter typeface, a bold sentence-case headline that states the finding, left-aligned with the plot, with bold value labels inside bars. Palette is derived from the navy/light-blue/orange brand, with a strong emphasis on accessibility and on avoiding colours that reinforce demographic stereotypes (small multiples preferred over colour-coding people).",
+  "context": "report",
+  "colors": {
+    "categorical": ["#2b5e88", "#4498cf", "#db771a", "#89929a", "#579e9a", "#7075bf"],
+    "categoricalNotes": "Primary data colours: dark blue #2b5e88, light blue #4498cf, orange #db771a, gray #89929a; second row teal #579e9a and purple #7075bf only when more colours are needed. Single-colour charts use dark blue or light blue. Max three categorical colours per chart (gray may be added as a fourth, but beware it reads as de-emphasis). Approved 2-group pairs shown on p.6 include #2b5e88+#db771a, #4498cf+#579e9a, #2b5e88+#4498cf, #4498cf+#db771a, #2b5e88+#7075bf, #579e9a+#7075bf; 3-group sets include #2b5e88/#db771a/#4498cf and #2b5e88/#579e9a/#7075bf (from extracted text; exact pairing order partially ambiguous). Only use colour combinations provided in the guide; use colour meanings consistently across a document.",
+    "sequential": ["#add4e9", "#8db5d2", "#6c96bc", "#4a79a6", "#215d90"],
+    "diverging": ["#215d90", "#426d9b", "#758eb1", "#a3b1c7", "#d1d5dd", "#e8e8e8", "#e2d2ca", "#d3a691", "#b36740", "#a65326", "#983d07"],
+    "highlight": "#db771a",
+    "context": "#89929a",
+    "positive": null,
+    "negative": null,
+    "background": "#ffffff",
+    "text": "#1a1a1a",
+    "textSecondary": null,
+    "gridline": null,
+    "axis": "#5e667d",
+    "notes": "Brand colours: dark blue #003057, light blue #64BAFF, orange #FF9533, light gray #DCE6EE (data colours are desaturated/adjusted versions). Ordinal single-hue ramps (3/4/5 groups) exist in blue (#add4e9 #8db5d2 #6c96bc #4a79a6 #215d90), orange (#ffc680 #f3ae65 #e6964a #d97e2e #ca660b), gray (#c2c7cb #9ea6ae #7c8792 #5b6976 #3b4c5c), purple (#bec1f8 #a4a4e1 #8988ca #6f6db4 #55539e) and teal (#b2e5e2 #8ec7c3 #6baaa6 #478e89 #1e736d). Continuous diverging palettes: blue–orange (above, preferred for emphasising extremes) or purple–teal (#55539e #6964a7 #7b76b1 #8e88ba #a09ac3 #b2adcc #c4c0d6 #d6d4df #e8e8e8 #ced7d6 #b4c7c5 #9bb6b3 #81a6a2 #4e8681 #307771 #006762), always with neutral midpoint #e8e8e8. Every data colour meets WebAIM 3:1 contrast on white; text on data colours must be pure black #000000 or white #ffffff (preferred pairing given per swatch). Avoid colours that reinforce racial, gender or political stereotypes."
+  },
+  "typography": {
+    "family": "Matter",
+    "fallback": null,
+    "title": { "size": 26.7, "weight": "600 (Matter SemiBold, 20 pt)", "align": "left", "case": "sentence", "color": "#1a1a1a" },
+    "subtitle": { "size": 21.3, "weight": "400 (Matter Regular, 16 pt)", "style": "normal", "color": "#1a1a1a" },
+    "axisLabel": { "size": 17.3, "color": "#1a1a1a" },
+    "axisTitle": { "size": 18.7, "weight": "400 (Matter Regular, 14 pt)", "placement": "x-axis title centred below the axis labels; y-axis title omitted" },
+    "dataLabel": { "size": 18.7, "weight": "600 (Matter SemiBold, 14 pt), #000000 or #ffffff depending on bar colour" },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "All chart text horizontal – never angled or rotated. Legend text Matter Regular 14 pt #1a1a1a; axis tick labels Matter Regular 13 pt #1a1a1a; category (y) labels right-aligned. Font sizes in Section 3 are the minimum for web use. Sentence case for title and subtitle."
+  },
+  "structure": {
+    "gridlines": "None by default ('Do not include grid lines, unless necessary').",
+    "axisLine": "Value (x) axis baseline drawn as a thin 0.5 pt #5e667d line; no y-axis line on bar charts (category labels float left of bars). Line/scatter examples show thin grey axis baselines on both axes.",
+    "ticks": "Small outward tick marks on the x-axis baseline in the same 0.5 pt #5e667d; reduce the number of tick labels where appropriate.",
+    "zeroLine": "Numeric axis of bar charts, histograms and density charts always starts at zero.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "omitted – meaning conveyed by title/subtitle/annotations",
+    "unitPlacement": "In tick labels (e.g. 0% 5% 10%) or in the title/subtitle.",
+    "frame": "none – 'Do not include a border around charts.'",
+    "background": "#ffffff",
+    "notes": "Charts generally wider than tall. No dual axes ever. Error bars drawn as thin black (1.5 pt #000000) vertical/horizontal strokes."
+  },
+  "legend": {
+    "placement": "top, between subtitle and plot, left-aligned with the start of the x-axis, horizontal",
+    "directLabels": "Preferred: label lines and scatter groups directly in the series colour; legend only when necessary.",
+    "title": "No legend title.",
+    "swatchShape": "square for bars; short line segment (matching dash style) for lines",
+    "notes": "Legend text Matter Regular 14 pt #1a1a1a."
+  },
+  "marks": {
+    "bars": "Horizontal bars preferred; vertical columns for time series. Bar width greater than the gap. Square corners, no outline. Sort nominal bars by value (largest at top), ordinal in natural order. Grouped bars preferred over stacked; stacked only for 100%-normalised data, with ≥1 pt white gaps between segments. Single colour for all bars unless highlighting one (highlight orange, others gray-blue).",
+    "lines": "Medium-weight lines; never colour alone – combine colour with dash style, thickness or marker shape. Add markers for small/sparse samples. De-emphasise extra lines in thin gray while the focus line is thick orange. Label lines directly at the start/end.",
+    "areas": "Density curves may overlap with reduced opacity.",
+    "points": "Reduced opacity or hollow markers to handle overplotting; use shape+colour for groups; bubble size scales by area, circles only.",
+    "pies": "Not shown; waffle charts (10x10 grid, ≥1 pt white gaps) preferred over pies for part-to-whole.",
+    "notes": "Histograms have no gaps between bars. Heat-map cells, treemap tiles and waffle squares separated by ≥1 pt white."
+  },
+  "labels": {
+    "dataLabels": "Values printed in bold (SemiBold) inside the start of horizontal bars, left-aligned, in white or black for contrast; above the column when there is insufficient space inside. Heat-map cells carry value labels when space allows.",
+    "numberFormat": "Comma thousands separator (1,000); percentages with one decimal in examples (14.3%); no more precision than necessary.",
+    "dates": "Abbreviated month names (Jan, Feb), four-digit years, 'Jul 2021' for month-year.",
+    "notes": "Use inclusive, people-first category labels; avoid 'Other'."
+  },
+  "furniture": {
+    "title": "Sentence-case title describing the main point of the chart (Matter SemiBold 20 pt), with sentence-case subtitle giving supporting information (Matter Regular 16 pt). Both left-aligned with the start of the x-axis.",
+    "source": null,
+    "logo": null,
+    "other": "Figures captioned 'fig. N' centred below in the guide's examples. Alt text (short + long) required for web charts."
+  },
+  "annotations": "Thin vertical reference lines with a small plain text label (e.g. 'Policy change') at the top; short plain-text annotations next to points of interest.",
+  "layout": "Wider than tall in general. Small multiples share axis units, ranges and dimensions; axes need not repeat; grid, vertical stack (to compare x) or horizontal row (to compare y); all panels visible without scrolling. Web charts sized to be fully visible without scrolling, possibly multiple versions per screen size.",
+  "interaction": "Tooltips allowed but chart must be understandable without them; tooltips and interactive features keyboard- and screen-reader-accessible; state changes not by colour alone, ≥3:1 contrast between states; animations must be pausable/replayable at different speeds.",
+  "accessibility": "All data colours ≥3:1 against white and tested for colour-vision deficiency; text on data colours black or white meeting AA; never rely on colour alone for lines; alt text with short and long descriptions; provide source data tables; avoid colour-coding demographic groups (use small multiples).",
+  "chartTypes": {
+    "preferred": ["horizontal bar", "column (time series)", "grouped bar", "100% stacked bar", "scatter/bubble", "line", "waffle", "sankey", "treemap", "histogram", "density", "boxplot", "strip plot", "violin", "heat map", "small multiples", "combination (same units only)"],
+    "discouraged": ["pie (waffle preferred)", "dual-axis charts", "stacked bars with more segments than palette colours", "non-normalised stacked bars"],
+    "notes": "Chart selection framed by Altair data types (quantitative, ordinal, nominal, temporal)."
+  },
+  "distinctiveRules": [
+    { "rule": "No gridlines and no chart border; only a thin 0.5 pt #5e667d x-axis baseline with ticks.", "source": "https://knowledgehub.justiceinnovationlab.org/reports/JIL_Data_Visualization_Guide.pdf", "quote": "Do not include a border around charts. Do not include grid lines, unless necessary. … 0.5 pt #5e667d" },
+    { "rule": "Title (SemiBold 20 pt), subtitle (Regular 16 pt) and legend are all left-aligned with the start of the x-axis, not the left edge of the y labels.", "source": "https://knowledgehub.justiceinnovationlab.org/reports/JIL_Data_Visualization_Guide.pdf", "quote": "Left align titles, subtitles, and legends with the start of the x-axis." },
+    { "rule": "No y-axis title; meaning must come from title/subtitle; x-axis title only when units are unclear.", "source": "https://knowledgehub.justiceinnovationlab.org/reports/JIL_Data_Visualization_Guide.pdf", "quote": "The y-axis should not require a title." },
+    { "rule": "All chart text horizontal – never rotate labels or axis titles.", "source": "https://knowledgehub.justiceinnovationlab.org/reports/JIL_Data_Visualization_Guide.pdf", "quote": "All chart text should be horizontal, not angled or rotated." },
+    { "rule": "Horizontal bars by default; value labels bold, left-aligned just inside the bar base, white or black text.", "source": "https://knowledgehub.justiceinnovationlab.org/reports/JIL_Data_Visualization_Guide.pdf", "quote": "Data value text should be left-aligned within horizontal bars" },
+    { "rule": "Legend sits above the plot under the subtitle, horizontal with square swatches and no legend title.", "source": "https://knowledgehub.justiceinnovationlab.org/reports/JIL_Data_Visualization_Guide.pdf", "quote": "When using a legend, the meaning should be clear without adding a legend title." },
+    { "rule": "Single-series charts are one blue; to highlight one bar make it orange and the rest gray.", "source": "https://knowledgehub.justiceinnovationlab.org/reports/JIL_Data_Visualization_Guide.pdf", "quote": "Use the same bar color for each group … unless there is particular value in highlighting a specific bar (fig. 2)." },
+    { "rule": "At most three categorical colours per chart, from approved pairs/triples; gray may be added as a fourth.", "source": "https://knowledgehub.justiceinnovationlab.org/reports/JIL_Data_Visualization_Guide.pdf", "quote": "Avoid using any more than three categorical data colors in a single chart." },
+    { "rule": "Segments of stacked bars, waffles, treemaps and heat-map cells separated by ≥1 pt white space.", "source": "https://knowledgehub.justiceinnovationlab.org/reports/JIL_Data_Visualization_Guide.pdf", "quote": "Separate the segments of stacked bars with at least 1 pt white space" },
+    { "rule": "Multiple lines must differ in colour plus one other channel (dash, thickness or marker shape).", "source": "https://knowledgehub.justiceinnovationlab.org/reports/JIL_Data_Visualization_Guide.pdf", "quote": "Do not use color alone to distinguish lines on the same chart." },
+    { "rule": "Diverging scales use blue→#e8e8e8→orange (or purple→#e8e8e8→teal) with neutral grey midpoint.", "source": "https://knowledgehub.justiceinnovationlab.org/reports/JIL_Data_Visualization_Guide.pdf", "quote": "use either blue and orange together or purple and teal together, with a neutral midpoint (#e8e8e8)" },
+    { "rule": "Bar width greater than the gap between bars; no dual y- or x-axes.", "source": "https://knowledgehub.justiceinnovationlab.org/reports/JIL_Data_Visualization_Guide.pdf", "quote": "The width of bars should be greater than the space between bars … Do not create charts that require a second x-axis or y-axis" },
+    { "rule": "Avoid colour-coding demographic groups; use small multiples with shared axes instead.", "source": "https://knowledgehub.justiceinnovationlab.org/reports/JIL_Data_Visualization_Guide.pdf", "quote": "Small multiples can be used to avoid color-coding groups of people" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/justice-innovation-lab/page19.png", "url": "https://knowledgehub.justiceinnovationlab.org/reports/JIL_Data_Visualization_Guide.pdf#page=19", "describes": "Annotated anatomy of a grouped horizontal bar chart. Bold black sentence-case title 'Sentence case title describing main point of chart' (Matter SemiBold 20pt #1a1a1a) left-aligned with the bar baseline, regular subtitle beneath (16pt), then a one-row legend with small square swatches (orange 'With enhancement', blue 'Without enhancement', 14pt). Category labels 'Charge X/Y/Z' to the left, no y-axis line, no gridlines, no border, white background. Orange and blue bars with bold value labels (559, 641…) left-aligned inside the bar start – black on orange, white on blue. Thin black 1.5pt error-bar whiskers. Bottom x-axis: thin 0.5pt #5e667d baseline with ticks, labels 100/300/500/700 (13pt), centred x-axis title 'Axis title' (14pt)." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/justice-innovation-lab/page10.png", "url": "https://knowledgehub.justiceinnovationlab.org/reports/JIL_Data_Visualization_Guide.pdf#page=10", "describes": "Four bar examples: (1) blue horizontal bars sorted descending with white bold % labels inside left end; (2) slate-gray horizontal bars with one orange highlighted bar (40-49) and dark bold labels inside; (3) light-blue vertical columns by year with bold value labels above each column, y-axis labels only, no axis line or grid; (4) green columns by month with black error-bar whiskers. All: thin grey bottom baseline with ticks, no gridlines, small sans-serif tick labels, captions 'fig. N' below." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/justice-innovation-lab/page13.png", "url": "https://knowledgehub.justiceinnovationlab.org/reports/JIL_Data_Visualization_Guide.pdf#page=13", "describes": "Line chart examples: single blue line; three series differentiated by colour and dash pattern (solid dark blue, dashed light blue, dotted orange) with a short top-left legend and a thin vertical reference line labelled 'Policy change'; one thick orange focus line over thin gray context lines; two series with circle vs square markers and direct labels ('Group A' teal, 'Group B' purple) at the left in the series colour. Thin grey x baseline with ticks, no gridlines, no y-axis line." }
+  ]
+}

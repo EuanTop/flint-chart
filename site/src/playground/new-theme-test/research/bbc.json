@@ -1,0 +1,115 @@
+{
+  "id": "bbc",
+  "org": "BBC (GEL infographics guideline + BBC Visual and Data Journalism R cookbook / bbplot)",
+  "urls": [
+    "https://www.bbc.co.uk/gel/guidelines/how-to-design-infographics",
+    "https://www.bbc.co.uk/gel/features/how-to-design-infographics",
+    "https://bbc.github.io/rcookbook/",
+    "https://github.com/bbc/rcookbook/blob/master/index.Rmd",
+    "https://github.com/bbc/bbplot/blob/master/R/bbc_style.R",
+    "https://github.com/bbc/bbplot/blob/master/R/finalise_plot.R",
+    "https://github.com/bbc/bbplot/blob/master/chart_examples/bbplot_example_plots.png",
+    "https://ichef.bbci.co.uk/images/ic/976xn/p06m8npw.png",
+    "https://ichef.bbci.co.uk/images/ic/976xn/p06m8qzb.png"
+  ],
+  "access": "full",
+  "accessNotes": "GEL 'How to design infographics' (redirects to /gel/features/…) read in full; its colour palettes are only in a downloadable Illustrator asset file (not opened) and an image, so no GEL hex codes are recorded. The R cookbook was read via web_fetch (truncated) and in full from its source index.Rmd on GitHub; bbplot theme values read from R/bbc_style.R and R/finalise_plot.R. The bbplot theme sets sizes in ggplot points at 640×450px output (72 dpi, so pt ≈ px). Note: bbc_style() uses Helvetica, whereas the GEL guideline specifies BBC Reith for published infographics.",
+  "summary": "BBC News graphics are clean editorial charts: a large bold left-aligned headline that states the finding, a regular-weight subtitle naming the measure and period, legend at top-left without a title, light grey horizontal gridlines only, no axis titles, ticks or axis lines except a heavy dark baseline at zero, and a footer rule with 'Source: …' bottom-left and the BBC block logo bottom-right. Colour is used sparingly (signature teal-blue #1380A1 and amber #FAAB18) with direct labels and grey #555555 annotations preferred over legends.",
+  "context": "editorial",
+  "colors": {
+    "categorical": ["#1380A1", "#FAAB18", "#990000", "#588300"],
+    "categoricalNotes": "bbc_style() sets no palette; cookbook examples use #1380A1 (BBC teal-blue) for single series and the pair #FAAB18 (amber) + #1380A1 for two series, and #FAAB18, #1380A1, #990000 (dark red), #588300 (green) for four small-multiple areas. bbc_style docstring also uses #007f7f teal for a single line. Stacked proportional bars use viridis (scale_fill_viridis_d(direction = -1)). GEL: each BBC product (News, Sport, GEL) has its own infographic palette chosen to complement its brand; use a neutral palette so important information stands out; set colours for recurring things (buildings, nature) and set highlight colours.",
+    "sequential": [],
+    "diverging": [],
+    "highlight": "#1380A1",
+    "context": "#dddddd",
+    "positive": null,
+    "negative": null,
+    "background": "#ffffff",
+    "text": "#222222",
+    "textSecondary": "#555555",
+    "gridline": "#cbcbcb",
+    "axis": "#333333",
+    "notes": "Baseline/zero line and optional axis ticks #333333; gridlines #cbcbcb; annotation text and leader lines #555555; dumbbell connector #dddddd. Plot and saved background white. Viridis for ordered stacks. GEL: never convey meaning by colour alone (e.g. green/red circles combined with tick/cross icons); text must contrast with what is behind it; GEL label chips use grey, BBC red, teal and yellow fills."
+  },
+  "typography": {
+    "family": "Helvetica (bbplot); BBC Reith for published GEL infographics",
+    "fallback": "BBC Reith Sans, Helvetica, Arial, sans-serif",
+    "title": { "size": 28, "weight": "bold", "align": "left", "case": "sentence", "color": "#222222" },
+    "subtitle": { "size": 22, "weight": "normal", "style": "normal", "color": "#222222" },
+    "axisLabel": { "size": 18, "color": "#222222" },
+    "axisTitle": { "size": null, "weight": null, "placement": "omitted (axis.title = element_blank()); units go in the subtitle or in the top tick label, e.g. '80 years'" },
+    "dataLabel": { "size": 17, "weight": "normal" },
+    "source": { "size": 16, "style": "normal, prefixed 'Source:'", "color": "#222222" },
+    "notes": "bbplot sizes in pt at 640×450px/72dpi: title 28 bold #222222, subtitle 22 (9pt margins above/below), legend text 18, axis text 18 (x text bottom margin 10), facet strip text 22 left-aligned, footer source 16. Annotations via geom_label size 6 (mm ≈ 17pt) in #555555, no box. Title, subtitle and caption are left-aligned to the far left of the whole graphic, not the plot panel. GEL type ramp (BBC Reith, GEL sizes): Title = Great Primer, Subheader = Great Primer, Label = Pica, Source = Brevier."
+  },
+  "structure": {
+    "gridlines": "Major horizontal (y) gridlines only, solid #cbcbcb; no minor gridlines; for horizontal bar charts switch to vertical (x) gridlines in #cbcbcb.",
+    "axisLine": "No axis lines (axis.line blank).",
+    "ticks": "No ticks by default; cookbook shows adding x ticks in #333333 when needed (e.g. dates).",
+    "zeroLine": "Yes — signature heavy baseline: geom_hline(yintercept = 0, size = 1, colour = '#333333') on every chart (vertical baseline for horizontal bars).",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "omitted; unit in subtitle or appended to the top tick label ('80 years', '6%')",
+    "unitPlacement": "in subtitle (e.g. 'Yuan per tonne' as a separate line above the axis in GEL example) or on the last tick label",
+    "frame": "none; full-width footer rule above source/logo",
+    "background": "white (panel background blank, saved with bg = 'white')",
+    "notes": "Facet strips white with 22pt left-aligned titles."
+  },
+  "legend": {
+    "placement": "top, left-aligned (legend.position 'top'; cookbook nudges it flush left with legend.justification 'left' or negative margin)",
+    "directLabels": "Preferred: 'Remove the legend to become one — it's better to label data directly with text annotations' — labels in the series colour next to line ends.",
+    "title": "none (legend.title blank)",
+    "swatchShape": "square key (blank key background)",
+    "notes": "Legend text 18pt #222222; extra spacing between items via padded labels; reverse order to match stacks."
+  },
+  "marks": {
+    "bars": "Flat fill #1380A1, no outline; horizontal bars (coord_flip) for ranked categories with value labels inside bar ends in white; histograms with white bar outlines; stacked/grouped bars via position fill/dodge.",
+    "lines": "1pt-ish (ggplot size = 1) lines in #1380A1 / #FAAB18; no point markers.",
+    "areas": "Solid fills in palette colours for small multiples.",
+    "points": "Scatter/bubble points with thin dark outlines in BBC examples; dumbbells: #dddddd connector size 3 with #FAAB18 and #1380A1 end dots.",
+    "pies": "GEL lists pie charts among common forms; no specific rules.",
+    "notes": null
+  },
+  "labels": {
+    "dataLabels": "Bar values printed inside the bar end (hjust = 1) or at the bar start (left-aligned), white text, no label box, size 6 Helvetica.",
+    "numberFormat": "Thousand separators with commas (scales::comma); percentages via paste0(x, '%'); custom tick labels with unit on the last tick ('80 years'); billions abbreviated '2bn'.",
+    "dates": "Year ticks, with abbreviated two-digit years after the first ('2009, 10, 11 … 2016') in GEL example; 'Mar 2009 – Oct 2015' style ranges in subtitles.",
+    "notes": null
+  },
+  "furniture": {
+    "title": "Headline states the takeaway in few words ('Living longer', 'Reunion is highest', 'Asia's rapid growth'); subtitle states measure, place and period ('Life expectancy in China 1952-2007').",
+    "source": "finalise_plot draws a thin full-width rule, then the source text bottom-left at 16pt; text must be typed as 'Source: …' (e.g. 'Source: Gapminder').",
+    "logo": "BBC block logo (three boxed letters) bottom-right in the footer, same line as the source.",
+    "other": "Default export 640×450px (taller e.g. 640×550 when needed); title/subtitle/caption left-aligned to the graphic edge."
+  },
+  "annotations": "Plain text annotations (geom_label without box, label.size = NA) in #555555 at size 6, left-justified, multi-line allowed; leader lines/curved lines and arrows in #555555 size 0.5 (curvature −0.2, small arrowheads); dashed vertical/horizontal reference lines for thresholds. GEL label styles: grey or coloured (red, teal, yellow) chip labels — beaked labels and pointer labels with a stem ending in a filled or open circle, and area labels.",
+  "layout": "bbplot exports at 640×450px. GEL responsive infographics are drawn at fixed widths with variable depth: small 400px (0–400 devices), medium 750px (401–750), large 976px (751–976+); small is a vertical stack, medium/large horizontal layouts. Less detail as images get smaller.",
+  "interaction": null,
+  "accessibility": "Text alternatives for every image infographic; don't rely on colour alone (pair colour with shapes, patterns or icons); text colour must meet contrast guidelines; follow BBC mobile accessibility guidelines.",
+  "chartTypes": {
+    "preferred": ["line", "multiple line", "bar (horizontal, ranked)", "stacked bar", "grouped bar", "dumbbell", "histogram", "small multiples (facets)", "column", "pie", "maps", "annotated images", "diagrams"],
+    "discouraged": ["decoration", "overly detailed or cartoonish illustration"],
+    "notes": "GEL: four infographic categories — diagrams, data visualisation, annotations, maps."
+  },
+  "distinctiveRules": [
+    { "rule": "Every chart gets a heavy dark baseline at zero: 1-size solid line #333333 (vertical for horizontal bars).", "source": "https://bbc.github.io/rcookbook/", "quote": "our design style … is to add a vertical or horizontal baseline to our charts: geom_hline(yintercept = 0, size = 1, colour = \"#333333\")" },
+    { "rule": "Only major horizontal gridlines in light grey #cbcbcb; no minor gridlines, no axis lines, no ticks.", "source": "https://github.com/bbc/bbplot/blob/master/R/bbc_style.R", "quote": "panel.grid.major.y = element_line(color=\"#cbcbcb\"), panel.grid.major.x = element_blank(), axis.ticks = element_blank(), axis.line = element_blank()" },
+    { "rule": "No axis titles; units go in the subtitle or are appended to the top tick label (e.g. '80 years').", "source": "https://github.com/bbc/bbplot/blob/master/R/bbc_style.R", "quote": "axis.title = ggplot2::element_blank()" },
+    { "rule": "Title 28pt bold #222222, subtitle 22pt regular, both flush-left to the edge of the whole graphic (not the plot panel).", "source": "https://github.com/bbc/bbplot/blob/master/R/finalise_plot.R", "quote": "plot.title size=28 face=\"bold\" color=\"#222222\"; left_align(plot_name, c(\"subtitle\", \"title\", \"caption\"))" },
+    { "rule": "Headline states the finding in a few words; subtitle gives measure, place and period.", "source": "https://bbc.github.io/rcookbook/", "quote": "labs(title=\"Living longer\", subtitle = \"Life expectancy in China 1952-2007\")" },
+    { "rule": "Footer: thin full-width rule, then 'Source: …' at 16pt bottom-left and the BBC block logo bottom-right on the same line.", "source": "https://github.com/bbc/bbplot/blob/master/R/finalise_plot.R", "quote": "linesGrob(x = c(0, 1)) … textGrob(source_name, x = 0.004, hjust = 0, fontsize=16) … rasterGrob(logo, x = 0.944)" },
+    { "rule": "Legend at top, left-aligned, with no legend title and 18pt labels — or better, removed in favour of direct labels.", "source": "https://bbc.github.io/rcookbook/", "quote": "legend.position = \"top\", legend.title = element_blank() … it's better to label data directly with text annotations" },
+    { "rule": "Single-series marks in BBC teal-blue #1380A1; two series as #FAAB18 amber vs #1380A1.", "source": "https://github.com/bbc/rcookbook/blob/master/index.Rmd", "quote": "geom_line(colour = \"#1380A1\", size = 1) … scale_colour_manual(values = c(\"#FAAB18\", \"#1380A1\"))" },
+    { "rule": "Annotations are box-less grey #555555 text with thin #555555 curved leader lines/arrows.", "source": "https://github.com/bbc/rcookbook/blob/master/index.Rmd", "quote": "geom_label(…, colour = \"#555555\", label.size = NA, size = 6) … geom_curve(…, colour = \"#555555\", size=0.5, curvature = -0.2, arrow = arrow(length = unit(0.03, \"npc\")))" },
+    { "rule": "Bar value labels in white inside the bar end (or at the bar start), no label box.", "source": "https://github.com/bbc/rcookbook/blob/master/index.Rmd", "quote": "geom_label(aes(label = round(lifeExp, 0)), hjust = 1, colour = \"white\", fill = NA, label.size = NA)" },
+    { "rule": "Ranked horizontal bars switch gridlines to vertical (#cbcbcb) and remove horizontal ones.", "source": "https://github.com/bbc/rcookbook/blob/master/index.Rmd", "quote": "theme(panel.grid.major.x = element_line(color=\"#cbcbcb\"), panel.grid.major.y=element_blank())" },
+    { "rule": "Default export size 640×450px; responsive infographics at fixed widths 400 / 750 / 976px with variable height.", "source": "https://www.bbc.co.uk/gel/features/how-to-design-infographics", "quote": "Graphic width (px) 400 750 976 … we do not have fixed depths" },
+    { "rule": "Published infographics use BBC Reith with the GEL type ramp: title and subheader Great Primer, labels Pica, source Brevier.", "source": "https://www.bbc.co.uk/gel/features/how-to-design-infographics", "quote": "BBC Reith is used as our main typeface for all infographics … Title Great primer, Subheader Great primer, Label Pica, Source Brevier" },
+    { "rule": "Neutral palette with colour reserved for the key information; meaning never by colour alone (pair with icons/shapes).", "source": "https://www.bbc.co.uk/gel/features/how-to-design-infographics", "quote": "Use a neutral colour palette so important information stands out more in comparison. Don't convey meaning with colour alone." }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/bbc/bbplot_example_plots.png", "url": "https://raw.githubusercontent.com/bbc/bbplot/master/chart_examples/bbplot_example_plots.png", "describes": "Composite of five published BBC News charts made with bbplot. Each has a large bold black left-aligned headline ('Blue wave', 'Where penalties are saved', 'MPs rejected Theresa May's deal by 230 votes', 'Fast-growing cities face worse climate risks', 'Earnings vary across unis even within subjects') with a regular subtitle beneath; legends top-left with square or circle keys and no title; light grey horizontal gridlines only; heavy black baseline at 0 (histograms) or vertical zero line (dumbbells); no axis titles except plain-language end labels ('Less vulnerable'/'More vulnerable', 'Below average ←/→ Above average'); grey annotation text with thin curved leader lines and arrows; direct labels in series colours (orange/teal on dumbbells). Footer: thin rule, 'Source: AP, 19:01 ET' bottom-left in regular grey-black, and the boxed 'BBC' block logo bottom-right. Colours: BBC blue/light blue, red/pink, orange dots, party colours, region colours (red, amber, teal, purple, green)." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/bbc/gel_p06m8npw.png", "url": "https://ichef.bbci.co.uk/images/ic/976xn/p06m8npw.png", "describes": "GEL example line graph from BBC News in BBC Reith: regular-weight title 'Price of steel Mar 2009 – Oct 2015' top-left, then a separate unit line 'Yuan per tonne' above the y axis (horizontal, not rotated). Single thick teal line, no markers. Light grey horizontal gridlines at 1,000 steps with comma separators; y labels left; solid dark x-axis baseline with downward ticks; year labels '2009, 10, 11 … 15, 2016' (full year only at ends). No legend, source not shown in crop." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/bbc/gel_p06m8qzb.png", "url": "https://ichef.bbci.co.uk/images/ic/976xn/p06m8qzb.png", "describes": "GEL infographic label styles in BBC Reith: 'beaked' chip labels (light grey with dark text, or BBC red with white text) with a downward triangular beak; 'pointer' labels — rectangular chips (grey, teal with white text, yellow with dark text) with a dark underline rule and a vertical stem ending in a filled or open circle; 'area' labels — grey chip attached by a stem to an outlined circle, square or rectangle." }
+  ]
+}

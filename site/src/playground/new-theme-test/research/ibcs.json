@@ -1,0 +1,114 @@
+{
+  "id": "ibcs",
+  "org": "IBCS — International Business Communication Standards (IBCS Association)",
+  "urls": [
+    "https://www.ibcs.com/standards",
+    "https://www.ibcs.com/ibcs-version-2-0/",
+    "https://www.ibcs.com/ibcs-standards-1-2/",
+    "https://web.archive.org/web/20240308133933/https://www.ibcs.com/ibcs-standards-1-2/",
+    "https://www.ibcs.com/ibcs-standards-1-2-es/",
+    "https://accid.org/wp-content/uploads/2021/12/HOWTOI1-1.pdf",
+    "https://github.com/bino-bi/bino-cli/blob/main/claude-plugin/skills/bino-ibcs/references/ibcs-standard.md",
+    "https://github.com/databricks/databricks-agent-skills/blob/main/skills/databricks-app-design/references/ibcs-notation.md"
+  ],
+  "access": "partial",
+  "accessNotes": "ibcs.com/standards now redirects to the IBCS 2.0 (ISO 24896-aligned, June 2026) landing page whose 'browse online' content did not render (static HTML and headless browser both show only the intro, SUCCESS acronym and PDF/book links; the PDF is members-only). The 1.2 page redirects to a book product page; the 2024 Wayback copy links the 1.2 text to a konveio.site PDF viewer that failed TLS validation. Primary source actually read: Faisst, Hichert & Subirats (2020) 'How to implement IBCS®? Concepts, Templates, Notation Manual and 11 Real-Life Examples' (Revista de Contabilidad y Dirección vol. 31, PDF from accid.org) — written by IBCS authors, with greyscale example figures. Rule codes and detailed notation were cross-checked against two secondary distillations of IBCS Standards v1.2 (bino-cli IBCS reference, Databricks IBCS notation reference). IBCS prescribes semantic notation, not brand colours, so no hex codes are given in any source — all colour fields are null and described semantically.",
+  "summary": "IBCS is a semantic notation standard for management reports and dashboards (now ISO 24896): things that mean the same must look the same. Its look is austere and greyscale-first — actuals solid dark grey, previous year lighter grey, plan outlined, forecast hatched — with red/green reserved exclusively for bad/good variances and blue for highlighting. Charts drop value axes and gridlines in favour of data labels, put time on the horizontal axis and structure on the vertical, stack variance charts above/beside the base chart on a shared scale, and open with a full-sentence message above a three-line title (who / what in unit / when).",
+  "context": "report",
+  "colors": {
+    "categorical": [],
+    "categoricalNotes": "No categorical palette: colour is not used to distinguish series. Scenarios are distinguished by fill pattern (solid / lighter solid / outlined / hatched) in shades of one dark base colour; categories are distinguished by position/labels. Benchmarks/external references may use a distinct base colour (violet) per IBCS WG1 discussion paper (secondary source).",
+    "sequential": [],
+    "diverging": [],
+    "highlight": null,
+    "context": null,
+    "positive": null,
+    "negative": null,
+    "background": null,
+    "text": null,
+    "textSecondary": null,
+    "gridline": null,
+    "axis": null,
+    "notes": "Semantic colours (no hex specified by IBCS): Actual (AC) = solid dark grey/black; Previous year/period (PY) = lighter solid grey; Plan/Budget (PL/BU) = outlined (hollow, dark border); Forecast (FC) = hatched (outline + diagonal stripes in the actual colour). Variances: green = good impact, red = bad impact ('Red is bad, green is good') — colour encodes business impact, not sign (a cost decrease is green). Highlighting (ellipses, difference markers) usually blue. 'red and green are used only for variances'. Avoid decorative colours and coloured backgrounds; traffic lights banned (EX 2.5). Organisations implement IBCS in their own corporate greys (notation manual defines exact hues)."
+  },
+  "typography": {
+    "family": null,
+    "fallback": null,
+    "title": { "size": null, "weight": "message line regular/large; in the 3-line title the measure ('what') is bold", "align": "left", "case": "sentence", "color": null },
+    "subtitle": { "size": null, "weight": "regular", "style": "normal", "color": null },
+    "axisLabel": { "size": null, "color": null },
+    "axisTitle": { "size": null, "weight": null, "placement": "omitted — value axes replaced by data labels; scenario labels (AC, PY, PL, FC) placed directly next to the first/last column or bar" },
+    "dataLabel": { "size": null, "weight": "regular; totals bold" },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "No typeface mandated; one consistent sans-serif. Font-size-based layout: scale all lengths, widths, areas and distances relative to the selected font size ('Only then does the same thing really look the same'). Bold for totals in tables. Unify terms, abbreviations, numbers, units and dates across a report. Numbers right-aligned in tables."
+  },
+  "structure": {
+    "gridlines": "none — 'replace grid lines & value axes with data labels'",
+    "axisLine": "Category (baseline) axis drawn as a solid line; no value axis line. Variance tiers have their own thin baseline (vertical for bar variance charts, drawn as a double/heavy line in examples).",
+    "ticks": "none",
+    "zeroLine": "Baseline at zero is mandatory (CH 1.1 axes start at zero); variance charts drawn around a zero reference line.",
+    "yAxisPlacement": "none (value axis omitted)",
+    "yAxisTitle": "omitted; measure + unit in the title block ('Net sales in kUSD')",
+    "unitPlacement": "in the title 'what' line (e.g. 'Contribution margin in mUSD')",
+    "frame": "no frames, shadows, pseudo-3D or filled backgrounds",
+    "background": "plain white page",
+    "notes": "Time series run horizontally left→right (columns, lines); structural comparisons run vertically (bars, table rows). Comparable charts use identical scales for the same unit (CH 4.1); scaling indicators/bands show shared scale; outlier indicators instead of rescaling."
+  },
+  "legend": {
+    "placement": "none (no separate legend box)",
+    "directLabels": "Mandatory: scenario codes (AC, PY, PL, FC) and series names are written directly beside the relevant column/bar/line (e.g. 'PY' left of the first column pair, 'FC' right of the last); variance tiers labelled ΔPY, ΔPY%, ΔPL with the subtrahend.",
+    "title": "n/a",
+    "swatchShape": "n/a",
+    "notes": "Legends replaced by labels placed at the same position across the whole report family (UN 2)."
+  },
+  "marks": {
+    "bars": "Columns (time) and bars (structure) with narrow gaps; PY/PL reference column drawn slightly offset behind/left of the AC column (overlapping pair); FC columns hatched; PL outlined. Absolute variance columns/bars use the same width and scale as base columns, coloured green/red. Relative variances (%) drawn as thin 'pins' (~1/3 width, ending in a square marker). Waterfalls for calculation schemes; stacked bars sorted by size; Marimekko for weighted proportions.",
+    "lines": "Lines for long time series and cumulative values (Z-chart); scenario notation applies to lines too (AC solid dark, PY light, PL dashed/outlined, FC dotted/hatched-equivalent).",
+    "areas": "Avoid area/3-D distortion.",
+    "points": "XY (dot/bubble) charts derive their notation from column/bar rules.",
+    "pies": "Avoid pie and ring charts (EX 2.1); replace with bars/stacked bars.",
+    "notes": "Also avoid gauges/speedometers (EX 2.2), radar & funnel (EX 2.3), spaghetti charts (EX 2.4), traffic lights (EX 2.5)."
+  },
+  "labels": {
+    "dataLabels": "Every column/bar carries its value label (above columns, right of bars, inside stacked segments); variance labels signed (+13, -5, +22). Totals bold.",
+    "numberFormat": "Signed variances with explicit '+'/'-'; relative variances in %; units abbreviated in the title (kUSD, mUSD, mEUR); 'n.a.' for uninterpretable relative variances.",
+    "dates": "Short month names (Jan, Feb...), quarters Q1–Q4, years; period notation unified across report.",
+    "notes": "Delta notation: ΔPY = AC − PY, ΔPL% relative variance; arrows/(↓) mark polarity where 'less is better'."
+  },
+  "furniture": {
+    "title": "Message (full declarative sentence stating the finding) at top-left, separated by a horizontal rule; below it a 3-line title block: line 1 'who' (reporting unit, e.g. 'Alpha Tools Corporation'), line 2 'what' — measure in bold + unit ('Contribution margin in mUSD'), line 3 'when' + scenarios ('2019 PY, AC and FC').",
+    "source": "Footnotes/comments placed consistently; numbered circled comment markers in the chart referencing notes at the bottom/right.",
+    "logo": null,
+    "other": "Numbered comment markers (circled digits ①②) on data points linked to explanatory text; highlighting ellipses around key values; difference markers between columns; trend arrows with method (e.g. 'CAGR: 10.8%'); vertical separator line between actual and forecast periods."
+  },
+  "annotations": "Circled number markers (①, ②) attached to columns/labels with matching numbered notes beside or below the chart; ellipses (usually blue) to highlight a value; difference markers and trend arrows; reference arrowhead for benchmark lines; thin vertical line separating AC from FC months.",
+  "layout": "High information density (CONDENSE): small fonts and elements, narrow margins, multi-tier charts (base chart + ΔPY + ΔPY% tiers stacked vertically on shared scales), small multiples and ratio trees; sizes scaled from the font size; one-page reports.",
+  "interaction": null,
+  "accessibility": "Scenarios recognisable by fill pattern alone (works in monochrome print); variances have mono fallback (sign + position).",
+  "chartTypes": {
+    "preferred": ["column (time series)", "bar (structure)", "line", "pin (relative variance)", "waterfall", "stacked bar sorted by size", "Marimekko", "small multiples", "IBCS table with integrated bars"],
+    "discouraged": ["pie", "ring/donut", "gauge/speedometer", "radar", "funnel", "spaghetti line chart", "traffic lights", "3-D", "area charts that distort"],
+    "notes": "Semantic notation restricted to column, line and bar charts; 'for many other chart types (e.g. pie, radar and funnel charts) there are usually more suitable alternatives based on columns, lines and bars.'"
+  },
+  "distinctiveRules": [
+    { "rule": "Actual = solid dark fill, previous year = lighter solid grey, plan/budget = outlined (hollow), forecast = hatched.", "source": "https://accid.org/wp-content/uploads/2021/12/HOWTOI1-1.pdf", "quote": "Titles are in place, plans are outlined, and forecasts are hatched, red and green are used only for variances" },
+    { "rule": "Red and green are used only for variances: green = good business impact, red = bad (by polarity, not sign).", "source": "https://accid.org/wp-content/uploads/2021/12/HOWTOI1-1.pdf", "quote": "We underline the importance of variances with colour: Red is bad, green is good." },
+    { "rule": "Chart opens with a full-sentence message at top-left, followed by a three-line title: unit/entity, bold measure + unit, period + scenarios.", "source": "https://accid.org/wp-content/uploads/2021/12/HOWTOI1-1.pdf", "quote": "Figure 20: 'The contribution margin in October will be 5 mUSD below the previous year…' / 'Alpha Tools Corporation' / 'Contribution margin in mUSD' / '2019 PY, AC and FC'" },
+    { "rule": "No value axis, no gridlines — every column/bar carries a data label.", "source": "https://github.com/bino-bi/bino-cli/blob/main/claude-plugin/skills/bino-ibcs/references/ibcs-standard.md", "quote": "replace grid lines & value axes with data labels; right-align data" },
+    { "rule": "Time on the horizontal axis (columns/lines, left→right); structure on the vertical axis (bars).", "source": "https://github.com/bino-bi/bino-cli/blob/main/claude-plugin/skills/bino-ibcs/references/ibcs-standard.md", "quote": "Time series → horizontal axis ... Structure (dimensions) → vertical axis (UN 3.3 / 3.4)" },
+    { "rule": "Reference scenario (PY or PL) column drawn as an offset, partially overlapped shape behind the AC column.", "source": "https://accid.org/wp-content/uploads/2021/12/HOWTOI1-1.pdf", "quote": "Figure 4: outlined PL column offset behind dark IST (actual) column; FC column hatched" },
+    { "rule": "Absolute variances shown as green/red columns/bars of the same width and scale as the base chart in a separate tier labelled ΔPY/ΔPL; relative variances as thin 'pins' with square heads labelled ΔPY%.", "source": "https://github.com/bino-bi/bino-cli/blob/main/claude-plugin/skills/bino-ibcs/references/ibcs-standard.md", "quote": "Absolute variance ... same width and scale as the base columns/bars. Relative variance ... Drawn as thin pins (~⅓ width of base bars)." },
+    { "rule": "Scenario labels (AC, PY, PL, FC) written directly next to the series, never in a legend box.", "source": "https://accid.org/wp-content/uploads/2021/12/HOWTOI1-1.pdf", "quote": "Figure 4/20: 'PY', 'IST', 'PL', 'FC' labels placed beside the first/last columns" },
+    { "rule": "No pies, donuts, gauges, radar, funnel, traffic lights or 3-D.", "source": "https://github.com/bino-bi/bino-cli/blob/main/claude-plugin/skills/bino-ibcs/references/ibcs-standard.md", "quote": "Avoid / replace: pie & ring (EX 2.1), gauges & speedometers (EX 2.2), radar & funnel (EX 2.3), spaghetti (EX 2.4), traffic lights (EX 2.5)." },
+    { "rule": "Comparable charts share an identical scale; value axes start at zero; use scaling/outlier indicators rather than rescaling.", "source": "https://github.com/bino-bi/bino-cli/blob/main/claude-plugin/skills/bino-ibcs/references/ibcs-standard.md", "quote": "Axes start at zero (CH 1.1); identical scale per unit (CH 4.1)" },
+    { "rule": "Highlight key values with (blue) ellipses and numbered circled comment markers that link to explanatory notes.", "source": "https://accid.org/wp-content/uploads/2021/12/HOWTOI1-1.pdf", "quote": "Figures 20/23: circled numbers ①② on columns with numbered notes at right/bottom; ellipse around '88%'" },
+    { "rule": "All dimensions (bar widths, gaps, distances) scale with the chosen font size.", "source": "https://accid.org/wp-content/uploads/2021/12/HOWTOI1-1.pdf", "quote": "our recommendation to scale all lengths, widths, areas, and distances relative to the selected font size" },
+    { "rule": "No frames, shadows, coloured backgrounds, decorative colours or fonts.", "source": "https://github.com/bino-bi/bino-cli/blob/main/claude-plugin/skills/bino-ibcs/references/ibcs-standard.md", "quote": "avoid frames, shades, pseudo-3D, decorative colours & fonts" },
+    { "rule": "A thin vertical line separates actual months from forecast months in time-series charts.", "source": "https://accid.org/wp-content/uploads/2021/12/HOWTOI1-1.pdf", "quote": "Figure 20: vertical rule between Sep (AC) and Oct–Dec (FC, hatched)" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/ibcs/fig20-time-series-variances.jpg", "url": "https://accid.org/wp-content/uploads/2021/12/HOWTOI1-1.pdf", "describes": "Figure 20 (greyscale print). Two-line bold message at top-left above a horizontal rule; then 'Alpha Tools Corporation' / bold 'Contribution margin' + 'in mUSD' / '2019 PY, AC and FC'. Three stacked tiers sharing the Jan–Dec axis: top ΔPY% pins (thin stems with square heads, signed labels +11, -9…); middle ΔPY absolute variance floating columns (waterfall-like, signed labels); bottom main chart with light-grey PY columns offset behind dark AC columns, Oct–Dec hatched FC columns, value labels above every column, no y-axis or gridlines, a vertical line separating Sep from Oct. A separate year-total stack at right (AC 122 + FC 48 hatched = 170) with ellipse-circled +82. Circled numbered comments ①② with explanatory notes at bottom-right." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/ibcs/fig23-structure-variances.jpg", "url": "https://accid.org/wp-content/uploads/2021/12/HOWTOI1-1.pdf", "describes": "Figure 23 a/b: horizontal bar charts for 18 department stores (structure on vertical axis). Message line + 3-line title ('Gamma Department Stores Germany, frozen food' / bold 'Net sales' in kUSD / '2019'). Dark AC bars with outlined PL bars offset above/behind; value labels at bar ends; separate ΔPL tier (grey-filled variance bars from a vertical baseline, signed labels) and ΔPL% pin tier (thin stems with square heads); thin horizontal guide lines across tiers; 'Others' row and bold total row 'Germany 1 844 (100%)' below a rule; ellipse highlighting '88%'; circled numbered comments with notes at the bottom." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/ibcs/fig04-columns.jpg", "url": "https://accid.org/wp-content/uploads/2021/12/HOWTOI1-1.pdf", "describes": "Figure 4 basic column notation: bold 'Nettoumsatz' + 'in mEUR' / '2019' title top-left; Q1–Q4 on a solid baseline; dark solid IST (actual) columns with outlined PL columns offset behind-left; Q4 forecast column hatched with label 'FC'; scenario labels 'IST' and 'PL' written to the left of the first column; value labels above columns; thin vertical separator before Q4; no axis, no gridlines, light frame only from the figure crop." }
+  ]
+}

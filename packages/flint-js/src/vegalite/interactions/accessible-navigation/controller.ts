@@ -1,0 +1,306 @@
+import type { AccessibleElementDescription } from '../../../interactive/language/events';
+import { createFloatingPanel } from '../../../interactive/floating-panel';
+import type { AccessibleNavigationSettings } from '../../../interactive/triggers';
+import { clientRectToLayoutRect, rendererElement, type RendererCoordinateSpace } from '../hit-adapter';
+import {
+    AccessibleNavigator,
+    accessibleCommandForKey,
+    describeAccessibleNode,
+    type AccessibleNode,
+} from './model';
+
+export interface AccessibleNavigationControllerOptions {
+    container: HTMLElement;
+    settings: AccessibleNavigationSettings;
+    buildTree(): AccessibleNode;
+    coordinateSpace(): RendererCoordinateSpace;
+    containerLayoutSize(): { width: number; height: number };
+    /** The reader focused an element: emphasise its data and report it. */
+    present(node: AccessibleNode, description: AccessibleElementDescription): void;
+    /** The reader left the chart, or stepped back to it as a whole. */
+    clear(): void;
+    /**
+     * Space or Enter on a mark, legend entry, or axis label: what a click would do. False when
+     * nothing listens; otherwise true, or a promise that settles once the chart has re-rendered.
+     */
+    activate(node: AccessibleNode): boolean | Promise<boolean>;
+}
+
+export interface AccessibleNavigationController {
+    /** The element the reader is on. */
+    current(): AccessibleNode;
+    /** Rebuild after the chart re-rendered, keeping the reader's place. */
+    refresh(): void;
+    destroy(): void;
+}
+
+const FOCUS_COLOR = '#0b57d0';
+
+const VISUALLY_HIDDEN: Partial<CSSStyleDeclaration> = {
+    position: 'absolute', width: '1px', height: '1px', margin: '-1px', padding: '0', border: '0',
+    overflow: 'hidden', clip: 'rect(0 0 0 0)', clipPath: 'inset(50%)', whiteSpace: 'nowrap',
+};
+
+/**
+ * One tab stop into the chart. The focused element is a transparent proxy laid
+ * over the rendered element: it carries the announcement as its accessible name,
+ * draws the focus ring, and receives the keys. Each move focuses a fresh proxy,
+ * so a screen reader speaks the new element as a focus change.
+ */
+export function mountAccessibleNavigation(options: AccessibleNavigationControllerOptions): AccessibleNavigationController {
+    const { container, settings } = options;
+    const document = container.ownerDocument;
+    const navigator = new AccessibleNavigator(options.buildTree);
+    const layer = document.createElement('div');
+    const caption = document.createElement('div');
+    const live = document.createElement('div');
+    layer.dataset.flintAccessibleNavigation = '';
+    layer.setAttribute('role', 'application');
+    layer.setAttribute('aria-roledescription', 'interactive chart');
+    Object.assign(layer.style, {
+        position: 'absolute', inset: '0', zIndex: '6', pointerEvents: 'none', overflow: 'visible',
+    });
+    caption.dataset.flintAccessibleCaption = '';
+    caption.setAttribute('aria-hidden', 'true');
+    Object.assign(caption.style, {
+        position: 'absolute', display: 'none', maxWidth: '280px', padding: '6px 8px',
+        border: '1px solid #c7ccd1', borderRadius: '4px', background: 'rgba(255,255,255,0.97)', color: '#1f2328',
+        font: '12px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif', boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
+        pointerEvents: 'none', zIndex: '7', boxSizing: 'border-box',
+    });
+    live.dataset.flintAccessibleLive = '';
+    live.setAttribute('role', 'status');
+    live.setAttribute('aria-live', 'polite');
+    Object.assign(live.style, VISUALLY_HIDDEN);
+    layer.append(live);
+    if (getComputedStyle(container).position === 'static') container.style.position = 'relative';
+    container.append(layer);
+
+    let proxy: HTMLElement | undefined;
+    let active = false;
+    let activation = 0;
+    let destroyed = false;
+    const floatingCaption = createFloatingPanel({
+        element: caption,
+        container,
+        anchor: () => proxy?.getBoundingClientRect() ?? container.getBoundingClientRect(),
+        maxWidth: 280,
+    });
+    caption.style.pointerEvents = 'auto';
+    caption.addEventListener('pointerdown', (event) => event.preventDefault());
+
+    const layoutRect = (node: AccessibleNode): { left: number; top: number; width: number; height: number } | undefined => {
+        const bounds = node.bounds;
+        if (!bounds) return undefined;
+        const space = options.coordinateSpace();
+        const renderer = rendererElement(container);
+        if (!renderer || space.logicalWidth <= 0 || space.logicalHeight <= 0) return undefined;
+        const containerRect = container.getBoundingClientRect();
+        const rendererLayout = clientRectToLayoutRect(renderer.getBoundingClientRect(), containerRect, options.containerLayoutSize());
+        const scaleX = rendererLayout.width / space.logicalWidth;
+        const scaleY = rendererLayout.height / space.logicalHeight;
+        const pad = node.kind === 'chart' ? 0 : 3;
+        const left = rendererLayout.left + (bounds.x1 + space.originX) * scaleX - pad;
+        const top = rendererLayout.top + (bounds.y1 + space.originY) * scaleY - pad;
+        const width = Math.max(8, (bounds.x2 - bounds.x1) * scaleX + pad * 2);
+        const height = Math.max(8, (bounds.y2 - bounds.y1) * scaleY + pad * 2);
+        if (node.kind !== 'chart') return { left, top, width, height };
+        // The chart itself is framed by its renderer.
+        return { left: rendererLayout.left, top: rendererLayout.top, width: rendererLayout.width, height: rendererLayout.height };
+    };
+
+    const styleProxy = (element: HTMLElement, node: AccessibleNode): void => {
+        const rect = layoutRect(node);
+        const round = node.shape === 'point';
+        Object.assign(element.style, {
+            position: 'absolute', boxSizing: 'border-box', pointerEvents: 'none', outline: 'none',
+            left: `${rect?.left ?? 0}px`, top: `${rect?.top ?? 0}px`,
+            width: `${round && rect ? Math.max(rect.width, 14) : rect?.width ?? 0}px`,
+            height: `${round && rect ? Math.max(rect.height, 14) : rect?.height ?? 0}px`,
+            borderRadius: round ? '50%' : '4px',
+            border: active && node.kind !== 'chart' ? `2px solid ${FOCUS_COLOR}` : '2px solid transparent',
+            boxShadow: active
+                ? node.kind === 'chart'
+                    ? `inset 0 0 0 2px ${FOCUS_COLOR}`
+                    : '0 0 0 2px rgba(255,255,255,0.95), 0 0 0 4px rgba(11,87,208,0.35)'
+                : 'none',
+        });
+        if (round && rect) {
+            // Keep a point's ring centred when it grows to its minimum size.
+            const width = Math.max(rect.width, 14);
+            const height = Math.max(rect.height, 14);
+            element.style.left = `${rect.left + rect.width / 2 - width / 2}px`;
+            element.style.top = `${rect.top + rect.height / 2 - height / 2}px`;
+        }
+    };
+
+    const renderCaption = (node: AccessibleNode, description: AccessibleElementDescription): void => {
+        if (!settings.caption || !active) {
+            floatingCaption.hide();
+            return;
+        }
+        const heading = document.createElement('div');
+        const body = document.createElement('div');
+        heading.style.fontWeight = '600';
+        heading.textContent = node.kind === 'chart'
+            ? 'Chart'
+            : `${description.type}${description.position && description.position.count > 1
+                ? ` ${description.position.index} of ${description.position.count}` : ''}`;
+        body.textContent = node.kind === 'chart' ? description.text : description.content;
+        const hint = document.createElement('div');
+        Object.assign(hint.style, { color: '#59636e', marginTop: '2px', fontSize: '11px' });
+        hint.textContent = [
+            node.parent ? 'Tab: next' : '',
+            'Arrows: move',
+            node.children.length > 0 ? `Enter: ${node.children.length} inside` : '',
+            'Esc: back',
+            'H: help',
+        ].filter(Boolean).join(' · ');
+        caption.replaceChildren(heading, body, hint);
+        floatingCaption.show();
+    };
+
+    const announce = (message: string): void => {
+        // A repeated message must still change the region's text to be spoken again.
+        live.textContent = live.textContent === message ? `${message}\u00a0` : message;
+    };
+
+    const reveal = (node: AccessibleNode, description: AccessibleElementDescription): void => {
+        if (!active) return;
+        renderCaption(node, description);
+        if (node.kind === 'chart') options.clear();
+        else options.present(node, description);
+    };
+
+    const show = (node: AccessibleNode, focusElement: boolean): void => {
+        const description = describeAccessibleNode(node);
+        layer.setAttribute('aria-label', describeAccessibleNode(navigator.root).text);
+        const next = document.createElement('div');
+        next.tabIndex = 0;
+        next.dataset.flintAccessibleFocus = node.kind;
+        next.setAttribute('role', 'img');
+        next.setAttribute('aria-label', description.text);
+        styleProxy(next, node);
+        const previous = proxy;
+        layer.insertBefore(next, live);
+        proxy = next;
+        if (focusElement) next.focus({ preventScroll: true });
+        previous?.remove();
+        reveal(node, description);
+    };
+
+    /** Bring the focused proxy up to date without replacing it, so nothing is spoken twice. */
+    const update = (node: AccessibleNode): AccessibleElementDescription => {
+        const description = describeAccessibleNode(node);
+        layer.setAttribute('aria-label', describeAccessibleNode(navigator.root).text);
+        if (proxy) {
+            proxy.dataset.flintAccessibleFocus = node.kind;
+            proxy.setAttribute('aria-label', description.text);
+            styleProxy(proxy, node);
+        }
+        return description;
+    };
+
+    const setActive = (value: boolean): void => {
+        if (!value) activation += 1;
+        if (active === value) return;
+        active = value;
+        if (proxy) styleProxy(proxy, navigator.current);
+        if (!active) {
+            floatingCaption.hide();
+            options.clear();
+        }
+    };
+
+    const onFocusIn = (event: FocusEvent): void => {
+        if (event.target !== proxy || active) return;
+        // Tabbing in lands on the existing proxy: refresh it in place rather than
+        // moving focus again, which would make a screen reader announce twice.
+        navigator.refresh();
+        setActive(true);
+        reveal(navigator.current, update(navigator.current));
+    };
+    const activate = async (node: AccessibleNode): Promise<void> => {
+        const ticket = ++activation;
+        const type = describeAccessibleNode(node).type.toLowerCase();
+        const isCurrent = (): boolean => !destroyed && active && ticket === activation
+            && navigator.current.id === node.id;
+        try {
+            const activated = await options.activate(node);
+            if (!isCurrent()) return;
+            // The click may have hidden a series or changed a selection: read the element as it is now.
+            navigator.refresh();
+            const current = navigator.current;
+            const description = update(current);
+            renderCaption(current, description);
+            announce(!activated ? description.text
+                : current.id === node.id ? `Activated. ${description.content.replace(/([^.!?])$/, '$1.')}`
+                : `Activated ${type}.`);
+        } catch (error) {
+            console.error('Flint accessible-navigation activation failed:', error);
+            if (isCurrent()) announce('Could not activate this element.');
+        }
+    };
+    const onFocusOut = (event: FocusEvent): void => {
+        if (event.relatedTarget instanceof Node && layer.contains(event.relatedTarget)) return;
+        setActive(false);
+        // Coming back starts at the chart summary, behind the Enter gate, like the first visit.
+        const root = navigator.root;
+        if (navigator.current !== root && navigator.focus(root.id)) update(root);
+    };
+    const onKeyDown = (event: KeyboardEvent): void => {
+        const command = accessibleCommandForKey(event);
+        if (!command) return;
+        activation += 1;
+        navigator.refresh();
+        const move = navigator.run(command);
+        // Tab never traps: on the chart itself or past either end of a level, focus moves on.
+        if (event.key === 'Tab' && !move.moved) return;
+        if (move.exited) {
+            // Escape on the chart itself leaves the walk; other presets may still reset on it.
+            setActive(false);
+            announce('Left chart navigation. Press Tab to move on, or an arrow key to resume.');
+            return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        const wasActive = active;
+        if (!active) setActive(true);
+        if (move.moved) {
+            live.textContent = '';
+            show(move.node, true);
+        } else if (move.activate) {
+            void activate(move.node);
+        } else {
+            // A key that moves nowhere still restores the ring and caption after an exit.
+            if (!wasActive) show(move.node, true);
+            if (move.message) announce(move.message);
+        }
+    };
+    layer.addEventListener('focusin', onFocusIn);
+    layer.addEventListener('focusout', onFocusOut);
+    layer.addEventListener('keydown', onKeyDown);
+    show(navigator.current, false);
+
+    return {
+        current: () => navigator.current,
+        refresh() {
+            if (destroyed) return;
+            navigator.refresh();
+            if (!proxy) return;
+            const node = navigator.current;
+            const description = update(node);
+            if (active) renderCaption(node, description);
+        },
+        destroy() {
+            destroyed = true;
+            activation += 1;
+            proxy = undefined;
+            layer.removeEventListener('focusin', onFocusIn);
+            layer.removeEventListener('focusout', onFocusOut);
+            layer.removeEventListener('keydown', onKeyDown);
+            floatingCaption.destroy();
+            layer.remove();
+        },
+    };
+}

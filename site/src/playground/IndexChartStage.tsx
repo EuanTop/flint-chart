@@ -1,11 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { scaleLinear, scaleUtc } from 'd3';
+import { useCallback, useMemo, useState } from 'react';
 import type { ChartAssemblyInput } from 'flint-chart';
-import {
-  buildInteractiveChart,
-  type FlintInteractionEventDetail,
-  type InteractiveChartSurface,
-} from 'flint-chart/interactive';
+import type { ChartUpdate, FlintInteractionEventDetail } from 'flint-chart/interactive';
+import { FlintChart } from 'flint-chart/react';
 import { ScaleToFit } from '../components/ScaleToFit';
 import { INDEX_CHART_STOCKS } from '../data/index-chart-stocks';
 import {
@@ -17,28 +13,59 @@ import './index-chart-stage.css';
 
 const VIEW_WIDTH = 900;
 const VIEW_HEIGHT = 520;
-const FALLBACK_PLOT_BOUNDS = { left: 63, right: 760, top: 26, bottom: 474 };
 const DATA_UPDATE_ID = 'index-chart-data';
 const INSPECT_INTERACTION_ID = 'index-chart-inspect';
 const PREPARED = prepareIndexChartData(INDEX_CHART_STOCKS);
 const INITIAL_ACTIVE_DATE = new Date('2015-05-13T00:00:00Z');
 
-function xScaleForBounds(bounds: { left: number; right: number }) {
-  return scaleUtc()
-    .domain([PREPARED.minDate, PREPARED.maxDate])
-    .range([bounds.left, bounds.right])
-    .clamp(true);
+/** One ink per ticker, so a ticker keeps its colour whatever order the lines end in. */
+const TICKER_INKS: Record<string, string> = {
+  AAPL: '#1799c3', AMZN: '#c71e1d', GOOG: '#d57700', IBM: '#089f87', MSFT: '#15607a',
+};
+
+type IndexState = ReturnType<typeof deriveIndexChartState>;
+
+/** Returns in percentage points, so the axis and the names at the line ends read "190%". */
+function percentRows(state: IndexState) {
+  return state.indexedRows.map((row) => ({ ...row, IndexedReturn: Math.round(row.IndexedReturn * 1000) / 10 }));
+}
+const RETURN_DOMAIN = PREPARED.returnDomain.map((bound) => bound * 100) as [number, number];
+
+/**
+ * The reference date as Flint draws it: a rule across the plot at the date, and the date written
+ * beside it at the top. Both are projected through the chart's own scales, so they stay on the date.
+ */
+function referenceOverlays(date: Date): ChartUpdate['ops'] {
+  const at = [{ Date: date.toISOString(), Top: RETURN_DOMAIN[1], Label: formatMonth(date) }];
+  return [
+    {
+      op: 'set-overlay',
+      name: 'reference-rule',
+      value: { mark: 'rule', role: 'reference-date', data: { values: at }, encodings: { x: { field: 'Date' } }, style: { stroke: '#5f6b74', strokeWidth: 1 } },
+    },
+    {
+      op: 'set-overlay',
+      name: 'reference-label',
+      value: {
+        mark: 'text', role: 'reference-date-label', data: { values: at },
+        encodings: { x: { field: 'Date' }, y: { field: 'Top' }, text: { field: 'Label' } },
+        style: { fill: '#3a434a', fontSize: 11, fontWeight: 'bold', textAlign: 'start', dx: 5, dy: 10 },
+      },
+    },
+  ];
 }
 
-function chartInput(rows: ReturnType<typeof deriveIndexChartState>['indexedRows']): ChartAssemblyInput {
+function chartInput(rows: ReturnType<typeof percentRows>): ChartAssemblyInput {
   return {
     data: { values: rows },
     semantic_types: {
       Date: 'Date',
-      Symbol: 'Category',
+      Symbol: { semanticType: 'Category', colors: TICKER_INKS },
+      // The range every reference date can reach, fixed so the axis holds still as the lines re-index.
       IndexedReturn: {
         semanticType: 'Quantity',
-        intrinsicDomain: PREPARED.returnDomain,
+        unit: '%',
+        intrinsicDomain: RETURN_DOMAIN,
       },
     },
     field_display_names: {
@@ -47,19 +74,25 @@ function chartInput(rows: ReturnType<typeof deriveIndexChartState>['indexedRows'
     },
     theme_spec: {
       extends: 'datawrapper',
+      // Each line is named where it ends, with how far it ended from the reference date.
       legend: {
         show: 'always',
         placement: ['seriesEnd', 'right'],
+        endValue: true,
       },
     },
     options: { addTooltips: false },
     interaction_spec: {
-      interactions: [{ type: 'inspect-index', id: INSPECT_INTERACTION_ID, options: { axis: 'x', show: 'all' } }],
+      // Inspect only reads the date under the pointer; the reference rule, snapped to a trading day,
+      // is drawn as an overlay with its date beside it.
+      interactions: [{
+        type: 'inspect-index', id: INSPECT_INTERACTION_ID, options: { axis: 'x', show: 'all', displayValue: false, guide: false },
+      }],
     },
     chart_spec: {
       chartType: 'Line Chart',
       title: 'Index chart (Flint + D3 reference)',
-      subtitle: 'Flint redraws the return lines; the host overlay supplies the movable reference cursor.',
+      subtitle: 'Every line is re-indexed to the date under the pointer',
       encodings: { x: 'Date', y: 'IndexedReturn', color: 'Symbol' },
       baseSize: { width: VIEW_WIDTH, height: VIEW_HEIGHT },
       canvasSize: { width: VIEW_WIDTH, height: VIEW_HEIGHT },
@@ -71,40 +104,6 @@ function chartInput(rows: ReturnType<typeof deriveIndexChartState>['indexedRows'
   };
 }
 
-function measurePlotBounds(mount: HTMLDivElement) {
-  const frame = mount.querySelector<SVGGraphicsElement>('.mark-group.role-frame.root');
-  if (!frame) return FALLBACK_PLOT_BOUNDS;
-  const background = [...frame.children]
-    .find((child): child is SVGGraphicsElement => child instanceof SVGGraphicsElement
-      && child.classList.contains('background'));
-  const box = (background ?? frame).getBBox();
-  const lineBoxes = [...mount.querySelectorAll<SVGGraphicsElement>('g.mark-line.role-mark path')]
-    .map((path) => path.getBBox())
-    .filter((candidate) =>
-      Number.isFinite(candidate.x)
-      && Number.isFinite(candidate.width)
-      && candidate.width > 2);
-  const matrix = frame.getCTM();
-  const scaleX = matrix?.a || 1;
-  const scaleY = matrix?.d || scaleX;
-  const plotX = lineBoxes.length > 0 ? Math.min(...lineBoxes.map((candidate) => candidate.x)) : box.x;
-  const plotRight = lineBoxes.length > 0
-    ? Math.max(...lineBoxes.map((candidate) => candidate.x + candidate.width))
-    : box.x + box.width;
-  const left = ((matrix?.e ?? 0) / scaleX) + plotX;
-  const top = ((matrix?.f ?? 0) / scaleY) + box.y;
-  const width = plotRight - plotX;
-  if (!Number.isFinite(width) || !Number.isFinite(box.height) || width < 2 || box.height < 2) {
-    return FALLBACK_PLOT_BOUNDS;
-  }
-  return {
-    left,
-    right: left + width,
-    top,
-    bottom: top + box.height,
-  };
-}
-
 function formatMonth(date: Date) {
   return new Intl.DateTimeFormat('en', { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(date);
 }
@@ -113,109 +112,31 @@ export function IndexChartStage() {
   const initialState = useMemo(() => deriveIndexChartState(PREPARED, INITIAL_ACTIVE_DATE), []);
   const [activeDate, setActiveDate] = useState(initialState.activeDate);
   const derived = useMemo(() => deriveIndexChartState(PREPARED, activeDate), [activeDate]);
-  const [plotBounds, setPlotBounds] = useState(FALLBACK_PLOT_BOUNDS);
-  const [cursorX, setCursorX] = useState(() => xScaleForBounds(FALLBACK_PLOT_BOUNDS)(initialState.activeDate));
-  const mountRef = useRef<HTMLDivElement>(null);
-  const surfaceRef = useRef<InteractiveChartSurface | null>(null);
-  const plotWidth = Math.max(1, plotBounds.right - plotBounds.left);
-  const plotXScale = useMemo(() => (
-    scaleUtc()
-      .domain([PREPARED.minDate, PREPARED.maxDate])
-      .range([0, plotWidth])
-      .clamp(true)
-  ), [plotWidth]);
-  const plotBoundsRef = useRef(plotBounds);
-  const plotWidthRef = useRef(plotWidth);
-  const plotXScaleRef = useRef(plotXScale);
+  const spec = useMemo(() => chartInput(percentRows(initialState)), [initialState]);
 
-  useEffect(() => {
-    plotBoundsRef.current = plotBounds;
-    plotWidthRef.current = plotWidth;
-    plotXScaleRef.current = plotXScale;
-  }, [plotBounds, plotWidth, plotXScale]);
+  // Re-indexed rows replace the chart's data, and the reference rule moves to the date; rows are
+  // compared by reference, so this applies once per date.
+  const updates = useMemo<ChartUpdate[]>(() => [{
+    id: DATA_UPDATE_ID,
+    ops: [
+      { op: 'set-data', source: 'main', value: { rows: percentRows(derived) as unknown as Record<string, unknown>[] } },
+      ...referenceOverlays(derived.activeDate),
+    ],
+  }], [derived]);
 
-  const xScale = useMemo(() => xScaleForBounds(plotBounds), [plotBounds.left, plotBounds.right]);
+  // The inspect event carries the date under the pointer, read back through the chart's own x scale.
+  const handleInteraction = useCallback((detail: FlintInteractionEventDetail) => {
+    if (detail.interactionId !== INSPECT_INTERACTION_ID || detail.event.phase === 'cancel') return;
+    const x = detail.event.geometry.domain?.x;
+    if (!x || x.kind !== 'value') return;
+    const value = x.value;
+    const date = value instanceof Date ? value
+      : typeof value === 'number' || typeof value === 'string' ? new Date(value) : undefined;
+    if (!date || Number.isNaN(date.getTime())) return;
+    const nextDate = clampDateToPreparedDomain(PREPARED, date);
+    setActiveDate((current) => (current.getTime() === nextDate.getTime() ? current : nextDate));
+  }, []);
 
-  const yScale = useMemo(() => (
-    scaleLinear()
-      .domain(PREPARED.returnDomain)
-      .range([plotBounds.bottom, plotBounds.top])
-  ), [plotBounds.bottom, plotBounds.top]);
-
-  const activeX = xScale(derived.activeDate);
-  const ruleX = Number.isFinite(cursorX) ? cursorX : activeX;
-  const baselineY = yScale(0);
-
-  useEffect(() => {
-    const mount = mountRef.current;
-    if (!mount) return undefined;
-
-    const handleInteraction = (event: Event) => {
-      const detail = (event as CustomEvent<FlintInteractionEventDetail>).detail;
-      if (detail.interactionId !== INSPECT_INTERACTION_ID) return;
-      if (detail.event.phase === 'cancel') return;
-
-      const plot = detail.event.geometry.plot;
-      if (plot?.kind === 'point') {
-        const currentBounds = plotBoundsRef.current;
-        const currentWidth = plotWidthRef.current;
-        const currentScale = plotXScaleRef.current;
-        const localX = Math.max(0, Math.min(currentWidth, plot.point.x));
-        const nextCursorX = currentBounds.left + localX;
-        const nextDate = clampDateToPreparedDomain(PREPARED, currentScale.invert(localX));
-        setCursorX(Math.max(currentBounds.left, Math.min(currentBounds.right, nextCursorX)));
-        setActiveDate((current) => (current.getTime() === nextDate.getTime() ? current : nextDate));
-      }
-    };
-
-    mount.addEventListener('flint-interaction', handleInteraction);
-
-    const surface = buildInteractiveChart(mount, chartInput(initialState.indexedRows), {
-      backend: 'vegalite',
-      renderer: 'svg',
-      ariaLabel: 'Index chart with a movable reference date',
-      chartId: 'index-chart-stage',
-    });
-    surfaceRef.current = surface;
-    void surface.ready.then(() => {
-      if (!mount.isConnected) return;
-      setPlotBounds(measurePlotBounds(mount));
-    });
-
-    return () => {
-      mount.removeEventListener('flint-interaction', handleInteraction);
-      surfaceRef.current = null;
-      surface.destroy();
-    };
-  }, [initialState.indexedRows]);
-
-  useEffect(() => {
-    const surface = surfaceRef.current;
-    if (!surface) return undefined;
-    let cancelled = false;
-
-    void surface.ready.then(async () => {
-      if (cancelled) return;
-      await surface.applyUpdate({
-        id: DATA_UPDATE_ID,
-        ops: [{
-          op: 'set-data',
-          source: 'main',
-          value: { rows: derived.indexedRows as unknown as Record<string, unknown>[] },
-        }],
-      });
-      const mount = mountRef.current;
-      if (mount && mount.isConnected) setPlotBounds(measurePlotBounds(mount));
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [derived.indexedRows]);
-
-  useEffect(() => {
-    setCursorX(activeX);
-  }, [activeX]);
   return (
     <div className="ic-flint-dimpvis-shell index-chart-shell">
       <div className="ic-stage-meta">
@@ -225,34 +146,18 @@ export function IndexChartStage() {
         </span>
       </div>
       <div className="ic-flint-dimpvis-panel">
-        <ScaleToFit height={540} minHeight={400} adaptiveHeight padding={8}>
-          <div className="index-chart-stack">
-            <div ref={mountRef} className="ic-flint-dimpvis-mount index-chart-mount" />
-            <svg
-              className="index-chart-overlay"
-              viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
-              aria-label="Reference cursor overlay"
-            >
-              <line
-                x1={plotBounds.left}
-                x2={plotBounds.right}
-                y1={baselineY}
-                y2={baselineY}
-                className="index-chart-baseline"
-              />
-              <g
-                className="index-chart-badge"
-                transform={`translate(${Math.max(plotBounds.left + 54, Math.min(plotBounds.right - 54, ruleX))}, ${plotBounds.top + 16})`}
-              >
-                <rect x={-50} y={-12} width={100} height={22} rx={11} />
-                <text y={4} textAnchor="middle">{formatMonth(derived.activeDate)}</text>
-              </g>
-            </svg>
+        <ScaleToFit height={540} adaptiveHeight padding={8}>
+          <div className="ic-flint-dimpvis-mount index-chart-mount">
+            <FlintChart
+              spec={spec}
+              updates={updates}
+              renderer="svg"
+              ariaLabel="Index chart with a movable reference date"
+              chartId="index-chart-stage"
+              onInteraction={handleInteraction}
+            />
           </div>
         </ScaleToFit>
-      </div>
-      <div className="index-chart-footer">
-        <span className="ic-pill" data-active="true">Reference: {formatMonth(derived.activeDate)}</span>
       </div>
     </div>
   );

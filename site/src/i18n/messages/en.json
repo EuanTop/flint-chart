@@ -4,6 +4,10 @@
     "mcp": "MCP Server",
     "themes": "Themes",
     "gallery": "Gallery",
+    "chartGallery": "Chart Gallery",
+    "interactionGallery": "Interaction Presets",
+    "advancedInteractions": "Advanced Interactions",
+    "interactions": "Interactions",
     "documentation": "Documentation",
     "playgrounds": "Playgrounds",
     "editor": "Online Editor",
@@ -24,22 +28,32 @@
   },
   "themeLab": {
     "title": "Theme Lab",
-    "lead": "Experiment and refine your theme. Turn your design into a reusable spec and share it with everyone.",
+    "lead": "A theme in Flint is a ThemeSpec: one formal JSON spec that defines how the Flint compiler customizes the appearance of all charts under this theme. You can easily create your own theme with an agent from a brand guide or a website, then tweak and preview it here. We have some example themes below for reference.",
     "steps": {
-      "generate": "Copy the prompt to your agent with reference materials, such as websites, slide decks, or brand guidelines, to generate a theme.",
-      "preview": "Tweak and preview it in the playground below.",
-      "shareReady": "Ready to share?",
-      "shareLink": "Share your design",
-      "shareSuffix": "."
+      "shareTitle": "Share",
+      "previewTitle": "Tweak",
+      "generateTitle": "Generate",
+      "generate": "Copy the prompt to your agent, with your references — a website, a slide deck, brand guidelines.",
+      "preview": "Paste the ThemeSpec into the editor, or start from any theme, and watch every chart update.",
+      "shareReady": "Happy with it?",
+      "shareLink": "Share your design"
     },
-    "docsPointer": "See <docsLink>Doc: Using themes</docsLink> for guidance.",
-    "copyPrompt": "Copy prompt",
+    "viewPrompt": "See the prompt",
+    "hidePrompt": "Hide the prompt",
+    "housesCredit": "Many style-guide themes are adapted from <site>datavizstyleguide.com</site>, thank you!",
+    "copyPromptCta": "Copy prompt",
     "copied": "Copied",
     "prompt": "Help me create a custom ThemeSpec for Flint Chart.\n\nBefore you begin, read and follow the Flint ThemeSpec authoring skill:\nhttps://raw.githubusercontent.com/microsoft/flint-chart/main/agent-skills/flint-theme-author/SKILL.md\n\nIf the raw URL is unavailable, open the GitHub page instead:\nhttps://github.com/microsoft/flint-chart/blob/main/agent-skills/flint-theme-author/SKILL.md\n\nUse the reference materials I provide, ask only for important missing design decisions, and follow the skill's schema, semantic boundaries, accessibility guidance, output contract, and validation checklist. Return one complete ThemeSpec JSON object that I can paste directly into Flint Theme Lab.",
-    "demoAria": "Demo themes",
-    "inspiration": "Need inspiration?",
+    "housesAria": "Theme presets and style-guide houses",
+    "about": {
+      "google-material": "Clean product UI: a purple-led Material palette, light gridlines, roomy type and soft rounded marks.",
+      "microsoft-fluent": "Fluent’s calm enterprise look: a blue-first palette, Segoe type, quiet axes and compact legends for dashboards.",
+      "peoples-daily": "An editorial newspaper style: a red masthead rule, serif headlines, restrained inks and source lines at the foot."
+    },
+    "customDraft": "Your draft",
+    "playTitle": "Try it",
     "demos": {
-        "google-material": "Google Material",
+      "google-material": "Google Material",
       "microsoft-fluent": "Microsoft Fluent",
       "peoples-daily": "People's Daily"
     },
@@ -82,11 +96,28 @@
     },
     "groups": {
       "quick-start": "Quick start",
+      "interaction": "Interaction",
       "introduction": "Language design",
       "reference": "Chart guide",
       "extending": "Development"
     },
     "entries": {
+      "interaction-spec": {
+        "title": "Declarative spec",
+        "description": "Configure reusable interaction presets in interaction_spec without writing handlers."
+      },
+      "interaction-api": {
+        "title": "Programming API",
+        "description": "Use preset factories or create bespoke handlers with the functional interaction API."
+      },
+      "interaction-introduction": {
+        "title": "Introduction",
+        "description": "Understand how presets, semantic events, and chart updates connect charts with your application."
+      },
+      "interaction-components": {
+        "title": "Components",
+        "description": "Listen to semantic events and use the chart update API to connect application state and controls."
+      },
       "getting-started": {
         "title": "Getting started",
         "description": "Install Flint, then make your first chart from a simple DataSpec and ChartSpec."
@@ -199,25 +230,40 @@
     }
   },
   "themes": {
-    "title": "Explore themes",
-    "concept": "A Flint theme formally defines a coherent visual identity for an entire chart library.",
+    "title": "Visual Themes",
+    "concept": "In Flint, a visual theme specification controls color, typography, spacing, and the placement of axes, legends, labels, and annotations. It defines a reusable rendering policy across chart types, so a line chart, a heatmap, and a bar chart can share a consistent visual style without sharing the same layout. The compiler dynamically adapts that policy to each chart’s data, semantic structure, and canvas size, preserving the theme’s visual identity while accommodating what the chart needs to show.",
     "principles": {
       "layout": {
-        "title": "Layout",
-        "body": "Controls spacing, density, and the placement of axes, legends, labels, and annotations."
+        "title": "Layout policy",
+        "body": "<code>layout</code>, <code>facets</code>, <code>labels</code>, and <code>legend</code> specify density, spacing, and placement rules rather than fixed coordinates."
       },
       "semantics": {
-        "title": "Semantic presentation",
-        "body": "Uses field roles, order, groups, and hierarchy to determine contrast, emphasis, and series identity."
+        "title": "Semantic rules",
+        "body": "<code>variants</code> adapt presentation to semantic conditions, such as a chart’s role, density, or shape. Rules can target the measure or category rather than a fixed physical axis."
       },
       "identity": {
-        "title": "Visual system",
-        "body": "Defines typography, color, surfaces, line weight, corners, and mark shapes as one recognizable system."
+        "title": "Visual identity",
+        "body": "<code>ink</code>, <code>type</code>, <code>structure</code>, and <code>marks</code> define colors, typography, axes, grids, and mark treatments as a consistent visual system."
       }
     },
+    "howItWorks": {
+      "title": "How It Works",
+      "intro": "A theme specifies a chart’s visual identity and presentation behavior: colors, typography, mark styling, spacing, and where axes, legends, labels, and annotations can appear. These rules are grouped into specification blocks:",
+      "applyTitle": "Applying a Theme",
+      "apply": "Pass a preset ID as <code>theme_spec</code> alongside <code>chart_spec</code> in the compiler input. For example, add the following to your chart input to select the Economist theme. Use the same preset ID across chart inputs to keep their visual style consistent.",
+      "mcpReuse": "In Flint-MCP, you can ask the agent to create a new theme, then ask it to use that theme for subsequent charts in the same conversation. The agent can reuse the generated <code>theme_spec</code> in each chart request, so you only need to describe the style once.",
+      "customizeTitle": "Customizing a Theme",
+      "customize": "To customize colors, typography, or layout, provide a custom theme object or extend a preset with overrides. See the <docs>Visual Themes documentation</docs> for available fields, inheritance rules, and examples, or use <lab>Theme Lab</lab> to create and preview a new theme.",
+      "compiler": "The compiler resolves these policies against each chart’s fields, semantic roles, data shape, and available space. It adapts layout, labels, legends, and visual emphasis rather than copying fixed coordinates. Themes change presentation, not the fields, aggregation, filtering, or sorting that define the chart’s meaning.",
+      "availability": "Theme specifications currently apply to Vega-Lite output."
+    },
     "generalization": "The compiler applies the theme’s layout behavior, semantic presentation, and visual identity across chart types, data shapes, and canvas sizes.",
-    "docsPointer": "See <docs>Using themes</docs> for how to apply and customize themes.",
-    "themeLabCta": "Feeling creative? Create a theme in <lab>Theme Lab</lab>",
+    "housesLabel": "Style-guide houses",
+    "presetsLabel": "Presets",
+    "defaultAbout": "Flint’s own defaults: what a chart looks like with no theme at all.",
+    "housesCredit": "Many style-guide themes are adapted from <site>datavizstyleguide.com</site>, thank you!",
+    "docsPointer": "Documentation: Visual Themes",
+    "themeLabCta": "Feeling Creative? Create a new theme in the lab!",
     "flintDefault": "Flint default",
     "switchAria": "Theme",
     "layoutToggle": {
@@ -235,12 +281,16 @@
       "economist": "Compact print graphics with flat headlines, explanatory decks, and units repeated along the axis.",
       "nature": "Journal figures with compact panels, explicit units, and statistics placed beside fitted lines.",
       "mckinsey": "Presentation-ready charts with broad bands, prominent values, and takeaway-led headlines.",
-      "datawrapper": "Clean web graphics with narrow layouts, plain typography, and restrained rules.",
+      "datawrapper": "Clean web graphics: Roboto, a bold headline, values printed on the bars instead of a ruler, and light solid gridlines.",
       "powerbi": "Dark dashboard tiles with compact layouts, legends on the right, and emphasis on the latest value.",
       "powerbi-light": "Light dashboard tiles with a white canvas, fine gridlines, and legends on the right.",
       "swiss": "International Typographic Style with a visible grid, strong black structure, and a single red accent.",
       "pop": "A pop-art remix of Swiss with electric process colors, heavy black structure, and punchy display type.",
-      "cartoon": "Playful charts with warm paper, rounded type, bold outlines, bright colors, and a soft dashed grid."
+      "cartoon": "Playful charts with warm paper, rounded type, bold outlines, bright colors, and a soft dashed grid.",
+      "apple": "Quiet app-interface charts where the data leads: light labels, a sparse grid, a trailing value axis, a symbol beside every color, and rounded bars.",
+      "de-stijl": "De Stijl: red, yellow and blue planes bounded by heavy black lines on off-white, only horizontals and verticals, and the title under the picture like a museum label.",
+      "bbc": "BBC News graphics: a large bold headline, light horizontal gridlines with no axis lines, a heavy rule at zero, and a footer rule closing every chart.",
+      "material": "Material Design 3: a purple-led tonal palette, Google Sans and Roboto type with a medium-weight title, light gridlines with no axis lines, and bars rounded to the M3 shape scale."
     },
     "cases": {
       "keeling": {
@@ -344,19 +394,21 @@
   },
   "landing": {
     "heroTitle": "Flint: A Visualization Language for the AI Era",
-    "attribution": "A Microsoft Research project",
-    "installNpm": "Install Flint with <npmLink>npm</npmLink> (TypeScript / JavaScript).",
-    "installMcp": "For agents, use the <mcpLink>MCP server</mcpLink>; see the <skillLink>Agent Skill</skillLink> for standalone guidance.",
-    "installGallery": "Explore {{chartTypes}} chart types and {{examples}} examples in the <galleryLink>gallery</galleryLink>, or compare <themesLink>visual themes</themesLink>.",
-    "themeLead": "Flint employs a formal theme specification so designers can define a visual identity once and apply it consistently across an entire chart library.",
-    "installThemeLab": "Create a custom visual system in <themeLabLink>Theme Lab</themeLabLink>.",
     "ctaThemes": "Visual Themes",
+    "ctaInteractions": "Interactions",
     "ctaGallery": "Explore Gallery",
     "ctaMcp": "Get MCP Server",
     "ctaGithub": "Visit GitHub",
     "ctaDocs": "Read the docs",
     "news": {
       "title": "Updates",
+      "video": "Video",
+      "watchVideo": "Watch the Flint 1.0 demo video on YouTube",
+      "release100": {
+        "date": "October 19, 2026",
+        "dateTime": "2026-10-19",
+        "text": "Flint 1.0 introduces Flint Interactive: interaction presets, semantic events, and an interaction API that connects charts to your app."
+      },
       "release051": {
         "date": "August 12, 2026",
         "dateTime": "2026-08-12",
@@ -389,65 +441,86 @@
       }
     },
     "howItWorks": "How it works?",
-    "howItWorksBody": "Flint starts with a compact spec: the data, semantic types, and the chart spec. From there, the compiler produces a complete backend-native spec (shown here in Vega-Lite) filling with the necessary low-level details and renders a good-looking chart.",
+    "howItWorksBody": "A Flint spec consists of the data, semantic types, the chart spec, and optional theme and interaction specs. Instead of relying on complex user-side logic to glue them together, the compiler does the heavy lifting: it resolves each part against the others and composes a complete backend-native spec (shown here in Vega-Lite), filling in the necessary low-level details, and renders a good-looking, interactive chart.",
     "overviewAlt": "Flint workflow: an agent infers a dataSpec from a raw table, a short chartSpec is written, and Flint compiles it into a faceted line chart, then a grouped bar, waterfall, heatmap, and sunburst as the spec is edited.",
     "leadBefore": "Flint is a visualization intermediate language that lets",
-    "leadHighlight1": "AI agents reliably create expressive, good-looking charts from simple, human-editable chart specs",
-    "leadMiddle": ". Instead of requiring verbose low-level parameters such as scales, axes, spacing, and layout, the Flint compiler derives optimized chart settings from the data, semantic types, chart type, and encodings.",
-    "leadHighlight2": "Flint supports {{chartTypes}} chart types across {{backends}} rendering backends through one unified interface",
+    "leadHighlight1": "AI agents reliably create expressive, good-looking and interactive charts from simple, human-editable chart specs",
+    "leadStop": ". ",
+    "leadAvailability": "It is available as an <mcp>MCP server</mcp> for everyday use with your agent, and as an <npm>npm library</npm> for building interactive applications.",
+    "leadHighlight2": "Flint supports {{chartTypes}} chart types across {{backends}} rendering backends through one unified interface, with {{themes}} themes and {{presets}} interaction presets",
+    "leadAfter": "To create bespoke visualizations, you can design custom themes in the <themeLab>Theme Lab</themeLab> and build <advanced>advanced interactions</advanced> with the Flint API.",
     "backendRosterLabel": "Backends",
     "themeRosterLabel": "Themes",
+    "interactionRosterLabel": "Interactions",
     "themeRosterMore": "+ {{count}} more",
     "flintSpec": "Flint spec",
     "compiledChart": "Compiled chart",
     "backendAria": "Rendering backend",
     "prevExample": "Previous example",
     "nextExample": "Next example",
+    "applicationCode": "View the full code.",
+    "applicationNote": "The chart is specified above; its interactions are written with the <api>Flint interaction API</api>.",
     "exampleAria": "Example",
     "seeGallery": "See more in the gallery",
     "closingTitle": "Start building with Flint.",
     "closingBody": "Open source and ready to use. Start from GitHub or browse examples in the gallery.",
     "viewGithub": "View on GitHub",
-    "closingCollab": "Flint is built by <msr>Microsoft Research</msr> in collaboration with the <ideas>IDEAS Lab</ideas>, Renmin University of China.",
+    "contributors": "Contributors",
     "wechatTitle": "Join the Flint WeChat group",
     "wechatBody": "Scan the QR code to join the Flint user WeChat group and chat with other users.",
     "wechatAlt": "QR code for the Flint WeChat user group",
+    "discordTitle": "Join the Flint Discord",
+    "discordBody": "Ask questions, share your charts, and follow releases with Flint users everywhere.",
+    "discordCta": "Join Discord",
     "features": {
       "semantic": {
-        "title": "Specify with semantic types",
-        "body": "Flint uses semantic types to capture meanings of data fields (e.g., Rank, YearMonth, Delta, Temperature), and uses them to infer the low-level chart configuration like parsing, scale, axes, formatting and color schemes.",
-        "example": "For this heatmap of net new users gains by game and month, Flint determines the temporal value parser, axis formatting, and diverging color scheme and midpoint based on the semantic types of the fields."
+        "title": "Describe data with <hl>semantic types</hl>",
+        "body": "Data fields in Flint are described with semantic types (e.g., Rank, YearMonth, Delta, Temperature) and their intrinsic information, such as domains and units. The Flint compiler uses them to infer parsing, scales, axes, formatting, and colors."
       },
-      "layout": {
-        "title": "Automatic layout optimization",
-        "body": "Flint optimizes the chart layout based on an elastic layout model and banking principles. The compiler dynamically manages sizing, spacing, and arrangement so the chart nicely fits into the canvas.",
-        "example": "As the grouped bar chart number increases, Flint stretches the canvas and reduces the band width so the dense version still fits the canvas nicely, similar to how springs settle into an expandable container."
-      },
-      "adapt": {
-        "title": "Easy to generate and adapt",
-        "body": "Without fragile low-level parameters, Flint specs can be easily generated and adapted by users. Changing a chart design requires only switching the chart type and rebinding visual encodings, and the compiler cascades the new encoding choices to the low-level settings.",
-        "example": "The user can easily turn a faceted bar chart of the 2000 U.S. Census population distribution by gender and age into a pyramid chart by switching the chart type. The compiler handles the rest."
-      },
-      "backends": {
-        "title": "Render with different backends",
-        "body": "Flint supports {{chartTypes}} chart types across Vega-Lite, ECharts, Chart.js, and Plotly, with {{examples}} backend-specific examples in the gallery, and can emit native Excel charts through Office.js. Despite their different APIs and programming models, Flint hides them behind a unified interface.",
-        "example": "Switch backends to use their native strengths: ECharts for hierarchical sunbursts, Plotly for statistical and analytical traces, or Excel for editable charts embedded in a workbook."
+      "chart": {
+        "title": "Build charts with <hl>library-agnostic chart specs</hl>",
+        "body": "Charts are defined with high-level chart types and encodings. The compiler automatically optimizes the low-level settings based on the data's characteristics, for example as the data gets denser. The same spec renders across Vega-Lite, ECharts, Chart.js, and Plotly, or as native Excel charts."
       },
       "themes": {
-        "title": "Render with different themes",
-        "body": "A Flint theme is a formal specification that guides the layout algorithm, applies presentation rules by semantic role, and defines geometry, typography, and color as one visual system.",
-        "example": "When changing the visual theme from Economist to Swiss, the data and encodings remain fixed while spacing, structure, labels, marks, typography, and color adapt to reflect each theme’s visual language."
+        "title": "Unify the look with a <hl>theme spec</hl>",
+        "body": "Geometry, typography, and color are defined as reusable formal specs that apply across the whole library, independent of the data and chart type. Pick one of {{themes}} preset themes, or write your own for coherent branding."
+      },
+      "interactions": {
+        "title": "Add interactions with an <hl>interaction spec</hl>",
+        "body": "Flint provides {{presets}} interaction presets and a programming API for building interactive charts into applications. The compiler automatically resolves user interaction events into semantic information, so your app only needs to answer with high-level chart updates.",
+        "demoLabel": "Live · try it"
       }
     },
     "examples": {
+      "originTable": { "label": "Cars by origin" },
+      "companionTabs": { "label": "Company we keep" },
+      "countryTable": { "label": "Table to chart" },
+      "ridgeline": {
+        "label": "Ridgeline",
+        "title": "How each month’s temperatures spread",
+        "subtitle": "Daily readings, one ridge per month"
+      },
+      "linkedBrush": {
+        "label": "Linked brush",
+        "title": "Where each country went in 55 years",
+        "subtitle": "Life expectancy against GDP per capita, 1952 and 2007; brush either year"
+      },
+      "inspect": {
+        "label": "Inspect",
+        "title": "Eggs swung while bread crept up",
+        "subtitle": "U.S. average price in USD, a dozen eggs and a pound of white bread (BLS)"
+      },
+      "drawIt": {
+        "label": "You draw it"
+      },
       "facetedLine": {
-        "label": "Faceted line chart",
+        "label": "Faceted line",
         "caption": "Monthly active users by region, laid out as small multiples over time.",
         "title": "Monthly active users by region",
         "subtitle": "Players per month in 2025, one panel per region, by platform"
       },
       "heatmap": {
-        "label": "Temperature heatmap",
+        "label": "Heatmap",
         "caption": "Monthly climate normals across four cities, shown as a compact table of values.",
         "title": "How seasons differ across four cities",
         "subtitle": "Average monthly temperature in °C; climate normals"
@@ -464,25 +537,28 @@
         "title": "Where the players are",
         "subtitle": "Monthly active users by region, then platform, then title"
       },
-      "donut": {
-        "label": "Donut chart",
-        "caption": "Film ratings as proportional slices, with an inner radius applied from the chart spec.",
-        "title": "Films by MPAA rating",
-        "subtitle": "Share of releases carrying each certificate"
-      },
       "regression": {
-        "label": "Regression scatter",
+        "label": "Regression",
         "caption": "Critic and audience scores with a fitted trend line to reveal their relationship.",
         "title": "Critics and audiences broadly agree",
         "subtitle": "IMDB rating against Rotten Tomatoes score, one point per film, with a fitted trend"
       },
-      "sortedBar": {
-        "label": "Sorted bar chart",
-        "caption": "Film genres ordered by count, from the most common to the least.",
-        "title": "Films by genre",
-        "subtitle": "Number of releases, most common to least"
+      "penguins": {
+        "label": "Lasso",
+        "caption": "Three penguin species; lasso a cluster or toggle a species in the legend.",
+        "title": "Three species, three clusters",
+        "subtitle": "Body mass against flipper length, 342 Palmer Station penguins"
+      },
+      "worldCup": { "label": "Click a team" },
+      "selectionChat": { "label": "Brush for the agent" },
+      "globe": { "label": "Turn the globe" },
+      "usMap": { "label": "Map and profile" },
+      "climatePhase": {
+        "label": "Climate phases",
+        "hint": "Click and drag a point along its trajectory to see how the other cities change with it."
       }
-    }
+    },
+    "exampleGroups": { "charts": "Charts", "interactions": "Interactions", "applications": "Applications" }
   },
   "mcp": {
     "heroTitle": "Use Flint as an MCP server for your agent",
@@ -491,10 +567,6 @@
     "leadAfter": "server and your agent can create interactive charts or author reusable visual themes. By default it opens an interactive Flint chart view; it can also return static artifacts and guide agents through a formal ThemeSpec.",
     "quickStart": "Quick start:",
     "quickStartBody": "paste this setup request into your agent and let it configure Flint for the current project. For manual setup, see",
-    "localSetupTitle": "Local server",
-    "localSetupBody": "Recommended if your client supports local MCP",
-    "remoteSetupTitle": "Remote server",
-    "remoteSetupBody": "Use if your client only supports remote MCP",
     "installConfigure": "install & configure",
     "orThe": "or the",
     "githubReadme": "GitHub README",
@@ -521,6 +593,7 @@
       "compile_chart": "Returns the backend-native spec JSON for Vega-Lite, ECharts, or Chart.js, along with assembly warnings.",
       "validate_chart": "Checks whether a spec is valid, reports warnings or errors, and returns the computed chart size.",
       "list_chart_types": "Lists chart types and encoding channels, optionally scoped to one backend.",
+      "list_interaction_presets": "Lists interaction presets: what each does, what it needs from the chart, and every option it accepts; scope it to one chart type or one preset.",
       "list_themes": "Lists shipped visual theme presets. Pass an id for guidance on using or extending that design language.",
       "agentSkill": "Bundled chart-authoring instructions for producing valid ChartAssemblyInput specs.",
       "themeSkill": "Bundled ThemeSpec instructions for translating a visual identity into a reusable formal specification.",
@@ -536,6 +609,115 @@
     },
     "chatTitle": "Agent chat",
     "copySpec": "Copy spec to chat",
-    "appTag": "MCP App"
+    "appTag": "MCP App",
+    "exp": {
+      "simple": {
+        "chartHeading": "An interactive chart, in a theme",
+        "chartAsk": "Show me how global temperatures have changed since 1880, in a newspaper style. Let me brush across the years.",
+        "chartReply": "Here's a live chart in a newspaper style. Drag across the years to select a period.",
+        "boardHeading": "A dashboard, in a theme",
+        "boardAsk": "Build a dashboard from the Gapminder data in the Economist theme, with the charts linked by continent.",
+        "boardReply": "Here's a board of four linked charts in the Economist theme. Click a continent in any of them to see it everywhere."
+      },
+      "chartPart": "Part 1",
+      "chartHeading": "One chart, start to finish",
+      "boardPart": "Part 2",
+      "boardHeading": "A whole dashboard, in the chat",
+      "chatTitle": "Agent chat",
+      "chart": {
+        "create": {
+          "label": "Create",
+          "title": "Ask, and a live chart appears",
+          "body": "Ask in words; a live chart opens in the chat.",
+          "ask": "Show me how global temperatures have changed since 1880.",
+          "reply": "Here's a live chart. You can adjust it on the card."
+        },
+        "interact": {
+          "label": "Interact",
+          "title": "Add an interaction",
+          "body": "Ask for a brush, and the chart responds.",
+          "ask": "Let me brush across the years.",
+          "reply": "Done. Drag across the years to select a period."
+        },
+        "theme": {
+          "label": "Theme",
+          "title": "Restyle it with a theme",
+          "body": "Shipped or custom; the reader can switch it too.",
+          "ask": "Make it look like a newspaper chart.",
+          "reply": "Switched to a newspaper style."
+        },
+        "select": {
+          "label": "Select",
+          "title": "Ask about your selection",
+          "body": "Brush a period, then ask about it.",
+          "ask": "I want to look at one stretch of this.",
+          "reply": "Drag across the years you mean, then ask.",
+          "followAsk": "Summarize my selection.",
+          "followReply": "You selected {{from}} to {{to}}. The temperature went from {{fromValue}} °C to {{toValue}} °C against the 1951–1980 average, a change of {{change}} °C. The warmest year in that stretch was {{warmest}}, at {{warmestValue}} °C."
+        },
+        "edit": {
+          "label": "Edit",
+          "title": "Ask the agent to change it",
+          "body": "Describe a change; the agent redraws and annotates it.",
+          "ask": "Show the last two years month by month as columns, and mark the warmest month.",
+          "reply": "Here are the last 24 months as columns, with the warmest month marked."
+        }
+      },
+      "board": {
+        "board": {
+          "label": "Board",
+          "title": "A linked dashboard in one ask",
+          "body": "Three charts, linked by continent from the start.",
+          "ask": "Build a dashboard from the Gapminder data, with the charts linked by continent.",
+          "reply": "Here's a board of three linked charts. Click a continent in any of them to see it everywhere."
+        },
+        "theme": {
+          "label": "Theme",
+          "title": "One theme for the whole board",
+          "body": "Every chart, heading and footer follows.",
+          "ask": "Restyle the board in the Cartoon theme.",
+          "reply": "Done. The whole board now uses the Cartoon theme."
+        },
+        "add": {
+          "label": "Add",
+          "title": "Add a chart",
+          "body": "Ask for another view; the board makes room.",
+          "ask": "Add a chart of population by continent.",
+          "reply": "Added it. The board is now two by two."
+        },
+        "table": {
+          "label": "Tables",
+          "title": "See the numbers behind the charts",
+          "body": "Add a table, or flip any chart to its table view.",
+          "ask": "Add a table comparing the continents, and show the years-gained chart as a table.",
+          "reply": "Added a continent table and switched the years-gained chart to its table view. Both follow the continent you pick."
+        },
+        "arrange": {
+          "label": "Arrange",
+          "title": "Arrange it, then share it",
+          "body": "Drag, resize, then copy it as an image.",
+          "ask": "Let me rearrange the board myself.",
+          "reply": "Layout mode is on. Drag a chart by its handle or resize it from an edge, then copy the board as an image."
+        }
+      }
+    },
+    "groups": {
+      "chart": {
+        "title": "Live charts",
+        "body": "Open an interactive chart card the reader can tweak, select on and theme."
+      },
+      "board": {
+        "title": "Boards",
+        "body": "Build, change and show dashboards of linked charts."
+      },
+      "static": {
+        "title": "Static output",
+        "body": "Return a PNG or SVG, a backend spec, or a validation report."
+      },
+      "skills": {
+        "title": "Discovery and skills",
+        "body": "List chart types, interactions and themes, and load the authoring skills."
+      }
+    }
   }
 }

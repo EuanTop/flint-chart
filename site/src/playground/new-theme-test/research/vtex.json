@@ -1,0 +1,116 @@
+{
+  "id": "vtex",
+  "org": "VTEX (VTEX Styleguide, experimental Charts)",
+  "urls": [
+    "https://styleguide.vtex.com/#/Components/%F0%9F%91%BB%20Experimental/Charts",
+    "https://github.com/vtex/styleguide",
+    "https://raw.githubusercontent.com/vtex/styleguide/master/docs/charts.md",
+    "https://raw.githubusercontent.com/vtex/styleguide/master/react/components/EXPERIMENTAL_Charts/commonProps.ts",
+    "https://raw.githubusercontent.com/vtex/styleguide/master/react/components/EXPERIMENTAL_Charts/helpers.ts",
+    "https://raw.githubusercontent.com/vtex/styleguide/master/react/components/EXPERIMENTAL_Charts/BarChart/constants.ts",
+    "https://raw.githubusercontent.com/vtex/styleguide/master/react/components/EXPERIMENTAL_Charts/BarChart/index.tsx",
+    "https://raw.githubusercontent.com/vtex/styleguide/master/react/components/EXPERIMENTAL_Charts/BarChart/README.md",
+    "https://raw.githubusercontent.com/vtex/styleguide/master/react/components/EXPERIMENTAL_Charts/LineChart/constants.ts",
+    "https://raw.githubusercontent.com/vtex/styleguide/master/react/components/EXPERIMENTAL_Charts/LineChart/index.tsx",
+    "https://raw.githubusercontent.com/vtex/styleguide/master/react/components/EXPERIMENTAL_Charts/LineChart/README.md",
+    "https://raw.githubusercontent.com/vtex/styleguide/master/react/components/EXPERIMENTAL_Charts/ScatterChart/constants.ts",
+    "https://raw.githubusercontent.com/vtex/styleguide/master/styleguide.config.js",
+    "https://raw.githubusercontent.com/vtex/vtex-tachyons/master/config.js"
+  ],
+  "access": "partial",
+  "accessNotes": "The live styleguide.vtex.com (and vtex.github.io/styleguide, which redirects to it) currently serves an old build without the Experimental/Charts section (checked in a browser; no recharts SVGs, nav lists only basic components), so no rendered chart images could be captured. All values come from the GitHub source of the experimental chart components (thin Recharts wrappers) and their README do/don't lists, plus VTEX Tachyons tokens for font and UI colours. Guidance is sparse; unspecified visual details fall back to Recharts defaults and are flagged as such.",
+  "summary": "Minimal, experimental React chart wrappers around Recharts for the VTEX admin (e-commerce back-office) UI. Default look is very bare: no axis lines, no tick marks, no gridlines, small tick labels, 4:3 responsive container, a fixed 5-colour palette starting with orange #EE7850 and teal #4CAABF, smooth monotone 3px lines without dots, and bars with 3px rounded top corners. Brief do/don't guidance: start bars at zero, don't rotate bar labels, max 4 lines, grids allowed but must not compete with data.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#EE7850", "#4CAABF", "#9F50B6", "#479A5E", "#0000FF"],
+    "categoricalNotes": "Fixed array 'colors' in commonProps.ts, assigned to line series in order (zipWith dataKeys/colors), so at most 5 coloured series. Single-series bar charts use colors[1] teal #4CAABF; scatter uses colors[0] orange #EE7850. README: avoid spaghetti charts - don't use more than 4 lines.",
+    "sequential": [],
+    "diverging": [],
+    "highlight": "#4CAABF",
+    "context": null,
+    "positive": "#8bc34a",
+    "negative": "#ff4c4c",
+    "background": "#ffffff",
+    "text": "#3f3f40",
+    "textSecondary": "#828282",
+    "gridline": null,
+    "axis": null,
+    "notes": "Tooltip label colour #828282 (tooltipProps.labelStyle). Positive/negative are VTEX Tachyons semantic background tokens success #8bc34a and danger #ff4c4c, not chart-specific. Other Tachyons tokens: action-primary #134cd8, emphasis #f71963, warning #ffb100, muted-1 #727273, muted-2 #979899, muted-3 #cacbcc, muted-4 #e3e4e6, muted-5 #f2f4f5, base--inverted #3f3f40. Gridline/axis colours are not set by VTEX (Recharts defaults apply when enabled)."
+  },
+  "typography": {
+    "family": "Fabriga",
+    "fallback": "-apple-system, BlinkMacSystemFont, avenir next, avenir, helvetica neue, helvetica, ubuntu, roboto, noto, segoe ui, arial, sans-serif",
+    "title": { "size": null, "weight": null, "align": null, "case": null, "color": null },
+    "subtitle": { "size": null, "weight": null, "style": null, "color": null },
+    "axisLabel": { "size": null, "color": null },
+    "axisTitle": { "size": null, "weight": null, "placement": "omitted (no axis titles in components)" },
+    "dataLabel": { "size": null, "weight": null },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "Font family is the VTEX Tachyons stack (body 1rem, small 0.875rem, mini 0.75rem; headings 700 weight). The horizontal bar README example renders custom category tick labels at fontSize 14 and takes only the first word of each label. README: keep axis labels clear and concise; abbreviate when needed."
+  },
+  "structure": {
+    "gridlines": "Off by default (grid.horizontal false, grid.vertical false). ScatterChart turns on horizontal gridlines only. Docs: grids help trace from data to axis, but must not visually compete with the data.",
+    "axisLine": "None by default (axisLine false on both axes); BarChart overrides to draw both axis lines (axisLine true).",
+    "ticks": "No tick lines (tickLine false); tick labels shown with 5px margin (10px on bar y-axis).",
+    "zeroLine": "Bars start at the zero baseline.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "omitted",
+    "unitPlacement": "in tooltip formatter (e.g. '$' prefix for currency)",
+    "frame": "none",
+    "background": "inherits page (white #ffffff)",
+    "notes": "Responsive container width/height 100% with aspect ratio 4:3."
+  },
+  "legend": {
+    "placement": "none (no Legend component rendered)",
+    "directLabels": null,
+    "title": null,
+    "swatchShape": null,
+    "notes": "Series identified via tooltip with a name mapper."
+  },
+  "marks": {
+    "bars": "Bar gap '20%'; radius [3,3,0,0] (rounded top corners only); single fill teal #4CAABF; default layout vertical columns (Recharts 'horizontal'), horizontal bars supported.",
+    "lines": "Monotone (smoothed) curve, strokeWidth 3, no dots.",
+    "areas": null,
+    "points": "Scatter points filled orange #EE7850; bubble chart sizes points by a z-axis range.",
+    "pies": null,
+    "notes": null
+  },
+  "labels": {
+    "dataLabels": "None by default.",
+    "numberFormat": "Via tooltipFormatter prop, e.g. '$' + value for currency.",
+    "dates": null,
+    "notes": "Don't rotate bar labels; abbreviate axis labels."
+  },
+  "furniture": {
+    "title": null,
+    "source": null,
+    "logo": null,
+    "other": null
+  },
+  "annotations": null,
+  "layout": "Fills its container (width/height 100%) with aspect 4/3; docs examples shrink to 60% or 40% width.",
+  "interaction": "Recharts Tooltip with cursor disabled (no hover crosshair/band) and label in grey #828282; tooltip formatter maps keys to display names. Scatter uses a custom tooltip component.",
+  "accessibility": null,
+  "chartTypes": {
+    "preferred": ["line", "bar", "scatter", "bubble"],
+    "discouraged": ["bar chart used as histogram", "spaghetti line charts with more than 4 lines"],
+    "notes": "Charts are marked experimental."
+  },
+  "distinctiveRules": [
+    { "rule": "Categorical colours are fixed and ordered: #EE7850 (orange), #4CAABF (teal), #9F50B6 (purple), #479A5E (green), #0000FF (blue).", "source": "https://raw.githubusercontent.com/vtex/styleguide/master/react/components/EXPERIMENTAL_Charts/commonProps.ts", "quote": "export const colors = ['#EE7850', '#4CAABF', '#9F50B6', '#479A5E', '#0000FF']" },
+    { "rule": "Single-series bar charts are teal #4CAABF; scatter points are orange #EE7850.", "source": "https://raw.githubusercontent.com/vtex/styleguide/master/react/components/EXPERIMENTAL_Charts/BarChart/index.tsx", "quote": "<Bar dataKey={dataKey} fill={colors[1]} radius={[3, 3, 0, 0]} />" },
+    { "rule": "Bars have 3px rounded top corners and square bottoms, with a 20% bar gap.", "source": "https://raw.githubusercontent.com/vtex/styleguide/master/react/components/EXPERIMENTAL_Charts/BarChart/constants.ts", "quote": "BAR_GAP = '20%' ... radius={[3, 3, 0, 0]}" },
+    { "rule": "Lines are smooth (monotone), 3px thick, with no point markers.", "source": "https://raw.githubusercontent.com/vtex/styleguide/master/react/components/EXPERIMENTAL_Charts/LineChart/constants.ts", "quote": "type: 'monotone', strokeWidth: 3, dot: false" },
+    { "rule": "By default no gridlines, no axis lines and no tick marks - only tick labels.", "source": "https://raw.githubusercontent.com/vtex/styleguide/master/react/components/EXPERIMENTAL_Charts/commonProps.ts", "quote": "axisLine: false, tickLine: false ... grid: { horizontal: false, vertical: false }" },
+    { "rule": "Bar charts draw both axis lines but still no tick marks.", "source": "https://raw.githubusercontent.com/vtex/styleguide/master/react/components/EXPERIMENTAL_Charts/BarChart/constants.ts", "quote": "xAxis: { axisLine: true, tickLine: false, tickMargin: 5 } yAxis: { axisLine: true, tickLine: false, tickMargin: 10 }" },
+    { "rule": "Scatter charts show horizontal gridlines only.", "source": "https://raw.githubusercontent.com/vtex/styleguide/master/react/components/EXPERIMENTAL_Charts/ScatterChart/constants.ts", "quote": "grid: { horizontal: true, vertical: false }" },
+    { "rule": "Charts are responsive, filling the container at a 4:3 aspect ratio.", "source": "https://raw.githubusercontent.com/vtex/styleguide/master/react/components/EXPERIMENTAL_Charts/commonProps.ts", "quote": "container: { height: '100%', width: '100%', aspect: 4.0 / 3.0 }" },
+    { "rule": "Tooltip has no hover cursor band; tooltip label text is grey #828282.", "source": "https://raw.githubusercontent.com/vtex/styleguide/master/react/components/EXPERIMENTAL_Charts/commonProps.ts", "quote": "tooltipProps = { cursor: false, labelStyle: { color: '#828282' } }" },
+    { "rule": "No more than 4 lines in a line chart.", "source": "https://raw.githubusercontent.com/vtex/styleguide/master/react/components/EXPERIMENTAL_Charts/LineChart/README.md", "quote": "Avoid spaghetti chart(don't use more than 4 lines)" },
+    { "rule": "Bar charts start at zero and never rotate category labels.", "source": "https://raw.githubusercontent.com/vtex/styleguide/master/react/components/EXPERIMENTAL_Charts/BarChart/README.md", "quote": "Dos: Start at the zero baseline. Don'ts: Rotate bar labels" },
+    { "rule": "If gridlines are used, they must stay subtle and not compete with the data.", "source": "https://raw.githubusercontent.com/vtex/styleguide/master/react/components/EXPERIMENTAL_Charts/LineChart/README.md", "quote": "Avoid the grid from visually competing with the data." }
+  ],
+  "referenceImages": [
+    { "file": null, "url": "https://styleguide.vtex.com/#/Components/%F0%9F%91%BB%20Experimental/Charts", "describes": "No image available: the deployed styleguide build no longer includes the Experimental Charts section and the GitHub repo/PRs contain no chart screenshots. Expected look from source: white background, Fabriga tick labels, no grid/axis/ticks (bars: thin axis lines), teal rounded-top bars or 3px smooth orange/teal/purple/green/blue lines, no legend, grey tooltip label." }
+  ]
+}

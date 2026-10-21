@@ -33,7 +33,7 @@ A Flint chart is three documents in one `ChartAssemblyInput`:
 | `interaction_spec` | how it behaves | the Vega-Lite interactive surface |
 
 The assemblers never read `interaction_spec`. A static render is untouched by it. Only
-`buildInteractiveChart()` does, after the chart is assembled.
+`mountChart()` does, after the chart is assembled.
 
 Behaviour comes from **presets**: named interactions Flint ships, such as `click-highlight`
 or `navigate`. Code reaches a preset through a factory, `clickHighlight({ dimOpacity: 0.2 })`.
@@ -98,17 +98,31 @@ applies it:
 | `set-overlay`, `set-freeform-overlay` | draw a guide or a free path |
 | `set-data` | replace the rows a layer shows |
 
-Targets are either references to resolved elements, `{ visual, elements }`, or selectors by row
-key, `{ select: { key } }`. Hosts apply the same language from outside through
+Targets are references to resolved elements, `{ visual, elements }`; selectors by row key,
+`{ select: { key } }`; or, for `set-style`, sets by condition, `{ select: { where } }`, each field
+`in` a list or within a `range` as filters write it. A key and a where compile to one predicate,
+so they match by one rule. Hosts apply the same language from outside through
 `surface.applyUpdate()` and `surface.setUpdates()`, so a story step and a click produce the same
 kind of change.
 
 ## §2.4 The surface
 
-`buildInteractiveChart(container, input, options)` returns an `InteractiveChartSurface`:
-`ready`, `warnings`, `applyUpdate`, `setUpdates`, `clearUpdate`, `dispatch`, `refresh`,
-`destroy`. The container emits a `flint-interaction` DOM event for every semantic event, with
-the interaction id and the resolved target, so a host can listen without knowing the preset.
+`mountChart(container, input, options)` returns an `InteractiveChartSurface`:
+`ready`, `warnings`, `layout`, `applyUpdate`, `setUpdates`, `clearUpdate`, `dispatch`, `getState`,
+`onChange`, `refresh`, `destroy`. The container emits a `flint-interaction` DOM event for every
+semantic event, with the interaction id and the resolved target, so a host can listen without
+knowing the preset.
+
+The chart also owns its state, and a host reads it instead of replaying the gestures.
+`getState()` returns a `ChartState`: the emphasized marks (`selected`, previews included, and
+`entries` to tell each update's share apart), the hidden legend values, the shown viewport, and
+the rail windows. Each mark's `value` is its meaning in field terms: a bar's category and
+measure, a legend item's channel and value, a histogram bar's field and range. `onChange(callback)`
+fires after each render with a `ChartChange`: the phase (`preview` while a gesture runs, `commit`
+for a committed change or a host call, `cancel` when a gesture ends with none), the gesture's own
+hit and geometry, and the state after the change. The DOM event is the raw gesture record, fired
+before the chart reacts; `onChange` is what the chart shows, fired after. The rows stay with the
+host: it queries its own data from the values and the geometry, and the chart hands over no copy.
 
 # §3 The specification
 
@@ -145,7 +159,8 @@ top-level key that is not one of the three, with a hint for the two keys the spe
 `dismiss` and `updates`. Every message names the entry by index and type.
 
 `composeInteractiveOptions()` merges the spec with what code passed to
-`buildInteractiveChart()`: spec entries first, then code; an id shared by both is an error; the
+`mountChart()`: spec entries first, then code; a code definition with a spec entry's id
+replaces it with an `info` warning; a malformed spec or a repeated code id throws; the
 surface policies come from code when it sets them and from the spec otherwise; a backend that
 runs no interactions ignores the spec with one `info` warning.
 
@@ -244,7 +259,7 @@ capabilities without which it does nothing:
 
 | Presets | Require |
 |---|---|
-| `click-highlight`, `click-group-focus`, `hover-group-focus`, `click-annotate`, `context-activate`, `long-press`, `double-activate`, `inspect` | `elements` |
+| `click-highlight`, `click-group-focus`, `hover-group-focus`, `click-annotate`, `context-activate`, `long-press`, `double-activate`, `inspect`, `accessible-navigation` | `elements` |
 | `select`, `lasso-select`, `brush-x`, `brush-y`, `linked-brush` | `elements`, `cartesian-region` |
 | `brush-angle` | `elements`, `angular-region` |
 | `navigate`, `brush-zoom` | `navigation` |
@@ -338,15 +353,23 @@ Which fact is decided where:
 | what is admitted, and the warnings | the compile step, through admission |
 | how a hit becomes rows | the dictionary, at runtime |
 | which gesture resets what | the dispatcher, from each definition's list |
+| what the chart shows now | the runtime's state, read through the surface |
 
 # §8 Hosts and discovery
 
-- **`buildInteractiveChart()`** reads `interaction_spec` from the input and merges it with code
-  definitions. The MCP `create_chart_view`, the site editor, and the site gallery mount through
-  it whenever the input carries interaction entries; a static render otherwise.
+- **`mountChart()`** reads `interaction_spec` from the input and merges it with code
+  definitions. `<FlintChart>` mounts through it, so a host passes the spec and nothing else:
+  a chart that declares no interactions renders static, with no runtime. The MCP
+  the MCP `show` card, the site editor, and the site gallery mount this way.
+- **`getState()` and `onChange()`** give a host the chart as context. The MCP view sends the
+  state to the model after each committed change; an application panel follows a hover or a
+  brush live through the previews.
 - **`validateChart()`** runs the resolver and admission against the assembled semantics and
   returns the same warnings the mount would, before anything renders. A malformed spec is an
-  `invalid_interaction_spec` error. The MCP `validate_chart` returns the same list.
+  `invalid_interaction_spec` error. The MCP `validate_chart` returns the same list. With
+  `options.updates` it also checks each update op against the chart (key rows, overlay
+  encodings, the presets a viewport or an order needs) in the same pass, so an agent learns
+  what will not apply before the chart is drawn.
 - **`supportedInteractionPresets(def.interactionSupport)`** lists the presets a chart type
   supports by declaration. `list_chart_types` returns it per chart type, and the Vega-Lite
   reference prints it. The data can still remove one at mount; the guide says so.
@@ -400,12 +423,14 @@ Generated from the templates by `npm run gen:reference`. Do not edit the table b
 | Line Chart | ✓ | cartesian | x, y | ✓ | ✓ | ✓ | ✓ |
 | Lollipop Chart | ✓ | cartesian | x, y | ✓ | ✓ | ✓ |  |
 | Map | ✓ | cartesian | geo |  | ✓ |  |  |
+| Marginal Plot | ✓ |  |  |  | ✓ |  |  |
 | Pie Chart | ✓ | cartesian, angular |  |  | ✓ |  |  |
 | Pyramid Chart | ✓ | cartesian |  | ✓ | ✓ | ✓ |  |
 | Radar Chart | ✓ | cartesian, angular |  |  | ✓ |  |  |
 | Range Area Chart | ✓ | cartesian | x, y |  | ✓ | ✓ | ✓ |
 | Ranged Dot Plot | ✓ | cartesian | x, y | connective marks | ✓ | ✓ |  |
 | Regression | ✓ | cartesian | x, y | ✓ | ✓ | ✓ | ✓ |
+| Ridgeline Plot | ✓ | cartesian | x |  |  |  | ✓ |
 | Rose Chart | ✓ | cartesian, angular |  |  | ✓ |  |  |
 | Scatter Plot | ✓ | cartesian | x, y | ✓ | ✓ | ✓ | ✓ |
 | Slope Chart | ✓ | cartesian | x, y | ✓ | ✓ | ✓ | ✓ |
@@ -413,6 +438,7 @@ Generated from the templates by `npm run gen:reference`. Do not edit the table b
 | Stacked Bar Chart | ✓ | cartesian | x, y | ✓ | ✓ | ✓ |  |
 | Streamgraph | ✓ | cartesian | x, y | ✓ | ✓ | ✓ | ✓ |
 | Strip Plot | ✓ | cartesian | x, y | ✓ | ✓ | ✓ |  |
+| Table |  |  |  |  |  |  |  |
 | Violin Plot | ✓ | cartesian |  |  | ✓ | ✓ |  |
 | Waterfall Chart | ✓ | cartesian | x, y | rect marks | ✓ | ✓ |  |
 <!-- interaction-support:end -->

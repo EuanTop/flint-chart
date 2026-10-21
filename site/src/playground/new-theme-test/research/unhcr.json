@@ -1,0 +1,109 @@
+{
+  "id": "unhcr",
+  "org": "UNHCR, the UN Refugee Agency",
+  "urls": [
+    "https://dataviz.unhcr.org/assets/download/UNHCR_Data_Visualization_Guidelines.pdf",
+    "https://dataviz.unhcr.org/download/UNHCR_Data_Visualization_Guidelines.pdf",
+    "https://dataviz.unhcr.org/guidance/",
+    "https://github.com/unhcr-dataviz/unhcrthemes/blob/main/R/theme_unhcr.R"
+  ],
+  "access": "full",
+  "accessNotes": "The given PDF URL (/assets/download/...) now returns 404 and /general_guidance is gone; the guidance page links the current PDF at /download/UNHCR_Data_Visualization_Guidelines.pdf (June 2025 edition, 32 pages), which was downloaded and fully extracted with pypdf; key pages rendered with Ghostscript. Exact ggplot defaults were read from unhcrthemes theme_unhcr.R on GitHub. Print sizes are in pt (px values below = pt x 1.333; the guide says sizes 'can be adjusted proportionally ... for web-based outputs').",
+  "summary": "Humanitarian-agency report/web charts built on the UNHCR brand: Lato, UNHCR blue #0072BC as the predominant data colour, a bold black sentence-case title with ' | period' appended, legend and horizontal y-axis title at top-left, light grey gridlines, a black baseline, and a two-line grey footer 'Source: ...' + '© UNHCR, The UN Refugee Agency'. Strong rules for fixed category colours (regions, population types, gender) and either gridlines or data labels, never both.",
+  "context": "report",
+  "colors": {
+    "categorical": ["#0072BC", "#FFC740", "#32C189", "#6CD8FD", "#D25A45", "#A097E3", "#7C3C36", "#BFBFBF"],
+    "categoricalNotes": "Data colours: Blue #0072BC (primary, 'should be the predominant colour in all UNHCR visuals'), Yellow #FFC740, Green #32C189, Cyan #6CD8FD, Red #D25A45, Purple #A097E3, Brown #7C3C36, Grey #BFBFBF (neutral). Max six categories per chart. Recommended combinations: 2 = Blue+Red / Blue+Cyan / Blue+Grey / Blue+Yellow; 3 = Blue,Yellow,Green / Blue,Yellow,Cyan; 4 = Blue,Yellow,Green,Cyan / Blue,Yellow,Cyan,Red; 5 = Blue,Yellow,Green,Cyan,Red / Blue,Yellow,Cyan,Purple,Brown; 6 = Blue,Yellow,Green,Cyan,Red,Purple / Blue,Yellow,Green,Red,Purple,Brown. Special fixed palettes: Regions - Asia & Pacific Green, East & Horn of Africa & Great Lakes Blue, Americas Purple, West & Central Africa Cyan, MENA Red, Europe Yellow. Population type - Refugees Blue, IDPs Green, Asylum-seekers Cyan, Other people in need of international protection Red, UNRWA refugees / Returned refugees & IDPs Purple, Stateless Yellow, Others of concern Grey. Gender - Male Blue, Female Green, Neutral/Non-binary Cyan. Single category (e.g. only IDPs): default UNHCR blue or a tonal variation.",
+    "sequential": ["#CDE3F1", "#8FC1E1", "#4F9ED0", "#0072BC", "#05568B", "#0B3754"],
+    "diverging": ["#0072BC", "#4F9ED0", "#8FC1E1", "#CDE3F1", "#F5F5F5", "#FEF1D1", "#FFC740", "#E4A202", "#B98405"],
+    "highlight": "#0072BC",
+    "context": "#BFBFBF",
+    "positive": null,
+    "negative": null,
+    "background": "#FFFFFF",
+    "text": "#262626",
+    "textSecondary": "#737373",
+    "gridline": "#BFBFBF",
+    "axis": "#000000",
+    "notes": "Ramps (01->06): Blue CDE3F1 8FC1E1 4F9ED0 0072BC 05568B 0B3754; Yellow FEF1D1 FFC740 E4A202 B98405 8F6808 684D0B; Green DAF6EB 7DE0B9 32C189 2B9C70 257958 1F5741; Cyan D4F3FE 6CD8FD 01B6F2 0493C2 087295 0B5269; Red FCE2DE F9B3A7 F67F6A D25A45 9C4637 683229; Purple E7E5F7 C3BEED A097E3 7E74C2 5E578E 403C5D; Brown EAD9D8 D3AFAB BC8580 A65B54 7C3C36 482724; Grey E5E5E5 BFBFBF 999999 737373 4D4D4D 262626. Multi-hue sequential: Blue-Green DAF6EB 9ACFDD 59A8CF 167FC1 055990 0B3754; Purple-Blue CDE3F1 9EC1E1 7C9ECE 677AB2 56598B 403C5D; Red-Yellow FEF1D1 F8C27A E19656 C06E43 984C36 683229. Diverging (4 steps each side, centre #F5F5F5): Blue-Yellow (above), Blue-Brown (Blue 06,04,03,01 | Brown 01,03,04,06), Green-Purple (Green 06,05,03,01 | Purple 01,03,05,06). AAA text colours per category: Blue #05568B, Yellow #684D0B, Green #1F5741, Cyan #0B5269, Red #683229, Purple #403C5D, Brown #7C3C36, Grey #4D4D4D (used for direct labels in series colour). Brand (non-data) colours: blue #0072BC, black, white, yellow #FAEB00. Element colours from CMYK: text 85% black = #262626, secondary 55% = #737373, gridlines 25% = #BFBFBF, axis 100% black, top bar and figure number UNHCR blue."
+  },
+  "typography": {
+    "family": "Lato",
+    "fallback": "Proxima Nova, Arial",
+    "title": { "size": 16, "weight": "bold", "align": "left", "case": "sentence", "color": "#000000" },
+    "subtitle": { "size": 12, "weight": "regular", "style": "normal", "color": "#262626" },
+    "axisLabel": { "size": 10.7, "color": "#262626" },
+    "axisTitle": { "size": 10.7, "weight": "regular", "placement": "y-axis title horizontal at top-left above the axis (recommended); rotated alongside axis is the alternative; x-axis title centred below" },
+    "dataLabel": { "size": 10.7, "weight": "regular" },
+    "source": { "size": 9.3, "style": "regular, 'Source: ...' then '© UNHCR, The UN Refugee Agency' on the next line", "color": "#737373" },
+    "notes": "Print spec (pt): figure number Regular 9pt UNHCR blue; title Bold 12pt black; subtitle Regular 9pt 85% black; legend Regular 8pt 85%; y-axis title Regular 8pt 55%; x-axis title Regular 8pt 55%; axis labels Regular 8pt 85%; data labels Regular 8pt 85% (dark) or white on dark fills; note Regular 7pt 85%; source Regular 7pt 55%; copyright Regular 7pt 55%. Lato chosen for 'high legibility of numbers'. unhcrthemes: base 12, title rel 1.35 #000000, subtitle 12, caption rel 0.7 #737373, axis/legend text rel 0.9 #262626, axis titles #737373. Title and subtitle: sentence case ('first word capitalized')."
+  },
+  "structure": {
+    "gridlines": "0.5pt lines in 25% black (#BFBFBF), along the value axis only (horizontal for column/line, vertical for bar charts); omitted when data labels are used.",
+    "axisLine": "Baseline axis 0.75pt solid black (x-axis on column/line charts; the category axis line on bar charts).",
+    "ticks": "None (unhcrthemes axis_ticks = FALSE); guide mock-ups show small ticks only on the category baseline.",
+    "zeroLine": "Black 0.75pt baseline at zero.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "Horizontal, top-left above the y-axis labels, 55% grey, sentence case with unit in parentheses ('Number of people (million)'); rotated is the alternative position",
+    "unitPlacement": "In the y-axis title in parentheses, e.g. 'USD millions', 'Number of people (thousand)'.",
+    "frame": "No border; optional 'top bar' - a 0.5pt UNHCR blue rule across the top of the chart.",
+    "background": "white",
+    "notes": "unhcrthemes: theme_minimal base, plot margins = font size (12pt) all round, title/caption positioned to whole plot, legend at top justified left."
+  },
+  "legend": {
+    "placement": "top, left-aligned, between subtitle and y-axis title",
+    "directLabels": "Preferred on line charts: series names at line ends in the series' AAA text colour (e.g. 'IDPs', 'Refugees'); legend omitted.",
+    "title": "none",
+    "swatchShape": "small filled square/rectangle",
+    "notes": "Legend text Regular 8pt 85% black."
+  },
+  "marks": {
+    "bars": "Solid UNHCR blue bars, no outline, square corners; bar thickness about 2-3x the gap; sorted descending (largest at top) in bar charts; stacked bars with white data labels inside dark segments.",
+    "lines": "Medium-weight solid lines (~2px), no markers, direct end labels in series colour.",
+    "areas": "Stacked areas, fully opaque, in category colour order (blue, yellow, green, cyan).",
+    "points": null,
+    "pies": "Pie and donut allowed for part-to-whole (e.g. funding received vs gap with large centre total); labels with percentages next to slices.",
+    "notes": "Line-column (dual-axis) chart and population pyramid shown as accepted UNHCR formats."
+  },
+  "labels": {
+    "dataLabels": "Either data labels or axis labels/gridlines - 'we should never use axis labels/gridlines together with data labels'. Data labels 8pt dark grey (#262626) on light backgrounds/outside bars, white inside dark bars; bar-chart labels just beyond the bar end.",
+    "numberFormat": "Decimal values with fixed decimals (6.69, 0.52); thousands with comma (1,000); currency '$144 M'; percentages '22%'.",
+    "dates": "Period appended to title after a pipe: 'Title | 2010-2020'; months abbreviated (Jan, Feb).",
+    "notes": "Note line prefixed 'Note:' (e.g. 'figures do not add up to 100 per cent due to rounding')."
+  },
+  "furniture": {
+    "title": "Short, sentence case, bold black, left-aligned, with the time period after a vertical bar ('People displaced across borders by country of origin | 2020'). Optional subtitle (also short, sentence case). Optional 'Figure 1' label above the title in UNHCR blue.",
+    "source": "Bottom-left: optional 'Note: ...' line, then 'Source: UNHCR Refugee Data Finder', then '© UNHCR, The UN Refugee Agency' (copyright recommended for web-based charts), all 7pt; source and copyright in 55% grey.",
+    "logo": "No logo image; brand attribution via the '© UNHCR, The UN Refugee Agency' line.",
+    "other": "Optional top bar: 0.5pt UNHCR-blue horizontal rule above the figure number/title."
+  },
+  "annotations": "Direct labels at line ends in the AAA-contrast version of the series colour.",
+  "layout": "Elements placed and aligned to a common left edge as in the anatomy mock-up; sizes given for print and scaled proportionally for web.",
+  "interaction": null,
+  "accessibility": "Data palette selected for accessibility; AAA-compliant text colours provided for every category colour; limit to six categories; never combine gridlines/axis labels with data labels to avoid congestion.",
+  "chartTypes": {
+    "preferred": ["line", "area", "stacked area", "column", "bar", "grouped bar/column", "stacked bar/column", "100% stacked column", "line-column", "slope", "dot plot", "population pyramid", "donut", "pie", "treemap", "choropleth", "bubble map", "flow map", "sankey"],
+    "discouraged": ["more than six categories (except UNHCR special category palettes)"],
+    "notes": "Chart-type catalogue organised by change over time, correlation, comparison, distribution, part-to-a-whole, ranking, flow, geospatial."
+  },
+  "distinctiveRules": [
+    { "rule": "UNHCR blue #0072BC is the predominant data colour; single-category charts use only blue or a tonal variation.", "source": "https://dataviz.unhcr.org/download/UNHCR_Data_Visualization_Guidelines.pdf", "quote": "The blue colour is the primary colour and should be the predominant colour in all UNHCR visuals." },
+    { "rule": "Title bold, black, sentence case, left-aligned, with period after a pipe: 'Title | 2010-2020'.", "source": "https://dataviz.unhcr.org/download/UNHCR_Data_Visualization_Guidelines.pdf", "quote": "Title should be short with the first word capitalized | 2010-2020" },
+    { "rule": "Footer of two left-aligned grey 7pt lines: 'Source: ...' and '© UNHCR, The UN Refugee Agency'.", "source": "https://dataviz.unhcr.org/download/UNHCR_Data_Visualization_Guidelines.pdf", "quote": "Source: here is the data source / © UNHCR, The UN Refugee Agency ... Copyright recommended for web-based charts" },
+    { "rule": "Y-axis title placed horizontally at top-left above the axis in 55% grey with unit in parentheses (rotated only as an alternative).", "source": "https://dataviz.unhcr.org/download/UNHCR_Data_Visualization_Guidelines.pdf", "quote": "Y-axis title (unit) ... recommended position / alternative position" },
+    { "rule": "Legend at top-left (below subtitle), no title, small square swatches.", "source": "https://github.com/unhcr-dataviz/unhcrthemes/blob/main/R/theme_unhcr.R", "quote": "legend.position = \"top\"; legend.justification.top = 0; legend.title = element_blank()" },
+    { "rule": "Never show gridlines/axis labels together with data labels - pick one.", "source": "https://dataviz.unhcr.org/download/UNHCR_Data_Visualization_Guidelines.pdf", "quote": "we should never use axis labels/gridlines together with data labels" },
+    { "rule": "Gridlines 0.5pt #BFBFBF along the value axis only; baseline axis 0.75pt black; no ticks.", "source": "https://dataviz.unhcr.org/download/UNHCR_Data_Visualization_Guidelines.pdf", "quote": "Gridline 0.5 pt, CMYK: 0/0/0/25 ... Axis 0.75 pt, CMYK: 0/0/0/100" },
+    { "rule": "Data labels dark grey (#262626) on light backgrounds, white inside dark bars.", "source": "https://dataviz.unhcr.org/download/UNHCR_Data_Visualization_Guidelines.pdf", "quote": "Data labels have two colours: white (0/0/0/0) and dark gray (0/0/0/85)." },
+    { "rule": "Fixed semantic colours for UNHCR categories: Refugees blue, IDPs green, Asylum-seekers cyan, Stateless yellow, Others of concern grey; regions and gender also have assigned colours.", "source": "https://dataviz.unhcr.org/download/UNHCR_Data_Visualization_Guidelines.pdf", "quote": "certain category groupings are consistently represented using specific, predefined colour palettes" },
+    { "rule": "Maximum six categories per chart; recommended category combinations always start with blue then yellow.", "source": "https://dataviz.unhcr.org/download/UNHCR_Data_Visualization_Guidelines.pdf", "quote": "it is recommended not to use more than six categories in a single chart" },
+    { "rule": "Line charts direct-label series at line ends in the series' AAA text colour instead of a legend.", "source": "https://dataviz.unhcr.org/download/UNHCR_Data_Visualization_Guidelines.pdf", "quote": "Line chart example labels 'IDPs' and 'Refugees' at line ends; AAA-compliant text for all categorical colours" },
+    { "rule": "Optional 'Figure N' label (9pt UNHCR blue) above the title and optional 0.5pt blue top bar.", "source": "https://dataviz.unhcr.org/download/UNHCR_Data_Visualization_Guidelines.pdf", "quote": "Figure number Regular, 9 pt, CMYK: 99/50/0/0 ... Top bar 0.5 pt, CMYK: 99/50/0/0" },
+    { "rule": "Lato for all chart text; diverging scales centre on #F5F5F5.", "source": "https://dataviz.unhcr.org/download/UNHCR_Data_Visualization_Guidelines.pdf", "quote": "For data visualizations, we recommend using Lato due to the high legibility of numbers" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/unhcr/guidelines-p16.png", "url": "https://dataviz.unhcr.org/download/UNHCR_Data_Visualization_Guidelines.pdf#page=16", "describes": "Annotated anatomy: thin blue top bar; 'Figure 1' in small blue text; bold black title 'Title should be short with the first word capitalized | 2010-2020'; regular subtitle; legend at top-left with blue and light-cyan squares ('Set 1', 'Set 2'); small grey 'Y-axis title (unit)' horizontal above the y labels at top-left; light grey horizontal gridlines; stacked columns in UNHCR blue and cyan with white labels inside blue segments and dark labels in cyan; black baseline with years below; grey centred x-axis title; bottom-left 'Note:', 'Source:' and '© UNHCR, The UN Refugee Agency' lines in small grey Lato." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/unhcr/guidelines-p23.png", "url": "https://dataviz.unhcr.org/download/UNHCR_Data_Visualization_Guidelines.pdf#page=23", "describes": "Two horizontal bar charts, 'People displaced across borders by country of origin | 2020' (bold black title, left). Left: blue bars sorted descending, category labels right-aligned left of a black vertical baseline, light grey vertical gridlines, x labels 0-7 at bottom, grey x-axis title 'Number of people (million)'. Right: same bars with 2-decimal data labels just past bar ends, no gridlines and no value axis, unit as a grey subtitle line. Both with grey 'Source: UNHCR Refugee Data Finder' and '© UNHCR, The UN Refugee Agency' bottom-left." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/unhcr/guidelines-p21.png", "url": "https://dataviz.unhcr.org/download/UNHCR_Data_Visualization_Guidelines.pdf#page=21", "describes": "Stacked area chart (blue, yellow, green, cyan opaque layers) with legend of small squares at top-left and 'USD millions' grey y title above the axis; light grey horizontal gridlines; black baseline; month labels. Line chart with blue (Refugees) and green (IDPs) ~2px lines, no markers, direct labels at line ends in darker series colours, horizontal grey y title 'Number of people (million)' top-left; source and copyright lines bottom-left." }
+  ]
+}

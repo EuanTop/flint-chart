@@ -158,7 +158,11 @@ export const nyt: ThemePreset = {
                 "gap": 1
             },
             "point": {
-                "size": 58
+                "size": 58,
+                "halo": {
+                    "presence": "full",
+                    "width": 1
+                }
             },
             "zOrder": "summaryOverData",
             "redundantEncoding": "whenNeeded",
@@ -176,8 +180,10 @@ export const nyt: ThemePreset = {
                 "seriesEnd",
                 "top"
             ],
-            "title": "omit",
-            "suppressWhenValuesPrinted": false
+            "title": "whenAmbiguous",
+            "suppressWhenValuesPrinted": false,
+            "arrangement": "row",
+            "titlePosition": "inline"
         },
         "dataLabels": {
             "show": "always",

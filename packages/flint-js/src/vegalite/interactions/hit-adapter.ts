@@ -1,3 +1,5 @@
+import * as vega from 'vega';
+import { INTERACTION_KEY, INTERACTION_ROLE, INTERACTION_LEGEND_CHANNEL, INTERACTION_LEGEND_FIELD } from './stores';
 import {
     semanticVisualFamily,
     type RenderHit,
@@ -27,14 +29,19 @@ export {
     clientToRendererPoint,
     interactionModifiers,
     plotToClientPoint,
+    rendererElement,
     rendererPlotOrigin,
     type RendererCoordinateSpace,
 } from '../../interactive/geometry/coordinate-space';
 
-export const INTERACTION_KEY = '__flint_interaction_key';
-export const INTERACTION_ROLE = '__flint_interaction_role';
-export const INTERACTION_LEGEND_CHANNEL = '__flint_legend_channel';
-export const INTERACTION_LEGEND_FIELD = '__flint_legend_field';
+/** Where the renderer draws the plot: View#origin leaves out the padding it is translated by. */
+export function vegaRendererOrigin(view: any): PlotPoint {
+    const [x, y] = view.origin();
+    const padding = view.padding?.() ?? {};
+    return { x: x + (padding.left ?? 0), y: y + (padding.top ?? 0) };
+}
+
+export { INTERACTION_KEY, INTERACTION_ROLE, INTERACTION_LEGEND_CHANNEL, INTERACTION_LEGEND_FIELD } from './stores';
 export const PATH_KEY_SUFFIX = '|__flint_path';
 
 const SUPPORTED_RENDER_MARKS = new Set(['arc', 'area', 'bar', 'line', 'rect', 'rule', 'shape', 'symbol', 'text']);
@@ -44,6 +51,18 @@ export interface SelectionRect {
     y1: number;
     x2: number;
     y2: number;
+}
+
+export function shapeReadingBounds(item: any, bounds: SelectionRect): SelectionRect {
+    if (item.mark?.marktype !== 'shape') return bounds;
+    const strokePadding = item.stroke && item.opacity !== 0 && item.strokeOpacity !== 0
+        ? Number(item.strokeWidth ?? 1) : 0;
+    return {
+        x1: Math.round((bounds.x1 + strokePadding) * 1e6) / 1e6,
+        y1: Math.round((bounds.y1 + strokePadding) * 1e6) / 1e6,
+        x2: Math.round((bounds.x2 - strokePadding) * 1e6) / 1e6,
+        y2: Math.round((bounds.y2 - strokePadding) * 1e6) / 1e6,
+    };
 }
 
 export interface LegendHitIdentity extends LegendTargetValue {
@@ -181,16 +200,64 @@ function pathGeometry(item: any, offsetX: number, offsetY: number, siblingIndex?
     };
 }
 
+/** The datum of every point on a path mark, in draw order. */
+function pathDataOf(mark: any): Record<string, unknown>[] {
+    return (mark.items ?? []).map((pathItem: any) => pathItem.datum).filter(Boolean);
+}
+
+function intersectClip(clip: SelectionRect | undefined, rect: SelectionRect): SelectionRect {
+    if (!clip) return rect;
+    return {
+        x1: Math.max(clip.x1, rect.x1),
+        y1: Math.max(clip.y1, rect.y1),
+        x2: Math.min(clip.x2, rect.x2),
+        y2: Math.min(clip.y2, rect.y2),
+    };
+}
+
+/**
+ * The clip a scene node's children draw inside, in the space of their bounds, which starts at
+ * `offsetX`/`offsetY`: a clipped mark keeps its items inside its enclosing group, and a clipped
+ * group item keeps its marks inside itself.
+ */
+export function sceneContentClip(
+    node: any,
+    offsetX: number,
+    offsetY: number,
+    clip: SelectionRect | undefined,
+): SelectionRect | undefined {
+    if (node?.clip !== true) return clip;
+    const frame = node.marktype ? node.group : node.mark?.marktype === 'group' ? node : undefined;
+    if (typeof frame?.width !== 'number' || typeof frame?.height !== 'number') return clip;
+    return intersectClip(clip, { x1: offsetX, y1: offsetY, x2: offsetX + frame.width, y2: offsetY + frame.height });
+}
+
+/**
+ * Each item carries `interactionClip`, the rect Vega clips it to in the space of its bounds,
+ * or undefined when nothing clips it. A clipped item also carries `interactionVisibility`, and
+ * a partly visible shape `visibleBounds`, the part of its bounds on screen.
+ */
 export function sceneItems(view: any): any[] {
     const result: any[] = [];
-    const visit = (item: any, offsetX: number, offsetY: number, siblingIndex?: number): void => {
+    const pathDataByMark = new Map<object, Record<string, unknown>[]>();
+    const visit = (item: any, offsetX: number, offsetY: number, siblingIndex?: number, clip?: SelectionRect): void => {
         if (!item) return;
         if (SUPPORTED_RENDER_MARKS.has(item.mark?.marktype) && keyOfDatum(item.datum) && item.bounds) {
             const interactionGeometry = pathGeometry(item, offsetX, offsetY, siblingIndex);
-            if ((item.mark.marktype === 'line' || item.mark.marktype === 'area') && !interactionGeometry) return;
+            const isPath = item.mark.marktype === 'line' || item.mark.marktype === 'area';
+            if (isPath && !interactionGeometry) return;
             const points = interactionGeometry?.points;
-            result.push({
+            let interactionPathData: Record<string, unknown>[] | undefined;
+            if (isPath) {
+                interactionPathData = pathDataByMark.get(item.mark);
+                if (!interactionPathData) {
+                    interactionPathData = pathDataOf(item.mark);
+                    pathDataByMark.set(item.mark, interactionPathData);
+                }
+            }
+            const entry: any = {
                 ...item,
+                interactionPathData,
                 x: typeof item.x === 'number' ? item.x + offsetX : item.x,
                 y: typeof item.y === 'number' ? item.y + offsetY : item.y,
                 bounds: points ? {
@@ -205,36 +272,153 @@ export function sceneItems(view: any): any[] {
                     y2: item.bounds.y2 + offsetY,
                 },
                 interactionGeometry,
-            });
+                interactionClip: clip,
+            };
+            if (clip) {
+                entry.interactionVisibility = itemVisibility(entry);
+                if (entry.interactionVisibility === 'partial' && !interactionGeometry) {
+                    entry.visibleBounds = clippedBounds(entry.bounds, clip);
+                }
+            }
+            result.push(entry);
         }
         const isGroup = item.mark?.marktype === 'group';
         const childOffsetX = offsetX + (isGroup && typeof item.x === 'number' ? item.x : 0);
         const childOffsetY = offsetY + (isGroup && typeof item.y === 'number' ? item.y : 0);
+        const childClip = sceneContentClip(item, childOffsetX, childOffsetY, clip);
         if (Array.isArray(item.items)) {
-            item.items.forEach((child: any, index: number) => visit(child, childOffsetX, childOffsetY, index));
+            item.items.forEach((child: any, index: number) => visit(child, childOffsetX, childOffsetY, index, childClip));
         }
     };
     visit(view.scenegraph()?.root, 0, 0);
     return result;
 }
 
-export function facetPlotFrameAt(view: any, point: PlotPoint, fallback: PlotFrame): PlotFrame {
+export type ClipVisibility = 'full' | 'partial' | 'none';
+
+/** How far, in pixels, a point may sit outside a clip and still count as in view. */
+const CLIP_TOLERANCE = 0.5;
+
+function widenClip(clip: SelectionRect): SelectionRect {
+    return {
+        x1: clip.x1 - CLIP_TOLERANCE,
+        y1: clip.y1 - CLIP_TOLERANCE,
+        x2: clip.x2 + CLIP_TOLERANCE,
+        y2: clip.y2 + CLIP_TOLERANCE,
+    };
+}
+
+/** Whether a span meets a clip's span on the same axis: a point on the edge does, a shape beside it does not. */
+function spanMeetsClip(start: number, end: number, low: number, high: number): boolean {
+    const overlap = Math.min(end, high + CLIP_TOLERANCE) - Math.max(start, low - CLIP_TOLERANCE);
+    return end - start > CLIP_TOLERANCE ? overlap > CLIP_TOLERANCE : overlap >= 0;
+}
+
+/** Where an item lies along one axis: the anchor of a point or a label, else the extent of its geometry. */
+function itemSpan(item: any, axis: 'x' | 'y'): [number, number] {
+    const marktype = item.mark?.marktype;
+    if ((marktype === 'symbol' || marktype === 'text') && typeof item[axis] === 'number') {
+        return [item[axis], item[axis]];
+    }
+    const points = item.interactionGeometry?.points as readonly PlotPoint[] | undefined;
+    if (points?.length) {
+        let start = Infinity;
+        let end = -Infinity;
+        for (const point of points) {
+            start = Math.min(start, point[axis]);
+            end = Math.max(end, point[axis]);
+        }
+        return [start, end];
+    }
+    if (marktype === 'symbol' || marktype === 'text') {
+        const middle = axis === 'x' ? (item.bounds.x1 + item.bounds.x2) / 2 : (item.bounds.y1 + item.bounds.y2) / 2;
+        return [middle, middle];
+    }
+    return axis === 'x' ? [item.bounds.x1, item.bounds.x2] : [item.bounds.y1, item.bounds.y2];
+}
+
+/**
+ * How much of an item one axis of its clip leaves on screen. A mark whose own stroke is all
+ * that reaches past the clip, such as the cap of a whisker at the plot edge, counts as whole.
+ */
+function visibilityAlong(item: any, clip: SelectionRect, axis: 'x' | 'y'): ClipVisibility {
+    const [start, end] = itemSpan(item, axis);
+    const low = axis === 'x' ? clip.x1 : clip.y1;
+    const high = axis === 'x' ? clip.x2 : clip.y2;
+    if (!spanMeetsClip(start, end, low, high)) return 'none';
+    const slack = Math.max(CLIP_TOLERANCE, Number(item.strokeWidth) || 0);
+    return start >= low - slack && end <= high + slack ? 'full' : 'partial';
+}
+
+/** Whether a point lies inside a clip rect, its edges included. */
+export function pointInClip(point: PlotPoint, clip: SelectionRect | undefined): boolean {
+    return !clip || (spanMeetsClip(point.x, point.x, clip.x1, clip.x2) && spanMeetsClip(point.y, point.y, clip.y1, clip.y2));
+}
+
+/** The part of some bounds a clip leaves on screen, or undefined when none of it is. */
+export function clippedBounds(bounds: SelectionRect, clip: SelectionRect | undefined): SelectionRect | undefined {
+    if (!clip) return bounds;
+    if (!spanMeetsClip(bounds.x1, bounds.x2, clip.x1, clip.x2) || !spanMeetsClip(bounds.y1, bounds.y2, clip.y1, clip.y2)) {
+        return undefined;
+    }
+    return intersectClip(widenClip(clip), bounds);
+}
+
+/**
+ * How much of a scene item its clip leaves on screen. A point or a text label is in view when
+ * its anchor is, so one at the very edge of a navigated domain stays in view though the clip
+ * cuts it; a shape is in view as far as it overlaps the clip on both axes, and a path piece as
+ * far as its segment crosses the clip.
+ */
+export function itemVisibility(item: any): ClipVisibility {
+    const clip: SelectionRect | undefined = item?.interactionClip;
+    if (!clip) return 'full';
+    const alongX = visibilityAlong(item, clip, 'x');
+    const alongY = visibilityAlong(item, clip, 'y');
+    if (alongX === 'none' || alongY === 'none') return 'none';
+    if (alongX === 'full' && alongY === 'full') return 'full';
+    const geometry: PathGeometry | undefined = item.interactionGeometry ?? undefined;
+    // A diagonal segment can overlap the clip on each axis and still pass beside it.
+    if (geometry && !geometryIntersectsRect(geometry, widenClip(clip), false)) return 'none';
+    return 'partial';
+}
+
+/**
+ * Whether the pointer, the keyboard, or a reader can pick a scene item: only what is on
+ * screen. What a pick means still reads every item, so a series keeps its off-screen marks.
+ * With an axis, only that axis of the clip counts: an index readout at an x in view keeps the
+ * values its y range cuts off.
+ */
+export function isPickable(item: any, axis?: 'x' | 'y'): boolean {
+    const clip: SelectionRect | undefined = item?.interactionClip;
+    if (!clip) return true;
+    if (!axis) return (item.interactionVisibility ?? itemVisibility(item)) !== 'none';
+    return visibilityAlong(item, clip, axis) !== 'none';
+}
+
+/** The bounds of a scene item that are on screen. */
+export function pickBounds(item: any): SelectionRect {
+    return item.visibleBounds ?? item.bounds;
+}
+
+export function facetPlotFrameAt(view: any, point: PlotPoint, fallback: PlotFrame): PlotFrame | undefined {
     const frames: PlotFrame[] = [];
+    const containsPoint = (frame: PlotFrame): boolean => point.x >= frame.x && point.x <= frame.x + frame.width
+        && point.y >= frame.y && point.y <= frame.y + frame.height;
     const visit = (item: any, offsetX: number, offsetY: number): void => {
         if (!item) return;
         const isGroup = item.mark?.marktype === 'group';
         const x = offsetX + (isGroup && typeof item.x === 'number' ? item.x : 0);
         const y = offsetY + (isGroup && typeof item.y === 'number' ? item.y : 0);
         if (isGroup && (item.mark?.role === 'cell' || item.mark?.name === 'cell')
-            && typeof item.width === 'number' && typeof item.height === 'number'
-            && point.x >= x && point.x <= x + item.width
-            && point.y >= y && point.y <= y + item.height) {
+            && typeof item.width === 'number' && typeof item.height === 'number') {
             frames.push({ x, y, width: item.width, height: item.height });
         }
         if (Array.isArray(item.items)) item.items.forEach((child: any) => visit(child, x, y));
     };
     visit(view.scenegraph()?.root, 0, 0);
-    return frames.sort((left, right) => left.width * left.height - right.width * right.height)[0] ?? fallback;
+    if (frames.length) return frames.filter(containsPoint).sort((left, right) => left.width * left.height - right.width * right.height)[0];
+    return containsPoint(fallback) ? fallback : undefined;
 }
 
 /** Bounding plot frame of all Vega facet cells, or the root plot for a unit chart. */
@@ -562,7 +746,7 @@ export function polarInspectHits(
     const angle = ((Math.atan2(point.x - frame.center.x, frame.center.y - point.y) % (2 * Math.PI))
         + 2 * Math.PI) % (2 * Math.PI);
     return items
-        .filter((item) => item?.mark?.marktype === 'arc'
+        .filter((item) => item?.mark?.marktype === 'arc' && isPickable(item)
             && Number.isFinite(item.startAngle) && Number.isFinite(item.endAngle)
             && Math.hypot(item.x - frame.center.x, item.y - frame.center.y) <= 1
             && angularSegments(item.startAngle, item.endAngle).some(
@@ -579,6 +763,7 @@ export function angularRegionHits(
 ): RenderHit[] {
     return sceneItems(view)
         .filter((item) => {
+            if (!isPickable(item)) return false;
             if (arcIntersectsAngularSector(item, sector, contain)) return true;
             const markType = item?.mark?.marktype;
             if (markType === 'symbol' && typeof item.x === 'number' && typeof item.y === 'number') {
@@ -624,7 +809,7 @@ export function renderHit(item: any): RenderHit | null {
         datum,
         endDatum: item.interactionGeometry?.endDatum,
         pathData: markType === 'line' || markType === 'area'
-            ? item.mark.items?.map((pathItem: any) => pathItem.datum).filter(Boolean)
+            ? item.interactionPathData ?? pathDataOf(item.mark)
             : undefined,
         source: 'mark',
         markType: item.mark?.marktype,
@@ -995,6 +1180,19 @@ export function normalizeVegaElementEvent(
 }
 
 /** Nearest item to a plot point, for pointer acquisition that does not require a direct hit. */
+/**
+ * The marks drawn under a point: a line or an area within half its stroke of it, any other mark
+ * containing it. Every one, not only the topmost.
+ */
+export function sceneItemsUnder(view: any, plotPoint: PlotPoint): any[] {
+    return sceneItems(view).filter((item) => {
+        if (!item?.bounds || !isPickable(item) || item.datum?.[INTERACTION_ROLE] === 'legend-label') return false;
+        const path = item.mark?.marktype === 'line' || item.mark?.marktype === 'area';
+        const reach = path ? Math.max(1, (typeof item.strokeWidth === 'number' ? item.strokeWidth : 1) / 2) : 0.5;
+        return distanceToItem(plotPoint, item) <= reach;
+    });
+}
+
 export function nearestItemByBounds(
     items: readonly any[],
     point: PlotPoint,
@@ -1003,7 +1201,7 @@ export function nearestItemByBounds(
     let best: { item: any; distance: number } | undefined;
     for (const item of items) {
         const bounds = item?.bounds;
-        if (!bounds) continue;
+        if (!bounds || !isPickable(item)) continue;
         const distance = distanceToItem(point, item);
         if (distance > maxDistance) continue;
         if (!best || distance < best.distance) best = { item, distance };
@@ -1048,7 +1246,7 @@ function distanceToItem(point: PlotPoint, item: any): number {
         return geometryDistance;
     }
     const polygon = arcPolygon(item);
-    if (!polygon) return item?.bounds ? distanceToBounds(point, item.bounds) : Number.POSITIVE_INFINITY;
+    if (!polygon) return item?.bounds ? distanceToBounds(point, pickBounds(item)) : Number.POSITIVE_INFINITY;
     if (pointInPolygon(point, polygon)) return 0;
     let distance = Number.POSITIVE_INFINITY;
     for (let index = 0; index < polygon.length; index += 1) {
@@ -1064,9 +1262,10 @@ export function nearestSceneItem(view: any, point: PlotPoint, maxDistance: numbe
 export type SpatialDirection = 'left' | 'right' | 'up' | 'down';
 
 function itemCenter(item: any): PlotPoint {
+    const bounds = pickBounds(item);
     return {
-        x: (item.bounds.x1 + item.bounds.x2) / 2,
-        y: (item.bounds.y1 + item.bounds.y2) / 2,
+        x: (bounds.x1 + bounds.x2) / 2,
+        y: (bounds.y1 + bounds.y2) / 2,
     };
 }
 
@@ -1084,7 +1283,7 @@ export function nextItemInDirection(
     const followsDiscreteAxis = discreteAxis === (horizontal ? 'x' : 'y');
     let best: { item: any; score: number } | undefined;
     for (const item of items) {
-        if (!item?.bounds) continue;
+        if (!item?.bounds || !isPickable(item)) continue;
         const center = itemCenter(item);
         const dx = center.x - from.x;
         const dy = center.y - from.y;
@@ -1140,12 +1339,13 @@ type InspectComparison = '<' | '<=' | '=' | '>=' | '>';
 
 /** Acquires marks around a raw inspect point without changing the guide position. */
 export function tolerantInspectHits(
-    items: readonly any[],
+    sceneCandidates: readonly any[],
     point: PlotPoint,
     mode: 'x' | 'y' | 'xy',
     predicate: { x?: InspectComparison; y?: InspectComparison },
     tolerance: { x: number; y: number },
 ): RenderHit[] {
+    const items = sceneCandidates.filter((item) => isPickable(item, mode === 'xy' ? undefined : mode));
     const xComparison = predicate.x;
     const yComparison = predicate.y;
     const directionalQuarter = mode === 'xy'
@@ -1266,6 +1466,76 @@ export interface IndexInspectAcquisition {
     hits: RenderHit[];
     coordinate: number;
     valueCoordinates: number[];
+    valueColors?: (string | undefined)[];
+    /** The reading sits on an observation rather than between two. */
+    snapped: boolean;
+}
+
+type CurvePiece = { kind: 'line' | 'quad' | 'cubic'; points: PlotPoint[] };
+type CurveFactory = (context: unknown) => { lineStart(): void; point(x: number, y: number): void; lineEnd(): void };
+// Vega draws line marks with d3-shape curves and exports the factory it uses; it has no typings.
+const pathCurves = (vega as unknown as {
+    pathCurves?: (type: string, orientation?: string, tension?: number) => CurveFactory | null;
+}).pathCurves;
+
+/** The pieces Vega draws a line mark's curve with, in plot coordinates. */
+export function curvePieces(
+    points: readonly PlotPoint[],
+    interpolate: string,
+    orientation?: string,
+    tension?: number,
+): CurvePiece[] | null {
+    const factory = pathCurves?.(interpolate, orientation, tension);
+    if (!factory) return null;
+    const pieces: CurvePiece[] = [];
+    let current: PlotPoint | null = null;
+    const move = (to: PlotPoint, piece?: CurvePiece): void => {
+        if (piece && current) pieces.push(piece);
+        current = to;
+    };
+    const curve = factory({
+        moveTo: (x: number, y: number) => move({ x, y }),
+        lineTo: (x: number, y: number) => move({ x, y }, { kind: 'line', points: [current!, { x, y }] }),
+        quadraticCurveTo: (x1: number, y1: number, x: number, y: number) =>
+            move({ x, y }, { kind: 'quad', points: [current!, { x: x1, y: y1 }, { x, y }] }),
+        bezierCurveTo: (x1: number, y1: number, x2: number, y2: number, x: number, y: number) =>
+            move({ x, y }, { kind: 'cubic', points: [current!, { x: x1, y: y1 }, { x: x2, y: y2 }, { x, y }] }),
+        closePath: () => undefined,
+    });
+    curve.lineStart();
+    for (const point of points) curve.point(point.x, point.y);
+    curve.lineEnd();
+    return pieces;
+}
+
+/** Where a drawn curve crosses `coordinate` on `axis`, on the other axis; null when it does not. */
+export function curveValueAt(pieces: readonly CurvePiece[], axis: 'x' | 'y', coordinate: number): number | null {
+    const along = (point: PlotPoint) => (axis === 'x' ? point.x : point.y);
+    const across = (point: PlotPoint) => (axis === 'x' ? point.y : point.x);
+    const at = (piece: CurvePiece, t: number, read: (point: PlotPoint) => number): number => {
+        const p = piece.points.map(read);
+        const u = 1 - t;
+        if (piece.kind === 'line') return u * p[0] + t * p[1];
+        if (piece.kind === 'quad') return u * u * p[0] + 2 * u * t * p[1] + t * t * p[2];
+        return u * u * u * p[0] + 3 * u * u * t * p[1] + 3 * u * t * t * p[2] + t * t * t * p[3];
+    };
+    for (const piece of pieces) {
+        const start = along(piece.points[0]);
+        const end = along(piece.points[piece.points.length - 1]);
+        if (coordinate < Math.min(start, end) || coordinate > Math.max(start, end)) continue;
+        if (start === end) return across(piece.points[piece.points.length - 1]);
+        // Curves drawn along their index axis advance monotonically along it within a piece.
+        let low = 0;
+        let high = 1;
+        const rising = end > start;
+        for (let step = 0; step < 32; step += 1) {
+            const middle = (low + high) / 2;
+            if ((at(piece, middle, along) < coordinate) === rising) low = middle;
+            else high = middle;
+        }
+        return at(piece, (low + high) / 2, across);
+    }
+    return null;
 }
 
 export function indexInspectAcquisition(
@@ -1278,10 +1548,9 @@ export function indexInspectAcquisition(
     assistDistance = 0,
 ): IndexInspectAcquisition {
     const specificSeries = typeof policy.show === 'object' ? policy.show.series : undefined;
-    const eligibleItems = typeof policy.show === 'object'
-        ? items.filter((item) => policy.seriesBy
-            && Object.is(item?.datum?.[policy.seriesBy], specificSeries))
-        : items;
+    const eligibleItems = items.filter((item) => isPickable(item, axis)
+        && (typeof policy.show !== 'object'
+            || (policy.seriesBy && Object.is(item?.datum?.[policy.seriesBy], specificSeries))));
 
     const itemAnchors = eligibleItems.flatMap((item) => {
         const geometry = item?.interactionGeometry;
@@ -1304,7 +1573,7 @@ export function indexInspectAcquisition(
         ? discreteCoordinates.map((coordinate) => ({ coordinate }))
         : itemAnchors;
     const pointerCoordinate = axis === 'x' ? point.x : point.y;
-    if (anchors.length === 0) return { hits: [], coordinate: pointerCoordinate, valueCoordinates: [] };
+    if (anchors.length === 0) return { hits: [], coordinate: pointerCoordinate, valueCoordinates: [], snapped: false };
 
     const hitsAtCoordinate = (coordinate: number): RenderHit[] => {
         const intersecting = axisIntersectingHits(eligibleItems, coordinate, axis);
@@ -1333,10 +1602,12 @@ export function indexInspectAcquisition(
         })()
         : Math.abs(anchor.coordinate - pointerCoordinate);
     if (continuousIndex && directHits.length === 0 && anchorDistance > assistDistance) {
-        return { hits: [], coordinate: pointerCoordinate, valueCoordinates: [] };
+        return { hits: [], coordinate: pointerCoordinate, valueCoordinates: [], snapped: false };
     }
-    const coordinate = directHits.length > 0 ? pointerCoordinate : anchor.coordinate;
-    const hits = directHits.length > 0 ? directHits : hitsAtCoordinate(coordinate);
+    // Within a pixel of an observation the reading is that observation, not a moment beside it.
+    const snapped = directHits.length === 0 || Math.abs(anchor.coordinate - pointerCoordinate) < 1;
+    const coordinate = snapped ? anchor.coordinate : pointerCoordinate;
+    const hits = snapped ? hitsAtCoordinate(coordinate) : directHits;
 
     const hitKeys = new Set(hits.map((hit) => hit.datum[INTERACTION_KEY]));
     let candidates = eligibleItems.filter((item) => {
@@ -1347,9 +1618,11 @@ export function indexInspectAcquisition(
         candidates = candidates.filter((item) => item.interactionGeometry);
     }
     const finalKeys = new Set(hits.map((hit) => hit.datum[INTERACTION_KEY]));
-    const valueCoordinates = candidates.flatMap((item) => {
+    const valueGuides = candidates.flatMap((item) => {
         const hit = renderHit(item);
         if (!hit || !finalKeys.has(hit.datum[INTERACTION_KEY])) return [];
+        const ink = item.mark?.marktype === 'line' ? item.stroke : item.fill ?? item.stroke;
+        const color = typeof ink === 'string' && ink !== 'none' ? ink : undefined;
         const points = item.interactionGeometry?.points as readonly PlotPoint[] | undefined;
         if (item.interactionGeometry?.kind === 'segment' && points && points.length >= 2) {
             const start = points[0];
@@ -1357,18 +1630,34 @@ export function indexInspectAcquisition(
             const alongStart = axis === 'x' ? start.x : start.y;
             const alongEnd = axis === 'x' ? end.x : end.y;
             if (coordinate < Math.min(alongStart, alongEnd) || coordinate > Math.max(alongStart, alongEnd)) return [];
+            // A curved line is read where it is drawn, not on the straight chord between its points.
+            if (typeof item.interpolate === 'string' && item.interpolate !== 'linear' && Array.isArray(item.mark?.items)) {
+                const offset = item.interactionGeometry.offset ?? { x: 0, y: 0 };
+                const pieces = curvePieces(
+                    item.mark.items
+                        .filter((sibling: any) => sibling.defined !== false)
+                        .map((sibling: any) => ({ x: sibling.x + offset.x, y: sibling.y + offset.y })),
+                    item.interpolate,
+                    item.orient,
+                    item.tension,
+                );
+                const onCurve = pieces ? curveValueAt(pieces, axis, coordinate) : null;
+                if (onCurve !== null) return [{ color, coordinate: onCurve }];
+            }
             const ratio = alongEnd === alongStart ? 0 : (coordinate - alongStart) / (alongEnd - alongStart);
-            return [axis === 'x'
+            return [{ color, coordinate: axis === 'x'
                 ? start.y + ratio * (end.y - start.y)
-                : start.x + ratio * (end.x - start.x)];
+                : start.x + ratio * (end.x - start.x) }];
         }
         if (!item.bounds) return [];
-        return [axis === 'x'
+        return [{ color, coordinate: axis === 'x'
             ? (item.bounds.y1 + item.bounds.y2) / 2
-            : (item.bounds.x1 + item.bounds.x2) / 2];
-    }).filter((value, index, values) => Number.isFinite(value)
-        && values.findIndex((candidate) => Math.abs(candidate - value) < 0.5) === index);
-    return { hits, coordinate, valueCoordinates };
+            : (item.bounds.x1 + item.bounds.x2) / 2 }];
+    }).filter((guide, index, guides) => Number.isFinite(guide.coordinate)
+        && guides.findIndex((candidate) => Math.abs(candidate.coordinate - guide.coordinate) < 0.5) === index);
+    const valueCoordinates = valueGuides.map((guide) => guide.coordinate);
+    const valueColors = valueGuides.map((guide) => guide.color);
+    return { hits, coordinate, valueCoordinates, snapped, ...(valueColors.some(Boolean) ? { valueColors } : {}) };
 }
 
 export function indexInspectHits(
@@ -1416,16 +1705,21 @@ export function regionHits(
         y1: Math.min(a.y, b.y), y2: Math.max(a.y, b.y),
     };
     return sceneItems(view)
-        .filter((item) => item.interactionGeometry
-            ? geometryIntersectsRect(item.interactionGeometry, rect, contain)
-            : item.mark?.marktype === 'arc'
-                ? arcIntersectsRect(item, rect, contain)
-                : contain
-                    ? item.bounds.x1 >= rect.x1 && item.bounds.x2 <= rect.x2
-                        && item.bounds.y1 >= rect.y1 && item.bounds.y2 <= rect.y2
-                    : boundsIntersectRect(item.bounds, rect))
+        .filter((item) => isPickable(item) && itemIntersectsRect(item, rect, contain))
         .map(renderHit)
         .filter((hit): hit is RenderHit => hit !== null);
+}
+
+/** Whether a scene item's geometry, arc, or bounds meet a plot rectangle. */
+function itemIntersectsRect(item: any, rect: SelectionRect, contain = false): boolean {
+    if (item.interactionGeometry) return geometryIntersectsRect(item.interactionGeometry, rect, contain);
+    if (item.mark?.marktype === 'arc') return arcIntersectsRect(item, rect, contain);
+    const bounds = pickBounds(item);
+    if (contain) {
+        return bounds.x1 >= rect.x1 && bounds.x2 <= rect.x2
+            && bounds.y1 >= rect.y1 && bounds.y2 <= rect.y2;
+    }
+    return boundsIntersectRect(bounds, rect);
 }
 
 /** Marks captured by a freeform lasso path. */
@@ -1437,8 +1731,8 @@ export function polygonHits(
     if (polygon.length < 3) return [];
     return sceneItems(view)
         .filter((item) => {
-            const bounds = item.bounds;
-            if (!bounds) return false;
+            if (!item.bounds || !isPickable(item)) return false;
+            const bounds = pickBounds(item);
             if (contain) {
                 return [
                     { x: bounds.x1, y: bounds.y1 },

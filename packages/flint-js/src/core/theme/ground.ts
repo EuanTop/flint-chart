@@ -22,30 +22,52 @@ import type {
     ResolvedAxis,
     ResolvedRule,
     ResolvedSeriesInk,
+    RuleSpec,
+    AxisRole,
+    SeriesMarkFamily,
+    ThemeInk,
+    ResolvedMarks,
     ResolvedText,
     SizeToken,
     ThemeGeometry,
     ThemeGuard,
     ThemeMarks,
+    ReportDeparture,
     ThemeReport,
     ThemeSpec,
+    TexturePattern,
     TypeRole,
 } from './types.js';
+
+const TEXTURE_PATTERNS: TexturePattern[] = ['solid', 'diagonal', 'antidiagonal', 'horizontal', 'vertical', 'cross', 'dots'];
 import {
     contrastingInk,
+    contrastRatio,
+    readableTextInk,
     isDarkSurface,
     isPaintedSurface,
-    luminance,
     mixHex,
     parseColor,
     presenceWidth,
     resolvePresenceInk,
     sampleRamp,
+    sampleRampBins,
 } from './presence.js';
 import { resolveDisplayUnit } from '../field-semantics.js';
-import { getRegistryEntry } from '../type-registry.js';
-import { inferValueLabelFormat, longestLabelChars } from './value-label-format.js';
+import { getRegistryEntry, isRegistered } from '../type-registry.js';
+import { alreadyNamed } from '../title-plan.js';
+import { namedAsItsKind, selfNamingKind } from '../self-naming-values.js';
+import { inferValueLabelFormat } from './value-label-format.js';
+import { categoriesSplitBySign, categorySignRoles } from './series-sign.js';
+import { COMPACT_SUFFIXES, DEFAULT_COMPACT_TYPES, compactApplies, compactPrint, type CompactPrint, type CompactRule } from '../number-compact.js';
 import { deepMerge } from './merge.js';
+import { overflowStaysFlat, resolveLabelOverflow } from '../axis-labels.js';
+import { sequenceKindOf } from '../label-sequence.js';
+import type { TextMeasurer } from '../legend-layout.js';
+import { axisRoles, type AxisFieldFacts } from '../axis-roles.js';
+import { boundValueInks, chartValueColors } from '../value-colors.js';
+import { LABEL_GAP, LABEL_INSET, LABEL_SIDE, LINE_SLACK, measureValueLabels } from '../value-label-measure.js';
+import { isGapSize, type GroupSpacing } from '../group-gaps.js';
 
 // ---------------------------------------------------------------------------
 // Input
@@ -59,12 +81,16 @@ import { deepMerge } from './merge.js';
  */
 export interface GroundingContext {
     chartType: string;
+    /** How the renderer measures text; unset reads the width table. */
+    measureText?: TextMeasurer;
     /** Template's `markCognitiveChannel`, widened for `angle`/`text` families. */
     markChannel: string;
     /** Mark families present in the instantiated chart, e.g. `['bar','text']`. */
     markTypes: string[];
     /** The resolved `showSeriesInLabel`: the chart names its series on the marks. */
     namesOnMarks?: boolean;
+    /** The chart names each series where it is drawn and draws them all in the single ink. */
+    seriesOneInk?: boolean;
     /** Per-channel resolved semantics (phase 0). */
     channelSemantics: Record<string, any>;
     /** Encoding types after template-driven conversion (e.g. Q→O for bars). */
@@ -79,8 +105,11 @@ export interface GroundingContext {
     positional?: {
         x?: { type?: string; field?: string };
         y?: { type?: string; field?: string };
-        /** Whatever colour-like channel a data mark carries, wherever it sits. */
-        color?: { type?: string; field?: string };
+        /**
+         * Whatever colour-like channel a data mark carries, wherever it sits. A series the chart
+         * derives itself is named by `field` and marked `derived`: it is never looked up in the rows.
+         */
+        color?: { type?: string; field?: string; derived?: boolean };
         /** Whether the data marks are stacked into segments. */
         stacked?: boolean;
     };
@@ -92,6 +121,8 @@ export interface GroundingContext {
         xStepUnit?: 'item' | 'group';
         yStepUnit?: 'item' | 'group';
         stepPadding: number;
+        /** The x band labels the layout fitted, where it wrapped them. */
+        xLabel?: { labelLines?: string[][]; labelAngle?: number };
         titleFontSize: number;
         legendFontSize: number;
         facet?: { columns: number; rows: number };
@@ -130,6 +161,11 @@ export interface GroundingContext {
      * exactly as a house's own `always` does.
      */
     valueLabels?: 'on' | 'off';
+    /** The chart's own overflow sequence for its x names (`chartProperties.labelOverflow`), over the theme's. */
+    labelOverflow?: unknown;
+
+    /** The signal through which a live layout re-plans value labels for the rows in view. */
+    liveLayoutSignal?: string;
 
     /**
      * The geometries the chart template builds. Geometry the template cannot
@@ -151,6 +187,10 @@ export interface GroundingContext {
  *
  * Returns the merged options; keys the caller left undefined take the house's.
  */
+/** How far a zero rule a house states plainly steps from its grid's ink toward its axis ink: 'full', and 'quiet'. */
+const ZERO_STEP = 0.5;
+const ZERO_STEP_QUIET = 0.3;
+
 export function resolveCompileDefaults<T extends Record<string, any>>(
     theme: ThemeSpec | undefined,
     authored: T | undefined,
@@ -166,16 +206,12 @@ export function resolveCompileDefaults<T extends Record<string, any>>(
             report.push({
                 stage: 'ground',
                 path: `compileDefaults.${key}`,
+                code: 'compile-default-overridden',
                 message: `the house prefers \`${key}: ${JSON.stringify(value)}\`, but the chart states its own — the chart's stands`,
             });
             continue;
         }
         merged[key] = value;
-        report.push({
-            stage: 'ground',
-            path: `compileDefaults.${key}`,
-            message: `house preset: \`${key}\` set to ${JSON.stringify(value)}`,
-        });
     }
     return { options: merged as T, report };
 }
@@ -198,6 +234,7 @@ export function resolveChartDefaults(
     declared: { key: string }[] | undefined,
     authored: Record<string, any> | undefined,
     target: Record<string, any>,
+    readsData: (key: string) => boolean,
 ): ThemeReport[] {
     const defaults = theme?.chartDefaults;
     // A slopegraph reads in one of two ways, and which one is a house matter.
@@ -231,7 +268,17 @@ export function resolveChartDefaults(
             report.push({
                 stage: 'ground',
                 path: `chartDefaults.${chartType}.${key}`,
+                code: 'chart-default-not-offered',
                 message: `the house asks for \`${key}\`, which \`${chartType}\` does not offer — dropped`,
+            });
+            continue;
+        }
+        if (readsData(key)) {
+            report.push({
+                stage: 'ground',
+                path: `chartDefaults.${chartType}.${key}`,
+                code: 'chart-default-dropped',
+                message: `the house asks for \`${key}\`, which changes how the data is read, not how the chart looks — dropped`,
             });
             continue;
         }
@@ -239,16 +286,12 @@ export function resolveChartDefaults(
             report.push({
                 stage: 'ground',
                 path: `chartDefaults.${chartType}.${key}`,
+                code: 'chart-default-overridden',
                 message: `the house prefers \`${key}: ${JSON.stringify(value)}\`, but the chart already states one — the chart's own setting stands`,
             });
             continue;
         }
         target[key] = value;
-        report.push({
-            stage: 'ground',
-            path: `chartDefaults.${chartType}.${key}`,
-            message: `house rule: \`${key}\` set to ${JSON.stringify(value)}`,
-        });
     }
     return report;
 }
@@ -285,11 +328,14 @@ function geometryFromMarks(marks: ThemeMarks | undefined): ThemeGeometry {
         area: {
             opacity: marks.fillOpacity,
             interpolation,
+            edge: marks.areaEdge?.presence,
+            edgeWidth: marks.areaEdge?.width,
         },
         band: {
             fraction: marks.bandFraction,
+            ...(marks.group ? { group: marks.group } : {}),
             cornerRadius: marks.cornerRadius,
-            opacity: marks.fillOpacity,
+            opacity: marks.barOpacity,
             outline: marks.outline?.presence,
             outlineWidth: marks.outline?.weight,
         },
@@ -297,6 +343,9 @@ function geometryFromMarks(marks: ThemeMarks | undefined): ThemeGeometry {
             cornerRadius: marks.cornerRadius,
             gap: marks.slice?.gap,
             gapStyle: marks.slice?.gapStyle,
+            order: marks.arc?.order,
+            startAngle: marks.arc?.startAngle,
+            hole: marks.arc?.hole,
         },
         cell: {
             gap: marks.tile?.gap,
@@ -345,6 +394,66 @@ function stripUndefined(geometry: ThemeGeometry): ThemeGeometry {
  * sixteen-panel facet — arrives here already folded in, because variants are
  * merged into `theme` before this runs.
  */
+/**
+ * What the caller asked for on value labels, in one word. `showValueLabels` is the control;
+ * `showTextLabels` is the older spelling some templates and hosts still pass, where only `true`
+ * means anything.
+ */
+export function resolveValueLabelChoice(chartProperties: Record<string, any> | undefined): 'on' | 'off' | undefined {
+    const choice = chartProperties?.showValueLabels;
+    if (typeof choice === 'boolean') return choice ? 'on' : 'off';
+    return chartProperties?.showTextLabels === true ? 'on' : undefined;
+}
+
+/** A title's headline and deck as one line of text. */
+export function headlineText(title: { text?: unknown; subtitle?: unknown } | string | undefined): string | undefined {
+    if (!title) return undefined;
+    const parts: string[] = [];
+    const push = (v: any) => {
+        if (typeof v === 'string') parts.push(v);
+        else if (Array.isArray(v)) v.forEach(push);
+    };
+    if (typeof title === 'string') push(title);
+    else { push(title.text); push(title.subtitle); }
+    return parts.length ? parts.join(' ') : undefined;
+}
+
+/**
+ * How many ticks a measure axis carries along `span` pixels. How finely a ruler is graduated is a
+ * house matter: roughly one label every 45px reads as ordinary, one every 60px as quiet. Three is
+ * the floor; two gradations is not a ruler.
+ */
+export function measureTickCount(span: number, density: 'sparse' | 'normal' | 'dense' | undefined): number {
+    return Math.max(3, Math.round(span / measureTickSpacing(density)));
+}
+
+/** The px between labels a measure axis is graduated at for a house's density. */
+export function measureTickSpacing(density: 'sparse' | 'normal' | 'dense' | undefined): number {
+    return density === 'sparse' ? 60 : density === 'dense' ? 30 : 45;
+}
+
+/** The face a theme sets text in where a role names none of its own. */
+export function themeBodyFamily(theme: Pick<ThemeSpec, 'type'>): string | undefined {
+    return theme.type?.axisLabel?.family ?? theme.type?.valueLabel?.family ?? theme.type?.headline?.family;
+}
+
+/** The share of its band a bar fills: the theme's band geometry, else what the layout's step padding leaves. */
+export function resolveBandFraction(
+    theme: ThemeSpec,
+    chartType: string,
+    geometryKinds: GeometryKind[] | undefined,
+    stepPadding: number | undefined,
+): number {
+    const marks = geometryToMarks(resolveGeometry(theme, chartType, geometryKinds).geometry, theme.marks);
+    return marks?.bandFraction ?? (1 - (stepPadding ?? 0.1));
+}
+
+/** The group spacing a theme resolves to for a chart, as grounding resolves it (without reports). */
+export function resolvedGroupSpacing(theme: ThemeSpec, chartType: string, geometryKinds: GeometryKind[] | undefined): GroupSpacing {
+    const marks = geometryToMarks(resolveGeometry(theme, chartType, geometryKinds).geometry, theme.marks);
+    return groundGroupSpacing(marks?.group, () => undefined);
+}
+
 export function resolveGeometry(
     theme: ThemeSpec | undefined,
     chartType: string,
@@ -364,13 +473,6 @@ export function resolveGeometry(
         for (const kind of Object.keys(geometry)) {
             if (kinds.has(kind)) continue;
             delete (geometry as Record<string, unknown>)[kind];
-            if (theme.geometry?.[kind as GeometryKind]) {
-                report.push({
-                    stage: 'ground',
-                    path: `geometry.${kind}`,
-                    message: `\`${chartType}\` builds no ${kind} — the house's ${kind} geometry does not apply here`,
-                });
-            }
         }
     }
 
@@ -396,14 +498,22 @@ export function geometryToMarks(
     if (line?.interpolation !== undefined) marks.interpolation = line.interpolation;
     else if (area?.interpolation !== undefined) marks.interpolation = area.interpolation;
 
-    // One opacity reaches every filled mark, so a band that states its own wins
-    // over an area's: a chart that draws both is a bar chart with a wash, and
-    // the bars are what the reader measures.
+    // An area's wash and a bar's fill are two opacities (M2): a band's reaches bars, an area's areas.
     if (area?.opacity !== undefined) marks.fillOpacity = area.opacity;
-    if (band?.opacity !== undefined) marks.fillOpacity = band.opacity;
+    if (band?.opacity !== undefined) marks.barOpacity = band.opacity;
+    if (band?.minLength !== undefined) marks.barMinLength = band.minLength;
+    if (area?.fill !== undefined || line?.wash !== undefined || line?.washOpacity !== undefined) {
+        marks.gradient = {
+            ...(marks.gradient ?? {}),
+            ...(area?.fill !== undefined ? { area: area.fill } : {}),
+            ...(line?.wash !== undefined ? { lineWash: line.wash } : {}),
+            ...(line?.washOpacity !== undefined ? { washOpacity: line.washOpacity } : {}),
+        };
+    }
     if (cell?.opacity !== undefined) marks.fillOpacity = cell.opacity;
 
     if (band?.fraction !== undefined) marks.bandFraction = band.fraction;
+    if (band?.group !== undefined) marks.group = { ...(marks.group ?? {}), ...band.group };
     if (band?.cornerRadius !== undefined) marks.cornerRadius = band.cornerRadius;
     if (arc?.cornerRadius !== undefined) marks.cornerRadius = arc.cornerRadius;
 
@@ -413,19 +523,42 @@ export function geometryToMarks(
         if (point.size !== undefined) resolved.size = point.size;
         if (point.vertexSize !== undefined) resolved.secondarySize = point.vertexSize;
         if (point.fill !== undefined) resolved.fill = point.fill;
+        if (point.shape !== undefined) resolved.shape = point.shape;
+        if (point.opacity !== undefined) resolved.opacity = point.opacity;
+        if (point.ink !== undefined) resolved.ink = point.ink;
+        if (point.density !== undefined) resolved.density = point.density;
+        if (point.halo !== undefined) resolved.halo = { ...(resolved.halo ?? {}), ...point.halo };
         if (Object.keys(resolved).length) marks.point = resolved;
     }
 
-    const outlinePresence = band?.outline ?? area?.edge;
-    const outlineWidth = band?.outlineWidth ?? area?.edgeWidth ?? point?.outlineWidth;
-    if (outlinePresence !== undefined || outlineWidth !== undefined) {
+    // An area's edge is its own line, in its own ink (M1): it never becomes an outline round bars,
+    // wedges and dots.
+    if (area?.edge !== undefined || area?.edgeWidth !== undefined) {
+        marks.areaEdge = {
+            ...(marks.areaEdge ?? {}),
+            ...(area.edge !== undefined ? { presence: area.edge } : {}),
+            ...(area.edgeWidth !== undefined ? { width: area.edgeWidth } : {}),
+        };
+    }
+    const outlinePresence = band?.outline;
+    const outlineWidth = band?.outlineWidth ?? point?.outlineWidth;
+    if (outlinePresence !== undefined || outlineWidth !== undefined || band?.outlineInk !== undefined) {
         marks.outline = {
             ...(marks.outline ?? {}),
+            ...(band?.outlineInk !== undefined ? { source: band.outlineInk } : {}),
             ...(outlinePresence !== undefined ? { presence: outlinePresence } : {}),
             ...(outlineWidth !== undefined ? { weight: outlineWidth } : {}),
         };
     }
 
+    if (arc?.order !== undefined || arc?.startAngle !== undefined || arc?.hole !== undefined) {
+        marks.arc = {
+            ...(marks.arc ?? {}),
+            ...(arc.order !== undefined ? { order: arc.order } : {}),
+            ...(arc.startAngle !== undefined ? { startAngle: arc.startAngle } : {}),
+            ...(arc.hole !== undefined ? { hole: arc.hole } : {}),
+        };
+    }
     if (arc?.gap !== undefined || arc?.gapStyle !== undefined) {
         marks.slice = {
             ...(marks.slice ?? {}),
@@ -446,15 +579,45 @@ const TEXT_TOKENS: Record<string, number> = {
     hero700: 28, hero800: 32, hero900: 40, hero1000: 68,
 };
 
-const WEIGHTS: Record<string, number> = { regular: 400, medium: 500, semibold: 600, bold: 700 };
+const WEIGHTS: Record<string, number> = {
+    thin: 100, extralight: 200, light: 300, regular: 400, medium: 500, semibold: 600, bold: 700, extrabold: 800, black: 900,
+};
 
-function tokenToPx(size: SizeToken | undefined): number | undefined {
+/** A TypeRole weight as the CSS number: a name from the scale, or a number rounded to it. */
+export function fontWeightOf(weight: TypeRole['weight'] | undefined): number | undefined {
+    if (weight == null) return undefined;
+    if (typeof weight === 'number') return Number.isFinite(weight) ? Math.min(900, Math.max(100, Math.round(weight / 100) * 100)) : undefined;
+    return WEIGHTS[weight];
+}
+
+/** The px size a theme size token (`text.200`) or number stands for; undefined for an unknown token. */
+export function tokenToPx(size: SizeToken | undefined): number | undefined {
     if (size == null) return undefined;
     if (typeof size === 'number') return size;
     const m = /^text\.(.+)$/.exec(size);
     if (m && TEXT_TOKENS[m[1]] != null) return TEXT_TOKENS[m[1]];
     const n = Number(size);
     return Number.isFinite(n) ? n : undefined;
+}
+
+/** A type role as drawn: its family (else the theme's body family), size for the room, weight, style, ink and case. */
+function resolveTextRole(
+    theme: ThemeSpec, role: TypeRole | undefined, fallbackSize: number, fallbackColor: string, availableWidth: number,
+): ResolvedText {
+    return {
+        font: role?.family ?? themeBodyFamily(theme),
+        fontSize: resolveThemeFontSize(theme, role?.size, fallbackSize, availableWidth),
+        fontWeight: fontWeightOf(role?.weight),
+        fontStyle: role?.style === 'italic' ? 'italic' : undefined,
+        color: role?.color ?? fallbackColor,
+        ...(role?.case && role.case !== 'asIs' ? { textCase: role.case } : {}),
+    };
+}
+
+export function resolveThemeFontSize(theme: ThemeSpec, size: SizeToken | undefined, fallback: number, availableWidth: number): number {
+    const targetWidth = theme.layout?.targetWidth ?? 300;
+    const scale = clamp(Math.pow((availableWidth || targetWidth) / targetWidth, 0.3), 0.85, 1.2);
+    return Math.max(theme.type?.minSize ?? 8, Math.round((tokenToPx(size) ?? fallback) * scale * 2) / 2);
 }
 
 // ---------------------------------------------------------------------------
@@ -508,7 +671,7 @@ const FACET_CHANNELS = ['column', 'row', 'facet'];
 // rather than a summary mark. They summarise like a box plot does, so they take
 // the same label escape — a printed value names a quantity they were chosen not
 // to reduce to. (A box plot itself is caught earlier by its `boxplot` mark.)
-const DISTRIBUTION_SHAPE_CHARTS = new Set(['Violin Plot', 'Density Plot']);
+const DISTRIBUTION_SHAPE_CHARTS = new Set(['Violin Plot', 'Density Plot', 'Ridgeline Plot', 'Marginal Plot']);
 // A table with in-row bars: every value is also printed in its own column, so
 // the bar is a secondary in-cell glyph and the category axis is a row-header
 // gutter, not a base the bars stand on.
@@ -525,9 +688,11 @@ const MULTI_VALUE_GLYPH_CHARTS = new Set(['Candlestick Chart']);
 // The title block's vertical rhythm, as a multiple of the headline / deck font
 // size. A house's whitespace personality reaches the title here: `tight` packs
 // the chart up under the headline (a dense figure, a dashboard tile); `loose`
-// gives an action title room to breathe (a slide exhibit). `normal` preserves
-// the ratios the realizer used before the block was expressible.
-const TITLE_GAP: Record<'tight' | 'normal' | 'loose', number> = { tight: 0.45, normal: 0.9, loose: 1.7 };
+// gives an action title room to breathe (a slide exhibit). The gap sets the
+// title block apart from the chart: under a deck it is the space of more than
+// one deck line, so the deck and the labels below it do not read as one column
+// of text, even at `tight`.
+const TITLE_GAP: Record<'tight' | 'normal' | 'loose', number> = { tight: 0.7, normal: 1.25, loose: 2 };
 const DECK_GAP: Record<'tight' | 'normal' | 'loose', number> = { tight: 0.25, normal: 0.55, loose: 1.05 };
 
 function distinctCount(table: any[], field: string | undefined): number {
@@ -581,6 +746,11 @@ function percentOfWhole(ctx: GroundingContext, channel: string): string | undefi
     return n >= 3 && Math.abs(sum - 100) < 0.5 ? '%' : undefined;
 }
 
+/** Whether a number format already writes the unit: a d3 `%` pattern prints its own percent sign. */
+function formatPrintsUnit(pattern: string | undefined, unit: string): boolean {
+    return unit === '%' && /%$/.test(pattern ?? '');
+}
+
 function displayUnit(ctx: GroundingContext, channel: string) {
     const sem = ctx.channelSemantics?.[channel];
     return resolveDisplayUnit(sem?.semanticAnnotation);
@@ -604,7 +774,7 @@ function displayUnit(ctx: GroundingContext, channel: string) {
 function labelsNameThemselves(ctx: GroundingContext, channel: string | undefined): boolean {
     if (!channel) return false;
     const semanticType = ctx.channelSemantics?.[channel]?.semanticAnnotation?.semanticType;
-    if (typeof semanticType !== 'string') {
+    if (typeof semanticType !== 'string' || semanticType === 'Unknown' || !isRegistered(semanticType)) {
         // Nothing said about the field. Fall back to what the chart put on the
         // channel: names and dates read as themselves, numbers do not.
         const type = channelType(ctx, channel);
@@ -614,6 +784,23 @@ function labelsNameThemselves(ctx: GroundingContext, channel: string | undefined
     return entry.t1 === 'DateGranule'
         || entry.visEncodings.includes('nominal')
         || entry.visEncodings.includes('temporal');
+}
+
+/**
+ * Whether a key's names need no title over them, on proof only — a title the reader did not need
+ * costs a line, one they needed and did not get leaves the colours unread. Proof is the headline or
+ * deck already naming the field, or every value proving one closed kind (months, years, countries,
+ * US states, continents; never codes) under a field name that says no more than that kind (`Country`
+ * over country names; not `Origin`). What the field is typed as proves nothing: a type is a label,
+ * not what the reader sees.
+ */
+function keyNamesItselfOf(ctx: GroundingContext, channel: string | undefined): boolean {
+    if (!channel) return false;
+    const field = ctx.channelSemantics?.[channel]?.field;
+    if (!field) return false;
+    if (ctx.headline && alreadyNamed(field, ctx.headline)) return true;
+    const kind = selfNamingKind(ctx.table.map((row) => row?.[field]));
+    return Boolean(kind && namedAsItsKind(field, kind));
 }
 
 /**
@@ -634,21 +821,12 @@ interface Bindings {
 }
 
 function bindRoles(ctx: GroundingContext): Bindings {
-    const measureChannels: Array<'x' | 'y'> = [];
-    let categoricalChannel: 'x' | 'y' | undefined;
-
-    for (const ch of ['x', 'y'] as const) {
-        if (!channelPresent(ctx, ch)) continue;
-        const t = channelType(ctx, ch);
-        const banded = ctx.axisFlags?.[ch]?.banded === true;
-        // A banded axis carries identity even when its field is quantitative
-        // (a binned histogram axis), so banding wins over the encoding type.
-        if (t === 'quantitative' && !banded) measureChannels.push(ch);
-        else categoricalChannel = ch;
-    }
-    // Both quantitative (scatter): there is no categorical axis, and both axes
-    // take the measure role. Both discrete (heatmap): neither does.
-    if (measureChannels.length === 2) categoricalChannel = undefined;
+    const fieldFacts = (channel: 'x' | 'y'): AxisFieldFacts => ({
+        present: channelPresent(ctx, channel),
+        type: channelType(ctx, channel),
+        banded: ctx.axisFlags?.[channel]?.banded === true,
+    });
+    const { measureChannels, categoricalChannel } = axisRoles({ x: fieldFacts('x'), y: fieldFacts('y') });
 
     const seriesChannel = SERIES_CHANNELS.find((c) => ctx.channelSemantics?.[c]?.field)
         ?? (ctx.positional?.color?.field ? 'color' : undefined);
@@ -665,7 +843,8 @@ function deriveSignals(ctx: GroundingContext, b: Bindings): Signals {
     // temperature that goes below zero is signed wherever it is drawn.
     const signedChannels = [...b.measureChannels, ...(b.seriesChannel ? [b.seriesChannel] : [])];
     for (const ch of signedChannels) {
-        const f = channelFact(ctx, ch)?.field;
+        const fact = channelFact(ctx, ch) as { field?: string; derived?: boolean } | undefined;
+        const f = fact?.derived ? undefined : fact?.field;
         if (!f) continue;
         for (const row of ctx.table) {
             const v = row?.[f];
@@ -676,7 +855,8 @@ function deriveSignals(ctx: GroundingContext, b: Bindings): Signals {
 
     const isTemporal = (['x', 'y'] as const).some((ch) => channelType(ctx, ch) === 'temporal');
 
-    const seriesKnown = fieldPresent(ctx.table, seriesField);
+    const seriesDerived = (channelFact(ctx, b.seriesChannel) as { derived?: boolean } | undefined)?.derived === true;
+    const seriesKnown = !seriesDerived && fieldPresent(ctx.table, seriesField);
 
     return {
         markChannel: ctx.markChannel,
@@ -707,7 +887,7 @@ function deriveSignals(ctx: GroundingContext, b: Bindings): Signals {
 
 export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDecisions {
     const report: ThemeReport[] = [];
-    const say = (path: string, message: string) => report.push({ stage: 'ground', path, message });
+    const say: ReportDeparture = (path, code, message) => report.push({ stage: 'ground', path, code, message });
 
     const bindings = bindRoles(ctx);
     const signals = deriveSignals(ctx, bindings);
@@ -724,7 +904,6 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
     for (const variant of themeIn.variants ?? []) {
         if (!variant.when || !guardHolds(variant.when, signals)) continue;
         theme = deepMerge(theme, variant.then);
-        say('variants', `applied variant ${JSON.stringify(variant.when)}${variant.because ? ` — ${variant.because}` : ''}`);
     }
 
     // --- surface ------------------------------------------------------------
@@ -748,23 +927,10 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
     // token is a different number of pixels on a 700px chart and a 250px one.
     const targetWidth = theme.layout?.targetWidth ?? 300;
     const available = ctx.layout.subplotWidth || ctx.canvasSize.width || targetWidth;
-    const scale = clamp(Math.pow(available / targetWidth, 0.3), 0.85, 1.2);
-    const minSize = theme.type?.minSize ?? 8;
-    const bodyFamily = theme.type?.axisLabel?.family
-        ?? theme.type?.valueLabel?.family
-        ?? theme.type?.headline?.family;
+    const bodyFamily = themeBodyFamily(theme);
 
-    function resolveType(role: TypeRole | undefined, fallbackSize: number, fallbackColor: string): ResolvedText {
-        const px = tokenToPx(role?.size) ?? fallbackSize;
-        const sized = Math.max(minSize, Math.round(px * scale * 2) / 2);
-        return {
-            font: role?.family ?? bodyFamily,
-            fontSize: sized,
-            fontWeight: role?.weight ? WEIGHTS[role.weight] : undefined,
-            fontStyle: role?.style === 'italic' ? 'italic' : undefined,
-            color: role?.color ?? fallbackColor,
-        };
-    }
+    const resolveType = (role: TypeRole | undefined, fallbackSize: number, fallbackColor: string): ResolvedText =>
+        resolveTextRole(theme, role, fallbackSize, fallbackColor, available);
 
     const axisLabelText = resolveType(theme.type?.axisLabel, 10, text.secondary);
     const axisTitleText = resolveType(theme.type?.axisTitle, 10, text.secondary);
@@ -772,6 +938,59 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
     const deck = resolveType(theme.type?.deck, 11, text.secondary);
     const valueLabel = resolveType(theme.type?.valueLabel, 10, text.primary);
     const keyLabel = resolveType(theme.type?.keyLabel, 10, text.secondary);
+    // A key's title names a field, as an axis title does: it is set as the house sets those, at its
+    // labels' size, unless the house sets key titles apart.
+    const axisTitleRole = theme.type?.axisTitle;
+    const keyTitleRole = theme.type?.keyTitle;
+    const keyTitle: ResolvedText = {
+        ...resolveType({
+            family: axisTitleRole?.family ?? theme.type?.keyLabel?.family,
+            size: theme.type?.keyLabel?.size,
+            ...(axisTitleRole?.style ? { style: axisTitleRole.style } : {}),
+            ...(axisTitleRole?.color ? { color: axisTitleRole.color } : {}),
+            ...keyTitleRole,
+        }, 10, text.secondary),
+        // Never lighter than bold unless the house says so of key titles: the weight is what tells a
+        // title from the entries under it, set in the same face, size and often ink.
+        fontWeight: fontWeightOf(keyTitleRole?.weight) ?? Math.max(fontWeightOf(axisTitleRole?.weight) ?? 700, 700),
+    };
+    // Roles read only where Flint draws their text: a statistic's note, a KPI's big number.
+    const annotationText = theme.type?.annotation ? resolveType(theme.type.annotation, 10, text.secondary) : undefined;
+    const displayText = theme.type?.display ? resolveType(theme.type.display, 28, text.primary) : undefined;
+    // The source line (S1) is set in the footnote role: small, in the secondary ink.
+    const footnote = resolveType(theme.type?.footnote, Math.max(9, (axisLabelText.fontSize ?? 10) - 1), text.muted);
+    const sourceSpec = theme.source ?? {};
+    const sourceRule = sourceSpec.rule && (sourceSpec.rule.presence ?? 'full') !== 'omit'
+        ? { width: Math.max(0.5, sourceSpec.rule.width ?? 1), color: sourceSpec.rule.color ?? theme.ink?.structure?.rule ?? theme.ink?.structure?.axis ?? text.muted, ...(sourceSpec.rule.dash ? { dash: sourceSpec.rule.dash } : {}) }
+        : undefined;
+    // A logo for the credit, at the line's other end only; elsewhere the words stand.
+    const statedImage = sourceSpec.credit?.image;
+    const imageSrc = statedImage?.src ?? (statedImage?.svg ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(statedImage.svg)}` : undefined);
+    const creditImage = imageSrc && statedImage && statedImage.width > 0 && statedImage.height > 0
+        && (sourceSpec.credit?.placement ?? 'inline') === 'end'
+        ? { src: imageSrc, width: statedImage.width, height: statedImage.height } : undefined;
+    if (statedImage && !creditImage) {
+        say('source.credit.image', 'credit-image-not-drawn', 'a credit logo is drawn only at the line’s other end (`placement: "end"`) with a size and an `svg` or `src` — the credit’s words stand instead');
+    }
+    const sourceDesign: DesignDecisions['source'] = {
+        show: (sourceSpec.show ?? 'whenGiven') !== 'never',
+        text: footnote,
+        leadIn: sourceSpec.leadIn ?? 'Source:',
+        ...(sourceSpec.leadInWeight !== undefined ? { leadInWeight: fontWeightOf(sourceSpec.leadInWeight) } : {}),
+        ...(sourceSpec.leadInStyle ? { leadInStyle: sourceSpec.leadInStyle } : {}),
+        ...(sourceSpec.leadInCase ? { leadInCase: sourceSpec.leadInCase } : {}),
+        align: sourceSpec.align ?? 'start',
+        frame: sourceSpec.frame ?? 'content',
+        ...(sourceRule ? { rule: sourceRule } : {}),
+        ...(sourceSpec.credit?.text ? { credit: {
+            text: sourceSpec.credit.text,
+            placement: sourceSpec.credit.placement ?? 'inline',
+            separator: sourceSpec.credit.separator ?? ' | ',
+            ...(sourceSpec.credit.weight !== undefined ? { weight: fontWeightOf(sourceSpec.credit.weight) } : {}),
+            ...(creditImage ? { image: creditImage } : {}),
+        } } : {}),
+        gap: Math.max(0, sourceSpec.gap ?? 8),
+    };
 
     // --- structure ----------------------------------------------------------
     const structure = theme.structure ?? {};
@@ -785,32 +1004,85 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
         return { show: color !== null, color: color ?? 'transparent', width: presenceWidth(presence ?? fallback, base) };
     };
 
-    const gridStyle = structure.grid?.style ?? 'solid';
-    const gridDash = structure.grid?.dash
-        ?? (gridStyle === 'dashed' ? [3, 3] : gridStyle === 'dotted' ? [1, 3] : undefined);
+    const dashOf = (style: 'solid' | 'dashed' | 'dotted' | undefined) =>
+        style === 'dashed' ? [3, 3] : style === 'dotted' ? [1, 3] : undefined;
+    const gridDash = structure.grid?.dash ?? dashOf(structure.grid?.style ?? 'solid');
     const gridWeight = structure.grid?.weight ?? 1;
 
-    const measureGrid: ResolvedRule = {
-        ...rule(structure.grid?.measure, structureInk.grid, 'quiet', gridWeight),
-        dash: gridDash,
+    /**
+     * A rule the house states (GR2): a presence, or the presence with its own style, dash, weight
+     * and ink. An object states a drawn rule, so without a presence it is quiet; what it leaves
+     * out it takes from the defaults it is given (the grid's shared style and weight).
+     */
+    const ruleFrom = (
+        stated: RuleSpec | undefined, roleInk: string | undefined, fallback: Presence,
+        defaults: { weight?: number; dash?: number[] } = {},
+    ): ResolvedRule => {
+        const own = typeof stated === 'object' && stated !== null ? stated : undefined;
+        const presence = own ? own.presence ?? 'quiet' : stated as Presence | undefined;
+        const dash = own?.dash ?? (own?.style ? dashOf(own.style) : defaults.dash);
+        return {
+            ...rule(presence, own?.color ?? roleInk, fallback, own?.weight ?? defaults.weight ?? 1),
+            ...(dash ? { dash } : {}),
+        };
     };
-    const categoryGrid: ResolvedRule = {
-        ...rule(structure.grid?.category, structureInk.grid, 'omit', gridWeight),
-        dash: gridDash,
-    };
+
+    const measureGrid = ruleFrom(structure.grid?.measure, structureInk.grid, 'quiet', { weight: gridWeight, dash: gridDash });
+    const categoryGrid = ruleFrom(structure.grid?.category, structureInk.grid, 'omit', { weight: gridWeight, dash: gridDash });
     // Zero is not one gridline among the others: it is where the measure
     // changes sign, and on a chart of lengths it is the line every mark is
     // measured from. A house that wants it stated says so; the default is to
     // let it be an ordinary line.
-    const zeroRule: ResolvedRule | undefined = structure.grid?.zero
-        && structure.grid.zero !== 'omit'
-        ? rule(structure.grid.zero, structureInk.zero ?? structureInk.rule ?? structureInk.axis, 'full')
+    //
+    // Houses state it, but most state it as a step past the grid, not as an axis: a line a shade
+    // darker than the gridlines, at their weight, solid where they are dashed. Only a house that
+    // gives zero its own ink, or asks for it emphasised, gets a stronger line.
+    const zeroStated = structure.grid?.zero;
+    const zeroOwn = typeof zeroStated === 'object' && zeroStated !== null ? zeroStated : undefined;
+    const zeroPresence = zeroOwn ? zeroOwn.presence ?? 'quiet' : zeroStated as Presence | undefined;
+    const zeroStrong = Boolean(structureInk.zero || zeroOwn?.color) || zeroPresence === 'emphasised';
+    const zeroRule: ResolvedRule | undefined = zeroStated && zeroStated !== 'omit' && zeroPresence !== 'omit'
+        ? zeroStrong || !measureGrid.show
+            ? ruleFrom(zeroStated, structureInk.zero ?? structureInk.rule ?? structureInk.axis, 'full')
+            : {
+                show: true,
+                color: mixHex(measureGrid.color, ink('full', structureInk.rule ?? structureInk.axis, 'full') ?? measureGrid.color, zeroPresence === 'quiet' || zeroPresence === 'hairline' ? ZERO_STEP_QUIET : ZERO_STEP, measureGrid.color),
+                width: zeroOwn?.weight ?? measureGrid.width,
+                ...(zeroOwn?.dash ? { dash: zeroOwn.dash } : zeroOwn?.style ? { dash: dashOf(zeroOwn.style) } : {}),
+            }
         : undefined;
+    // Finer lines between the labelled ones, a step fainter than the grid they divide (GR2).
+    const minorStated = structure.grid?.minor;
+    const minorOwn = typeof minorStated === 'object' && minorStated !== null ? minorStated : undefined;
+    const minorRule = minorStated !== undefined && minorStated !== 'omit' && minorOwn?.presence !== 'omit'
+        ? ruleFrom(minorOwn ? { ...minorOwn, presence: minorOwn.presence ?? 'hairline' } : minorStated, structureInk.grid, 'hairline', { weight: gridWeight, dash: gridDash })
+        : undefined;
+    const minorDivisions = Math.max(2, Math.min(10, Math.round(minorOwn?.divisions ?? 2)));
+    const minorOn = new Set(minorOwn?.on?.length ? minorOwn.on : ['measure', 'category']);
+    // Over the marks or under them: each grid's own word, else the grid's (GR2).
+    const layerOf = (stated: RuleSpec | undefined) =>
+        ((typeof stated === 'object' && stated !== null ? stated.layer : undefined) ?? structure.grid?.layer) === 'front';
+    const measureFront = layerOf(structure.grid?.measure);
+    const categoryFront = layerOf(structure.grid?.category);
 
-    const frame = rule(structure.frame, structureInk.frame ?? structureInk.axis, 'omit');
-    const baseline = rule(structure.baseline, structureInk.axis, 'full');
+    const frame = ruleFrom(structure.frame, structureInk.frame ?? structureInk.axis, 'omit');
+    // The rule the marks stand on is drawn only where the house states it (A7).
+    // A base is at zero: along a floor that is not zero, it would claim a base the chart does not
+    // have. Only a house that states it strongly — emphasised, or with its own ink or weight — draws
+    // it there too.
+    const baselineOwn = typeof structure.baseline === 'object' && structure.baseline !== null ? structure.baseline : undefined;
+    const baselineStrong = structure.baseline === 'emphasised' || baselineOwn?.presence === 'emphasised'
+        || baselineOwn?.color !== undefined || baselineOwn?.weight !== undefined;
+    const baseline = structure.baseline !== undefined
+        ? { ...ruleFrom(structure.baseline, structureInk.axis, 'full'), ...(baselineStrong ? { anyFloor: true } : {}) }
+        : { show: false, color: 'transparent', width: 0 };
 
     const truncation = theme.labels?.truncation ?? 'ellipsis';
+    // A sequence along x (times, dates, years, ranks) may thin its names to round values; names may not.
+    const xSequence = sequenceKindOf(ctx.channelSemantics?.x?.semanticAnnotation?.semanticType) !== undefined;
+    // Dates read as snapshots are each a separate observation: every one keeps its name.
+    const labelOverflow = resolveLabelOverflow(theme.labels, ctx.labelOverflow, xSequence ? 'sequence' : 'names')
+        .filter((step) => !(ctx.channelSemantics?.x?.snapshots && step === 'skip'));
     const labelFlush = theme.labels?.flush === true;
     const axisTitlesPolicy = theme.annotation?.axisTitles ?? 'whenAmbiguous';
 
@@ -821,11 +1093,12 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
         ?? (bindings.measureChannels.includes('x') && bindings.measureChannels.includes('y') ? 'x' : undefined);
 
     function buildAxis(channel: 'x' | 'y', role: 'categorical' | 'measure'): ResolvedAxis {
-        const spec = role === 'measure' ? structure.axis?.measure : structure.axis?.categorical;
-        const opposite = spec?.placement === 'opposite';
-        const orient: ResolvedAxis['orient'] = channel === 'x'
-            ? (opposite && channel !== indexChannel ? 'top' : 'bottom')
-            : (opposite ? 'right' : 'left');
+        // What the axis does, then where it is drawn: the screen side's settings override the
+        // role's (AX1).
+        const sideSpec = structure.axis?.[channel];
+        const roleSpec = role === 'measure' ? structure.axis?.measure : structure.axis?.categorical;
+        const spec: AxisRole | undefined = roleSpec || sideSpec ? { ...roleSpec, ...sideSpec } : undefined;
+        const orient = axisOrient(channel, spec?.placement, channel === indexChannel);
 
         // The axis a reader indexes the chart *by* is not always the discrete
         // one: a connected scatter has two quantities and still reads left to
@@ -834,7 +1107,9 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
         // reading values off. So the index axis takes the categorical line
         // even when what it carries is a number.
         const indexing = role === 'categorical' || channel === indexChannel;
-        const lineSpec = indexing ? (structure.axis?.categorical ?? spec) : spec;
+        const lineSpec = indexing ? { ...(structure.axis?.categorical ?? roleSpec), ...sideSpec } : spec;
+        // The axis's own ink, else the structure's (AX1).
+        const axisInk = lineSpec?.color ?? spec?.color ?? structureInk.axis;
 
         // A base rule is the line the marks stand on. Where no axis carries a
         // measure at all — a grid of cells, whose quantity is in the colour —
@@ -846,19 +1121,20 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
         // no-measure grid above, a rule under the names is a line under a list.
         const tableGutter = indexing && TABLE_CHARTS.has(ctx.chartType);
         const domain = (indexing && !standsOnIt) || tableGutter
-            ? rule('omit', structureInk.axis, 'omit', lineSpec?.lineWeight ?? 1)
-            : rule(lineSpec?.line, structureInk.axis, indexing ? 'full' : 'omit', lineSpec?.lineWeight ?? 1);
-        if (((indexing && !standsOnIt) || tableGutter) && (lineSpec?.line ?? 'full') !== 'omit') {
-            say(`structure.axis.categorical.line`, tableGutter
+            ? rule('omit', axisInk, 'omit', lineSpec?.lineWeight ?? 1)
+            : rule(lineSpec?.line, axisInk, indexing ? 'full' : 'omit', lineSpec?.lineWeight ?? 1);
+        if (((indexing && !standsOnIt) || tableGutter) && lineSpec?.line !== undefined && lineSpec.line !== 'omit') {
+            say(`structure.axis.categorical.line`, 'axis-line-not-applied', tableGutter
                 ? 'a bar table prints its values in a column — the category axis is a row-header gutter, not a base, so a rule under the names is a line under a list'
                 : 'no axis carries a measure — the cells are the structure, and a rule under their names is a line under nothing');
         }
         const tickLen = spec?.tickLength === 'long' ? 5 : spec?.tickLength === 'short' ? 2 : 3;
-        // A row-header gutter has neither spine nor ticks — dropping the line
-        // but keeping ticks leaves them floating against nothing.
-        const ticksRule = tableGutter
-            ? rule('omit', structureInk.axis, 'omit')
-            : rule(spec?.ticks, structureInk.axis, 'omit');
+        // A row-header gutter, or names with no measure standing on them, has
+        // neither spine nor ticks — dropping the line but keeping ticks leaves
+        // them floating against nothing.
+        const ticksRule = tableGutter || (indexing && !standsOnIt)
+            ? rule('omit', axisInk, 'omit')
+            : rule(spec?.ticks, spec?.color ?? structureInk.axis, 'omit');
         const inward = spec?.tickDirection === 'inward';
 
         // A title that only repeats what the labels already say is noise.
@@ -868,36 +1144,13 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
         // binned range is in the second group even though it sits on a
         // categorical axis — its labels are numbers wearing an order.
         //
-        // A headline is narrative, not an axis binding. Even when it repeats a
-        // field word, it does not reliably state the quantity, unit, direction
-        // or which ruler carries it. `The female–male life gap` does not tell a
-        // reader that 55–85 means life expectancy in years; `Olympic rank` does
-        // not state the rank direction. Numeric, rank and bin axes therefore
-        // keep their title under every policy. `omit` may still remove titles
-        // over labels that name their own kind, such as months or countries.
         const selfNaming = labelsNameThemselves(ctx, channel);
         const showTitle = axisTitlesPolicy === 'always'
             ? true
             : !selfNaming;
-        if (axisTitlesPolicy === 'whenAmbiguous' && selfNaming !== (role !== 'measure')) {
-            say(`structure.axis.${role}.title`,
-                selfNaming
-                    ? `the labels on ${channel} name their own kind — a title over them would repeat what is already read`
-                    : `the labels on ${channel} are values, not names — without a title nothing on the axis says what they count`);
-        }
-        if (axisTitlesPolicy === 'omit' && !selfNaming) {
-            say('annotation.axisTitles',
-                `the labels on ${channel} are values, not names — a headline cannot bind them to a quantity, so the axis title stays`);
-        }
 
-        // A measure axis is a ruler, and how finely it is graduated is a house
-        // matter: roughly one label every 45px reads as ordinary, one every
-        // 60px as quiet. Three is the floor — two gradations is not a ruler.
-        const density = spec?.tickDensity;
         const span = channel === 'x' ? ctx.layout.subplotWidth : ctx.layout.subplotHeight;
-        const tickCount = role === 'measure'
-            ? Math.max(3, Math.round((span / (density === 'sparse' ? 60 : density === 'dense' ? 30 : 45))))
-            : undefined;
+        const tickCount = role === 'measure' ? measureTickCount(span, spec?.tickDensity) : undefined;
 
         // A house that drops axis titles drops the only place the unit was
         // written. Where it asks for the unit on the ticks instead, the tag is
@@ -907,12 +1160,13 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
         const unitPolicy = theme.annotation?.unit ?? 'never';
         const inFieldUnits = ctx.stacked !== 'normalize' && !ctx.partToWhole;
         const unit = role === 'measure' && inFieldUnits ? displayUnit(ctx, channel) : undefined;
-        const unitTag = unitPolicy !== 'never' && unit?.placement === 'value' ? unit.text : undefined;
+        const unitTag = unitPolicy !== 'never' && unit?.placement === 'value'
+            && !formatPrintsUnit(ctx.channelSemantics?.[channel]?.format?.pattern, unit.text) ? unit.text : undefined;
 
         // Where the house keeps its axis titles, the title is the natural place
         // for the unit — `Weight (lb)` — and the ticks stay bare numbers.
         const titleUnit = showTitle && unit && (
-            unit.placement === 'field' || theme.annotation?.unitsInAxisTitle === true
+            axisTitlesPolicy === 'omit' || unit.placement === 'field' || theme.annotation?.unitsInAxisTitle === true
         ) ? unit.text : undefined;
 
         // The gap between a label and the plot is the same gap whether or not a
@@ -920,7 +1174,10 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
         // of that distance and the padding covers the rest; where the house
         // draws none — or turns them inward — the padding is the whole distance,
         // and 4px leaves the label sitting against the edge of the plot.
-        const defaultLabelGap = labelFlush ? 2 : 4 + tickLen;
+        // A flush house sets its labels close: 4px past the plot, or past the tick where one is drawn.
+        // Closer, a label reads as touching a drawn axis rule.
+        const tickOut = ticksRule.show && !inward ? tickLen : 0;
+        const defaultLabelGap = labelFlush ? 4 + tickOut : 4 + tickLen;
         const ruleToLabelGap = spec?.labelGap ?? defaultLabelGap;
         const labelPadding = ticksRule.show && !inward
             ? Math.max(0, ruleToLabelGap - tickLen)
@@ -938,24 +1195,32 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
             grid: gridCells
                 ? rule('omit', structureInk.grid, 'omit', gridWeight)
                 : indexing ? categoryGrid : measureGrid,
+            ...(!gridCells && minorRule?.show && minorOn.has(indexing ? 'category' : 'measure') && (indexing ? categoryGrid : measureGrid).show
+                ? { minorGrid: { ...minorRule, divisions: minorDivisions } } : {}),
+            ...(!gridCells && (indexing ? categoryFront : measureFront) ? { gridFront: true } : {}),
             label: {
                 ...axisLabelText,
                 limit: truncation === 'never' ? 0 : undefined,
                 padding: labelPadding,
                 flush: labelFlush,
-                angle: theme.labels?.angle === 'horizontal' ? 0 : undefined,
+                // A flat overflow sets every axis's labels flat; a turn is only ever decided below, for names that do not fit.
+                angle: overflowStaysFlat(labelOverflow) ? 0 : undefined,
+                overflow: labelOverflow,
             },
             title: {
                 show: showTitle,
                 ...axisTitleText,
-                ...(showTitle ? { placement: theme.annotation?.axisTitlePlacement } : {}),
+                ...(showTitle ? { placement: axisTitlesPolicy === 'omit' ? 'subtitle' as const : theme.annotation?.axisTitlePlacement } : {}),
+                // A title the house moves into the deck is dropped where the author's deck already says it.
+                ...(showTitle && axisTitlesPolicy === 'omit' ? { unlessNamed: 'deck' as const } : {}),
                 ...(showTitle && theme.annotation?.axisTitleGap != null
                     ? { gap: Math.max(0, theme.annotation.axisTitleGap) }
                     : {}),
                 ...(titleUnit ? { unit: titleUnit } : {}),
             },
             tickCount,
-            tickLabels: (indexing ? structure.axis?.categorical : spec)?.tickLabels,
+            ...(role === 'measure' ? { tickSpacing: measureTickSpacing(spec?.tickDensity) } : {}),
+            tickLabels: sideSpec?.tickLabels ?? (indexing ? structure.axis?.categorical : roleSpec)?.tickLabels,
             indexing,
             ...(indexing || !zeroRule ? {} : { zeroRule }),
             unit: unitTag ? { text: unitTag, where: unitPolicy } : undefined,
@@ -964,6 +1229,13 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
 
     const axes: DesignDecisions['axes'] = {};
     for (const ch of bindings.measureChannels) axes[ch] = buildAxis(ch, 'measure');
+    // A measure ruler the theme compacts, where the field may be: the unit is chosen from its ticks.
+    const axisCompact = groundCompactRule(theme);
+    if (axisCompact?.on.includes('axis')) {
+        for (const ch of bindings.measureChannels) {
+            if (axes[ch] && ctx.stacked !== 'normalize' && compactApplies(compactFacts(ctx, ch), axisCompact.types)) axes[ch]!.compact = axisCompact;
+        }
+    }
     if (bindings.categoricalChannel) {
         axes[bindings.categoricalChannel] = buildAxis(bindings.categoricalChannel, 'categorical');
     }
@@ -973,41 +1245,16 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
     for (const ch of ['x', 'y'] as const) {
         if (!axes[ch] && ctx.positional?.[ch]) axes[ch] = buildAxis(ch, 'categorical');
     }
-    if (theme.labels?.angle === 'rotated' && axes.x) {
-        axes.x.label.angle = -45;
-    }
-    // A house may set its category labels flat, but "flat" is a preference and
-    // "legible" is not. Where the band is narrower than the word standing under
-    // it, the angle goes back to the layout pass, which owns fit.
-    //
-    // The reverse is just as true and matters more often: the layout pass sized
-    // the labels in flint's own type, and a house that sets smaller labels buys
-    // room the layout did not know it would have. A name that now fits under
-    // its band should be read straight, not at forty-five degrees because of a
-    // measurement taken in a font the chart no longer uses.
-    if (axes.x && (bindings.categoricalChannel === 'x'
-        || ctx.positional?.x?.type === 'nominal' || ctx.positional?.x?.type === 'ordinal')) {
-        const field = channelFact(ctx, 'x')?.field ?? ctx.positional?.x?.field;
+    if (axes.x) {
+        // A heat map binds y as its category axis, but its x is just as much a band of names.
+        const category = bindings.categoricalChannel === 'x'
+            || ctx.positional?.x?.type === 'nominal' || ctx.positional?.x?.type === 'ordinal';
         const type = ctx.positional?.x?.type ?? channelFact(ctx, 'x')?.type;
-        const banded = type === 'nominal' || type === 'ordinal';
-        const longest = field
-            ? Math.max(0, ...ctx.table.map((r) => String(r?.[field] ?? '').length))
-            : 0;
-        // Mixed-case words average out narrower than the widest glyph — half
-        // the point size a character is close enough — plus a couple of pixels
-        // so two names never touch.
-        const needed = longest * (axes.x.label.fontSize ?? 10) * 0.5 + 2;
-        const step = ctx.layout.xStep;
-        const fits = longest > 0 && step > 0 && needed <= step;
-        if (axes.x.label.angle === 0 && !fits && longest > 0 && step > 0) {
-            axes.x.label.angle = undefined;
-            say('axes.x.label.angle',
-                `the house sets category labels flat, but the widest needs ~${Math.round(needed)}px in a ${Math.round(step)}px band — the angle is left to the layout`);
-        } else if (axes.x.label.angle == null && fits && banded && theme.labels?.angle !== 'rotated') {
-            axes.x.label.angle = 0;
-            say('axes.x.label.angle',
-                `the widest name needs ~${Math.round(needed)}px and the band is ${Math.round(step)}px — at the house's label size they read straight`);
-        }
+        // How the names are set was weighed with the layout (by cost): the angle is the one it chose.
+        const decided = ctx.layout.xLabel?.labelAngle;
+        if (category && (type === 'nominal' || type === 'ordinal') && decided !== undefined) axes.x.label.angle = decided;
+        // Only a sequence may leave some names out (`skip`).
+        if (xSequence) axes.x.label.ordered = true;
     }
 
     // --- series ink ---------------------------------------------------------
@@ -1029,7 +1276,6 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
         && legendSpec.show !== 'never';
     if (legendShow && legendSpec.suppressWhenAxisNames && seriesField && seriesField === catField) {
         legendShow = false;
-        say('legend.suppressWhenAxisNames', 'legend removed — it restated the categorical axis');
     }
 
     // Which placements grounding can offer at all. `inline` needs a label
@@ -1039,7 +1285,7 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
     // A stacked band has that room too, and more of it: the name goes *inside*
     // the band at its last reading, which is where a reader's eye already is
     // when they ask which band this is.
-    const lineFamily = ctx.markTypes.some((m) => m === 'line' || m === 'trail');
+    const lineFamily = ctx.markTypes.some((m) => m === 'line' || m === 'trail') && !signals.isSummarised;
     // A violin or density plot is an area too, but its band has no meaningful
     // last reading to hang a name on: the shape is a distribution, and its
     // right edge is an arbitrary tail near zero, not an endpoint the eye rests
@@ -1058,7 +1304,7 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
             fallbacks = ranked.slice(i + 1).filter(placementRealizable);
             break;
         }
-        say('legend.placement', `\`${p}\` not available for this chart — falling through`);
+        say('legend.placement', 'legend-placement-fallback', `\`${p}\` not available for this chart — falling through`);
     }
 
     const legendOrient = placement === 'inside'
@@ -1084,25 +1330,25 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
             const ax = axes[ch];
             if (ax && ax.orient === 'right') {
                 ax.orient = 'left';
-                say('axes.measure.placement',
+                say('axes.measure.placement', 'axis-placement-moved',
                     'the series names sit at the line ends on the right — the measure axis moves to the left so its ticks do not land under the names');
             }
         }
     }
 
-    // A key to a set of names needs no title: `Chrome`, `Safari`, `Firefox`
-    // say what kind of thing they are, and `Browser` written over them repeats
-    // it. A ramp of numbers says nothing of the sort — `26` is an instance of
+    // A key to a set of names needs no title where the names say what they are:
+    // `Chrome`, `Safari`, `Firefox`, or countries, or years. `Some`, `Not much`
+    // or `Increase` do not, nor do a ramp's numbers — `26` is an instance of
     // nothing until the key names what it counts. `whenAmbiguous` is that
-    // question, and it is asked of the field, not answered with a constant.
-    const titlePolicy = legendSpec.title ?? 'whenAmbiguous';
-    const keyNamesItself = labelsNameThemselves(ctx, bindings.seriesChannel);
+    // question, asked of the field, not answered with a constant.
+    // Whether the reader gets the field's name is not a house's choice: `omit` is read as `whenAmbiguous`.
+    const titlePolicy = legendSpec.title === 'always' ? 'always' : 'whenAmbiguous';
+    if (legendSpec.title === 'omit') {
+        say('legend.title', 'legend-title-omit-read-as-when-ambiguous', 'the theme asks to omit key titles; a key whose labels do not say what they are keeps its title, so `omit` is read as `whenAmbiguous`');
+    }
+    const keyNamesItself = keyNamesItselfOf(ctx, bindings.seriesChannel);
     const legendTitle = titlePolicy === 'always'
         || (titlePolicy === 'whenAmbiguous' && legendShow && !keyNamesItself);
-    if (legendTitle && titlePolicy !== 'always') {
-        say('legend.title',
-            'the key is a ruler, not a list of names — without a title nothing says what its numbers count');
-    }
 
     // --- data labels --------------------------------------------------------
     const dl = theme.dataLabels ?? {};
@@ -1111,10 +1357,6 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
     // said about ink. Contrast is a legibility floor, not a style choice.
     const dlInkMode = dl.inkMode
         ?? (dlPlacement === 'atMark' ? 'contrastWithMark' : 'fixed');
-    if (!dl.inkMode && dlInkMode === 'contrastWithMark') {
-        say('dataLabels.inkMode',
-            'no ink mode declared but the label sits on the mark — it contrasts with what it is printed on');
-    }
     // The reader's own answer outranks the house's standing preference: `off`
     // is a decision that this chart carries no numbers, `on` that it does.
     // Absence leaves the house in charge — and with no house named, the neutral
@@ -1127,8 +1369,8 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
             : ctx.valueLabels === 'on' ? 'always'
                 : dl.show;
     if (ctx.valueLabels === 'on' || ctx.valueLabels === 'off') {
-        if (dlShowPolicy !== dl.show) {
-            say('dataLabels.show',
+        if (dl.show !== undefined && dlShowPolicy !== dl.show) {
+            say('dataLabels.show', 'value-labels-overridden',
                 `the chart asked for value labels \`${ctx.valueLabels}\`, overriding the house's \`${dl.show ?? 'unset'}\``);
         }
     }
@@ -1171,7 +1413,7 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
         && !MULTI_VALUE_GLYPH_CHARTS.has(ctx.chartType);
     if (dlShow && !labelable) {
         dlShow = false;
-        say('dataLabels.show', signals.isSummarised
+        say('dataLabels.show', 'value-labels-not-drawn', signals.isSummarised
             ? 'the chart summarises a distribution — each band holds a sample, not one quantity to print'
             : continuousMark
                 ? 'the mark is a continuous line or ribbon — its vertices are sampling points, not marks to read off one at a time'
@@ -1210,28 +1452,41 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
             }
         }
     }
-    const numberFormatChoice = groundNumberFormat(theme, ctx, bindings.measureChannels[0], labelValues);
-    const numberFormat = numberFormatChoice.pattern;
-    if (numberFormatChoice.inferred && labelValues.length > 0) {
-        // Say it out loud: the digits a label carries are a decision, and a
-        // silent one would look like the number had simply been mangled.
-        const rawWidth = longestLabelChars(labelValues, undefined);
-        const shown = longestLabelChars(labelValues, numberFormat);
-        say('annotation.numberFormat',
-            `printed values use \`${numberFormat}\` — three significant figures is what a reader takes off a mark, and it holds the longest label to ${shown} characters where the raw value runs to ${rawWidth}`);
-    }
+    let numberFormat = groundNumberFormat(theme, ctx, bindings.measureChannels[0], labelValues);
     // A normalized stack prints each segment's share, not its value, so that
     // is the string whose width has to fit — never wider than `100%`, however
     // large the underlying numbers are.
     const normalizedStack = (ctx.stacked ?? undefined) === 'normalize';
-    const labelChars = normalizedStack
-        ? 4
-        : longestLabelChars(labelValues, numberFormat);
-    const valueLabelWidthPx = (valueLabel.fontSize ?? 10) * 0.62 * labelChars + 12;
-    // The ink alone, without the breathing room a label wants when it has to
-    // sit *inside* something. Two labels floating above their own bars only
-    // need to clear each other.
-    const labelTextPx = (valueLabel.fontSize ?? 10) * 0.62 * labelChars;
+    // The theme's compaction, where its labels are in scope and the measure may be compacted.
+    const compactRule = groundCompactRule(theme);
+    const labelsCompactable = Boolean(compactRule?.on.includes('labels')) && !normalizedStack
+        && compactApplies(compactFacts(ctx, bindings.measureChannels[0]), compactRule!.types);
+    let compactLabels: CompactPrint | undefined = labelsCompactable
+        ? compactPrint(labelValues, compactRule!, 'significant') : undefined;
+    // A field the house's compaction does not reach (a share, a value already in millions) prints
+    // whole, its thousands grouped, rather than in d3's suffix format.
+    if (compactRule && !labelsCompactable && /~s$/.test(numberFormat ?? '')) numberFormat = inferValueLabelFormat(labelValues, ',');
+    // A compact unit belongs to the number (`37%`, `$12`, `21°C`), so every printed value carries
+    // it, whatever the ruler states, unless the number's own format already writes it. A
+    // normalized stack prints shares, not the field's units.
+    const valueUnitChannel = bindings.measureChannels[0]
+        ?? (['theta', 'size', 'radius'] as const).find((ch) => ctx.channelSemantics?.[ch]?.field);
+    const valueDisplayUnit = normalizedStack ? undefined : displayUnit(ctx, valueUnitChannel ?? '');
+    const labelUnit = valueDisplayUnit?.placement === 'value' && !formatPrintsUnit(numberFormat, valueDisplayUnit.text)
+        ? valueDisplayUnit.text
+        : undefined;
+    if (compactLabels?.per === 'value' && theme.annotation?.numberFormat?.signed) compactLabels = { ...compactLabels, signed: true };
+    // Measured in the label's own font, weight and case (L1), as `value-label-measure` prints it.
+    let printedLabels = normalizedStack
+        ? measureValueLabels([1], { format: '.0%', text: valueLabel })
+        : measureValueLabels(labelValues, { format: numberFormat, unit: labelUnit, compact: compactLabels, text: valueLabel });
+    // The room a label wants inside a mark: along a horizontal bar, the inset at both ends; across
+    // a bar or a slot, a little air at each side.
+    let valueLabelWidthPx = printedLabels.widest + 2 * LABEL_INSET;
+    let acrossPx = printedLabels.widest + 2 * LABEL_SIDE;
+    // The ink alone, without that breathing room. Two labels floating above
+    // their own bars only need to clear each other.
+    let labelTextPx = printedLabels.widest;
 
     // Both policies read fit from the same two facts — room enough to stand a
     // number in, and few enough marks that the numbers do not pile up — and
@@ -1250,13 +1505,15 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
             ? ctx.layout.yStepUnit === 'group'
             : ctx.layout.xStepUnit === 'group');
     const labelSlot = dodged ? labelBand / Math.max(1, signals.seriesCount) : labelBand;
+    // A label inside a bar sits across the *bar*, which is its slot less the gap between bars.
+    const barWidth = labelSlot * resolveBandFraction(theme, ctx.chartType, ctx.geometryKinds, ctx.layout.stepPadding);
     const labelMarks = Math.max(1, signals.categoryCount || ctx.table.length)
         * Math.max(1, signals.seriesCount);
     // Which way the number has to fit depends on which way the bars run. Across
     // a vertical bar it is the number's *width* that must clear the slot; along
     // a horizontal one the number sits at the bar's end, so what the slot must
     // hold is the height of a line of text.
-    const slotHoldsLine = labelSlot >= (valueLabel.fontSize ?? 10) + 4;
+    let slotHoldsLine = labelSlot >= printedLabels.height + LINE_SLACK;
     // `ctx.stacked` reports only an *explicit* stack; a bar with a colour
     // channel is stacked by Vega-Lite without being asked, and that shows up
     // in the positional facts. It is `||`, not `??`: the explicit reading is
@@ -1269,12 +1526,57 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
     // `,.0f` on nine-digit revenues drew `987,654,321` across three bands and
     // off both plot edges, which is the case this closes.
     const widthIsBinding = bindings.categoricalChannel === 'x';
-    // A label sharing its band — dodged or stacked — has to stand in the room
-    // it is given, gutter and all. One floating above its own bar only has to
-    // clear its neighbour: labels are centred on the band, so two of them
-    // touch exactly when the printed string is wider than the step.
-    const widthNeeded = (dodged || Boolean(stacked)) ? valueLabelWidthPx : labelTextPx;
-    const slotHoldsNumber = !widthIsBinding || labelSlot >= widthNeeded;
+    // A label inside a bar — a stacked segment's, or a dodged bar's printed at the mark — sits
+    // across the bar, with a little air at each side. One floating above its own bar only has to
+    // clear its neighbour: labels are centred on their slots, so two of them touch exactly when the
+    // printed string is wider than the slot (with a gap, where the bars are dodged).
+    const across = (dodged && dlPlacement === 'atMark') || Boolean(stacked);
+    // Across a horizontal bar a label inside it (a segment's, or a dodged bar's) has the bar's
+    // thickness to stand a line of text in, not the band's.
+    if (across && bindings.categoricalChannel === 'y') slotHoldsLine = barWidth >= printedLabels.height + LINE_SLACK;
+    const needFor = () => (across ? acrossPx : dodged ? labelTextPx + LABEL_GAP : labelTextPx);
+    let widthNeeded = needFor();
+    let slotHoldsNumber = !widthIsBinding || (across ? barWidth : labelSlot) >= widthNeeded;
+    // L3, the first remedy: a number too wide for its band is shortened (1,234,567 → 1.23M), where
+    // the house has not said how thousands are written and the value is not a share.
+    const measureSemantics = bindings.measureChannels[0] ? ctx.channelSemantics[bindings.measureChannels[0]] : undefined;
+    const shareField = typeof measureSemantics?.format?.suffix === 'string' && measureSemantics.format.suffix.includes('%');
+    // A house that compacts shortens a number too wide for its band in its own style, from a thousand.
+    if (!slotHoldsNumber && widthIsBinding && labelsCompactable && !compactLabels && valueMaxAbs >= 1000) {
+        const shorter = compactPrint(labelValues, { ...compactRule!, threshold: 1000 }, 'significant');
+        const measured = shorter ? measureValueLabels(labelValues, { unit: labelUnit, compact: shorter, text: valueLabel }) : undefined;
+        if (shorter && measured && measured.widest < printedLabels.widest) {
+            const was = printedLabels.text(valueMaxAbs);
+            compactLabels = shorter;
+            printedLabels = measured;
+            valueLabelWidthPx = measured.widest + 2 * LABEL_INSET;
+            acrossPx = measured.widest + 2 * LABEL_SIDE;
+            labelTextPx = measured.widest;
+            widthNeeded = needFor();
+            slotHoldsNumber = (across ? barWidth : labelSlot) >= widthNeeded;
+            if (dlShow) say('dataLabels', 'value-labels-shortened', `\`${was}\` is wider than its band — printed as \`${measured.text(valueMaxAbs)}\`, in the house's compact style`);
+        }
+    }
+    if (!slotHoldsNumber && widthIsBinding && !normalizedStack && !shareField && valueMaxAbs >= 1000 && !compactRule
+        && theme.annotation?.numberFormat?.compact?.show !== 'never'
+        && theme.annotation?.numberFormat?.thousands === undefined && !/[s%]$/.test(numberFormat ?? '')) {
+        const shorter = inferValueLabelFormat(labelValues, '~s');
+        const measured = shorter ? measureValueLabels(labelValues, { format: shorter, unit: labelUnit, text: valueLabel }) : undefined;
+        if (shorter && measured && measured.widest < printedLabels.widest) {
+            const was = printedLabels.text(valueMaxAbs);
+            numberFormat = shorter;
+            printedLabels = measured;
+            valueLabelWidthPx = measured.widest + 2 * LABEL_INSET;
+            acrossPx = measured.widest + 2 * LABEL_SIDE;
+            labelTextPx = measured.widest;
+            widthNeeded = needFor();
+            slotHoldsNumber = (across ? barWidth : labelSlot) >= widthNeeded;
+            if (dlShow) {
+                say('dataLabels', 'value-labels-shortened',
+                    `\`${was}\` is wider than its band — printed as \`${measured.text(valueMaxAbs)}\`, since the house does not say how thousands are written`);
+            }
+        }
+    }
     // A stacked bar shares its band between the segments the *other* way: the
     // band is whole, but each segment's own thickness is what has to hold a
     // line of text. Segments thinner than that are dropped one by one further
@@ -1284,6 +1586,7 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
     let totalSegments = 0;
     let thinSegments = 0;
     let segmentMinShare: number | undefined;
+    let segmentMinValue: number | undefined;
     if (stacked && measureField && signals.hasBandedAxis) {
         // Along the measure axis, a segment gets the share of the plot its
         // value has of the tallest stack — or, on a normalized chart, of its
@@ -1302,8 +1605,26 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
             totals.set(key, (totals.get(key) ?? 0) + Math.abs(v));
         }
         const tallest = Math.max(0, ...totals.values());
-        const minPx = (valueLabel.fontSize ?? 10) + 4;
-        if (extent > 0) segmentMinShare = minPx / extent;
+        // What a segment has to hold along the bar (L5): up a column, a line of text; along a
+        // horizontal bar, the label's own width — measured per value, since `8` needs less than `1,429`.
+        const alongWidth = bindings.categoricalChannel === 'y';
+        const shareLabels = stacked === 'normalize' ? measureValueLabels([0.99], { format: '.0%', text: valueLabel }) : undefined;
+        const needPx = (v: number) => (alongWidth
+            ? (shareLabels ? shareLabels.widest : printedLabels.width(v)) + 2 * LABEL_SIDE
+            : printedLabels.height + LINE_SLACK);
+        if (extent > 0) {
+            if (alongWidth && stacked !== 'normalize' && tallest > 0) {
+                // The smallest value whose segment holds its own label, where every larger one does too.
+                const sorted = labelValues.filter((v) => v !== 0).map(Math.abs).sort((a, b) => b - a);
+                let min: number | undefined;
+                for (const v of sorted) {
+                    if ((v / tallest) * extent < needPx(v)) break;
+                    min = v;
+                }
+                segmentMinShare = (min ?? tallest * 2) / tallest;
+            } else segmentMinShare = needPx(valueMaxAbs) / extent;
+        }
+        if (segmentMinShare !== undefined && stacked !== 'normalize') segmentMinValue = segmentMinShare * tallest;
         for (const row of ctx.table) {
             const v = row?.[measureField];
             if (typeof v !== 'number' || !Number.isFinite(v)) continue;
@@ -1311,11 +1632,25 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
             const against = stacked === 'normalize' ? (totals.get(key) ?? 0) : tallest;
             if (against <= 0) continue;
             totalSegments += 1;
-            if ((Math.abs(v) / against) * extent < minPx) thinSegments += 1;
+            if ((Math.abs(v) / against) * extent < needPx(v)) thinSegments += 1;
         }
         segmentsFit = totalSegments === 0 || thinSegments < totalSegments;
     }
     const bandHoldsNumber = slotHoldsLine && slotHoldsNumber && segmentsFit;
+    // L3, the second remedy: the band the labels need, for the plan to widen into the canvas's
+    // spare room. Only the band's width is at fault here — not the density, not a thin segment.
+    let bandNeed: { channel: 'x' | 'y'; step: number } | undefined;
+    const densityHolds = labelMarks <= (dlShowPolicy === 'whenTheyFit' ? 40 : 120);
+    if (labelable && !bandHoldsNumber && segmentsFit && densityHolds && !ctx.liveLayoutSignal
+        && (dlShowPolicy === 'always' || dlShowPolicy === 'whenTheyFit')
+        && (bindings.categoricalChannel === 'x' || bindings.categoricalChannel === 'y')) {
+        const fraction = labelSlot > 0 ? barWidth / labelSlot : 1;
+        const slotNeed = Math.max(
+            slotHoldsLine ? 0 : printedLabels.height + LINE_SLACK,
+            slotHoldsNumber ? 0 : across ? widthNeeded / fraction : widthNeeded,
+        );
+        bandNeed = { channel: bindings.categoricalChannel, step: Math.ceil(slotNeed * (dodged ? signals.seriesCount : 1)) + 1 };
+    }
     // The hard ceiling: past this the numbers cannot be read whoever asked for
     // them, so it binds `always` and an explicit `on` alike.
     const readableAtAll = bandHoldsNumber && labelMarks <= 120;
@@ -1329,12 +1664,12 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
         if (!readableAtAll) {
             const asked = ctx.valueLabels === 'on' ? 'the chart asked to print values, but' : '`always` overridden —';
             dlShow = false;
-            say('dataLabels.show', !segmentsFit
+            say('dataLabels.show', 'value-labels-not-drawn', !segmentsFit
                 ? `${asked} every segment is thinner than a line of text — none can hold its number`
                 : !slotHoldsNumber
                     ? (dodged
-                        ? `${asked} the bars group ${signals.seriesCount} to a band — each is ${Math.round(labelSlot)}px wide, too narrow to carry a ${Math.round(valueLabelWidthPx)}px number without it landing on the next bar`
-                        : `${asked} the bars are ${Math.round(labelSlot)}px wide and the number is ${Math.round(valueLabelWidthPx)}px — it would overrun the bar it belongs to`)
+                        ? `${asked} the bars group ${signals.seriesCount} to a band — each is ${Math.round(across ? barWidth : labelSlot)}px wide, too narrow to carry a ${Math.round(widthNeeded)}px number without it landing on the next bar`
+                        : `${asked} the bars are ${Math.round(across ? barWidth : labelSlot)}px wide and the number is ${Math.round(widthNeeded)}px — it would overrun the bar it belongs to`)
                     : !slotHoldsLine
                         ? `${asked} a ${Math.round(labelSlot)}px slot cannot hold a number`
                         : `${asked} ${labelMarks} marks would pile the numbers past reading`);
@@ -1343,19 +1678,21 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
 
     if (dlShowPolicy === 'whenTheyFit') {
         dlShow = labelable && bandHoldsNumber && labelMarks <= 40;
-        if (!dlShow) {
-            say('dataLabels.show', labelable
-                ? `\`whenTheyFit\` resolved to false (slot ${Math.round(labelSlot)}px, ${labelMarks} marks)`
-                : '`whenTheyFit` resolved to false — no banded axis to key values to');
-        }
     }
+    // A live layout builds the labels wherever some window of rows could print
+    // them, so the layer is placed as if they print.
+    const liveSignal = ctx.liveLayoutSignal && labelable && dlShowPolicy !== 'never' && dlShowPolicy !== undefined
+        ? ctx.liveLayoutSignal
+        : undefined;
     // A stacked segment's number belongs in the middle of the segment and
     // nowhere else. Outside the mark is the top of the *stack*, which is a
     // different quantity, and the segment edge is the running total — the very
     // reading a stacked label has to avoid.
-    if (dlShow && stacked && dlPlacement !== 'atMark') {
-        say('dataLabels.placement',
-            `\`${dlPlacement}\` printed in the segment instead — outside a stacked bar is the top of the stack, not the end of the segment`);
+    if ((dlShow || liveSignal) && stacked && dlPlacement !== 'atMark') {
+        if (dl.placement !== undefined) {
+            say('dataLabels.placement', 'value-labels-placement-changed',
+                `\`${dlPlacement}\` printed in the segment instead — outside a stacked bar is the top of the stack, not the end of the segment`);
+        }
         dlPlacement = 'atMark';
     }
     // A number is printed across a bar's *width*, not up its height. A single
@@ -1365,11 +1702,11 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
     // settled above, as a question of whether to label at all. Nor can a
     // stacked one: above the bar means above the whole stack.)
     if (dlShow && bindings.categoricalChannel === 'x' && signals.hasBandedAxis
-        && valueMaxAbs > 0 && !dodged && !stacked && valueLabelWidthPx > labelSlot
+        && valueMaxAbs > 0 && !dodged && !stacked && acrossPx > barWidth
         && dlPlacement === 'atMark') {
         dlPlacement = 'outsideMark';
-        say('dataLabels.placement',
-            `the bar is ${Math.round(labelSlot)}px wide but the number is ${Math.round(valueLabelWidthPx)}px — it moves above the bar, where the gaps between bars give it room`);
+        say('dataLabels.placement', 'value-labels-placement-changed',
+            `the bar is ${Math.round(barWidth)}px wide but the number is ${Math.round(acrossPx)}px — it moves above the bar, where the gaps between bars give it room`);
     }
 
     if (dlShow && legendShow && legendSpec.suppressWhenValuesPrinted) {
@@ -1378,9 +1715,8 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
         // a banded axis does not help: it names the category, not the series.
         if (seriesIsValueKey) {
             legendShow = false;
-            say('legend.suppressWhenValuesPrinted', 'legend removed — the ramp was a value key and every mark now prints its value');
         } else {
-            say('legend.suppressWhenValuesPrinted',
+            say('legend.suppressWhenValuesPrinted', 'legend-suppression-not-applied',
                 'legend kept — the values are printed but nothing else names the series');
         }
     }
@@ -1390,9 +1726,9 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
     // A printed `42` says how much and never says of what — the title is the
     // only thing naming the quantity, and taking it away with the gradations
     // leaves a grid of anonymous numbers. What the title says is still the
-    // title policy's call; this only stops the ruler dragging it out.
+    // title policy's call; this only stops the ruler dragging it out — and,
+    // with the ruler gone, moves the title into the deck (L6).
     if (dlShow && structure.axis?.measure?.suppressWhenValuesPrinted) {
-        let keptTitle = false;
         for (const ch of bindings.measureChannels) {
             const ax = axes[ch];
             if (!ax) continue;
@@ -1400,12 +1736,14 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
             ax.grid = { show: false, color: 'transparent', width: 0 };
             ax.ticks = { ...ax.ticks, show: false, size: 0 };
             ax.domain = { ...ax.domain, show: false };
-            if (ax.title.show) keptTitle = true;
+            // Without its ruler the title would float alone under the bars (L6). It still names the
+            // quantity, so it moves into the deck — unless the headline or the deck already says it.
+            if (ax.title.show && ax.title.placement !== 'subtitle') {
+                ax.title = { ...ax.title, placement: 'subtitle', unlessNamed: true };
+                say(`axes.${ch}.title`, 'axis-title-to-deck',
+                    'the values are printed and the ruler is gone, so its title moves into the deck rather than float under the bars');
+            }
         }
-        say('structure.axis.measure.suppressWhenValuesPrinted',
-            keptTitle
-                ? 'measure ruler removed — every mark prints its own value; the axis title stays, because a printed number says how much and not of what'
-                : 'measure axis removed — every mark prints its own value');
     }
 
     // The mirror of the rule above, and the floor under it. A house strips its
@@ -1415,27 +1753,23 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
     // readings floating on blank paper with no way to judge one against
     // another. The house may choose how a value is read; it may not leave no
     // way to read one, so the quiet grid returns.
+    // Only where *no* ruler is left (GR1): one axis drawing a grid, a rule or ticks is a way to read
+    // a value, and a grid the house omitted on the other — a scatter's verticals — stays omitted.
+    // What returns is the grid across the value axis, never the index axis's.
     if (!dlShow) {
-        for (const ch of bindings.measureChannels) {
-            const ax = axes[ch];
-            if (!ax || ax.grid.show || ax.domain.show || ax.ticks.show) continue;
-            ax.grid = { ...rule('quiet', structureInk.grid, 'quiet', gridWeight), dash: gridDash };
-            say(`axes.${ch}.grid`,
-                'no mark prints its value and the ruler draws nothing — the quiet grid returns, so a reading can be judged against something');
+        const measured = bindings.measureChannels.filter((ch) => axes[ch]);
+        const ruled = measured.some((ch) => axes[ch]!.grid.show || axes[ch]!.domain.show || axes[ch]!.ticks.show);
+        const ch = measured.find((c) => !axes[c]!.indexing) ?? measured[0];
+        if (!ruled && ch) {
+            axes[ch]!.grid = { ...rule('quiet', structureInk.grid, 'quiet', gridWeight), ...(gridDash ? { dash: gridDash } : {}) };
+            say(`axes.${ch}.grid`, 'grid-restored',
+                'no mark prints its value and no axis draws a ruler — the quiet grid across the value axis returns, so a reading can be judged against something');
         }
     }
 
     const measureChannel = bindings.measureChannels[0];
-
-    // A unit has to be stated somewhere. Normally that is the ruler; a pie has
-    // no ruler, and a measure axis whose labels were removed is no longer one
-    // either. Where the house asks for a unit and nothing else can hold it, the
-    // printed value takes it — whoever printed it, the theme or the template.
-    const valueUnitChannel = measureChannel
-        ?? (['theta', 'size', 'radius'] as const).find((ch) => ctx.channelSemantics?.[ch]?.field);
     const axisStatesUnit = (['x', 'y'] as const)
         .some((ch) => axes[ch]?.unit && axes[ch]!.label.show !== false);
-    const houseStatesUnit = (theme.annotation?.unit ?? 'never') !== 'never' && !axisStatesUnit;
     // A part-to-whole value whose slices sum to 100 *is* a percentage — the `%`
     // is the number's meaning, not a house-style flourish, and a pie has no
     // ruler to carry it. So it rides on the printed value whatever the house's
@@ -1445,10 +1779,8 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
     const shareUnit = signals.isPartToWhole && !axisStatesUnit
         ? percentOfWhole(ctx, valueUnitChannel ?? '')
         : undefined;
-    const valueDisplayUnit = displayUnit(ctx, valueUnitChannel ?? '');
-    const valueUnit = houseStatesUnit
-        ? (valueDisplayUnit?.placement === 'value' ? valueDisplayUnit.text : shareUnit)
-        : shareUnit;
+    // The printed value takes the unit, whoever printed it, the theme or the template.
+    const valueUnit = labelUnit ?? shareUnit;
 
     // A label placed at the mark sits *inside* it, which only works while the
     // mark is longer than the label. Below that length the label has to move
@@ -1457,8 +1789,11 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
     let insideMinValue: number | undefined;
     if (dlShow && measureChannel) {
         const span = measureChannel === 'x' ? ctx.layout.subplotWidth : ctx.layout.subplotHeight;
+        // Along a horizontal bar the label's width has to fit; along a vertical one, a line of text.
+        // The layout plan refines this against the drawn axis, label by label.
+        const along = measureChannel === 'x' ? valueLabelWidthPx : printedLabels.height + 2 * LABEL_INSET;
         if (valueMaxAbs > 0 && span > 0) {
-            insideMinValue = (valueLabelWidthPx / span) * valueMaxAbs;
+            insideMinValue = (along / span) * valueMaxAbs;
         }
     }
 
@@ -1515,13 +1850,10 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
     const halo = haloDeclared
         ? marksSpec.point!.halo!.presence !== 'omit'
         : linesCanCross;
-    if (halo && !haloDeclared) {
-        say('marks.point.halo',
-            'the dots carry a ring of the page around them — the lines cross, and at a crossing the ring is the only thing that says which line a dot sits on');
-    }
 
     const marks: DesignDecisions['marks'] = {
-        bandFraction: marksSpec.bandFraction ?? (1 - (ctx.layout.stepPadding ?? 0.1)),
+        bandFraction: resolveBandFraction(theme, ctx.chartType, ctx.geometryKinds, ctx.layout.stepPadding),
+        group: groundGroupSpacing(marksSpec.group, say),
         strokeWidth: marksSpec.strokeWeight ?? 2,
         strokeCap: marksSpec.strokeCap,
         strokeJoin: marksSpec.strokeJoin,
@@ -1530,14 +1862,26 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
             : marksSpec.interpolation === 'step' ? 'step' : undefined,
         fillOpacity: marksSpec.fillOpacity,
         cornerRadius: marksSpec.cornerRadius,
+        ...resolveGradient(marksSpec.gradient),
+        ...(marksSpec.areaEdge && (marksSpec.areaEdge.presence ?? 'full') !== 'omit'
+            ? { areaEdge: { width: marksSpec.areaEdge.width ?? (marksSpec.areaEdge.presence === 'quiet' || marksSpec.areaEdge.presence === 'hairline' ? 1 : 2) } }
+            : {}),
         outline: marksSpec.outline && (marksSpec.outline.presence ?? 'omit') !== 'omit'
             ? {
                 color: marksSpec.outline.source === 'surface'
                     ? plot
                     : (ink('full', structureInk.axis ?? structureInk.rule, 'full') ?? foreground),
                 width: marksSpec.outline.weight ?? 1.5,
+                ...(marksSpec.outline.source === 'series' ? { series: true } : {}),
             }
             : undefined,
+        ...(marksSpec.barOpacity !== undefined ? { barOpacity: Math.max(0, Math.min(1, marksSpec.barOpacity)) } : {}),
+        ...(marksSpec.arc ? { arc: {
+            ...(marksSpec.arc.order ? { order: marksSpec.arc.order } : {}),
+            ...(typeof marksSpec.arc.startAngle === 'number' ? { startAngle: ((marksSpec.arc.startAngle % 360) + 360) % 360 } : {}),
+            ...(typeof marksSpec.arc.hole === 'number' ? { hole: Math.max(0, Math.min(0.9, marksSpec.arc.hole)) } : {}),
+        } } : {}),
+        ...(marksSpec.barMinLength && marksSpec.barMinLength > 0 ? { barMinLength: Math.min(20, marksSpec.barMinLength) } : {}),
         point: marksSpec.point || halo
             ? {
                 show: (marksSpec.point?.presence ?? 'omit') !== 'omit',
@@ -1555,8 +1899,21 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
                 filled: marksSpec.point?.fill != null
                     ? marksSpec.point.fill !== 'hollow'
                     : undefined,
+                ...(marksSpec.point?.shape && marksSpec.point.shape !== 'circle'
+                    ? { shape: marksSpec.point.shape }
+                    : {}),
+                ...(typeof marksSpec.point?.opacity === 'number'
+                    ? { opacity: Math.max(0, Math.min(1, marksSpec.point.opacity)) }
+                    : {}),
+                ...(marksSpec.point?.ink && marksSpec.point.ink !== 'series'
+                    ? { ink: marksSpec.point.ink === 'text' ? foreground : marksSpec.point.ink }
+                    : {}),
+                density: marksSpec.point?.density ?? 'countable',
                 haloColor: halo ? plot : undefined,
                 haloWidth: marksSpec.point?.halo?.width ?? (halo ? 1.5 : undefined),
+                // A line's dots take the halo wherever lines can cross; a scatter's only where the
+                // house asked for one, since most houses print their dots without a ring.
+                ...(haloDeclared && halo ? { haloDots: true } : {}),
             }
             : undefined,
         separator,
@@ -1711,12 +2068,15 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
             position: theme.layout?.titleBlock?.position ?? 'top',
             headline,
             deck,
+            kicker: resolveType(theme.type?.kicker, deck.fontSize ?? 11, text.secondary),
+            frame: theme.layout?.titleBlock?.frame ?? 'content',
             offset: Math.round((headline.fontSize ?? 14) * TITLE_GAP[theme.layout?.titleBlock?.gap ?? 'normal']),
             deckPadding: Math.round((deck.fontSize ?? 11) * DECK_GAP[theme.layout?.titleBlock?.deckGap ?? 'normal']),
         },
         axes,
         frame,
         baseline,
+        ...(structure.axis?.floating ? { floating: structure.axis.floating } : {}),
         series,
         legend: {
             show: legendShow,
@@ -1726,20 +2086,35 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
             direction: theme.legend?.direction
                 ?? (legendOrient === 'top' || legendOrient === 'bottom' ? 'horizontal' : 'vertical'),
             title: legendTitle,
+            titlePolicy,
             label: keyLabel,
+            titleText: keyTitle,
             gradientLength: legendSpec.gradientLength,
             maxSwatches: legendSpec.maxSwatches,
+            ...(legendSpec.swatch && legendSpec.swatch !== 'auto' ? { swatch: legendSpec.swatch } : {}),
+            ...(legendSpec.arrangement ? { arrangement: legendSpec.arrangement } : {}),
+            ...(legendSpec.titlePosition ? { titlePosition: legendSpec.titlePosition } : {}),
+            ...(legendSpec.align ? { align: legendSpec.align } : {}),
+            ...(legendSpec.endValue ? { endValue: true } : {}),
+            ...(legendSpec.gaps ? { gaps: legendSpec.gaps } : {}),
         },
         dataLabels: {
             show: dlShow,
             possible: labelable && readableAtAll,
             placement: dlPlacement,
             inkMode: dlInkMode,
+            anchor: dl.anchor ?? 'end',
+            fallback: dl.fallback ?? 'perMark',
+            minContrast: Math.max(1, dl.minContrast ?? 3),
             text: valueLabel,
             format: numberFormat,
+            ...(compactLabels ?? suffixBillions(numberFormat, valueMaxAbs) ? { compact: compactLabels ?? suffixBillions(numberFormat, valueMaxAbs) } : {}),
             ...(valueUnit ? { unit: valueUnit } : {}),
             insideMinValue,
             ...(segmentMinShare !== undefined ? { segmentMinShare } : {}),
+            ...(bandNeed ? { bandNeed } : {}),
+            ...(segmentMinValue !== undefined ? { segmentMinValue } : {}),
+            ...(liveSignal ? { liveSignal } : {}),
         },
         // A house that dots the end of a line is saying where the story stops.
         // Only the policy is decided here: whether the chart *has* a line to
@@ -1782,10 +2157,18 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
             ? {
                 show: theme.annotation.statistics.show,
                 placement: theme.annotation.statistics.placement ?? 'panel',
-                ...axisLabelText,
+                ...(annotationText ?? axisLabelText),
             }
             : undefined,
         furniture: theme.furniture ?? [],
+        ...(displayText ? { display: displayText } : {}),
+        table: {
+            header: resolveTextRole(theme, theme.type?.axisTitle, 11, text.secondary, 0),
+            cell: resolveTextRole(theme, theme.type?.axisLabel, 11, text.primary, 0),
+            headerRule: theme.ink?.structure?.axis ?? mixHex(plot, foreground, 0.5),
+            rule: theme.ink?.structure?.grid ?? mixHex(plot, foreground, 0.12),
+        },
+        source: sourceDesign,
         bound: {
             measureChannels: bindings.measureChannels,
             categoricalChannel: bindings.categoricalChannel,
@@ -1807,15 +2190,6 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
 // Series ink
 // ---------------------------------------------------------------------------
 
-/** WCAG contrast between two colours, `1` for identical. */
-function contrastRatio(a: string, b: string): number {
-    const ca = parseColor(a);
-    const cb = parseColor(b);
-    if (!ca || !cb) return 21;
-    const la = luminance(ca);
-    const lb = luminance(cb);
-    return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
-}
 
 /** The least contrast at which a filled cell still reads as a cell. */
 const ENDPOINT_CONTRAST = 1.2;
@@ -1832,7 +2206,6 @@ const ENDPOINT_CONTRAST = 1.2;
 function offSurface(
     ramp: Ramp | undefined,
     surface: string,
-    say: (path: string, message: string) => void,
 ): Ramp | undefined {
     if (!ramp?.stops?.length || ramp.endpointsAgainstSurface !== true) return ramp;
     const away = isDarkSurface(surface) ? '#ffffff' : '#000000';
@@ -1850,29 +2223,96 @@ function offSurface(
         }
     }
     if (!moved) return ramp;
-    say('ink.series.endpointsAgainstSurface',
-        'a ramp end sat too close to the surface to be seen as a value — it was pulled away from the page');
     return { ...ramp, stops };
 }
+
+function resolveGradient(g: ThemeMarks['gradient']): Pick<ResolvedMarks, 'gradient'> {
+    const area = g?.area === 'fade' ? 'fade' as const : undefined;
+    const style = g?.lineWash === 'tint' || g?.lineWash === 'fade' ? g.lineWash : undefined;
+    const opacity = Math.min(1, Math.max(0, g?.washOpacity ?? (style === 'fade' ? 0.3 : 0.12)));
+    if (!area && !style) return {};
+    return { gradient: { ...(area ? { area } : {}), ...(style ? { lineWash: { style, opacity } } : {}) } };
+}
+
+/** The least contrast a fill keeps against the plot before it gains an edge. */
+const FILL_MIN_CONTRAST = 1.25;
+/** The least contrast a line keeps against the plot before it is darkened. */
+const STROKE_MIN_CONTRAST = 1.6;
 
 function groundSeriesInk(
     theme: ThemeSpec,
     ctx: GroundingContext,
     bindings: Bindings,
     signals: Signals,
-    say: (path: string, message: string) => void,
+    say: ReportDeparture,
 ): ResolvedSeriesInk {
-    const s = theme.ink?.series ?? {};
+    const resolved = groundSeriesInkChoice(theme, ctx, bindings, signals, say);
+    const visibility = seriesVisibility(theme, resolved);
+    return visibility ? { ...resolved, visibility } : resolved;
+}
+
+/**
+ * Series inks too faint to see against the plot surface. Only these change: a fill keeps its house
+ * colour and gains an edge in a darker shade of it; a line, which has no edge, is darkened in its
+ * hue just enough to pass.
+ */
+function seriesVisibility(theme: ThemeSpec, s: ResolvedSeriesInk): ResolvedSeriesInk['visibility'] {
+    if (s.mode === 'sequential' || s.mode === 'diverging') return undefined;
+    const surface = theme.ink?.surface?.plot ?? theme.ink?.surface?.canvas ?? '#ffffff';
+    const floors = theme.ink?.series?.minContrast ?? {};
+    const fillMin = floors.fill ?? FILL_MIN_CONTRAST;
+    const strokeMin = floors.stroke ?? STROKE_MIN_CONTRAST;
+    const inks = [...new Set([s.single, ...s.categorical, ...(s.overflow ? [s.overflow] : []), ...Object.values(s.byValue ?? {})].filter(Boolean))];
+    const stroke: Record<string, string> = {};
+    const outline: Record<string, string> = {};
+    for (const ink of inks) {
+        if (!parseColor(ink)) continue;
+        const ratio = contrastRatio(ink, surface);
+        if (ratio < strokeMin) stroke[ink.toLowerCase()] = readableTextInk(ink, surface, strokeMin);
+        if (ratio < fillMin) outline[ink.toLowerCase()] = readableTextInk(ink, surface, Math.max(2, fillMin + 0.75));
+    }
+    if (!Object.keys(stroke).length && !Object.keys(outline).length) return undefined;
+    return { stroke, outline };
+}
+
+function groundSeriesInkChoice(
+    theme: ThemeSpec,
+    ctx: GroundingContext,
+    bindings: Bindings,
+    signals: Signals,
+    say: ReportDeparture,
+): ResolvedSeriesInk {
+    const family = seriesMarkFamily(ctx.markTypes);
+    const s = forMarkFamily(theme.ink?.series ?? {}, family);
     const selection = s.selection ?? {};
-    const categorical = s.categorical ?? [];
-    const extended = s.categoricalExtended ?? [];
+    // A colour taken from a ramp's bins stands this far off the surface: thin lines and points
+    // further than filled marks.
+    const binContrast = family === 'line' || family === 'point' ? LINE_BIN_CONTRAST : FILL_BIN_CONTRAST;
+    // An ink bound to a value present in this chart is that value's alone: the positional sets skip
+    // it. Inks bound to values the chart does not hold stay in the palette, so a house that binds its
+    // whole palette to one vocabulary still has it for every other chart.
+    const boundField = channelFact(ctx, bindings.seriesChannel)?.field;
+    const byValue = boundValueInks(ctx.table, boundField,
+        chartValueColors(bindings.seriesChannel ? ctx.channelSemantics?.[bindings.seriesChannel] : undefined), s.roles);
+    const present = new Set(Object.keys(byValue ?? {}));
+    const reserved = new Set([...present].map((v) => byValue![v].toLowerCase()));
+    const unreserved = (list: string[]) => (reserved.size ? list.filter((c) => !reserved.has(c.toLowerCase())) : list);
+    const categorical = unreserved(s.categorical ?? []);
+    const extended = unreserved(s.categoricalExtended ?? []);
     const single = s.single ?? categorical[0] ?? theme.ink?.accent ?? '#4c78a8';
     const surfaceColour = theme.ink?.surface?.plot ?? theme.ink?.surface?.canvas ?? '#ffffff';
 
     // The house may name a larger indexed set for higher cardinality (Tableau
     // 10→20). Rank the tiers by capacity so we can reach for the smallest one
     // that still gives every series its own ink.
-    const tiers = [categorical, extended]
+    // Sets written for an exact series count. One that has fewer inks than its count is a typo, not
+    // a set, and is skipped.
+    const byCount = new Map<number, string[]>();
+    for (const [key, inks] of Object.entries(s.categoricalByCount ?? {})) {
+        const n = Number(key);
+        if (Number.isInteger(n) && n >= 2 && Array.isArray(inks) && inks.length >= n) byCount.set(n, inks);
+    }
+    const tiers = [categorical, extended, ...byCount.values()]
         .filter((t) => t.length > 0)
         .sort((a, b) => a.length - b.length);
     const largestTier = tiers.length ? tiers[tiers.length - 1] : categorical;
@@ -1881,29 +2321,41 @@ function groundSeriesInk(
     const seriesField = channelFact(ctx, seriesChannel)?.field;
     const seriesType = channelFact(ctx, seriesChannel)?.type;
     const count = signals.seriesCount;
+    // The colour is signed only when what it encodes carries the sign: a measure on an axis that
+    // dips below zero says nothing about the series the colour names.
+    const seriesSigned = signals.isSigned && seriesCarriesSign(ctx, seriesField, seriesType);
 
     const base: ResolvedSeriesInk = {
         mode: 'single',
         single,
         categorical,
-        overflow: s.overflow,
+        overflow: s.overflow ?? s.roles?.other,
+        ...(byValue ? { byValue } : {}),
         status: s.status,
+        ...(s.categoricalText?.length ? { categoricalText: s.categoricalText } : {}),
     };
 
     if (!seriesField || (signals.seriesCountKnown && count <= 1)) {
+        // One series whose measure crosses zero, on a mark read by its length: a house that colours
+        // signed values by status colours each bar by its own sign. Lines and points keep one ink —
+        // a line cannot change colour at zero without a cut the data does not have.
+        if (!seriesField && signals.isSigned && signals.markChannel === 'length' && s.status?.negative
+            && selection.signed === 'status' && selection.statusUse !== 'never' && selection.statusUse !== 'thresholdOnly') {
+            return { ...base, signedStatus: true };
+        }
         // A single-series chart still needs an ink, and there is exactly one
         // right answer: the house's single-series colour.
         return base;
     }
-    if (!signals.seriesCountKnown) {
-        say('ink.series',
-            `\`${seriesField}\` is created by a backend transform — the whole categorical set is offered rather than guessing a count`);
-    }
 
     const facetField = bindings.facetChannel ? ctx.channelSemantics[bindings.facetChannel]?.field : undefined;
     if (selection.redundantWithFacet === 'single' && facetField && facetField === seriesField) {
-        say('ink.series.selection.redundantWithFacet',
-            'series colour collapsed to single — the facet already names the series');
+        return base;
+    }
+
+    // The chart names every series where it draws it (each ridge's label beside the ridge): a
+    // colour per series would only say the name again, so they all take the single ink.
+    if (ctx.seriesOneInk === true && seriesType !== 'quantitative') {
         return base;
     }
 
@@ -1913,21 +2365,22 @@ function groundSeriesInk(
         // deliberately read the field as ordered magnitude instead. McKinsey
         // does this on heatmaps: one navy sequence plus printed values, rather
         // than introducing a warm ink the house does not otherwise own.
-        const signedSequential = signals.isSigned && selection.signed === 'sequential';
-        const diverging = signals.isSigned && !signedSequential && Boolean(s.diverging);
-        const ramp: Ramp | undefined = offSurface(diverging ? s.diverging : s.sequential, surfaceColour, say);
+        const signedSequential = seriesSigned && selection.signed === 'sequential';
+        const diverging = seriesSigned && !signedSequential && Boolean(s.diverging);
+        const ramp: Ramp | undefined = offSurface(diverging ? s.diverging : s.sequential, surfaceColour);
         if (ramp?.stops?.length) {
             const consumption = ramp.consumption ?? 'interpolate';
             const quantize = consumption === 'quantize' ? (ramp.quantizeCount ?? 5) : undefined;
+            // A diverging ramp keeps its ends: its pale colour is the midpoint, not an end to trim.
+            const bins = quantize && !diverging ? sampleRampBins(ramp.stops, quantize, surfaceColour, binContrast) : undefined;
             return {
                 ...base,
                 mode: diverging ? 'diverging' : 'sequential',
                 ramp,
                 quantize,
-                range: quantize ? sampleRamp(ramp.stops, quantize) : ramp.stops.slice(),
+                range: bins ?? (quantize ? sampleRamp(ramp.stops, quantize) : ramp.stops.slice()),
             };
         }
-        say('ink.series', 'no ramp declared for a continuous series — one is built from the house ink');
         // An indexed set is never the right answer for a continuous field: it
         // says "different" where the data says "more". If the house has not
         // declared a ramp, the honest fallback is a ramp of its own colour,
@@ -1955,25 +2408,22 @@ function groundSeriesInk(
         if (!signals.seriesCountKnown || count <= rampResolution) {
             // One ramp, consumed as an indexed set: the largest share takes the
             // darkest end, so the ramp is sampled in reverse.
-            const ramp = offSurface(s.sequential, surfaceColour, say)!;
+            const ramp = offSurface(s.sequential, surfaceColour)!;
             const range = sampleRamp(ramp.stops, Math.max(2, count)).reverse();
             return { ...base, mode: 'sequential', ramp, range };
         }
-        say('ink.series.selection.partToWhole',
+        say('ink.series.selection.partToWhole', 'part-to-whole-ramp-not-applied',
             `${count} slices exceed the ${rampResolution}-stop ramp's resolution — distinct hues name them better than shades, so the indexed set stands`);
     }
 
-    if (signals.isSigned && s.status && selection.signed === 'status' && selection.statusUse !== 'never') {
-        if (selection.statusUse === 'thresholdOnly') {
-            say('ink.series.selection.statusUse',
-                'status ink withheld — `thresholdOnly` and no threshold was declared');
-        } else {
+    if (seriesSigned && s.status && selection.signed === 'status' && selection.statusUse !== 'never') {
+        if (selection.statusUse !== 'thresholdOnly') {
             return { ...base, mode: 'status' };
         }
     }
 
-    if (signals.isSigned && selection.signed === 'diverging' && s.diverging?.stops?.length) {
-        const ramp = offSurface(s.diverging, surfaceColour, say)!;
+    if (seriesSigned && selection.signed === 'diverging' && s.diverging?.stops?.length) {
+        const ramp = offSurface(s.diverging, surfaceColour)!;
         return {
             ...base,
             mode: 'diverging',
@@ -1985,36 +2435,58 @@ function groundSeriesInk(
     // An *ordered* series is not an indexed set. Categories that run from
     // "a great deal" to "none at all" have a direction, and an unordered
     // palette throws it away. One ramp, sampled to the number of steps.
-    if (seriesType === 'ordinal') {
+    // A house may ask for an order the chart *declares* to be read the same way (R10). An order Flint
+    // infers (months, compass points) is not enough: those are sequences, not magnitudes.
+    const declaredOrder = (channelFact(ctx, seriesChannel) as any)?.semanticAnnotation?.sortOrder;
+    const ordered = seriesType === 'ordinal'
+        || (selection.ordered === 'ramp' && Array.isArray(declaredOrder) && declaredOrder.length > 1);
+    if (ordered) {
         const ramp: Ramp | undefined = offSurface(
-            s.sequential?.stops?.length ? s.sequential : s.diverging, surfaceColour, say);
+            s.ordinal?.stops?.length ? s.ordinal : s.sequential?.stops?.length ? s.sequential : s.diverging, surfaceColour);
         if (ramp?.stops?.length && signals.seriesCountKnown) {
-            say('ink.series', 'the series is ordered — the house ramp is sampled across it rather than an unordered set');
+            // A house's own ordinal ramp names its steps as written. A measure's ramp lent to the
+            // steps gives each the middle of its bin, the faint end trimmed: the first of two years
+            // is a readable tint, not the ramp's near-white.
             return {
                 ...base,
                 mode: 'sequential',
                 ramp,
-                range: sampleRamp(ramp.stops, Math.max(2, count)),
+                range: s.ordinal?.stops?.length
+                    ? sampleRamp(ramp.stops, Math.max(2, count))
+                    : sampleRampBins(ramp.stops, Math.max(2, count), surfaceColour, binContrast),
             };
         }
     }
 
-    if (signals.seriesCountKnown && count > categorical.length && categorical.length > 0) {
+    // The house wrote a set for exactly this many series: it is the answer, whatever the general
+    // order says (IBM Carbon's three-series set is not the first three of its sequence).
+    const counted = signals.seriesCountKnown ? byCount.get(count) : undefined;
+    if (counted) return { ...base, categorical: counted.slice(0, count), mode: 'categorical' };
+
+    // Series with a bound ink need no place in the palette.
+    const positional = count - present.size;
+    if (signals.seriesCountKnown && positional > categorical.length && categorical.length > 0) {
         // Auto-upsize: an extended tier that still names every series is the
         // right answer — reach for the smallest one that covers the count.
-        const fittingTier = tiers.find((t) => count <= t.length);
+        const fittingTier = tiers.find((t) => positional <= t.length);
         if (fittingTier && fittingTier.length > categorical.length) {
-            say('ink.series.categorical',
-                `${count} series past the core ${categorical.length} inks — the house's extended ${fittingTier.length}-colour set is used so each stays distinct`);
             return { ...base, categorical: fittingTier, mode: 'categorical' };
         }
 
-        if (s.overflow) {
+        if (s.repeat && !signals.isPartToWhole) {
+            // The house's guide says colours repeat past its last ink: offer the largest set and let
+            // the scale start it again, rather than greying the tail. Not on a part-to-whole: the
+            // first and last parts of a pie touch, and a repeated ink would make two parts one.
+            say('ink.series.repeat', 'palette-repeated',
+                `${count} series past the house's ${largestTier.length} inks — the palette starts again, as the house asks`);
+            return { ...base, categorical: largestTier, overflow: undefined, mode: 'categorical' };
+        }
+        if (base.overflow) {
             // Past even the extended set. The top inks by prominence name the
             // largest series; every remaining ("other") series folds into the
             // one overflow ink. Realization orders the domain by share so it is
             // the smallest series that go grey, read as a single tail.
-            say('ink.series.categorical',
+            say('ink.series.categorical', 'palette-exhausted',
                 `${count} series past the house's ${largestTier.length} inks — the largest ${largestTier.length} keep a colour, the rest fold into one "other" ink`);
             return { ...base, categorical: largestTier, mode: 'categorical', overflowTail: true };
         } else if (ctx.namesOnMarks === true) {
@@ -2024,21 +2496,82 @@ function groundSeriesInk(
             // foreign palette only spreads seven hues across seven lines and
             // seven labels that say the same thing the words do. One ink, and
             // the reader reads the names.
-            say('ink.series.categorical',
+            say('ink.series.categorical', 'palette-exhausted',
                 `${count} series against ${largestTier.length} house inks, but the house names them on the mark — colour stops naming and takes the single ink`);
             return { ...base, mode: 'single' };
         } else {
-            // An indexed set has a capacity, and past it the colours stop
-            // being names: two different series come out the same ink and the
-            // key lies. A house that declares six and no overflow ink has not
-            // said what the twenty-fifth thing looks like, and cycling is not
-            // an answer — it is the same answer twice.
-            say('ink.series.categorical',
-                `${count} series and the house declares ${largestTier.length} with no overflow ink — colour cannot name them all, so the scale already on the chart stands`);
-            return { ...base, categorical: largestTier, mode: 'categorical', exhausted: true };
+            // The house declares fewer inks than there are series and no overflow ink. Its palette
+            // still names the largest series; the rest take a grey derived from the house's own
+            // muted ink, so the chart never leaves the house for the renderer's default scheme.
+            const overflow = houseOverflowInk(theme, surfaceColour);
+            say('ink.series.categorical', 'palette-exhausted',
+                `${count} series and the house declares ${largestTier.length} inks with no overflow ink — the largest ${largestTier.length} keep a house colour, the rest take a grey derived from its muted ink (${overflow})`);
+            return { ...base, categorical: largestTier, overflow, mode: 'categorical', overflowTail: true };
         }
     }
     return { ...base, mode: 'categorical' };
+}
+
+const MARK_FAMILY: Record<string, SeriesMarkFamily> = {
+    line: 'line', trail: 'line', area: 'area', bar: 'bar', rect: 'bar', arc: 'arc', point: 'point', circle: 'point', square: 'point',
+};
+
+/**
+ * The one family of marks that draws this chart's series, if there is one. Text and rules annotate;
+ * dots on a line belong to the line. Two families (bars with a line) have none.
+ */
+/** The contrast off the surface a ramp's bin colours keep, for filled marks and for lines and points. */
+const FILL_BIN_CONTRAST = 1.5;
+const LINE_BIN_CONTRAST = 2.5;
+
+function seriesMarkFamily(markTypes: string[]): SeriesMarkFamily | undefined {
+    const families = new Set(markTypes.map((m) => MARK_FAMILY[m]).filter(Boolean));
+    if (families.has('line')) families.delete('point');
+    return families.size === 1 ? [...families][0] : undefined;
+}
+
+/** The house's series inks with a mark family's own in place of the general ones. */
+function forMarkFamily(s: NonNullable<ThemeInk['series']>, family: SeriesMarkFamily | undefined): NonNullable<ThemeInk['series']> {
+    const own = family ? s.byMark?.[family] : undefined;
+    if (!own || (!own.single && !own.categorical?.length)) return s;
+    return {
+        ...s,
+        ...(own.single ? { single: own.single } : {}),
+        // A family's list replaces the general order, its count sets and the text variants written for it.
+        ...(own.categorical?.length ? { categorical: own.categorical, categoricalByCount: undefined, categoricalText: undefined } : {}),
+    };
+}
+
+/**
+ * Does the series the colour names carry a sign of its own? A continuous colour does when its own
+ * values cross zero; categories do when they split by sign (a waterfall's increase / decrease,
+ * regions that each net a gain or a loss). Months on a ridgeline of temperatures do not, however
+ * cold the winter.
+ */
+function seriesCarriesSign(ctx: GroundingContext, field: string | undefined, type: string | undefined): boolean {
+    if (!field) return false;
+    // A field this stage cannot see (a template derives it) keeps the chart's sign.
+    if (!fieldPresent(ctx.table, field)) return true;
+    if (type === 'quantitative') return ctx.table.some((row) => typeof row?.[field] === 'number' && row[field] < 0);
+    const domain = [...new Set(ctx.table.map((row) => row?.[field]).filter((v) => v != null))];
+    if (domain.length < 2) return false;
+    // The measure the categories would be signing, y before x, as realization reads it.
+    const measure = (['y', 'x', 'theta', 'size'] as const)
+        .filter((ch) => channelType(ctx, ch) === 'quantitative')
+        .map((ch) => channelFact(ctx, ch)?.field)
+        .find((f) => f && f !== field);
+    return categoriesSplitBySign(categorySignRoles(ctx.table, field, domain, measure));
+}
+
+/**
+ * The ink for series past a house's palette when it names none: its muted text ink, a third of the
+ * way toward the surface, so the tail reads as context rather than as one more named series. Kept
+ * clear of the surface where the blend would sink into it.
+ */
+function houseOverflowInk(theme: ThemeSpec, surface: string): string {
+    const muted = theme.ink?.text?.muted ?? theme.ink?.text?.secondary ?? '#737373';
+    const blended = mixHex(muted, surface, 0.35, muted);
+    return contrastRatio(blended, surface) >= 1.8 ? blended : muted;
 }
 
 // ---------------------------------------------------------------------------
@@ -2056,11 +2589,24 @@ function groundRedundancy(
     series: ResolvedSeriesInk,
     signals: Signals,
     directlyLabeled: boolean,
-    say: (path: string, message: string) => void,
-): { shape: boolean; dash: boolean } {
-    const off = { shape: false, dash: false };
+    say: ReportDeparture,
+): DesignDecisions['marks']['redundant'] {
     const policy = marksSpec.redundantEncoding ?? 'never';
     const channels = marksSpec.redundantChannels ?? [];
+    // Texture fills a mark; a house that asks for it `always` hatches even one series (Visa).
+    const textureAsked = channels.includes('texture') && policy !== 'never'
+        && (series.mode === 'categorical' || series.mode === 'single');
+    const named = (marksSpec.texture?.patterns ?? []).filter((p) => TEXTURE_PATTERNS.includes(p));
+    const patterns: TexturePattern[] = named.length ? named
+        : marksSpec.texture?.pattern === 'hatch' ? ['diagonal'] : TEXTURE_PATTERNS.filter((p) => p !== 'solid');
+    const textureOf = (on: boolean) => (on ? {
+        texture: {
+            patterns,
+            ink: marksSpec.texture?.ink ?? 'darker',
+            spacing: Math.max(3, marksSpec.texture?.spacing ?? 6),
+        } as const,
+    } : {});
+    const off = { shape: false, dash: false, ...textureOf(textureAsked && policy === 'always') };
     if (policy === 'never' || channels.length === 0) return off;
     if (series.mode !== 'categorical') return off;
     const effectiveCount = signals.seriesCountKnown ? signals.seriesCount : series.categorical.length;
@@ -2068,11 +2614,7 @@ function groundRedundancy(
 
     if (policy === 'whenNeeded') {
         const strained = effectiveCount > series.categorical.length;
-        if (!strained) {
-            say('marks.redundantEncoding',
-                '`whenNeeded` withheld — the house has a distinct ink for every series');
-            return off;
-        }
+        if (!strained) return off;
         // Even with more series than inks, a redundant channel earns its noise
         // only if the reader needs it to tell the series apart. When each series
         // is named at its own mark — a line labelled at its end, a band at its
@@ -2080,16 +2622,16 @@ function groundRedundancy(
         // over a dense path degrades into texture rather than a distinguishing
         // mark. The name does the work `whenNeeded` was reaching for.
         if (directlyLabeled) {
-            say('marks.redundantEncoding',
+            say('marks.redundantEncoding', 'redundant-encoding-withheld',
                 '`whenNeeded` withheld — each series is named at its own mark, so nothing else need tell them apart');
             return off;
         }
     }
-    const unsupported = channels.filter((c) => c === 'texture' || c === 'lightness');
+    const unsupported = channels.filter((c) => c === 'lightness');
     if (unsupported.length) {
-        say('marks.redundantChannels', `${unsupported.join(', ')} not realizable — ignored`);
+        say('marks.redundantChannels', 'redundant-channel-not-applied', `${unsupported.join(', ')} not realizable — ignored`);
     }
-    return { shape: channels.includes('shape'), dash: channels.includes('dash') };
+    return { shape: channels.includes('shape'), dash: channels.includes('dash'), ...textureOf(textureAsked) };
 }
 
 // ---------------------------------------------------------------------------
@@ -2115,17 +2657,20 @@ function groundNumberFormat(
     ctx: GroundingContext,
     measureChannel: 'x' | 'y' | undefined,
     values: number[],
-): { pattern: string | undefined; inferred: boolean } {
+): string | undefined {
     const nf = theme.annotation?.numberFormat;
     const sem = measureChannel ? ctx.channelSemantics[measureChannel] : undefined;
     const isPercent = typeof sem?.format?.suffix === 'string' && sem.format.suffix.includes('%');
 
     let house: string | undefined;
+    // A house that never compacts prints every number whole, its thousands grouped.
+    const never = nf?.compact?.show === 'never';
     if (nf) {
         const sign = nf.signed ? '+' : '';
-        if (nf.thousands === 'suffix') house = `${sign}~s`;
+        // Grouped, so a value the suffix leaves whole (the set would collapse at three figures) still reads 1,429.
+        if (nf.thousands === 'suffix' && !never) house = `${sign},~s`;
         else {
-            const group = nf.thousands === 'separator' ? ',' : '';
+            const group = nf.thousands === 'separator' || never ? ',' : '';
             const precision = nf.precision === 'integer' ? '.0'
                 : nf.precision === 'one' ? '.1'
                     : nf.precision === 'two' ? '.2'
@@ -2138,9 +2683,84 @@ function groundNumberFormat(
     // A field already carrying its own percent formatting is left alone: the
     // semantics decided how that number reads, and re-deriving it here would
     // print a share of a share.
-    if (isPercent) return { pattern: house, inferred: false };
-    const pattern = inferValueLabelFormat(values, house);
-    return { pattern, inferred: pattern !== house };
+    if (isPercent) return house;
+    if (formatPrintsUnit(sem?.format?.pattern, '%')) return sem!.format!.pattern;
+    return inferValueLabelFormat(values, house);
+}
+
+/**
+ * The theme's number compaction. A stated `compact` compacts where its largest value reaches the
+ * threshold, one unit per ruler or label set; `thousands: "suffix"` alone keeps its old reading —
+ * value labels, each value its own suffix, from a thousand — with billions written B, not SI's G.
+ */
+function groundCompactRule(theme: ThemeSpec): CompactRule | undefined {
+    const nf = theme.annotation?.numberFormat;
+    const stated = nf?.compact;
+    if (stated?.show === 'never') return undefined;
+    const decimals = nf?.precision === 'integer' ? 0 : nf?.precision === 'one' ? 1 : nf?.precision === 'two' ? 2 : undefined;
+    if (stated) {
+        return {
+            ...(decimals !== undefined ? { decimals } : {}),
+            suffixes: COMPACT_SUFFIXES[stated.style ?? 'short'] ?? COMPACT_SUFFIXES.short,
+            per: stated.per ?? 'scale',
+            threshold: Math.max(1000, stated.threshold ?? 10000),
+            on: stated.on?.length ? stated.on : ['axis', 'labels'],
+            types: stated.types?.length ? stated.types : DEFAULT_COMPACT_TYPES,
+        };
+    }
+    if (nf?.thousands === 'suffix') {
+        return { suffixes: COMPACT_SUFFIXES.short, per: 'value', threshold: 1000, on: ['labels'], types: DEFAULT_COMPACT_TYPES, distinct: true };
+    }
+    return undefined;
+}
+
+/**
+ * d3's suffix format writes a billion as SI's `G` (gigas); no chart means that. Where a label set
+ * the format shortens reaches a billion, it is printed the same way with `B`.
+ */
+function suffixBillions(format: string | undefined, maxAbs: number): CompactPrint | undefined {
+    if (!format || !/~s$/.test(format) || !(maxAbs >= 1e9)) return undefined;
+    return { per: 'value', suffixes: COMPACT_SUFFIXES.short, threshold: 1000, ...(format.startsWith('+') ? { signed: true } : {}) };
+}
+
+/** What decides whether a channel's field may be compacted: its name, semantic type and unit. */
+function compactFacts(ctx: GroundingContext, channel: string | undefined) {
+    const sem = channel ? ctx.channelSemantics[channel] : undefined;
+    const annotation = sem?.semanticAnnotation;
+    return {
+        name: sem?.field,
+        semanticType: typeof annotation?.semanticType === 'string' ? annotation.semanticType : undefined,
+        unit: typeof annotation?.unit === 'string' ? annotation.unit : undefined,
+        isPercent: typeof sem?.format?.suffix === 'string' && sem.format.suffix.includes('%'),
+        said: ctx.headline,
+    };
+}
+
+/**
+ * The side an axis is drawn on (AX1). `opposite` is the far side, but a horizontal *index* axis
+ * keeps the bottom (the marks stand on it). `leading`/`trailing` place a vertical axis at the start
+ * or end of the reading direction (left to right) and leave a horizontal one at the bottom. A screen
+ * side applies only to an axis that runs that way; otherwise the axis keeps its default side.
+ */
+function axisOrient(channel: 'x' | 'y', placement: AxisRole['placement'], indexing: boolean): ResolvedAxis['orient'] {
+    if (channel === 'x') {
+        if (placement === 'top' || placement === 'bottom') return placement;
+        return placement === 'opposite' && !indexing ? 'top' : 'bottom';
+    }
+    if (placement === 'left' || placement === 'right') return placement;
+    return placement === 'opposite' || placement === 'trailing' ? 'right' : 'left';
+}
+
+/** A house's group spacing, each gap checked; an unreadable one falls back with a report. */
+function groundGroupSpacing(stated: ThemeMarks['group'], say: ReportDeparture): GroupSpacing {
+    const gap = stated?.gap;
+    const spacing = stated?.spacing;
+    if (gap !== undefined && !isGapSize(gap)) say('geometry.band.group.gap', 'group-gap-not-applied', `\`${String(gap)}\` is neither a share of a bar nor px — the default hairline is used`);
+    if (spacing !== undefined && !isGapSize(spacing)) say('geometry.band.group.spacing', 'group-gap-not-applied', `\`${String(spacing)}\` is neither a share of a bar nor px — the band fraction is used`);
+    return {
+        ...(isGapSize(gap) ? { gap } : {}),
+        ...(isGapSize(spacing) ? { spacing } : {}),
+    };
 }
 
 function clamp(v: number, lo: number, hi: number): number {

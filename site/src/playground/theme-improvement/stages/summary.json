@@ -1,0 +1,611 @@
+{
+ "r1": {
+  "total": 1857,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149
+  },
+  "changed": {
+   "house:visual": 17
+  }
+ },
+ "r1b": {
+  "total": 1857,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149
+  },
+  "changed": {
+   "house:visual": 9
+  }
+ },
+ "r2": {
+  "total": 1857,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149
+  },
+  "changed": {
+   "house:visual": 7
+  }
+ },
+ "r3": {
+  "total": 1857,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149
+  },
+  "changed": {
+   "preset:spec": 114,
+   "preset:visual": 6,
+   "house:spec": 59,
+   "house:visual": 16
+  }
+ },
+ "r4": {
+  "total": 1857,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149
+  },
+  "changed": {
+   "preset:visual": 51,
+   "house:visual": 81
+  }
+ },
+ "r5": {
+  "total": 1857,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149
+  },
+  "changed": {
+   "preset:visual": 9,
+   "house:visual": 58
+  }
+ },
+ "r6": {
+  "total": 1875,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 18
+  },
+  "changed": {
+   "house:visual": 22
+  }
+ },
+ "r8": {
+  "total": 1889,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 32
+  },
+  "changed": {
+   "house:visual": 15,
+   "house:spec": 3
+  }
+ },
+ "r7": {
+  "total": 1889,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 32
+  },
+  "changed": {
+   "house:visual": 12
+  }
+ },
+ "r10": {
+  "total": 1891,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 34
+  },
+  "changed": {
+   "house:visual": 2
+  }
+ },
+ "r12": {
+  "total": 1897,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 40
+  },
+  "changed": {
+   "house:spec": 2,
+   "house:visual": 18
+  }
+ },
+ "t1": {
+  "total": 1904,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 47
+  },
+  "changed": {
+   "preset:spec": 59,
+   "house:visual": 124,
+   "house:spec": 13,
+   "case:visual": 6,
+   "case:spec": 1
+  }
+ },
+ "t2": {
+  "total": 1910,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 53
+  },
+  "changed": {
+   "house:visual": 110,
+   "house:spec": 1,
+   "case:visual": 5
+  }
+ },
+ "t3": {
+  "total": 1919,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 62
+  },
+  "changed": {
+   "preset:visual": 59,
+   "house:spec": 26,
+   "house:visual": 139,
+   "case:visual": 12,
+   "case:spec": 2
+  }
+ },
+ "t4": {
+  "total": 1924,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 67
+  },
+  "changed": {
+   "preset:spec": 66,
+   "preset:visual": 3,
+   "no-theme:spec": 1,
+   "house:spec": 944,
+   "house:visual": 2,
+   "case:spec": 45
+  }
+ },
+ "f1": {
+  "total": 1938,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 81
+  },
+  "changed": {
+   "preset:visual": 59,
+   "house:visual": 37,
+   "case:visual": 3
+  }
+ },
+ "f2": {
+  "total": 1938,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 81
+  },
+  "changed": {
+   "house:visual": 31,
+   "case:visual": 1
+  }
+ },
+ "f3": {
+  "total": 1938,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 81
+  },
+  "changed": {
+   "house:spec": 1,
+   "house:visual": 35,
+   "case:visual": 1
+  }
+ },
+ "r13": {
+  "total": 1945,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 88
+  },
+  "changed": {
+   "house:visual": 22
+  }
+ },
+ "l1": {
+  "total": 1945,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 88
+  },
+  "changed": {
+   "preset:spec": 17,
+   "preset:visual": 45,
+   "no-theme:spec": 2,
+   "house:spec": 63,
+   "house:visual": 63,
+   "case:visual": 6,
+   "case:spec": 1
+  }
+ },
+ "l2": {
+  "total": 1952,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 95
+  },
+  "changed": {
+   "preset:visual": 42,
+   "house:visual": 69,
+   "case:visual": 9
+  }
+ },
+ "l3": {
+  "total": 1957,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 100
+  },
+  "changed": {
+   "preset:spec": 5,
+   "house:visual": 10,
+   "house:spec": 32,
+   "case:spec": 1
+  }
+ },
+ "l4": {
+  "total": 1961,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 104
+  },
+  "changed": {
+   "preset:visual": 2,
+   "house:visual": 8,
+   "case:visual": 2
+  }
+ },
+ "l5": {
+  "total": 1967,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 110
+  },
+  "changed": {
+   "preset:visual": 15,
+   "house:spec": 1,
+   "house:visual": 11,
+   "case:visual": 2
+  }
+ },
+ "l6": {
+  "total": 1970,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 113
+  },
+  "changed": {
+   "house:visual": 5,
+   "case:visual": 1
+  }
+ },
+ "g1": {
+  "total": 1981,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 124
+  },
+  "changed": {
+   "preset:visual": 33,
+   "house:visual": 99,
+   "case:visual": 11
+  }
+ },
+ "m1": {
+  "total": 1981,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 124
+  },
+  "changed": {
+   "house:visual": 42,
+   "house:spec": 15,
+   "case:visual": 1
+  }
+ },
+ "m2": {
+  "total": 1981,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 124
+  },
+  "changed": {
+   "house:visual": 24,
+   "house:spec": 12,
+   "case:visual": 1
+  }
+ },
+ "m3": {
+  "total": 1981,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 124
+  },
+  "changed": {
+   "preset:visual": 34,
+   "preset:spec": 2,
+   "no-theme:visual": 2,
+   "house:visual": 152,
+   "house:spec": 3,
+   "case:visual": 15,
+   "case:spec": 1
+  }
+ },
+ "m4": {
+  "total": 1996,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 139
+  },
+  "changed": {
+   "house:visual": 2
+  }
+ },
+ "m5": {
+  "total": 1981,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 124
+  },
+  "changed": {
+   "house:visual": 19,
+   "house:spec": 10,
+   "case:visual": 2
+  }
+ },
+ "m6": {
+  "total": 1981,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 124
+  },
+  "changed": {}
+ },
+ "s1": {
+  "total": 2006,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1149,
+   "case": 149
+  },
+  "changed": {
+   "preset:spec": 59,
+   "house:spec": 931,
+   "house:visual": 16,
+   "case:spec": 89
+  }
+ },
+ "a1": {
+  "total": 2018,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1147,
+   "case": 163
+  },
+  "changed": {
+   "preset:visual": 84,
+   "preset:spec": 93,
+   "house:visual": 322,
+   "house:spec": 83,
+   "case:visual": 28,
+   "case:spec": 6
+  }
+ },
+ "a2": {
+  "total": 2018,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1147,
+   "case": 163
+  },
+  "changed": {
+   "preset:visual": 6,
+   "house:visual": 305,
+   "case:visual": 40
+  }
+ },
+ "a3": {
+  "total": 2018,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1147,
+   "case": 163
+  },
+  "changed": {
+   "preset:visual": 55,
+   "house:visual": 51,
+   "case:visual": 11
+  }
+ },
+ "a4": {
+  "total": 2018,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1147,
+   "case": 163
+  },
+  "changed": {
+   "house:visual": 84,
+   "house:spec": 3,
+   "case:visual": 11
+  }
+ },
+ "a5": {
+  "total": 2018,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1147,
+   "case": 163
+  },
+  "changed": {
+   "preset:visual": 1,
+   "house:visual": 39
+  }
+ },
+ "a6": {
+  "total": 2027,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1147,
+   "case": 172
+  },
+  "changed": {
+   "preset:spec": 11,
+   "preset:visual": 1,
+   "house:visual": 57,
+   "house:spec": 32,
+   "case:visual": 4,
+   "case:spec": 6
+  }
+ },
+ "a7": {
+  "total": 2043,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1147,
+   "case": 188
+  },
+  "changed": {
+   "preset:visual": 156,
+   "house:visual": 284,
+   "case:visual": 47
+  }
+ },
+ "gr1": {
+  "total": 2043,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1147,
+   "case": 188
+  },
+  "changed": {
+   "preset:visual": 40,
+   "house:visual": 33,
+   "case:visual": 1
+  }
+ },
+ "gr2": {
+  "total": 2043,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1147,
+   "case": 188
+  },
+  "changed": {
+   "preset:spec": 29,
+   "house:spec": 23,
+   "house:visual": 62,
+   "case:visual": 4,
+   "case:spec": 2
+  }
+ },
+ "ax1": {
+  "total": 2049,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1147,
+   "case": 194
+  },
+  "changed": {
+   "preset:visual": 8,
+   "house:visual": 21,
+   "case:visual": 3
+  }
+ },
+ "lg1": {
+  "total": 2049,
+  "byGroup": {
+   "no-theme": 59,
+   "preset": 649,
+   "house": 1147,
+   "case": 194
+  },
+  "changed": {
+   "house:visual": 9,
+   "case:visual": 2
+  }
+ }
+}

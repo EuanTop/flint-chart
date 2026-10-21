@@ -9,6 +9,11 @@ export type {
     TargetDetailsOptions,
     TargetFeedbackOptions,
     BuildInteractiveChartOptions,
+    ChartChange,
+    ChartLayout,
+    ChartChangePhase,
+    ChartChangeSource,
+    ChartStateFacet,
     ChartUpdateApplyOptions,
     ChartUpdateTransition,
     ChartUpdateComposition,
@@ -21,6 +26,18 @@ export type {
     ViewportGeometry,
     ViewportState,
 } from './types';
+export type {
+    AxisTargetValue,
+    ChartAnnotation,
+    ChartCategoryWindow,
+    ChartHiddenValue,
+    ChartState,
+    ChartStateEntry,
+    DomainPoint,
+    DomainValue,
+    LegendDomain,
+    LegendTargetValue,
+} from '../core/interaction-contracts';
 export type {
     GestureGuideController,
     GestureGuideOptions,
@@ -39,6 +56,7 @@ export type {
 } from './affordances';
 export { DRAW_CURSOR, affordanceCursor, affordsTarget, resolveInteractionAffordance } from './affordances';
 export type {
+    AccessibleNavigationOptions,
     AnnotationCandidate,
     AnnotationConnection,
     AnnotationSpec,
@@ -98,6 +116,7 @@ export type {
     UpdateTarget,
 } from './interactions';
 export type {
+    AccessibleElementDescription,
     CanvasInteractionAction,
     CanvasInteractionEvent,
     DomainCoordinate,
@@ -106,6 +125,8 @@ export type {
     PlotGeometry,
 } from './language/events';
 export { toCanvasInteractionEvent } from './canvas-interaction';
+export { HOST_SOURCE, LINK_LAYER, conditionUpdates, createLinkState, gestureParts, linkCharts, linkInput, loadLinks, selectionParts, selectionTuples, shownFields } from './link';
+export type { ChartLink, ChartsLink, LinkChartsOptions, LinkCondition, LinkGesture, LinkPart, LinkSnapshot, LinkSpec, LinkState, LinkedChart } from './link';
 export type {
     ChartUpdateResult,
     FreeformOverlayBody,
@@ -116,10 +137,17 @@ export type {
     SemanticTargetRef,
     SemanticTargetSelector,
 } from './language/updates';
-export { matchesSemanticTargetSelector } from './language/updates';
-export { axisHighlight, brushAngle, brushX, brushY, brushZoom, clickAnnotate, clickGroupFocus, clickHighlight, contextActivate, doubleActivate, dragReorder, externalInteraction, hoverGroupFocus, inspect, inspectIndex, isCanvasInteraction, isExternalInteraction, lassoSelect, legendToggle, linkedBrush, longPress, navigate, select } from './interactions';
-export type { InspectIndexShow, InteractionEventSource } from './triggers';
+export { matchesSemanticTargetSelector, selectionUpdate, viewportUpdate } from './language/updates';
+export { accessibleNavigation, axisHighlight, brushAngle, brushX, brushY, brushZoom, clickAnnotate, clickGroupFocus, clickHighlight, contextActivate, doubleActivate, dragReorder, externalInteraction, hoverGroupFocus, inspect, inspectIndex, isCanvasInteraction, isExternalInteraction, lassoSelect, legendToggle, linkedBrush, longPress, navigate, select } from './interactions';
+export type {
+    AccessibleNavigationSection,
+    AccessibleNavigationSettings,
+    InspectIndexShow,
+    InteractionEventSource,
+} from './triggers';
 export {
+    ACCESSIBLE_NAVIGATION_SECTIONS,
+    accessibleNavigationTrigger,
     axisBrushTrigger,
     angularBrushTrigger,
     dragTrigger,
@@ -139,6 +167,18 @@ export {
     yBrushTrigger,
 } from './triggers';
 export { clampViewportStart, mountInteractiveChartSurface } from './surface';
+export { filterControls, isFilterControls, rowMatchesFilters, valueMatchesFilter } from './filter-controls';
+export type {
+    FilterControlsDef,
+    FilterControlsOptions,
+    FilterControlsPayload,
+    FilterFieldOptions,
+    FilterPlacement,
+    FilterValue,
+    FilterWidget,
+} from './filter-controls';
+export { contextMenu, isContextMenu } from './context-menu';
+export type { ContextMenuDef, ContextMenuGesture, ContextMenuItem, ContextMenuOptions } from './context-menu';
 export { INTERACTION_PRESET_TYPES } from '../core/interaction-spec';
 export type {
     InteractionEntry,
@@ -147,6 +187,8 @@ export type {
 } from '../core/interaction-spec';
 export type { InteractionPresetOptions, InteractionPresetSpec } from './spec/types';
 export { INTERACTION_PRESETS, listInteractionPresets } from './spec/registry';
+export { INTERACTION_PRESET_OPTIONS } from './spec/preset-options';
+export type { InteractionPresetOption } from './spec/preset-options';
 export type {
     InteractionCapability,
     InteractionGestureFamily,
@@ -162,12 +204,18 @@ export type { ComposedInteractiveOptions } from './spec/compose';
 export type { InteractionAdmission, InteractionAdmissionPlan } from './spec/admission';
 export type { ResolvedInteractionSpec } from './spec/resolve';
 
-export function buildInteractiveChart(
+export function mountChart(
     container: HTMLElement,
     input: ChartAssemblyInput,
     options: BuildInteractiveChartOptions,
 ): InteractiveChartSurface {
-    const { backend, renderer, expressionInterpreter, background, className, ariaLabel, chartId } = options;
+    const { backend, renderer, expressionInterpreter, background, className, ariaLabel, chartId, availableSize } = options;
+    // Loaded with the renderer: it reads the theme, which the mount entry does not bundle.
+    const sized = async (chartInput: ChartAssemblyInput): Promise<ChartAssemblyInput> => {
+        if (!availableSize) return chartInput;
+        const { withCanvasSize } = await import('../core/compute-layout');
+        return withCanvasSize(chartInput, availableSize);
+    };
     // The spec and the code are two sources of one configuration; the spec comes first.
     const { interactions, updates, assistedTargeting, keyboardTargeting, warnings } =
         composeInteractiveOptions(input, options);
@@ -175,18 +223,6 @@ export function buildInteractiveChart(
     const hoverTolerance = Math.max(0, ...canvasInteractions
         .filter((interaction) => interaction.eventSource.gesture === 'hover')
         .map((interaction) => interaction.eventSource.targetTolerance ?? 0));
-    if (backend !== 'vegalite' && interactions.length > 0) {
-        return mountInteractiveChartSurface(
-            container,
-            input,
-            {
-                async mount() {
-                    throw new Error(`Semantic interactions are not supported by backend "${backend}".`);
-                },
-            },
-            { className, ariaLabel, chartId, updates, warnings },
-        );
-    }
     switch (backend) {
         case 'vegalite':
             return mountInteractiveChartSurface(
@@ -197,8 +233,11 @@ export function buildInteractiveChart(
                         const { createVegaInteractiveRenderer } = await import('../vegalite/interactive');
                         return createVegaInteractiveRenderer({
                             renderer,
-                            interactions: canvasInteractions,
-                            enableSemanticUpdates: true,
+                            // External definitions too: the renderer reports their state (filters).
+                            interactions,
+                            enableSemanticUpdates: (options.semanticUpdates ?? true)
+                                || interactions.length > 0
+                                || (updates?.length ?? 0) > 0,
                             expressionInterpreter,
                             background,
                             assistDistance: assistedTargeting === false
@@ -213,7 +252,8 @@ export function buildInteractiveChart(
                                 keyboard: keyboardTargeting ? {} : false,
                             },
                             keyboardTargeting,
-                        }).mount(chartContainer, chartInput);
+                            liveValues: availableSize !== undefined,
+                        }).mount(chartContainer, await sized(chartInput));
                     },
                 },
                 { className, ariaLabel, chartId, updates, interactions, warnings },
@@ -225,7 +265,7 @@ export function buildInteractiveChart(
                 {
                     async mount(chartContainer, chartInput) {
                         const { createEChartsInteractiveRenderer } = await import('../echarts/interactive');
-                        return createEChartsInteractiveRenderer({ renderer }).mount(chartContainer, chartInput);
+                        return createEChartsInteractiveRenderer({ renderer }).mount(chartContainer, await sized(chartInput));
                     },
                 },
                 { className, ariaLabel, chartId, updates, interactions, warnings },
@@ -237,7 +277,7 @@ export function buildInteractiveChart(
                 {
                     async mount(chartContainer, chartInput) {
                         const { createChartjsInteractiveRenderer } = await import('../chartjs/interactive');
-                        return createChartjsInteractiveRenderer().mount(chartContainer, chartInput);
+                        return createChartjsInteractiveRenderer().mount(chartContainer, await sized(chartInput));
                     },
                 },
                 { className, ariaLabel, chartId, updates, interactions, warnings },
@@ -249,10 +289,14 @@ export function buildInteractiveChart(
                 {
                     async mount(chartContainer, chartInput) {
                         const { createPlotlyInteractiveRenderer } = await import('../plotly/interactive');
-                        return createPlotlyInteractiveRenderer().mount(chartContainer, chartInput);
+                        return createPlotlyInteractiveRenderer().mount(chartContainer, await sized(chartInput));
                     },
                 },
                 { className, ariaLabel, chartId, updates, interactions, warnings },
             );
     }
 }
+
+/** The former name of `mountChart`. */
+export const buildInteractiveChart = mountChart;
+export type MountChartOptions = BuildInteractiveChartOptions;

@@ -1,175 +1,245 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChartAssemblyInput } from 'flint-chart';
 import {
-  buildInteractiveChart,
+  hoverTrigger,
   navigate,
+  type CanvasInteractionDef,
   type FlintInteractionEventDetail,
-  type InteractiveChartSurface,
 } from 'flint-chart/interactive';
+import { FlintChart, type FlintChartHandle } from 'flint-chart/react';
 import { expressionInterpreter } from 'vega-interpreter';
 import { ScaleToFit } from '../components/ScaleToFit';
 import {
-  CHINA_LEVEL_COUNTS,
-  CHINA_PLACE_ROWS,
-  PROVINCE_NAME_BY_ADCODE,
+  CHINA_CHANGE_MAP_URL,
+  CHINA_PROVINCES_URL,
+  loadChinaChangeData,
+  type ChinaChangeData,
+  type ChinaChangeRow,
   type ChinaLevel,
 } from './china-semantic-zoom-data';
 import './interaction-candidates.css';
 import './map-semantic-zoom-stage.css';
+import './china-semantic-zoom-stage.css';
 
 /**
- * Semantic zoom on a two-level bubble map of China.
+ * Semantic zoom on a three-level choropleth of China: what a province's total hides.
  *
- * Map chart carries both levels: the base map is the DataV
- * province GeoJSON, the rows of both levels sit in one table with a `Level`
- * column, and the template's `levelField` + `levels` properties gate the point
- * layer behind Flint's level signal. `navigate()` pans and zooms the
- * projection and flips the level once fewer than 24° of longitude are on
- * screen. Each event also names the province under the plot centre, resolved
- * from the base map's own features.
+ * China grew by 5.6% between the 2010 and 2020 censuses, and only six provinces shrank. Yet more
+ * than half its counties lost people: growth gathered in the cities while the countryside emptied.
+ * The province map cannot show that; the county map shows little else. One Choropleth holds all
+ * three levels — each its own layer of boundaries over one join table, gated behind Flint's level
+ * signal — and `navigate()` flips from provinces to prefectures to counties as the zoom closes in.
+ *
+ * Each navigation event names the province under the centre (`geometry.domain.focus`), and the host
+ * reads out how many of its counties shrank. Hovering a region reads that region out instead.
  */
 
-/** Degrees of visible longitude at which the zoom enters and leaves the city level. */
-const CITY_SPANS = { enter: 24, exit: 30 } as const;
+/** Degrees of visible longitude at which the zoom enters and leaves each finer level. */
+const PREFECTURE_SPANS = { enter: 24, exit: 30 } as const;
+const COUNTY_SPANS = { enter: 9, exit: 12 } as const;
 /** Milliseconds the Reset fly back to the full frame takes. */
 const FLY_MS = 700;
+const HOVER_ID = 'china-change-hover';
+const LEVEL_NAMES: Record<ChinaLevel, string> = { province: 'Provinces', prefecture: 'Prefectures', county: 'Counties' };
 
-function chartInput(): ChartAssemblyInput {
+function chartInput(data: ChinaChangeData): ChartAssemblyInput {
   return {
-    data: { values: [...CHINA_PLACE_ROWS] },
-    semantic_types: {
-      Place: 'Category',
-      Province: 'Category',
-      Level: 'Category',
-      Role: 'Category',
-      Lon: 'Longitude',
-      Lat: 'Latitude',
-      PopulationM: { semanticType: 'Quantity', intrinsicDomain: [0, 130], unit: 'M' },
+    theme_spec: {
+      extends: 'datawrapper',
+      id: 'china-census',
+      label: 'China census',
+      furniture: [],
+      legend: { title: 'whenAmbiguous' },
+      ink: {
+        series: {
+          // Six steps of ten points with no neutral middle: the line between losing and gaining people
+          // is the reading, so no county sits on it. Loss is the warm side.
+          diverging: {
+            stops: ['#a63603', '#e6550d', '#fdae6b', '#9ecae1', '#4292c6', '#08519c'],
+            space: 'lab',
+            consumption: 'quantize',
+            quantizeCount: 6,
+          },
+        },
+      },
     },
-    field_display_names: { PopulationM: 'Population (M)' },
+    data: { values: data.rows },
+    semantic_types: {
+      Key: 'Category',
+      Place: 'Category',
+      // Capped at 30% either way: a handful of new districts more than doubled, and would otherwise
+      // wash every other county out to the middle of the ramp.
+      Change: { semanticType: 'PercentageChange', intrinsicDomain: [-0.3, 0.3] },
+    },
+    field_display_names: { Change: 'Population change, 2010–2020' },
     chart_spec: {
-      chartType: 'Map',
-      title: 'China: provinces, then cities',
-      subtitle: 'Population of eight provinces; zoom in for the cities of Zhejiang, Guangdong, Sichuan, and Hubei',
-      baseSize: { width: 920, height: 560 },
-      encodings: { longitude: 'Lon', latitude: 'Lat', size: 'PopulationM', color: 'Province' },
+      chartType: 'Choropleth',
+      title: 'China grew, most of its counties shrank',
+      subtitle: 'Population change between the 2010 and 2020 censuses',
+      baseSize: { width: 920, height: 600 },
+      encodings: { id: 'Key', color: 'Change', detail: 'Place' },
       chartProperties: {
-        region: 'world',
         projection: 'mercator',
-        baseMapUrl: `${import.meta.env.BASE_URL}map-data/china-provinces.geojson`,
-        levelField: 'Level',
-        levels: [{ value: 'province' }, { value: 'city', ...CITY_SPANS }],
+        baseMapUrl: CHINA_PROVINCES_URL,
+        levels: [
+          { value: 'province', url: CHINA_CHANGE_MAP_URL, feature: 'provinces' },
+          { value: 'prefecture', url: CHINA_CHANGE_MAP_URL, feature: 'prefectures', ...PREFECTURE_SPANS },
+          { value: 'county', url: CHINA_CHANGE_MAP_URL, feature: 'counties', ...COUNTY_SPANS },
+        ],
       },
     },
   } as ChartAssemblyInput;
 }
 
-const isLevel = (value: unknown): value is ChinaLevel => value === 'province' || value === 'city';
+/**
+ * Reads the region under the pointer. A hover reaches the host only through a hover affordance; the
+ * handler returns no update, so nothing on the map recedes as the pointer moves.
+ */
+const HOVER_REGION: CanvasInteractionDef = {
+  id: HOVER_ID,
+  eventSource: hoverTrigger,
+  // No cursor of its own: the map is for dragging, so navigate()'s grab cursor stays.
+  affordances: { mark: { hover: 'target' } },
+  handle() {
+    return null;
+  },
+};
 
-/** Degrees of longitude across the plot's middle row, from a navigation event's domain. */
-function longitudeSpan(domain: { x?: unknown } | undefined): number | undefined {
-  const x = domain?.x as { kind?: string; start?: unknown; end?: unknown } | undefined;
-  if (x?.kind !== 'interval') return undefined;
-  const span = Number(x.end) - Number(x.start);
-  return Number.isFinite(span) ? span : undefined;
-}
+const INTERACTIONS = [
+  navigate({
+    domainGuard: { minVisibleFraction: 0.03, maxVisibleFraction: 1, overscrollFraction: 0 },
+    // A click on empty map, not a double-click, flies home.
+    reset: ['click-none'],
+    resetTransition: { duration: FLY_MS },
+  }),
+  HOVER_REGION,
+];
 
-/** The province under the plot centre: the English name where the table has one, and the base map's own. */
-function focusLabel(focus: Record<string, unknown> | undefined): string | undefined {
-  if (!focus) return undefined;
-  const native = typeof focus.name === 'string' ? focus.name : undefined;
-  const english = PROVINCE_NAME_BY_ADCODE.get(Number(focus.adcode));
-  if (english && native) return `${english} (${native})`;
-  return english ?? native;
+const percent = (change: number) => `${change > 0 ? '+' : change < 0 ? '−' : ''}${Math.abs(change * 100).toFixed(1)}%`;
+const millions = (people: number) => people >= 1e6 ? `${(people / 1e6).toFixed(1)}M` : `${Math.round(people / 1e3)}k`;
+
+function Readout({ row, heading }: { row: ChinaChangeRow; heading: string }) {
+  const shrinking = row.CountiesShrinking / row.Counties;
+  const hidden = row.Level !== 'county' && row.Change > 0 && shrinking > 0.5;
+  return (
+    <div className="china-change-readout" data-change={row.Change < 0 ? 'down' : 'up'}>
+      <span className="china-change-kicker">{heading}</span>
+      <strong className="china-change-place">{row.Place}</strong>
+      {row.Level === 'county' && <span className="china-change-parent">{row.Prefecture}, {row.Province}</span>}
+      <span className="china-change-value">{percent(row.Change)}</span>
+      <span className="china-change-people">{millions(row.Pop2010)} → {millions(row.Pop2020)} people</span>
+      {row.Level !== 'county' && (
+        <span className="china-change-counties">
+          {hidden ? 'Yet ' : ''}{row.CountiesShrinking} of its {row.Counties} counties shrank
+          {hidden ? ` (${Math.round(shrinking * 100)}%)` : ''}
+        </span>
+      )}
+    </div>
+  );
 }
 
 export function ChinaSemanticZoomStage() {
+  const chartRef = useRef<FlintChartHandle>(null);
+  const [data, setData] = useState<ChinaChangeData | null>(null);
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [level, setLevel] = useState<ChinaLevel>('province');
-  const [lonSpan, setLonSpan] = useState<number | undefined>(undefined);
-  const [focus, setFocus] = useState<string | undefined>(undefined);
-  const mountRef = useRef<HTMLDivElement>(null);
-  const surfaceRef = useRef<InteractiveChartSurface | null>(null);
-
-  const flyHome = useCallback(() => {
-    void surfaceRef.current?.applyUpdate(
-      { id: 'china-semantic-zoom-reset', ops: [{ op: 'set-viewport', axes: 'xy', value: {} }] },
-      { transition: { duration: FLY_MS } },
-    );
-  }, []);
-
-  const handleInteraction = useCallback((event: Event) => {
-    const detail = (event as CustomEvent<FlintInteractionEventDetail>).detail;
-    const { phase, action, operation, geometry } = detail.event;
-    if (phase === 'start' || phase === 'cancel' || !action.endsWith('-viewport')) return;
-    if (isLevel(geometry.domain?.level)) setLevel(geometry.domain.level);
-    // A fly home reports each frame as a reset; the span counts down until the last one.
-    const home = operation === 'reset' && phase === 'commit';
-    setLonSpan(home ? undefined : longitudeSpan(geometry.domain));
-    setFocus(home ? undefined : focusLabel(geometry.domain?.focus));
-  }, []);
+  const [centreKey, setCentreKey] = useState<string | undefined>(undefined);
+  const [hoverKey, setHoverKey] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    const mount = mountRef.current;
-    if (!mount) return undefined;
-    mount.addEventListener('flint-interaction', handleInteraction);
-    const surface = buildInteractiveChart(mount, chartInput(), {
-      backend: 'vegalite',
-      renderer: 'canvas',
-      interactions: [navigate({
-        domainGuard: { minVisibleFraction: 0.04, maxVisibleFraction: 1, overscrollFraction: 0.15 },
-        // A click on empty map, not a double-click, flies home.
-        reset: ['click-none'],
-        resetTransition: { duration: FLY_MS },
-      })],
-      expressionInterpreter,
-      ariaLabel: 'Bubble map of Chinese provinces and cities by population',
-      chartId: 'china-semantic-zoom',
-    });
-    surfaceRef.current = surface;
-    void surface.ready.catch((error) => {
+    let cancelled = false;
+    void loadChinaChangeData().then((loaded) => {
+      if (!cancelled) setData(loaded);
+    }).catch((error) => {
+      if (cancelled) return;
+      setStatus('error');
       console.error('China semantic zoom stage failed to build', error);
     });
     return () => {
-      mount.removeEventListener('flint-interaction', handleInteraction);
-      surfaceRef.current = null;
-      surface.destroy();
+      cancelled = true;
     };
-  }, [handleInteraction]);
+  }, []);
 
-  // The fly home reports as a reset on its last frame, which clears the pills.
-  const reset = () => flyHome();
+  const spec = useMemo(() => data && chartInput(data), [data]);
+  const byKey = useMemo(() => new Map(data?.rows.map((row) => [row.Key, row]) ?? []), [data]);
 
-  const levelLabel = level === 'city'
-    ? `Cities${focus ? ` · ${focus}` : ''}`
-    : 'Provinces';
+  const handleInteraction = (detail: FlintInteractionEventDetail) => {
+    const { phase, action, geometry, target } = detail.event;
+    if (detail.interactionId === HOVER_ID) {
+      const key = target?.elements[0]?.value?.Key;
+      setHoverKey(phase !== 'cancel' && typeof key === 'string' ? key : undefined);
+      return;
+    }
+    if (phase === 'start' || phase === 'cancel' || !action.endsWith('-viewport')) return;
+    const nextLevel = geometry.domain?.level;
+    if (nextLevel === 'province' || nextLevel === 'prefecture' || nextLevel === 'county') setLevel(nextLevel);
+    const key = geometry.domain?.focus?.Key;
+    setCentreKey(typeof key === 'string' ? key : undefined);
+  };
+
+  const reset = () => {
+    void chartRef.current?.applyUpdate(
+      { id: 'china-semantic-zoom-reset', ops: [{ op: 'set-viewport', axes: 'xy', value: {} }] },
+      { transition: { duration: FLY_MS } },
+    );
+  };
+
+  const hovered = hoverKey ? byKey.get(hoverKey) : undefined;
+  const centre = centreKey ? byKey.get(centreKey) : undefined;
+  const meta = data?.metadata;
 
   return (
     <div className="ic-flint-dimpvis-shell map-semantic-zoom-shell">
-      <div className="ic-stage-meta">
-        <strong>Semantic zoom on a two-level bubble map of China</strong>
-        <span>
-          Wheel or pinch to zoom, drag to pan; Reset or a click on empty map flies home.
-          One Map chart carries province
-          centroids and city points in one table; the template gates the point layer by level, and once
-          fewer than {CITY_SPANS.enter}° of longitude are on screen the navigation flips it to cities. The
-          province under the centre comes from the base map&apos;s own features.
-        </span>
-      </div>
       <div className="ic-toolbar">
-        <span className="ic-pill" data-active="true">Current Level: {levelLabel}</span>
-        <span className="ic-pill" data-active={lonSpan !== undefined}>
-          {lonSpan !== undefined ? `Visible: ${lonSpan.toFixed(1)}° of longitude` : 'Visible: full frame'}
-        </span>
-        <button type="button" className="ic-pill" onClick={reset}>Reset</button>
+        <span className="ic-pill" data-active="true">Showing: {LEVEL_NAMES[level]}</span>
+        <button type="button" className="ic-pill" disabled={status !== 'ready'} onClick={reset}>Reset</button>
       </div>
-      <div className="ic-flint-dimpvis-panel">
-        <ScaleToFit height={720} minHeight={320} adaptiveHeight padding={8}>
-          <div className="ic-flint-dimpvis-mount map-semantic-zoom-mount" ref={mountRef} />
-        </ScaleToFit>
-      </div>
-      <div className="map-semantic-zoom-credit">
-        <strong>Data</strong>
-        <span>Base map: DataV.GeoAtlas province boundaries (100000_full), Alibaba Cloud.</span>
+      <div className="china-change-layout">
+        <div className="ic-flint-dimpvis-panel">
+          {status !== 'ready' && <div role="status" className="china-census-loading">
+            {status === 'loading' ? <progress aria-label="Loading census map" /> : 'Census map could not be loaded.'}
+          </div>}
+          <ScaleToFit height={720} adaptiveHeight padding={8}>
+            <div className="ic-flint-dimpvis-mount map-semantic-zoom-mount">
+              {spec && <FlintChart
+                ref={chartRef}
+                spec={spec}
+                interactions={INTERACTIONS}
+                // Thousands of county shapes redraw on every pan and zoom frame; canvas skips the SVG churn.
+                renderer="canvas"
+                expressionInterpreter={expressionInterpreter}
+                ariaLabel="Population change between the 2010 and 2020 censuses in Chinese provinces, prefectures, and counties"
+                chartId="china-semantic-zoom"
+                onInteraction={handleInteraction}
+                onRender={() => setStatus('ready')}
+                onError={(error) => {
+                  setStatus('error');
+                  console.error('China semantic zoom stage failed to build', error);
+                }}
+              />}
+            </div>
+          </ScaleToFit>
+        </div>
+        <aside className="china-change-side" aria-live="polite">
+          {hovered
+            ? <Readout row={hovered} heading="Under the pointer" />
+            : centre
+              ? <Readout row={centre} heading="In the middle of the map" />
+              : meta && (
+                <div className="china-change-readout">
+                  <span className="china-change-kicker">All of China</span>
+                  <span className="china-change-value">+{meta.nationalChangePct}%</span>
+                  <span className="china-change-counties">
+                    Yet {meta.countiesShrinking.toLocaleString()} of {meta.counts.county.toLocaleString()} counties
+                    shrank ({Math.round(meta.countiesShrinking / meta.counts.county * 100)}%)
+                  </span>
+                </div>
+              )}
+          <p className="china-change-hint">
+            Scroll to zoom: provinces give way to prefectures, then counties. Hover a region to read it.
+            Grey land has no matched count.
+          </p>
+        </aside>
       </div>
     </div>
   );

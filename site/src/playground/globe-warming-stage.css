@@ -1,0 +1,198 @@
+.globe-warming-shell {
+  gap: 12px;
+}
+
+.globe-warming-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 16px;
+  align-items: center;
+}
+
+@media (max-width: 760px) {
+  .globe-warming-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.globe-warming-side {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.globe-warming-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.globe-warming-mount {
+  cursor: grab;
+}
+
+.globe-warming-mount:active {
+  cursor: grabbing;
+}
+
+.globe-warming-profile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 220px;
+  padding: 14px;
+  border: 1px solid #e6eaed;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+.globe-warming-kicker {
+  color: #8a949c;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.globe-warming-profile h4 {
+  margin: 0;
+  color: #22292e;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.globe-warming-value {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+}
+
+.globe-warming-value strong {
+  color: #b42318;
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+}
+
+.globe-warming-value span,
+.globe-warming-note,
+.globe-warming-axis,
+.globe-warming-empty {
+  color: #67727c;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.globe-warming-stripes {
+  display: block;
+  width: 100%;
+  height: 56px;
+  border-radius: 3px;
+}
+
+.globe-warming-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: -4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.globe-warming-note,
+.globe-warming-empty {
+  margin: 0;
+}
+
+.globe-warming-hint {
+  margin: 0;
+  color: #67727c;
+  font-size: 12px;
+}
+
+/* Stacked: the globe takes the width; the views and the readout share one band of fixed height
+   beneath it, so the globe keeps its size whatever the band says. */
+.globe-warming-shell--stacked {
+  gap: 6px;
+}
+
+.globe-warming-shell--stacked .globe-warming-mount {
+  border: 0;
+}
+
+.globe-warming-shell--stacked .globe-warming-layout {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.globe-warming-shell--stacked .globe-warming-side {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 8px;
+}
+
+.globe-warming-shell--stacked .globe-warming-views {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  align-content: center;
+  gap: 4px;
+}
+
+.globe-warming-shell--stacked .globe-warming-views .ic-pill {
+  padding: 5px 8px;
+}
+
+.globe-warming-shell--stacked .globe-warming-profile {
+  display: grid;
+  grid-template-columns: minmax(96px, auto) minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  column-gap: 14px;
+  row-gap: 3px;
+  box-sizing: border-box;
+  height: 62px;
+  min-height: 0;
+  padding: 8px 12px;
+  overflow: hidden;
+}
+
+.globe-warming-shell--stacked .globe-warming-kicker,
+.globe-warming-shell--stacked .globe-warming-note,
+.globe-warming-shell--stacked .globe-warming-hint {
+  display: none;
+}
+
+.globe-warming-shell--stacked .globe-warming-profile h4 {
+  grid-area: 1 / 1;
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.globe-warming-shell--stacked .globe-warming-value {
+  grid-area: 2 / 1;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.globe-warming-shell--stacked .globe-warming-value strong {
+  font-size: 15px;
+}
+
+.globe-warming-shell--stacked .globe-warming-stripes {
+  grid-area: 1 / 2;
+  height: 24px;
+}
+
+.globe-warming-shell--stacked .globe-warming-axis {
+  grid-area: 2 / 2;
+  margin-top: 0;
+  font-size: 10px;
+}
+
+.globe-warming-shell--stacked .globe-warming-empty {
+  grid-column: 1 / -1;
+  align-self: center;
+}

@@ -448,7 +448,8 @@ describe('Plotly expressive templates — native trace shapes', () => {
       { start: 'Date', end: 'Date', correlation: 'Correlation' }));
     expect(fig.layout.xaxis.automargin).toBe(true);
     expect(fig.layout.yaxis.automargin).toBe(true);
-    expect(fig.layout.xaxis.tickangle).toBe(45);
+    // Turned as Vega-Lite turns them: each name ends at its tick.
+    expect(fig.layout.xaxis.tickangle).toBeLessThan(0);
     expect(fig.layout.xaxis.title.standoff).toBeGreaterThan(0);
     expect(fig.layout.yaxis.title.standoff).toBeGreaterThan(0);
     expect(fig.layout.margin.b).toBeGreaterThanOrEqual(90);
@@ -574,7 +575,8 @@ describe('Plotly expressive templates — regression fixes', () => {
     const fig = assemblePlotly(input('KPI Card', { metric: { field: 'region' }, value: { field: 'revenue' } },
       [{ region: 'Revenue', revenue: 118432 }], { region: 'Category', revenue: 'Amount' }));
     expect(fig.data[0].type).toBe('indicator');
-    expect(fig.data[0].value).toBe(118432);
+    expect(fig.data[0].value).toBeCloseTo(118.432);
+    expect(fig.data[0].number).toMatchObject({ valueformat: '.3~r', suffix: 'k' });
   });
 
   it('waterfall: the first bar anchors at its own value (not a zero-height "total")', () => {

@@ -28,6 +28,10 @@
  *   swiss          heavy structural black rules on warm paper
  *   pop            process-colour quadrants divided by heavy black ink
  *   cartoon        rounded bar tops and a thick soft outline
+ *   apple          rounded system-colour bars, ruled with labels on the trailing edge
+ *   de-stijl       a composition of primary planes split by heavy black lines
+ *   bbc            blue and amber bars between light rules, on a heavy zero rule
+ *   material       rounded tonal-purple, teal and amber bars on a faint outline-variant grid
  *
  * Each is a complete SVG document so a caller can put it straight in an `<img>`
  * or inline it. 16×16 with a half-pixel inset frame: the frame is what lets a
@@ -115,12 +119,12 @@ export const MCKINSEY_ICON = tile(
 /** Grid ruling read straight through the bars, the way its charts are gridded. */
 export const DATAWRAPPER_ICON = tile(
     '#ffffff',
-    '#dcdcdc',
-    rule(2.6, 5.5, 13.4, '#b3b3b3') +
-        rule(2.6, 8, 13.4, '#b3b3b3') +
-        rule(2.6, 10.5, 13.4, '#b3b3b3') +
-        bars(['#18a1cd', '#e2a233', '#c04a4a'], [6.5, 8.5, 5], 2.2) +
-        rule(2.6, BASELINE, 13.4, '#333333'),
+    '#e7e7e7',
+    rule(2.6, 5.5, 13.4, '#e7e7e7') +
+        rule(2.6, 8, 13.4, '#e7e7e7') +
+        rule(2.6, 10.5, 13.4, '#e7e7e7') +
+        bars(['#18a1cd', '#c71e1d', '#fa8c00'], [6.5, 8.5, 5], 2.2) +
+        rule(2.6, BASELINE, 13.4, '#181818'),
 );
 
 /** The dark canvas, which is the whole point of the house. */
@@ -167,4 +171,47 @@ export const CARTOON_ICON = tile(
     bars(['#3aa9ff', '#ff5d5d', '#ffc23c'], [6.4, 8.4, 5], 2.8, 1.3) +
         rule(2.6, BASELINE, 13.4, '#2e2b28', 1.7),
     3.5,
+);
+
+/** Rounded system-colour bars, the ruling labelled on the trailing edge. */
+export const APPLE_ICON = tile(
+    '#ffffff',
+    '#e5e5ea',
+    rule(2.6, 5.5, 11.6, '#d1d1d6', 0.6) +
+        rule(2.6, 9, 11.6, '#d1d1d6', 0.6) +
+        bars(['#007aff', '#34c759', '#ff9500'], [6.2, 8, 4.6], 2.2, 0.9) +
+        rule(2.6, BASELINE, 11.6, '#d1d1d6', 0.6) +
+        '<path d="M12.6 5.5h1M12.6 9h1M12.6 12.5h1" stroke="#8a8a8e" stroke-width="0.9"/>',
+    3,
+);
+
+/** Red, blue and yellow planes split by heavy black lines on off-white: a composition, not a chart. */
+export const DE_STIJL_ICON = tile(
+    '#f4f1e8',
+    '#121212',
+    '<rect x="1" y="1" width="7" height="7" fill="#d40f0f"/>' +
+        '<rect x="10.5" y="10.5" width="4.5" height="4.5" fill="#1f4a94"/>' +
+        '<rect x="1" y="12.5" width="4" height="2.5" fill="#f5c400"/>' +
+        '<path d="M8.5 1V15M1 8.5H15M10 8.5V15M1 12H8.5" stroke="#121212" stroke-width="1.4" fill="none"/>',
+);
+
+/** BBC blue, amber and dark red on white between light horizontal rules, standing on the heavy dark rule at zero. */
+export const BBC_ICON = tile(
+    '#ffffff',
+    '#cbcbcb',
+    rule(2.6, 4.5, 13.4, '#cbcbcb') +
+        rule(2.6, 8.5, 13.4, '#cbcbcb') +
+        bars(['#1380A1', '#FAAB18', '#990000'], [7.5, 5, 3.4]) +
+        rule(2.2, BASELINE, 13.8, '#333333', 1.8),
+);
+
+/** M3 primary purple, teal and amber with rounded value ends, over faint outline-variant gridlines on the M3 surface. */
+export const MATERIAL_ICON = tile(
+    '#FFFBFE',
+    '#CAC4D0',
+    rule(2.6, 5.5, 13.4, '#CAC4D0', 0.6) +
+        rule(2.6, 9, 13.4, '#CAC4D0', 0.6) +
+        bars(['#6750A4', '#00696E', '#E8A600'], [8, 6, 4.4], 2.6, 1) +
+        rule(2.6, BASELINE, 13.4, '#79747E', 0.6),
+    4,
 );

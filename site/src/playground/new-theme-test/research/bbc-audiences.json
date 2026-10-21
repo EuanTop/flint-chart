@@ -1,0 +1,120 @@
+{
+  "id": "bbc-audiences",
+  "org": "BBC Audiences (Tableau Style Guide)",
+  "urls": [
+    "https://public.tableau.com/profile/bbc.audiences#!/vizhome/BBCAudiencesTableauStyleGuide/Hello",
+    "https://public.tableau.com/profile/api/workbook/BBCAudiencesTableauStyleGuide",
+    "https://public.tableau.com/static/images/BB/BBCAudiencesTableauStyleGuide/Hello/1.png",
+    "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/LookandFeel.png?:display_static_image=y&:showVizHome=n",
+    "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/Text.png?:display_static_image=y&:showVizHome=n",
+    "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/Numbers.png?:display_static_image=y&:showVizHome=n",
+    "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/Typography.png?:display_static_image=y&:showVizHome=n",
+    "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/Layout.png?:display_static_image=y&:showVizHome=n",
+    "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/Interaction.png?:display_static_image=y&:showVizHome=n",
+    "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/Colour.png?:display_static_image=y&:showVizHome=n",
+    "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/Charts.png?:display_static_image=y&:showVizHome=n",
+    "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/LineChart.png?:display_static_image=y&:showVizHome=n",
+    "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/BarChart.png?:display_static_image=y&:showVizHome=n",
+    "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/StackedBar.png?:display_static_image=y&:showVizHome=n",
+    "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/PieChart.png?:display_static_image=y&:showVizHome=n"
+  ],
+  "access": "partial",
+  "accessNotes": "The Tableau Public viz is JS-rendered. The sheet list came from the Tableau Public workbook API and each dashboard was read as a static PNG via the /views/<workbook>/<sheet>.png?:display_static_image=y endpoint (Hello, Look and Feel, Text, Numbers, Typography, Layout, Interaction, Colour, Charts, Line, Bar, Stacked Bar, Pie). Long text blocks are truncated with '..' in the static renders, so some rules are only partly readable. Data colours (teal #21a9be, red #e24e42 / #d83934, blue-violet #5555ff, greys #cccccc/#eaeaea/#e1e1e1) were measured from pixels of the static PNGs, not stated as tokens; the non-data colours (#ffffff, #f5f5f5, #898989, #000000) are stated explicitly on the Colour sheet.",
+  "summary": "Internal BBC Audiences guide for Tableau dashboards (944x600). Minimal, data-ink-focused look: white background, light grey #f5f5f5 plot panes with white horizontal gridlines, grey #898989 axis text, Reith Sans throughout, and a single dominant colour per chart to signal the data while everything else is grey. Titles are small (12pt) and left-aligned with the measure as a coloured subtitle line that doubles as the legend; charts are labelled directly.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#21a9be", "#e24e42", "#5555ff"],
+    "categoricalNotes": "Not a categorical palette: the guide recommends 'a single dominant colour to signal data' in each display. Each example chart uses one accent hue (teal #21a9be on line/interaction examples, red #e24e42 on bar, blue-violet #5555ff on stacked bar/pie); secondary categories are greys (#cccccc, then #eaeaea for the least important). Stacked bars/pies limited to two to three categories. Hex values sampled from rendered examples.",
+    "sequential": [],
+    "diverging": [],
+    "highlight": "#21a9be",
+    "context": "#cccccc",
+    "positive": null,
+    "negative": null,
+    "background": "#ffffff",
+    "text": "#000000",
+    "textSecondary": "#898989",
+    "gridline": "#ffffff",
+    "axis": "#898989",
+    "notes": "Colour sheet 'non-data elements' rough guideline: BACKGROUND #ffffff, PANE #f5f5f5, AXIS TEXT #898989, TEXT #000000. Filter & interact area also light grey #f5f5f5. 'Use colour for filtered values in titles to emphasise the connection between what's being filtered.' Keep colour choices consistent across a dashboard. Pie context slice measured #e1e1e1."
+  },
+  "typography": {
+    "family": "BBC Reith Sans",
+    "fallback": null,
+    "title": { "size": 16, "weight": "normal", "align": "left", "case": "sentence", "color": "#000000" },
+    "subtitle": { "size": 13, "weight": "normal", "style": "normal", "color": "#21a9be" },
+    "axisLabel": { "size": null, "color": "#898989" },
+    "axisTitle": { "size": null, "weight": null, "placement": "omitted (measure stated in coloured subtitle, units on tick labels e.g. 100%)" },
+    "dataLabel": { "size": null, "weight": "normal" },
+    "source": { "size": null, "style": "normal, bottom-left footer 'Source: ...'", "color": "#000000" },
+    "notes": "Stated in Tableau points: Chart Title 12pt, Chart Subtitle 10pt, highlighted category words 10pt Bold in series colour ('Thing 1 | Thing 2'); default font 10pt but avoid sizes below 12pt for readability (truncated). Pixel sizes above are 12pt/10pt converted at 4/3. Dashboard Title & Section are 20pt uppercase right-aligned in header. 'More ink = more emphasis' for KPIs/callouts; de-emphasise axis text. Align text close to the data (bar category labels right-aligned next to bars)."
+  },
+  "structure": {
+    "gridlines": "Horizontal only, white lines on the light-grey #f5f5f5 pane ('Use white horizontal gridlines set at a reasonable interval'). Bar charts have no gridlines.",
+    "axisLine": "None.",
+    "ticks": "None.",
+    "zeroLine": "Not emphasised; bar charts 'must always start from zero'.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "omitted; measure given in coloured subtitle under the title",
+    "unitPlacement": "on every tick (e.g. 25%, 50%, 75%, 100%) and in subtitle ('% ever done', 'Proportion of UK households')",
+    "frame": "Plot pane is a filled light-grey #f5f5f5 rectangle without border.",
+    "background": "#ffffff page, #f5f5f5 plot pane",
+    "notes": "Dashboards follow a fixed template: 65px header (BBC Audiences logo left, uppercase title & section right), visualisation area, 35px footer (source, navigation, more info). Avoid scroll bars."
+  },
+  "legend": {
+    "placement": "none (colour key embedded in the subtitle line)",
+    "directLabels": "Preferred: 'Label charts directly; this is easier to read than using a colour legend' — line end labels in series colour with name and last value (e.g. 'TV 94%').",
+    "title": "no",
+    "swatchShape": "none — coloured words in subtitle, separated by ' / ' (e.g. 'Entire Series / Individual Episode / Don't Know' in blue, dark grey, light grey)",
+    "notes": ""
+  },
+  "marks": {
+    "bars": "Horizontal bars for ranked categories, sorted descending, category labels right-aligned next to the bars, value labels at bar ends, no x axis. Single fill colour. Bars start at zero. Stacked vertical bars with the most important category at the bottom in the accent colour, others in greys; stick to two or three categories.",
+    "lines": "Medium (~2px) lines in the accent colour, no markers in static example (markers shown in the interaction example), end-of-line direct labels.",
+    "areas": null,
+    "points": null,
+    "pies": "Allowed sparingly 'to call out a particular' value: one slice in accent colour, rest grey; anything beyond three categories discouraged. Slice starts at 12 o'clock clockwise.",
+    "notes": "Line charts: aim for 2:1 plot aspect ratio and keep the same ratio across a dashboard; use small multiples/sparklines for many categories."
+  },
+  "labels": {
+    "dataLabels": "Value labels at bar ends in dark grey; inside stacked segments in lighter text; series labels at line ends in the series colour.",
+    "numberFormat": "Use K for thousands, M for millions, B for billions (e.g. 10.0K, 1.0M); round to the precision the audience needs; rank as #1, #2; percentage change with + or -; currency e.g. £10.3B.",
+    "dates": "Years as four digits on the x axis (2006, 2008, ...).",
+    "notes": "Re-map data values into plain English ('call it what it is')."
+  },
+  "furniture": {
+    "title": "Chart title (12pt) conveys what is displayed and is a place for the key metric; dynamic titles with date ranges/filter values; a coloured subtitle line states the measure and doubles as the legend.",
+    "source": "Footer bottom-left: 'Source: Ofcom Communications Report 2017' in small black text; 'Contact the team' with envelope icon bottom-right.",
+    "logo": "BBC block logo + 'AUDIENCES' wordmark top-left in the 65px header; dashboard title right-aligned uppercase with the section word in bold ('CHARTS STYLE GUIDE').",
+    "other": "Thin light-grey horizontal rule under the header and above the footer; vertical light-grey divider between explanation and chart; BBC GEL icons for navigation (home, more info, previous/next, link, alert)."
+  },
+  "annotations": "Italic sans-serif annotation text with curved black arrows pointing to the feature.",
+  "layout": "Fixed dashboard size 944x600 px; 65px header, 35px footer; generous spacing to group related elements; no scrollbars.",
+  "interaction": "Hover to highlight, click on data to filter, click on GEL nav buttons to navigate. Tooltips should give further information (Tableau tooltip with Reith Sans). Filter/interact area on light grey #f5f5f5.",
+  "accessibility": "Plain English, avoid sub-12pt text; no explicit contrast or colour-blind rules readable.",
+  "chartTypes": {
+    "preferred": ["bar chart", "line chart", "KPI", "table", "small multiples", "sparklines", "slope graph", "scatterplot", "heatmap"],
+    "discouraged": ["pie chart with more than three categories", "stacked bar with more than two to three categories", "Tableau 'Show Me' defaults"],
+    "notes": "Also covers connected scatterplot, treemap, donut, label bars, rank trend, stacked area, bubble matrix. Recommends FT Visual Vocabulary for chart choice."
+  },
+  "distinctiveRules": [
+    { "rule": "Plot area is a light grey #f5f5f5 pane on a white #ffffff background; gridlines are white and horizontal only.", "source": "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/LineChart.png?:display_static_image=y&:showVizHome=n", "quote": "Use white horizontal gridlines set at a reasonable interval; PANE #f5f5f5" },
+    { "rule": "Axis text is grey #898989, other text black #000000.", "source": "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/Colour.png?:display_static_image=y&:showVizHome=n", "quote": "BACKGROUND #ffffff, PANE #f5f5f5, AXIS TEXT #898989, TEXT #000000" },
+    { "rule": "Use a single dominant colour to signal data; non-highlighted categories are grey.", "source": "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/Colour.png?:display_static_image=y&:showVizHome=n", "quote": "only using A SINGLE DOMINANT COLOUR TO SIGNAL DATA" },
+    { "rule": "No legend box: the subtitle line under the title names the series in their colours (or states the measure in the accent colour).", "source": "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/Typography.png?:display_static_image=y&:showVizHome=n", "quote": "Chart Title (12pts) / Chart Subtitle (10pts) / Thing 1 | Thing 2 (10pts Bold)" },
+    { "rule": "Lines are labelled directly at their ends with name and last value in the series colour.", "source": "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/LineChart.png?:display_static_image=y&:showVizHome=n", "quote": "Label charts directly; this is easier to read than using a colour legend" },
+    { "rule": "Horizontal bar charts drop the value axis and print values at bar ends; category labels are right-aligned next to the bars.", "source": "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/BarChart.png?:display_static_image=y&:showVizHome=n", "quote": "You won't need a horizontal axis on the bar chart if you..; Text right-aligned to be closer to bar" },
+    { "rule": "Bar charts must always start from zero.", "source": "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/BarChart.png?:display_static_image=y&:showVizHome=n", "quote": "Your bar chart must always start from zero" },
+    { "rule": "Stacked bars: two to three categories, most important at the bottom in the accent colour, others mid grey then light grey; percentages inside segments.", "source": "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/StackedBar.png?:display_static_image=y&:showVizHome=n", "quote": "The most important category should be at the bottom of the plot area" },
+    { "rule": "Pie charts only to call out one share: accent slice vs grey remainder, never more than three categories.", "source": "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/PieChart.png?:display_static_image=y&:showVizHome=n", "quote": "Anything beyond three categories in a pie cha.." },
+    { "rule": "Line charts use a 2:1 plot-area aspect ratio, consistent across the dashboard.", "source": "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/LineChart.png?:display_static_image=y&:showVizHome=n", "quote": "Try to stick to an aspect ratio of 2:1 for the plot area" },
+    { "rule": "Numbers abbreviated with K / M / B; ranks as #1; changes signed with + or -.", "source": "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/Numbers.png?:display_static_image=y&:showVizHome=n", "quote": "Use K to denote thousands, M for millions and B for billions" },
+    { "rule": "Fixed dashboard chrome: 65px header (logo left, 20pt uppercase title right) and 35px footer with 'Source: ...' bottom-left.", "source": "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/Layout.png?:display_static_image=y&:showVizHome=n", "quote": "HEADER AREA (65px height) ... FOOTER AREA (35px height) Used for navigation, the source of your data" },
+    { "rule": "Reith Sans throughout; title 12pt, subtitle 10pt; de-emphasise axis text.", "source": "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/Typography.png?:display_static_image=y&:showVizHome=n", "quote": "Your dashboard should have Reith Sans throughout" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/bbc-audiences/LineChart.png", "url": "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/LineChart.png?:display_static_image=y&:showVizHome=n", "describes": "Line chart 'Household take-up Smartphone, Tablet, TV devices': title left-aligned in regular-weight black sans with the series names in teal (#21a9be); subtitle 'Proportion of UK households' in teal. Plot pane filled light grey #f5f5f5 with faint white horizontal gridlines at 25/50/75/100%; y tick labels small grey with % on every tick, x ticks years 2006-2018 in dark grey; no axis lines, no ticks, no axis titles. Three thin teal lines (all same colour), labelled at the right end in teal ('TV 94%', 'Tablet 58%'). No legend. Italic annotations with curved black arrows. Footer 'Source: Ofcom Communications Report 2017' bottom-left, 'Contact the team' bottom-right; BBC AUDIENCES logo top-left." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/bbc-audiences/BarChart.png", "url": "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/BarChart.png?:display_static_image=y&:showVizHome=n", "describes": "Horizontal bar chart 'Reasons for taking a selfie down' with red subtitle '% ever done'. Six bars sorted descending, filled red #e24e42, on a light grey #f5f5f5 pane; no x axis, no gridlines; category labels right-aligned against the bars (truncated with '..'), values '62%' etc. in small dark text just past the bar end. Bar thickness ~2/3 of band. Annotations: 'Your bar chart must always start from zero', 'Text right-aligned to be closer to bar'." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/bbc-audiences/StackedBar.png", "url": "https://public.tableau.com/views/BBCAudiencesTableauStyleGuide/StackedBar.png?:display_static_image=y&:showVizHome=n", "describes": "100% stacked vertical bars for four age groups on white (no pane, no axis, no gridlines). Bottom segment blue-violet #5555ff ('Entire Series'), middle grey #cccccc ('Individual Episode'), top light grey #eaeaea ('Don't Know'); percentage labels centred inside segments in lighter tone. The legend is the subtitle line 'Entire Series / Individual Episode / Don't Know' with words coloured blue, dark grey, light grey. Category labels below bars in black." }
+  ]
+}

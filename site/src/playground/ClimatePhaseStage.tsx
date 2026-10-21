@@ -1,15 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Pause, Play } from 'lucide-react';
 import type { ChartAssemblyInput } from 'flint-chart';
 import {
-  buildInteractiveChart,
   clickTrigger,
   dragTrigger,
   externalInteraction,
   type CanvasInteractionDef,
   type ChartUpdate,
   type FlintInteractionEventDetail,
+  type InteractionDef,
   type InteractiveChartSurface,
 } from 'flint-chart/interactive';
+import { FlintChart, type FlintChartHandle } from 'flint-chart/react';
+import { withHouseId } from '../shared/test-case-utils';
 import { ScaleToFit } from '../components/ScaleToFit';
 import { CLIMATE_CITIES, CLIMATE_MONTHS, type ClimateCity } from './climate-phase-data';
 import './interaction-candidates.css';
@@ -101,7 +104,7 @@ function trajectoryOverlayUpdate(city: ClimateCity, phase: number): ChartUpdate 
             y: { field: 'Precipitation' },
             text: { field: 'Month' },
           },
-          style: { fill: '#69737d', fontSize: 92, fontWeight: 'bold', opacity: 0.1 },
+          style: { fill: '#69737d', fontSize: 92, fontWeight: 'bold', opacity: 0.1, stroke: 'none' },
         },
       },
       {
@@ -199,8 +202,30 @@ function chartInput(): ChartAssemblyInput {
 }
 
 const CHART_INPUT = chartInput();
+export const READOUT_CHART_INPUT: ChartAssemblyInput = {
+  ...CHART_INPUT,
+  theme_spec: {
+    extends: 'datawrapper',
+    layout: { targetWidth: 640 },
+    geometry: { point: { size: 90 } },
+    type: {
+      minSize: 10,
+      headline: { size: 14 },
+      axisLabel: { size: 10 },
+      axisTitle: { size: 11 },
+      keyLabel: { size: 10 },
+      annotation: { size: 10 },
+    },
+  },
+  chart_spec: {
+    ...CHART_INPUT.chart_spec,
+    baseSize: { width: 640, height: 360 },
+    canvasSize: { width: 640, height: 360 },
+  },
+};
 
-export function ClimatePhaseStage() {
+export function ClimatePhaseStage({ compact = false, height = compact ? 300 : 540, showReadout = false, hint, themeId }: { compact?: boolean; height?: number; showReadout?: boolean; hint?: string; themeId?: string | null } = {}) {
+  const spec = useMemo(() => withHouseId(showReadout ? READOUT_CHART_INPUT : CHART_INPUT, themeId), [showReadout, themeId]);
   const [selectedCity, setSelectedCity] = useState('Seattle');
   const [activePhase, setActivePhase] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -208,146 +233,131 @@ export function ClimatePhaseStage() {
   const activePhaseRef = useRef(activePhase);
   selectedCityRef.current = selectedCity;
   activePhaseRef.current = activePhase;
-  const mountRef = useRef<HTMLDivElement>(null);
-  const surfaceRef = useRef<InteractiveChartSurface | null>(null);
+  const chartRef = useRef<FlintChartHandle>(null);
 
-  const dragInteraction = useMemo<CanvasInteractionDef>(() => ({
-    id: TRAJECTORY_ID,
-    eventSource: dragTrigger(),
-    affordances: { mark: { cursor: 'drag', hover: 'target' } },
-    handle(event) {
-      if (event.action !== 'drag') return null;
-      if (event.phase === 'start') setIsPlaying(false);
-      const record = event.target?.elements[0]?.records?.[0] ?? event.target?.elements[0]?.value;
-      const targetCity = typeof record?.City === 'string' ? record.City : undefined;
-      if (event.phase === 'start' && targetCity) {
-        const city = CLIMATE_CITIES.find((candidate) => candidate.name === targetCity);
+  const interactions = useMemo<InteractionDef[]>(() => {
+    const dragTrajectory: CanvasInteractionDef = {
+      id: TRAJECTORY_ID,
+      eventSource: dragTrigger(),
+      affordances: { mark: { cursor: 'drag', hover: 'target' } },
+      handle(event) {
+        if (event.action !== 'drag') return null;
+        if (event.phase === 'start') setIsPlaying(false);
+        const record = event.target?.elements[0]?.records?.[0] ?? event.target?.elements[0]?.value;
+        const targetCity = typeof record?.City === 'string' ? record.City : undefined;
+        if (event.phase === 'start' && targetCity) {
+          const city = CLIMATE_CITIES.find((candidate) => candidate.name === targetCity);
+          if (!city) return null;
+          selectedCityRef.current = city.name;
+          setSelectedCity(city.name);
+          return trajectoryOverlayUpdate(city, activePhaseRef.current);
+        }
+
+        const projection = event.geometry.projection;
+        if (projection?.kind !== 'path') return null;
+        const { segment } = projection;
+        const start = Number(segment.start.value.Phase);
+        const end = Number(segment.end.value.Phase);
+        if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+        const phase = wrapPhase(start + (end - start) * segment.t);
+        const city = CLIMATE_CITIES.find((candidate) => candidate.name === selectedCityRef.current);
+        if (!city) return null;
+        activePhaseRef.current = phase;
+        setActivePhase(phase);
+        return trajectoryFrameUpdate(city, phase);
+      },
+    };
+
+    const playback = externalInteraction<{ city: string; phase: number }>({
+      id: PLAYBACK_ID,
+      handle({ city: cityName, phase }) {
+        const city = CLIMATE_CITIES.find((candidate) => candidate.name === cityName);
         if (!city) return null;
         selectedCityRef.current = city.name;
+        activePhaseRef.current = wrapPhase(phase);
         setSelectedCity(city.name);
-        return trajectoryOverlayUpdate(city, activePhaseRef.current);
-      }
-
-      const projection = event.geometry.projection;
-      if (projection?.kind !== 'path') return null;
-      const { segment } = projection;
-      const start = Number(segment.start.value.Phase);
-      const end = Number(segment.end.value.Phase);
-      if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
-      const phase = wrapPhase(start + (end - start) * segment.t);
-      const city = CLIMATE_CITIES.find((candidate) => candidate.name === selectedCityRef.current);
-      if (!city) return null;
-      activePhaseRef.current = phase;
-      setActivePhase(phase);
-      return trajectoryFrameUpdate(city, phase);
-    },
-  }), []);
-
-  const playbackInteraction = useMemo(() => externalInteraction<{ city: string; phase: number }>({
-    id: PLAYBACK_ID,
-    handle({ city: cityName, phase }) {
-      const city = CLIMATE_CITIES.find((candidate) => candidate.name === cityName);
-      if (!city) return null;
-      selectedCityRef.current = city.name;
-      activePhaseRef.current = wrapPhase(phase);
-      setSelectedCity(city.name);
-      setActivePhase(wrapPhase(phase));
-      return trajectoryFrameUpdate(city, phase);
-    },
-  }), []);
-
-  useEffect(() => {
-    const mount = mountRef.current;
-    if (!mount) return undefined;
-
-    const selectCity = (cityName: string) => {
-      const city = CLIMATE_CITIES.find((candidate) => candidate.name === cityName);
-      if (!city) return;
-      selectedCityRef.current = city.name;
-      setSelectedCity(city.name);
-      setIsPlaying(false);
-      void surfaceRef.current?.applyUpdate(trajectoryOverlayUpdate(city, activePhaseRef.current));
-    };
-    const handleInteraction = (event: Event) => {
-      const detail = (event as CustomEvent<FlintInteractionEventDetail>).detail;
-      if (detail.event.phase !== 'commit') return;
-      const cityName = cityFromLegend(detail) ?? cityFromPoint(detail);
-      if (cityName) selectCity(cityName);
-    };
-
-    mount.addEventListener('flint-interaction', handleInteraction);
-    const surface = buildInteractiveChart(mount, CHART_INPUT, {
-      backend: 'vegalite',
-      renderer: 'svg',
-      interactions: [MARK_CLICK, LEGEND_CLICK, dragInteraction, playbackInteraction],
-      ariaLabel: 'Seasonal climate phase portrait',
-      chartId: 'climate-phase-main',
-    });
-    surfaceRef.current = surface;
-    void surface.ready.then(() => {
-      const city = CLIMATE_CITIES.find((candidate) => candidate.name === selectedCityRef.current);
-      return city ? surface.applyUpdate(trajectoryFrameUpdate(city, activePhaseRef.current)) : undefined;
+        setActivePhase(wrapPhase(phase));
+        return trajectoryFrameUpdate(city, phase);
+      },
     });
 
-    return () => {
-      mount.removeEventListener('flint-interaction', handleInteraction);
-      surfaceRef.current = null;
-      surface.destroy();
-    };
-  }, [dragInteraction, playbackInteraction]);
+    return [MARK_CLICK, LEGEND_CLICK, dragTrajectory, playback];
+  }, []);
+
+  // Each mount restores the selected city's trajectory at the active phase.
+  const handleRender = useCallback((surface: InteractiveChartSurface) => {
+    const city = CLIMATE_CITIES.find((candidate) => candidate.name === selectedCityRef.current);
+    if (city) void surface.applyUpdate(trajectoryFrameUpdate(city, activePhaseRef.current));
+  }, []);
+
+  const handleInteraction = useCallback((detail: FlintInteractionEventDetail) => {
+    if (detail.event.phase !== 'commit') return;
+    const cityName = cityFromLegend(detail) ?? cityFromPoint(detail);
+    const city = CLIMATE_CITIES.find((candidate) => candidate.name === cityName);
+    if (!city) return;
+    selectedCityRef.current = city.name;
+    setSelectedCity(city.name);
+    setIsPlaying(false);
+    void chartRef.current?.applyUpdate(trajectoryOverlayUpdate(city, activePhaseRef.current));
+  }, []);
 
   useEffect(() => {
     if (!isPlaying) return undefined;
     let cancelled = false;
     let animationFrame: number | undefined;
-    const play = async () => {
-      const surface = surfaceRef.current;
-      if (!surface) return;
-      await surface.ready;
-      const cityName = selectedCityRef.current;
-      const startPhase = activePhaseRef.current;
-      let startTime: number | undefined;
-      const tick = async (time: number) => {
-        if (cancelled) return;
-        startTime ??= time;
-        const elapsedPhase = (time - startTime) / 400;
-        const phase = startPhase + Math.min(12, elapsedPhase);
-        await surface.dispatch(PLAYBACK_ID, { city: cityName, phase });
-        if (cancelled) return;
-        if (elapsedPhase >= 12) {
-          setIsPlaying(false);
-          return;
-        }
-        animationFrame = window.requestAnimationFrame((nextTime) => void tick(nextTime));
-      };
-      animationFrame = window.requestAnimationFrame((time) => void tick(time));
+    let startTime: number | undefined;
+    const cityName = selectedCityRef.current;
+    const startPhase = activePhaseRef.current;
+    const tick = async (time: number) => {
+      if (cancelled) return;
+      startTime ??= time;
+      const elapsedPhase = (time - startTime) / 400;
+      const phase = startPhase + Math.min(12, elapsedPhase);
+      await chartRef.current?.dispatch(PLAYBACK_ID, { city: cityName, phase });
+      if (cancelled) return;
+      if (elapsedPhase >= 12) {
+        setIsPlaying(false);
+        return;
+      }
+      animationFrame = window.requestAnimationFrame((nextTime) => void tick(nextTime));
     };
-    void play();
+    animationFrame = window.requestAnimationFrame((time) => void tick(time));
     return () => {
       cancelled = true;
       if (animationFrame !== undefined) window.cancelAnimationFrame(animationFrame);
     };
   }, [isPlaying]);
 
+  const selected = CLIMATE_CITIES.find(city => city.name === selectedCity) ?? CLIMATE_CITIES[0];
+  const frame = frameAt(selected, activePhase);
+
   return (
-    <div className="ic-flint-dimpvis-shell climate-phase-shell">
-      <div className="ic-stage-meta">
+    <div className={`ic-flint-dimpvis-shell climate-phase-shell${showReadout ? ' climate-phase-with-readout' : ''}`}>
+      {!compact && <div className="ic-stage-meta">
         <strong>One year hidden in a scatterplot</strong>
         <span>
           Select a city, then drag its closed climate loop. Crossing December into January wraps
           every city through the same interpolated point in the annual cycle.
         </span>
-      </div>
-      <div className="ic-toolbar">
-        <span className="ic-pill" data-active="true">City: {selectedCity}</span>
-        <span className="ic-pill" data-active="true">Month: {monthLabel(activePhase)}</span>
-      </div>
+      </div>}
       <div className="ic-flint-dimpvis-panel">
-        <ScaleToFit height={540} minHeight={400} adaptiveHeight padding={8}>
-          <div className="ic-flint-dimpvis-mount" ref={mountRef} />
+        <ScaleToFit height={height} adaptiveHeight padding={showReadout ? 0 : 8}>
+          <div className="ic-flint-dimpvis-mount">
+            <FlintChart
+              ref={chartRef}
+              spec={spec}
+              interactions={interactions}
+              renderer="svg"
+              ariaLabel="Seasonal climate phase portrait"
+              chartId="climate-phase-main"
+              onInteraction={handleInteraction}
+              onRender={handleRender}
+            />
+          </div>
         </ScaleToFit>
       </div>
-      <div className="ic-toolbar climate-phase-footer">
+      {hint && <p className="climate-phase-hint">{hint}</p>}
+      {!showReadout && <div className="ic-toolbar climate-phase-footer">
         <button
           type="button"
           className="ic-pill"
@@ -357,14 +367,23 @@ export function ClimatePhaseStage() {
         >
           {isPlaying ? 'Pause' : `▶ Play ${selectedCity}`}
         </button>
-        <a
-          href="https://power.larc.nasa.gov/docs/services/api/temporal/climatology/"
-          target="_blank"
-          rel="noreferrer"
-        >
-          NASA POWER · MERRA-2 · 1991–2020
-        </a>
-      </div>
+      </div>}
+      {showReadout && <aside className="climate-phase-readout" aria-label="Selected city climate">
+        <div className="climate-phase-readout-header">
+          <h3>{selectedCity}</h3>
+          <button type="button" className="cf-demo-play"
+            title={isPlaying ? 'Pause' : `Play ${selectedCity}`}
+            aria-label={isPlaying ? 'Pause' : `Play ${selectedCity}`} aria-pressed={isPlaying}
+            onClick={() => setIsPlaying(playing => !playing)}>
+            {isPlaying ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}
+          </button>
+        </div>
+        <dl>
+          <dt>Date</dt><dd>{monthLabel(activePhase)}</dd>
+          <dt>Temperature</dt><dd>{frame.temperature.toFixed(1)} <span className="climate-phase-unit">°C</span></dd>
+          <dt>Precipitation</dt><dd>{frame.precipitation.toFixed(1)} <span className="climate-phase-unit">mm/day</span></dd>
+        </dl>
+      </aside>}
     </div>
   );
 }

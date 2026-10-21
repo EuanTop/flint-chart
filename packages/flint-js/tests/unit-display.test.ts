@@ -2,7 +2,10 @@
 // Licensed under the MIT License.
 
 import { describe, expect, it } from 'vitest';
-import { assembleVegaLite } from '../src';
+import { assembleVegaLite as assembleWithoutDecisions } from '../src';
+
+/** Compiles with the theme's full decisions attached, which these tests read. */
+const assembleVegaLite = (input: any): any => assembleWithoutDecisions({ ...input, options: { ...input.options, themeDecisions: true } });
 import { resolveDisplayUnit } from '../src/core/field-semantics';
 
 const values = [
@@ -33,10 +36,15 @@ describe('explicit unit display policy', () => {
         expect(axis.title.unit).toBeUndefined();
     });
 
-    it('places a declared compact unit beside values', () => {
-        const axis = bars('kg')._theme.decisions.axes.y;
+    it('keeps a declared compact unit beside values and in a relocated measure title', () => {
+        const spec = bars('kg');
+        const axis = spec._theme.decisions.axes.y;
         expect(axis.unit).toMatchObject({ text: 'kg' });
-        expect(axis.title.unit).toBeUndefined();
+        expect(axis.title).toMatchObject({ unit: 'kg', placement: 'subtitle' });
+        const encoding = spec.encoding ?? spec.layer.find((layer: any) => layer.encoding?.y)?.encoding;
+        expect(encoding.y.axis.labelExpr).toContain('kg');
+        // No headline: the deck is drawn as the title.
+        expect(spec.title.text).toBe('gain (kg)');
     });
 
     it('normalizes conventional compact unit names', () => {

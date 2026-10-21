@@ -1,6 +1,6 @@
 {
   "name": "flint-chart",
-  "version": "0.5.1",
+  "version": "1.0.0",
   "description": "Semantic-level visualization library that compiles data + semantic types for Vega-Lite, ECharts, Chart.js, Plotly, and Excel.",
   "keywords": [
     "visualization",
@@ -80,6 +80,16 @@
       "import": "./dist/interactive/index.js",
       "require": "./dist/interactive/index.cjs"
     },
+    "./render": {
+      "types": "./dist/render/index.d.ts",
+      "import": "./dist/render/index.js",
+      "require": "./dist/render/index.cjs"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js",
+      "require": "./dist/react/index.cjs"
+    },
     "./vegalite/interactive": {
       "types": "./dist/vegalite/interactive.d.ts",
       "import": "./dist/vegalite/interactive.js",
@@ -132,9 +142,10 @@
   },
   "peerDependencies": {
     "chart.js": "^4.0.0",
+    "echarts": "^5.0.0 || ^6.0.0",
     "plotly.js": "^2.0.0 || ^3.0.0",
     "plotly.js-dist-min": "^2.0.0 || ^3.0.0",
-    "echarts": "^5.0.0 || ^6.0.0",
+    "react": ">=18",
     "vega": "^5.0.0 || ^6.0.0",
     "vega-lite": "^5.0.0 || ^6.0.0",
     "vega-tooltip": "^1.0.0"
@@ -160,9 +171,14 @@
     },
     "plotly.js-dist-min": {
       "optional": true
+    },
+    "react": {
+      "optional": true
     }
   },
   "devDependencies": {
+    "@types/d3-time": "^3.0.4",
+    "@types/d3-time-format": "^4.0.3",
     "@types/node": "^20.14.10",
     "@typescript-eslint/eslint-plugin": "^8.16.0",
     "@typescript-eslint/parser": "^8.16.0",
@@ -173,7 +189,7 @@
     "tsup": "^8.3.0",
     "typescript": "^5.6.0",
     "typescript-eslint": "^8.16.0",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.11"
   },
   "engines": {
     "node": ">=18"
@@ -185,5 +201,10 @@
   "overrides": {
     "esbuild": "^0.28.1",
     "js-yaml": "^4.2.0"
+  },
+  "dependencies": {
+    "@floating-ui/dom": "^1.7.4",
+    "d3-time": "^3.1.0",
+    "d3-time-format": "^4.1.0"
   }
 }

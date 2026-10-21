@@ -1,0 +1,108 @@
+{
+  "id": "visma",
+  "org": "Visma (Visma Unified Design, VUD Product Design System)",
+  "urls": [
+    "https://vud.visma.com/latest/data-visualisation/data-visualisations/best-practices-5eOvDdCz",
+    "https://vud.visma.com/latest/data-visualisation/data-visualisations/palettes-qWD32Uaf",
+    "https://vud.visma.com/latest/data-visualisation/data-visualisations/specifications-1Hm3PhGZ",
+    "https://www.npmjs.com/package/@vismaux/vud (v1.8.4 tarball: src/tokens/css/variables-light.css, variables-dark.css, dist css)"
+  ],
+  "access": "partial",
+  "accessNotes": "VUD is a Supernova-hosted site; prose is minimal and most best-practice guidance is conveyed through do/don't SVG illustrations (downloaded, rasterised with ImageMagick and inspected). The Specifications page HTML lists all chart tokens with light/dark values; the @vismaux/vud npm package token CSS was used to confirm the categorical sequence and fonts. No explicit rules on titles, source lines, number formats or axis styling exist; structure notes are inferred from the guide's illustrations.",
+  "summary": "Enterprise SaaS product-UI chart guidance (finance, HR, payroll software). Charts are clean and light: thin light-grey horizontal gridlines, no axis lines except a baseline, small grey tick text, rotated y-axis title, and a bottom-centred legend with round swatches. Colour comes from colour-blind-safe ColorBrewer-derived token schemes (brown/orange/pink/purple/teal/green/blue) with explicit light and dark-mode values, a single brand blue #116fae for one-colour charts, and grey for less important data. Best practices: limit colours, use shapes/line styles for accessibility, and give hover feedback by dimming non-focused marks with a value tooltip.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#8c510a", "#d73027", "#a06fae", "#2b8078", "#638ec2"],
+    "categoricalNotes": "Categorical tokens scheme-a..scheme-e-categorical-chart: brown-50 #8c510a, orange-50 #d73027, purple-30 #a06fae, teal-40 #2b8078, blue-40 #638ec2 (light mode). Note 'Follow the numbered sequence.' Dark mode values: #f6e8c3, #fee090, #b791c2, #9ad0ca (+ blue lighter). Specifications page shows schemes a-d; npm tokens add scheme-e. For a single series use chart-brand #116fae; use chart-neutral #dadada for less important data points. Best practice: limit the number of colours (one colour for one measure rather than a rainbow).",
+    "sequential": ["#e0f3f8", "#bddaea", "#9dc0dd", "#80a7cf", "#638ec2", "#4575b4"],
+    "diverging": ["#d73027", "#f17c4d", "#fee090", "#e0f3f8", "#9dc0dd", "#4575b4"],
+    "highlight": "#116fae",
+    "context": "#dadada",
+    "positive": null,
+    "negative": null,
+    "background": "#ffffff",
+    "text": "#252626",
+    "textSecondary": "#494a4a",
+    "gridline": "#8a8a8a",
+    "axis": "#8a8a8a",
+    "notes": "Chart UI tokens (light / dark): chart-text-default #252626 / #c3d0d9 (labels); chart-text-secondary #494a4a / #c3d0d9 (legends); chart-text-inverse #ffffff / #000000 (text on chart colours, only if needed); chart-border #8a8a8a / #9aa5ae (gridlines); chart-brand #116fae / #116fae; chart-neutral #dadada / #6f7a82; chart surface #ffffff / #2b3033. Seven 6-step sequential schemes, each with a border token: a brown #f6e8c3 #e5c891 #d0a969 #ba8b47 #a36e29 #8c510a; b orange #fee090 #febf79 #f99e63 #f17c4d #e5593a #d73027; c pink #fde0ef #f3bed9 #e99cc2 #de78ab #d25294 #c51b7d; d purple #e7d4e8 #ceb2d6 #b791c2 #a06fae #8b4e99 #762a83; e teal #c7eae5 #9ad0ca #72b6ae #4d9b93 #2b8078 #01665e; f green #e6f5d0 #c3e39e #a2d077 #84bb56 #68a73a #4d9221; g blue (listed above). Dark mode reverses each ramp. Four 6-step diverging schemes: a brown-teal, b pink-green, c orange-blue (listed above), d purple-green, each with chart-border-start/end tokens. Every fill scheme has a darker 'chart-border' stroke token (e.g. brown #a36e29). Single-colour palette 'represents your brand's visual language' (progress bars). All tokens described as colour-blind safe."
+  },
+  "typography": {
+    "family": "Open Sans",
+    "fallback": "OpenSansFallback, sans-serif (headings: Ubuntu, UbuntuFallback, sans-serif)",
+    "title": { "size": null, "weight": null, "align": null, "case": null, "color": "#252626" },
+    "subtitle": { "size": null, "weight": null, "style": null, "color": null },
+    "axisLabel": { "size": null, "color": "#252626" },
+    "axisTitle": { "size": null, "weight": "normal", "placement": "rotated, left of the y axis (e.g. 'Rainfall (mm)')" },
+    "dataLabel": { "size": null, "weight": "bold for the main value in tooltips" },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "VUD body font is Open Sans (--font-family-base), headings Ubuntu (--font-family-primary). Chart labels use chart-text-default; legends use chart-text-secondary. No chart-specific sizes published."
+  },
+  "structure": {
+    "gridlines": "Horizontal only (for vertical charts), thin, light grey (token chart-border #8a8a8a for gridlines; illustrations render them very light).",
+    "axisLine": "No y-axis line; thin baseline at the bottom of the plot only (illustrations).",
+    "ticks": "No tick marks in illustrations.",
+    "zeroLine": "Baseline at 0 coincides with bottom gridline.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "rotated 90 degrees, left of tick labels, with unit in parentheses",
+    "unitPlacement": "in axis title in parentheses, e.g. 'Rainfall (mm)', 'Price U.S. Dollars'",
+    "frame": "none in the chart; sits on chart surface token (#ffffff light / #2b3033 dark)",
+    "background": "#ffffff (light) / #2b3033 (dark)",
+    "notes": "Horizontal bar example shows category labels left and value axis at bottom with no gridlines."
+  },
+  "legend": {
+    "placement": "bottom, centred below the x-axis",
+    "directLabels": null,
+    "title": "none",
+    "swatchShape": "circle",
+    "notes": "Legend text uses chart-text-secondary #494a4a."
+  },
+  "marks": {
+    "bars": "Medium-width bars with clear gaps; horizontal bars have slightly rounded ends in illustrations; stacked segments separated by a thin white gap/line.",
+    "lines": "Use different shapes (markers), line styles and thicknesses to distinguish series for accessibility.",
+    "areas": null,
+    "points": "Round markers.",
+    "pies": "Allowed - pie chart shown as example of the categorical palette.",
+    "notes": "Fills may be stroked with the scheme's darker chart-border token."
+  },
+  "labels": {
+    "dataLabels": "Not printed by default; values appear in hover tooltip (large bold value e.g. '38%' with secondary line '15 tasks').",
+    "numberFormat": null,
+    "dates": "Short month names (Jan, Feb, Mar).",
+    "notes": null
+  },
+  "furniture": {
+    "title": null,
+    "source": null,
+    "logo": null,
+    "other": "Charts embedded in product UI; progress bars use the single-colour brand palette."
+  },
+  "annotations": null,
+  "layout": null,
+  "interaction": "Provide better visual feedback: on hover, the hovered segment/bar keeps its colour while the other bars are dimmed (rendered darker/muted), and a tooltip-like value callout appears near the cursor with a bold value ('38%') and a regular sub-line ('15 tasks'). Hover surface token chart-hover = list-surface-hover. Full dark-mode token set.",
+  "accessibility": "All palettes are colour-blind safe ('View colourblind helper' per scheme); avoid red/green pairings (the 'don't' uses green+blue similar lightness; the 'do' uses pink+light green with distinct lightness); on line charts use different shapes, lines and thicknesses; chart-text-inverse only when needed on coloured fills.",
+  "chartTypes": {
+    "preferred": ["bar", "horizontal bar", "stacked column", "line", "pie", "progress bar", "heatmap/sequential map"],
+    "discouraged": [],
+    "notes": "Rainbow colouring of a single-measure bar chart is a documented 'don't'."
+  },
+  "distinctiveRules": [
+    { "rule": "A single-measure chart uses one colour (brand blue #116fae), never one colour per bar.", "source": "https://vud.visma.com/latest/data-visualisation/data-visualisations/best-practices-5eOvDdCz", "quote": "Limit the number of colours (do: all bars blue; don't: rainbow bars)" },
+    { "rule": "chart-brand #116fae is the primary chart colour when only one colour is required; chart-neutral #dadada for less important data points.", "source": "https://vud.visma.com/latest/data-visualisation/data-visualisations/specifications-1Hm3PhGZ", "quote": "Primary color on charts. Use when only one color is required... Secondary color on charts. Use for the less important data points." },
+    { "rule": "Categorical series follow the numbered sequence brown #8c510a, red-orange #d73027, purple #a06fae, teal #2b8078, blue #638ec2.", "source": "https://vud.visma.com/latest/data-visualisation/data-visualisations/specifications-1Hm3PhGZ", "quote": "For data visualization only. Follow the numbered sequence." },
+    { "rule": "Every colour token has a light- and dark-mode value; dark-mode chart surface #2b3033, text #c3d0d9, gridlines #9aa5ae; sequential ramps invert in dark mode.", "source": "https://vud.visma.com/latest/data-visualisation/data-visualisations/specifications-1Hm3PhGZ", "quote": "#ffffff / #2b3033 chart - Surface and border on chart UI." },
+    { "rule": "Gridlines use the chart-border token (#8a8a8a light); only horizontal gridlines on column/line charts, no y-axis line.", "source": "https://vud.visma.com/latest/data-visualisation/data-visualisations/specifications-1Hm3PhGZ", "quote": "#8a8a8a chart-border Gridlines" },
+    { "rule": "Legend sits centred below the chart with small circular swatches and secondary-text colour #494a4a.", "source": "https://vud.visma.com/latest/data-visualisation/data-visualisations/best-practices-5eOvDdCz", "quote": "chart-text-secondary: Secondary text for legends (illustrations: '● Legend 1 ● Legend 2' below the x axis)" },
+    { "rule": "Y-axis title is rotated vertically on the left and carries the unit in parentheses.", "source": "https://vud.visma.com/latest/data-visualisation/data-visualisations/best-practices-5eOvDdCz", "quote": "Illustration axis title 'Rainfall (mm)' rotated beside the y axis" },
+    { "rule": "On hover, keep the focused bar segment in colour, dim/darken the others, and show a callout with a bold value and a smaller descriptor line.", "source": "https://vud.visma.com/latest/data-visualisation/data-visualisations/best-practices-5eOvDdCz", "quote": "Provide better visual feedback (illustration: '38% / 15 tasks')" },
+    { "rule": "Line charts must differentiate series by marker shape, dash pattern and line thickness, not colour alone.", "source": "https://vud.visma.com/latest/data-visualisation/data-visualisations/best-practices-5eOvDdCz", "quote": "Use different shapes, lines and thicknesses on line charts." },
+    { "rule": "Each fill colour scheme has a matching darker 'chart-border' stroke token (e.g. brown fill with #a36e29 border).", "source": "https://vud.visma.com/latest/data-visualisation/data-visualisations/specifications-1Hm3PhGZ", "quote": "#a36e29 chart-border For data visualization only." },
+    { "rule": "Sequential palettes are 6 steps; diverging palettes are 3+3 steps built from two sequential schemes (e.g. orange #d73027 -> #fee090 | #e0f3f8 -> #4575b4).", "source": "https://vud.visma.com/latest/data-visualisation/data-visualisations/specifications-1Hm3PhGZ", "quote": "numbered suffixes such as 'start-1' and 'end-4' identify the specific shades" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/visma/limit-colours-do.png", "url": "https://studio-assets.supernova.io/design-systems/27998/be6085b1-b39b-4045-8256-ed2fbe4dd2a1.svg", "describes": "'Do' example (green check): horizontal bar chart, all ten bars in a single medium blue (~#116fae) with slightly rounded ends, category numbers 1-10 on the left in large grey sans, value ticks 0-300 at the bottom, no gridlines, no axis lines, no title or legend." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/visma/accessibility-do-stacked.png", "url": "https://studio-assets.supernova.io/design-systems/27998/7d41cdfa-ff7d-43e5-a27f-85cb9378db72.svg", "describes": "'Do' example for accessibility: stacked columns Jan-May, lower segment pink, upper segment light green, separated by a thin white line; very light grey horizontal gridlines at 10-unit steps, small grey tick numbers 0-50, rotated y title 'Rainfall (mm)', no axis lines, legend centred below with circle swatches 'Legend 1' (green) and 'Legend 2' (pink) in dark grey Open Sans." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/visma/visual-feedback-do-hover.png", "url": "https://studio-assets.supernova.io/design-systems/27998/72e9a8e9-ca4f-408d-9d9d-2e2f2706bde1.svg", "describes": "'Do' hover-feedback example: same stacked column chart where the hovered April column keeps light-green/pink colours while all other columns turn dark (dark olive over dark plum); a borderless callout above shows bold '38%' and '15 tasks' beneath; cursor arrow on the hovered segment; x labels of non-hovered months bold; legend below centred with circles." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/visma/montage-bestpractices.png", "url": "https://vud.visma.com/latest/data-visualisation/data-visualisations/best-practices-5eOvDdCz", "describes": "Montage of the six best-practice illustrations (do left with green check, don't right with red '!'): single-blue vs rainbow horizontal bars; pink/green vs blue/green stacked columns; hover state dimming others vs no dimming. Shows consistent chrome: light horizontal gridlines, no axis lines, rotated unit y-title, bottom-centred circle legend." }
+  ]
+}

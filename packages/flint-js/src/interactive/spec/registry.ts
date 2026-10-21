@@ -1,5 +1,6 @@
 import { INTERACTION_PRESET_REQUIREMENTS, INTERACTION_PRESET_TYPES, type InteractionCapability, type InteractionPresetType } from '../../core/interaction-spec';
 import {
+    accessibleNavigation,
     axisHighlight,
     brushAngle,
     brushX,
@@ -20,9 +21,12 @@ import {
     longPress,
     navigate,
     select,
-    type CanvasInteractionDef,
+    type InteractionDef,
 } from '../interactions';
+import { filterControls } from '../filter-controls';
+import { contextMenu } from '../context-menu';
 import type { InteractionPresetOptions } from './types';
+import { INTERACTION_PRESET_OPTIONS, type InteractionPresetOption } from './preset-options';
 import { INTERACTION_RESET_GESTURES, NAVIGATION_RESET, NO_RESET, SELECTION_RESET, type InteractionResetGesture } from '../reset';
 
 const ANY_RESET: readonly InteractionResetGesture[] = INTERACTION_RESET_GESTURES;
@@ -40,7 +44,9 @@ export type InteractionGestureFamily =
     | 'inspect'
     | 'context'
     | 'long-press'
-    | 'double';
+    | 'double'
+    | 'keyboard'
+    | 'widget';
 
 export interface InteractionPresetDefinition<T extends InteractionPresetType = InteractionPresetType> {
     readonly type: T;
@@ -53,7 +59,7 @@ export interface InteractionPresetDefinition<T extends InteractionPresetType = I
     readonly supportedReset: readonly InteractionResetGesture[];
     /** The list the factory applies when `reset` is absent; a test keeps it equal to the factory's. */
     readonly defaultReset: readonly InteractionResetGesture[];
-    create(options: InteractionPresetOptions[T]): CanvasInteractionDef;
+    create(options: InteractionPresetOptions[T]): InteractionDef;
 }
 
 /**
@@ -244,6 +250,34 @@ export const INTERACTION_PRESETS: { readonly [T in InteractionPresetType]: Inter
         defaultReset: NO_RESET,
         create: dragReorder,
     },
+    'accessible-navigation': {
+        type: 'accessible-navigation',
+        label: 'Accessible navigation',
+        description: 'Tab into the chart and walk its titles, axes, legends, headers, series, and marks with the keyboard; each step announces what the element is and what it represents.',
+        gesture: 'keyboard',
+        supportedReset: NEVER,
+        defaultReset: NEVER,
+        create: accessibleNavigation,
+    },
+    'filter-controls': {
+        type: 'filter-controls',
+        label: 'Filter controls',
+        description: 'Checkboxes, a range, or a switch beside the chart narrow the rows it shows, or highlight them.',
+        gesture: 'widget',
+        supportedReset: NEVER,
+        defaultReset: NEVER,
+        create: filterControls,
+    },
+    'context-menu': {
+        type: 'context-menu',
+        label: 'Context menu',
+        description: 'Pick marks with a rectangle, lasso, brush, click, right-click, or long press; a menu of host actions opens beside them, and picking one emits the action with the marks.',
+        gesture: 'widget',
+        requiredOptions: ['items'],
+        supportedReset: ANY_RESET,
+        defaultReset: SELECTION_RESET,
+        create: contextMenu,
+    },
 };
 
 /** A registry entry without its factory: what a catalogue or an agent needs to choose. */
@@ -256,6 +290,8 @@ export interface InteractionPresetSummary {
     readonly requiredOptions?: readonly string[];
     readonly supportedReset: readonly InteractionResetGesture[];
     readonly defaultReset: readonly InteractionResetGesture[];
+    /** The options the preset accepts under `options`. */
+    readonly options: readonly InteractionPresetOption[];
 }
 
 export function listInteractionPresets(): readonly InteractionPresetSummary[] {
@@ -270,6 +306,7 @@ export function listInteractionPresets(): readonly InteractionPresetSummary[] {
             supportedReset: definition.supportedReset,
             defaultReset: definition.defaultReset,
             ...(definition.requiredOptions ? { requiredOptions: definition.requiredOptions } : {}),
+            options: INTERACTION_PRESET_OPTIONS[type],
         };
     });
 }

@@ -1,0 +1,246 @@
+{
+  "id": "pinterest-gestalt",
+  "org": "Pinterest (Gestalt design system)",
+  "urls": [
+    "https://gestalt.pinterest.systems/foundations/data_visualization/overview",
+    "https://github.com/pinterest/gestalt/blob/master/docs/pages/foundations/data_visualization/overview.tsx",
+    "https://github.com/pinterest/gestalt/blob/master/docs/pages/foundations/data_visualization/charts_and_graphs/general_guidelines.tsx",
+    "https://github.com/pinterest/gestalt/blob/master/docs/pages/foundations/data_visualization/charts_and_graphs/bar_graphs.tsx",
+    "https://github.com/pinterest/gestalt/blob/master/docs/pages/foundations/data_visualization/charts_and_graphs/line_graphs.tsx",
+    "https://github.com/pinterest/gestalt/blob/master/docs/pages/foundations/data_visualization/charts_and_graphs/donut_charts.tsx",
+    "https://github.com/pinterest/gestalt/blob/master/docs/pages/foundations/data_visualization/color/palette.tsx",
+    "https://github.com/pinterest/gestalt/blob/master/docs/pages/foundations/data_visualization/color/usage.tsx",
+    "https://github.com/pinterest/gestalt/blob/master/docs/pages/foundations/data_visualization/micro_visualizations.tsx",
+    "https://github.com/pinterest/gestalt/blob/master/packages/gestalt-design-tokens/tokens/classic/base-color-dataviz-light.json",
+    "https://github.com/pinterest/gestalt/blob/master/packages/gestalt-design-tokens/tokens/classic/base-color-dataviz-dark.json",
+    "https://github.com/pinterest/gestalt/blob/master/packages/gestalt-design-tokens/tokens/classic/sema-color-dataviz-light.json",
+    "https://github.com/pinterest/gestalt/blob/master/packages/gestalt-design-tokens/tokens/classic/base-color.json",
+    "https://github.com/pinterest/gestalt/blob/master/packages/gestalt-design-tokens/tokens/classic/base-font.json",
+    "https://github.com/pinterest/gestalt/blob/master/packages/gestalt-charts/src/ChartGraph.tsx",
+    "https://github.com/pinterest/gestalt/blob/master/packages/gestalt-charts/src/ChartGraph/renderElements.tsx",
+    "https://github.com/pinterest/gestalt/blob/master/packages/gestalt-charts/src/ChartGraph/renderAxis.tsx",
+    "https://github.com/pinterest/gestalt/blob/master/packages/gestalt-charts/src/ChartGraph/useDefaultTooltip.tsx"
+  ],
+  "access": "full",
+  "accessNotes": "The docs site is JS-rendered, so every data-visualization page was read from its TSX source in the pinterest/gestalt GitHub repo. Hex values come from resolving the design-token JSON (classic theme). Implementation defaults come from the gestalt-charts ChartGraph component, a Recharts wrapper. The npm registry was unreachable, so the token values were resolved from the repo rather than the built CSS. Example images were downloaded from i.pinimg.com URLs referenced in the docs.",
+  "summary": "Gestalt's data-visualisation guide covers analytics dashboards in Pinterest's ads and business products. Charts sit in rounded white containers with 24px padding, under a bold heading and a row of KPI 'datapoints'. A single bright blue (#0081FE) is used for single-series data, and the 12-colour categorical palette is applied in strict order. Light grey (#CDCDCD) gridlines run only in the direction of reading, axis lines and ticks are hidden, and labels are 12px grey system-font text. Bars are 2D with small 4px top corners; lines are 3px and rectilinear, dashed only for forecasts.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": [
+      "#003C96",
+      "#11A69C",
+      "#924AF7",
+      "#D17711",
+      "#0081FE",
+      "#FF5383",
+      "#00AB55",
+      "#400387",
+      "#F2681F",
+      "#005062",
+      "#DE2C62",
+      "#660E00"
+    ],
+    "categoricalNotes": "Tokens color-data-visualization-01..12 (light). 01–06 are the main palette; use the extended palette (07–12) only when more than 6 colours are needed. 'When more than 1 color is needed, colors should be applied in the exact order in the palette to maximize contrast between adjacent colors.' Use at most 4 colours in a bar or line chart. Never put these pairs next to each other: 1&8, 2&6, 7&9, 5&3, 7&6, 4&9, 2&7, 7&11, 4&6, 6&11. Dark mode 01–12: #005FCB, #75E4D5, #B190FF, #FDA600, #75BFFF, #DE2C62, #A4F9AC, #812AE7, #FF5B45, #007A72, #F76593, #FFC58F.",
+    "sequential": [],
+    "diverging": [],
+    "highlight": "#0081FE",
+    "context": null,
+    "positive": "#008753",
+    "negative": "#ED0000",
+    "background": "#FFFFFF",
+    "text": "#111111",
+    "textSecondary": "#767676",
+    "gridline": "#CDCDCD",
+    "axis": null,
+    "notes": "Primary (data-visualization-primary = 05, #0081FE) is 'used for showing total value or whenever only 1 color is needed'. Semantic: success graph #008753 with success text/icon #005F3E (darker, for contrast); error graph #ED0000 with error text #CC0000. Gridlines use color-border-container (#CDCDCD light, #767676 dark). Dark mode background #111111, text #FFFFFF, subtle text #A5A5A5. No sequential or diverging palettes are defined. Shapes, patterns or high-contrast colours added for accessibility must be user-toggleable."
+  },
+  "typography": {
+    "family": "-apple-system (system UI stack)",
+    "fallback": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen-Sans, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', Helvetica, 'ヒラギノ角ゴ Pro W3', 'メイリオ', Meiryo, 'ＭＳ Ｐゴシック', Arial, sans-serif",
+    "title": {
+      "size": null,
+      "weight": "bold",
+      "align": "left",
+      "case": null,
+      "color": "#111111"
+    },
+    "subtitle": {
+      "size": null,
+      "weight": "normal",
+      "style": "normal",
+      "color": "#111111"
+    },
+    "axisLabel": {
+      "size": 12,
+      "color": "#767676"
+    },
+    "axisTitle": {
+      "size": null,
+      "weight": null,
+      "placement": "omitted; the heading and datapoint name the metric"
+    },
+    "dataLabel": {
+      "size": 12,
+      "weight": "400"
+    },
+    "source": {
+      "size": null,
+      "style": null,
+      "color": null
+    },
+    "notes": "Axis tick labels use TOKEN_FONT_SIZE_100 (12px), weight normal (400), the default Latin font family, and colour text-subtle (#767676) for values. The heading is a Gestalt Heading (bold) with 'Supporting text' below it in regular weight. KPI datapoints show big numbers like '1.25M' with a green up-arrow or red down-arrow trend pill. Keep labels short; use only abbreviations that are widely understood and translatable."
+  },
+  "structure": {
+    "gridlines": "Solid 1px #CDCDCD, following the flow of information: horizontal only for line and column charts, vertical only for row (horizontal) bar charts and funnels. The ChartGraph CartesianGrid draws horizontal or vertical lines, never both.",
+    "axisLine": "Hidden in code (axisLine={false} on all axes). The bottom gridline doubles as the baseline. Guide: 'All linear charts are anchored to a clear baseline starting point... with another clear baseline to show values.'",
+    "ticks": "None (tickLine={false}).",
+    "zeroLine": "Bars always start from a common zero baseline, including both axes of biaxial charts.",
+    "yAxisPlacement": "left (a right axis for biaxial)",
+    "yAxisTitle": "omitted",
+    "unitPlacement": "In the heading or datapoint label, or on tick values (e.g. '$0', '$10k').",
+    "frame": "Card container: rounded corners (about 16px in the spec image), 24px padding on every side; the heading block, datapoints row and chart are each separated by 24px.",
+    "background": "white (#FFFFFF); dark mode #111111",
+    "notes": "5 ticks above the breakpoint, 3 below (tickCount 5|3). Max chart width 960px."
+  },
+  "legend": {
+    "placement": "Bottom-left, 16px below the chart. Biaxial charts put it top-right.",
+    "directLabels": "Not used by default; optional bar value labels (LabelList) sit at the top/right of the bar.",
+    "title": "none",
+    "swatchShape": "16px icon (iconSize 16): a short thick line segment for lines and a square for bars",
+    "notes": null
+  },
+  "marks": {
+    "bars": "barSize 50% of the band. Top corners rounded at 4px ([4,4,0,0], or [0,4,4,0] for horizontal bars); bottom corners square. Inner stacked segments are square, and stacked segments are separated by a 2px gap. Flat 2D with no gradients. Avoid fully rounded 'pill' bars.",
+    "lines": "3px solid. Rectilinear (straight segments) for exact data, with no dots by default. Forecasts and estimates are 2px dashed '8 8' and curved (monotone). Never curve historical data just for looks. At most 4 lines; use small multiples beyond that.",
+    "areas": "Not specified; reference areas exist (ChartGraph renderReferenceAreas).",
+    "points": "Only shown when the accessibility 'visual pattern' mode is on: distinct point shapes per series.",
+    "pies": "Donuts only, with 2–3 categories and percentage values, ordered largest to smallest clockwise. Square segment ends, not rounded.",
+    "notes": "Pattern language: dashed line = forecast; solid = historical; diagonal hatch = unavailable data; pulsing dot = real-time. Funnels are supported."
+  },
+  "labels": {
+    "dataLabels": "Optional value labels at the end of each bar ('auto' or custom).",
+    "numberFormat": "Abbreviated big numbers: '1.25M', '46M', '301k' (lowercase k, uppercase M). Currency ticks like '$10k'.",
+    "dates": null,
+    "notes": "Labels must not wrap or truncate. Categories follow their inherent order (e.g. reverse chronological); otherwise sort largest to smallest. Keep the same order across compared data sets."
+  },
+  "furniture": {
+    "title": "Bold heading with optional 'Supporting text' below, left-aligned at the top of the card, with an optional HelpButton after the title. The title can be visually hidden but remains in the tabular-data modal.",
+    "source": null,
+    "logo": null,
+    "other": "An optional row of KPI 'datapoints' between the header and the chart, which can act as selectable metric tabs (the selected one gets a light-blue fill and a blue border). Charts have an accessible 'view as table' modal. Empty states use an illustration plus text ('No data available'). Error states use an illustration, an error icon, 'Data didn't load' and a retry action. When user input is needed, show the bare axes with a prompt."
+  },
+  "annotations": "Micro-visualisations should annotate key points where possible.",
+  "layout": "24px padding inside the card and 24px between heading, datapoints and plot; 16px between plot and legend. Max width 960px; tick count drops from 5 to 3 below the breakpoint. Sparklines are moderately wider than tall and share a common range when compared. Micro-visualisations (sparklines, mini-bars, mini-donuts) live in tables, cards and popovers.",
+  "interaction": "Desktop: tooltips appear immediately on hover or keyboard focus. The tooltip is a white box with a shadow (elevation in dark mode), 4-unit rounding, padding 2 and max-width 300px. Mobile/touch: press and hold, and the tooltip is pinned to the very top of the chart instead of following the finger. Micro-visualisations show a tooltip or link to a full chart.",
+  "accessibility": "Every chart has an accessibility label and a tabular-data modal. An optional 'visual pattern' mode adds hatch fills to bars and point shapes to lines; it must be user-toggleable. The palette is checked for colour-blind confusion: listed pairs are not to be placed adjacently, either as lines or small points under normal vision or as large areas under red-green or yellow-blue colour blindness. Semantic text uses a darker shade than the graph colour for contrast.",
+  "chartTypes": {
+    "preferred": [
+      "bar (vertical, horizontal, stacked, biaxial)",
+      "line (single, multiple, biaxial)",
+      "combo bar+line",
+      "donut",
+      "funnel",
+      "sparkline",
+      "mini-bar",
+      "mini-donut",
+      "datapoint (KPI)"
+    ],
+    "discouraged": [
+      "pie/donut with more than 3 categories",
+      "line charts with 5+ series",
+      "bar charts for time trends",
+      "curved lines for exact historical data",
+      "non-zero bar baselines"
+    ],
+    "notes": "Chart use cases: trends (line), parts-to-whole (donut), comparison (bar), connection (funnel). Refers to the FT Visual Vocabulary for other chart choices."
+  },
+  "distinctiveRules": [
+    {
+      "rule": "Single-colour charts always use data-visualization-05 bright blue #0081FE.",
+      "source": "https://gestalt.pinterest.systems/foundations/data_visualization/palette",
+      "quote": "When there is only 1 color needed in a visualization, always use Data Visualization #05, which is reserved for showing total value."
+    },
+    {
+      "rule": "Multi-series colours follow the exact palette order 01→12 (navy #003C96, teal #11A69C, purple #924AF7, orange #D17711, blue #0081FE, pink #FF5383, ...). Use the extended 07–12 only beyond 6 series.",
+      "source": "https://gestalt.pinterest.systems/foundations/data_visualization/palette",
+      "quote": "colors should be applied in the exact order in the palette to maximize contrast between adjacent colors"
+    },
+    {
+      "rule": "At most 4 colours in a bar or line chart. Use small multiples for more lines.",
+      "source": "https://gestalt.pinterest.systems/foundations/data_visualization/charts_and_graphs/line_graphs",
+      "quote": "Keep it to a maximum of 4 colors... Place single-line graphs in a grid instead."
+    },
+    {
+      "rule": "Gridlines run only in the reading direction: horizontal for line and column charts, vertical for row-bar charts. Solid light grey #CDCDCD, no axis lines and no tick marks.",
+      "source": "https://gestalt.pinterest.systems/foundations/data_visualization/charts_and_graphs/general_guidelines",
+      "quote": "additional grid lines are shown that follow the flow of information—horizontal for line charts and vertical for row bar charts"
+    },
+    {
+      "rule": "Bars are 50% of the band with 4px rounded outer corners and square bases. Stacked inner segments are square with a 2px gap. Never pill-shaped.",
+      "source": "https://github.com/pinterest/gestalt/blob/master/packages/gestalt-charts/src/ChartGraph/renderElements.tsx",
+      "quote": "barSize=\"50%\"; roundedRadius = [4, 4, 0, 0]; Keep corners closer to a rectangular shape"
+    },
+    {
+      "rule": "Lines are 3px and rectilinear for actual data. Forecasts are 2px dashed (8 8) and curved. No point markers by default.",
+      "source": "https://gestalt.pinterest.systems/foundations/data_visualization/charts_and_graphs/line_graphs",
+      "quote": "sharp ends for absolute data, curved lines for approximate historical data and dashed + curved lines for forecasts"
+    },
+    {
+      "rule": "Pattern semantics: dashed = forecast, solid = historical, diagonal hatch = unavailable data, pulsing dot = real-time.",
+      "source": "https://gestalt.pinterest.systems/foundations/data_visualization/charts_and_graphs/general_guidelines",
+      "quote": "A dashed line for forecasted data. A solid line means for historical data, a diagonal pattern for unavailable data and a pulsating dot for real-time data."
+    },
+    {
+      "rule": "Chart card layout: 24px padding, a bold heading plus supporting text, 24px gap, a KPI datapoint row, 24px gap, the plot, 16px gap, then the legend at bottom-left.",
+      "source": "https://gestalt.pinterest.systems/foundations/data_visualization/charts_and_graphs/general_guidelines",
+      "quote": "use 24px spacing between Headings, Datapoints and a line chart, with 16px between a line chart and its legend"
+    },
+    {
+      "rule": "Axis tick labels are 12px, regular weight, grey #767676, in the system UI font.",
+      "source": "https://github.com/pinterest/gestalt/blob/master/packages/gestalt-charts/src/ChartGraph/renderAxis.tsx",
+      "quote": "FONT_STYLE_VALUES = { color: TOKEN_COLOR_TEXT_SUBTLE, fontSize: TOKEN_FONT_SIZE_100, fontWeight: TOKEN_FONT_WEIGHT_NORMAL }"
+    },
+    {
+      "rule": "Donuts are limited to 2–3 categories, show percentages, and are sorted largest to smallest clockwise.",
+      "source": "https://gestalt.pinterest.systems/foundations/data_visualization/charts_and_graphs/donut_charts",
+      "quote": "Use donuts and pie charts only with 2–3 categories and percentage values"
+    },
+    {
+      "rule": "Order categories by their inherent order (e.g. reverse chronological); otherwise largest to smallest, and keep the same order across compared data sets.",
+      "source": "https://gestalt.pinterest.systems/foundations/data_visualization/charts_and_graphs/general_guidelines",
+      "quote": "If there is no clear order, place categories from the largest to the smallest amounts."
+    },
+    {
+      "rule": "On mobile, the tooltip is pinned to the top of the chart. On desktop it follows the cursor instantly, with no lag.",
+      "source": "https://gestalt.pinterest.systems/foundations/data_visualization/charts_and_graphs/general_guidelines",
+      "quote": "tooltips on mobile are always shown at the very top of the chart, and don't move around like they do on desktop surfaces"
+    },
+    {
+      "rule": "Bar charts and both axes of biaxial charts always start at zero.",
+      "source": "https://gestalt.pinterest.systems/foundations/data_visualization/charts_and_graphs/bar_graphs",
+      "quote": "Use to compare sizes from a common zero baseline to maintain accuracy."
+    },
+    {
+      "rule": "Semantic up/down colours: success graph #008753 (text #005F3E) and error graph #ED0000 (text #CC0000), shown as arrow + pill trend indicators next to KPI numbers.",
+      "source": "https://gestalt.pinterest.systems/foundations/data_visualization/color/usage",
+      "quote": "we use a slightly darker color for text and icons associated with data to make sure text has enough contrast"
+    }
+  ],
+  "referenceImages": [
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/pinterest-gestalt/gestalt-bar.png",
+      "url": "https://i.pinimg.com/originals/e6/de/0f/e6de0f773e8b0d013f236130745bcf4a.png",
+      "describes": "Schematic column chart: five bars in solid bright blue #0081FE, each about 40% of its band, with slightly rounded (about 4px) top corners and flat bottoms on the baseline. Five evenly spaced light grey (#CDCDCD) horizontal gridlines; the bottom one acts as the baseline. No y-axis line and no tick marks. Tick labels are pale grey rounded placeholder pills, left of the plot and centred under the bars. White background, no title or legend."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/pinterest-gestalt/gestalt-layout-spec.png",
+      "url": "https://i.pinimg.com/originals/49/89/b4/4989b46ec8b659dcb3eab22034796d0e.png",
+      "describes": "Layout redline of a chart card with rounded corners and 24px padding all round. Top-left: bold black 'Heading' with regular 'Supporting text' beneath. After 24px, a row of KPI datapoints: grey label pill, large '1.25M' with a green up-arrow pill, '46M' in a selected tile (light-blue fill, blue 1px border, rounded), '301k' with a red down-arrow pill. After 24px, a single 3px #0081FE rectilinear line chart with horizontal light grey gridlines only and placeholder grey tick labels. After 16px, a legend at bottom-left with a short dark-blue line swatch and a label pill."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/pinterest-gestalt/gestalt-axis-lines.png",
+      "url": "https://i.pinimg.com/originals/9f/f0/b6/9ff0b654625fbcd8edf99413e7ca3fe5.png",
+      "describes": "Axis-line diagram with gridlines highlighted in pink and baselines in dark maroon. Left: a line chart with only horizontal gridlines and a bottom baseline. Middle: a horizontal bar chart (grey bars with 4px rounded right ends) with vertical gridlines, a left baseline and a single bottom axis line. Right: a funnel chart with only vertical gridlines. Shows gridlines following the reading direction."
+    }
+  ]
+}

@@ -4,6 +4,8 @@
 
 每种行为都来自一个**预设（preset）**：Flint 内置的、有名字的交互，例如 `click-highlight` 或 `navigate`。你列出想要的预设和各自的选项，Flint 挂载图表能够支持的那些，并告诉你哪些无法支持。
 
+> 面向 agent：[interaction-author skill](https://github.com/microsoft/flint-chart/blob/main/agent-skills/flint-interaction-author/SKILL.md) 覆盖图表上的行为：以预设构成一个有效的 `interaction_spec`，应用或 agent 施加到已挂载图表上的 `ChartUpdate`，读取图表状态，联动多个图表，以及自定义交互。MCP 服务器以 `flint://interaction-skill` 提供它。
+
 > `interaction_spec` 只影响 Vega-Lite 交互层。装配器和静态后端不会读取它；对这些后端，`validateChart` 会报告该字段被忽略。
 
 ## 结构
@@ -28,9 +30,11 @@
 | `interactions[].id` | 可选。同一图表两次使用同一预设时用来区分，也是 `flint-interaction` 事件中的名字。 |
 | `interactions[].options` | 预设自己的选项，始终嵌套在 `options` 下，不要与 `type` 并列。 |
 | `assistedTargeting` | 可选。指针吸附到附近的标记；`false` 要求精确命中，对象可设置 `maxDistance`、`indicator`、`details`。 |
-| `keyboardTargeting` | 可选。允许读者用键盘在标记间移动。 |
+| `keyboardTargeting` | 可选。允许读者用键盘在标记间移动。若需完整的语义遍历，请改用 `accessible-navigation` 预设；该预设存在时 `keyboardTargeting` 会被忽略。 |
 
 条目没有字符串简写：单独的 `"click-highlight"` 会被拒绝，`{ "type": "click-highlight" }` 是最小形式。
+
+状态不属于 spec。图表当前显示的内容（强调、注释、视口、顺序）以 `ChartUpdate` 的形式通过交互层（`applyUpdate`、`setUpdates`）或 `mountChart()` 的 `updates` 选项施加。MCP 工具以输入旁边的 `updates` 参数接收同样的列表。
 
 ## 预设一览
 
@@ -38,9 +42,10 @@
 |---|---|---|---|
 | `click-highlight` | 点击标记、图例项或坐标轴标签以强调它并淡化其余。 | 元素 | click-none, escape |
 | `click-group-focus` | 点击标记以强调同组的所有标记（`groupBy`）。 | 元素 | click-none, escape |
-| `hover-group-focus` | 悬停标记以预览其组（必须提供 `groupBy`）。 | 元素 | 无 |
+| `hover-group-focus` | 悬停标记以突出其组（必须提供 `groupBy`）。`emphasis`：`"auto"`（默认）对折线加粗，对点、柱、扇区淡化其余部分；`"highlight"` 从不淡化；`"spotlight"` 总是淡化。 | 元素 | 无 |
 | `click-annotate` | 点击标记以固定一个带数值的注释。 | 元素 | click-none, escape |
 | `context-activate` | 右键或长按，把上下文目标交给宿主。 | 元素 | 无 |
+| `context-menu` | 读者用一种 `gesture` 选取标记（默认 `rectangle`，另有 `lasso`、`brush-x`、`brush-y`、`click`、`right-click`、`long-press`），并在其旁打开宿主操作菜单；选中某项会发出 `menu-select`，`item` 为该项 id，目标为选取的标记。矩形与刷选在屏幕上保留，可移动或调整（`items` 必填，另有 `gesture`、`dimOpacity`、`reset`、`render`）。 | 元素、笛卡尔区域 | click-none、escape |
 | `long-press` | 长按标记以激活。 | 元素 | click-none, escape |
 | `double-activate` | 双击标记以激活。 | 元素 | click-none, escape |
 | `inspect` | 在绘图区移动，读取最近标记的值。 | 元素 | 无 |
@@ -55,6 +60,7 @@
 | `legend-toggle` | 点击图例项以隐藏或恢复其系列。 | 离散图例 | 无 |
 | `axis-highlight` | 点击离散坐标轴标签以强调该类别。 | 离散坐标轴 | click-none, escape |
 | `drag-reorder` | 拖动离散坐标轴标签以改变类别顺序。 | 可重排坐标轴 | 无 |
+| `accessible-navigation` | 用 Tab 进入图表，再用键盘依次浏览标题、坐标轴及其标签、图例及其条目、分面标题、系列与标记。每一步都会说明元素是什么、代表什么，并强调其对应的数据（`emphasis`、`caption`、`sections`、`maxFields`）。 | 元素 | 无 |
 
 选项名与 `flint-chart/interactive` 中对应工厂函数接受的选项一致；TypeScript 调用方可用该入口的 `InteractionPresetSpec` 获得逐类型的精确形状。
 
@@ -76,9 +82,8 @@
 
 每种图表类型声明它提供的属性：可解析为数据的标记、拖动区域、可导航的坐标轴、可重排的坐标轴、离散图例、离散坐标轴标签、索引轴。每个预设声明它需要的属性。图表类型提供了预设所需的全部属性时，该预设即受支持。
 
-三个地方可以查看结果：
+两个地方可以查看结果：
 
-- [Vega-Lite 图表参考](/documentation/reference-vegalite) 为每种图表类型打印一行 **交互**。
 - MCP 工具 `list_chart_types` 为每种图表类型返回 `interactions`。
 - 交互实验室的 **Coverage** 页签展示每种图表类型对每个预设的支持情况。
 
@@ -120,27 +125,27 @@ Interaction "click-highlight" yields legend clicks to "legend-toggle".
 在哪里读取警告：
 
 - `validateChart(input, 'vegalite')` 在渲染前返回它们，格式错误的 spec 以 `invalid_interaction_spec` 错误报告。
-- `buildInteractiveChart(container, input)` 通过 `surface.warnings` 暴露它们，并在控制台记录一次。
+- `mountChart(container, input)` 通过 `surface.warnings` 暴露它们，并在控制台记录一次。
 - MCP 工具 `validate_chart` 返回同一列表。
 
-格式错误的条目是错误而不是丢弃：未知的 `type`、放在 `options` 外的选项、放在 `options` 内的 `id`、缺少 `groupBy` 等必需选项、未知或不支持的 `reset` 手势、重复的 `id`。
+格式错误的条目是错误而不是丢弃：未知的 `type`、放在 `options` 外的选项、放在 `options` 内的 `id`、缺少 `groupBy` 等必需选项、未知或不支持的 `reset` 手势、重复的 `id`。挂载以同一消息失败。
 
 ## 代码与 spec，同一定义
 
 spec 条目和工厂调用是同一交互的两种写法：
 
 ```ts
-import { buildInteractiveChart, clickHighlight } from 'flint-chart/interactive';
+import { mountChart, clickHighlight } from 'flint-chart/interactive';
 
 // 来自 spec
-buildInteractiveChart(container, { ...input, interaction_spec: { interactions: [{ type: 'click-highlight', options: { dimOpacity: 0.2 } }] } });
+mountChart(container, { ...input, interaction_spec: { interactions: [{ type: 'click-highlight', options: { dimOpacity: 0.2 } }] } });
 
 // 来自代码
-buildInteractiveChart(container, input, { interactions: [clickHighlight({ dimOpacity: 0.2 })] });
+mountChart(container, input, { interactions: [clickHighlight({ dimOpacity: 0.2 })] });
 ```
 
-两者可以同时出现在一张图表上；spec 条目先挂载。两边使用同一个 `id` 是错误。图表无法支持的代码定义会抛出异常，因为开发者能看到异常；spec 条目则被丢弃，因为智能体读取的是警告。
+两者可以同时出现在一张图表上；spec 条目先挂载。代码定义与 spec 条目同 `id` 时取代该条目，附带 `info` 警告。图表无法支持的代码定义会抛出异常，因为开发者能看到异常；spec 条目则被丢弃，因为智能体读取的是警告。
 
 ## 在哪里生效
 
-`buildInteractiveChart()` 从输入中读取 `interaction_spec`。MCP 工具 `create_chart_view` 挂载同一交互层，因此智能体可以在请求图表的同一份 JSON 中请求行为。站点的编辑器和图库同样从 spec 挂载。
+`mountChart()` 从输入中读取 `interaction_spec`。MCP 的 `show` 卡片挂载同一交互层，因此智能体可以在请求图表的同一份 JSON 中请求行为。站点的编辑器和图库同样从 spec 挂载。

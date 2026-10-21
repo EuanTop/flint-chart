@@ -15,7 +15,11 @@ import {
     INTERACTION_ROLE,
     PATH_KEY_SUFFIX,
     clientToLayoutPoint,
+    clippedBounds,
+    pickBounds,
     plotToClientPoint,
+    pointInClip,
+    sceneContentClip,
     sceneItems,
     type RendererCoordinateSpace,
 } from '../hit-adapter';
@@ -106,26 +110,26 @@ export function annotationSourceBounds(items: readonly any[], source: any): {
     }), { ...sourceBounds });
 }
 
+/** The marks a note card avoids, cut to the part of each that its clip leaves on screen. */
 function sceneObstacles(view: any): any[] {
     const obstacles: any[] = [];
-    const visit = (item: any, offsetX: number, offsetY: number): void => {
+    const visit = (item: any, offsetX: number, offsetY: number, clip?: { x1: number; y1: number; x2: number; y2: number }): void => {
         if (!item) return;
         const isGroup = item.mark?.marktype === 'group';
         if (!isGroup && isAnnotationObstacle(item) && item.bounds && (item.opacity ?? 1) > 0) {
-            obstacles.push({
-                ...item,
-                bounds: {
-                    x1: item.bounds.x1 + offsetX,
-                    x2: item.bounds.x2 + offsetX,
-                    y1: item.bounds.y1 + offsetY,
-                    y2: item.bounds.y2 + offsetY,
-                },
-            });
+            const bounds = clippedBounds({
+                x1: item.bounds.x1 + offsetX,
+                x2: item.bounds.x2 + offsetX,
+                y1: item.bounds.y1 + offsetY,
+                y2: item.bounds.y2 + offsetY,
+            }, clip);
+            if (bounds) obstacles.push({ ...item, bounds });
         }
         const childOffsetX = offsetX + (isGroup && typeof item.x === 'number' ? item.x : 0);
         const childOffsetY = offsetY + (isGroup && typeof item.y === 'number' ? item.y : 0);
+        const childClip = sceneContentClip(item, childOffsetX, childOffsetY, clip);
         if (Array.isArray(item.items)) {
-            for (const child of item.items) visit(child, childOffsetX, childOffsetY);
+            for (const child of item.items) visit(child, childOffsetX, childOffsetY, childClip);
         }
     };
     visit(view.scenegraph()?.root, 0, 0);
@@ -361,6 +365,23 @@ export function annotationBounds(item: any): { x1: number; x2: number; y1: numbe
     };
 }
 
+/** With `anchor: 'point'`, the end of a line or area segment that draws `record`. */
+export function segmentRowPoint(
+    item: any,
+    record: Readonly<Record<string, unknown>> | undefined,
+    anchor: AnnotationSpec['anchor'],
+): PlotPoint | undefined {
+    const points = item?.interactionGeometry?.annotationPoints as readonly PlotPoint[] | undefined;
+    if (anchor !== 'point' || !record || !points || points.length < 2) return undefined;
+    const fields = Object.entries(record).filter(([field, value]) => !field.startsWith('__')
+        && value !== undefined && value !== null && typeof value !== 'object');
+    if (fields.length === 0) return undefined;
+    const drawn = (datum: any): boolean => fields.every(([field, value]) => Object.is(datum?.[field], value));
+    if (drawn(item.datum)) return points[0];
+    if (drawn(item.interactionGeometry.endDatum)) return points[1];
+    return undefined;
+}
+
 export function segmentMidpointConnectionPoint(
     item: any,
     plotCenter: PlotPoint,
@@ -443,6 +464,11 @@ export function annotationConnectionPoint(
 
 export interface AnnotationOverlayController {
     render(element: SemanticElement, annotation: RenderableAnnotation): void;
+    /**
+     * True while the note is drawn, false while its target is out of view (the clip hides it,
+     * or a live layout dropped it after the note was drawn), undefined before it was ever drawn.
+     */
+    inView(): boolean | undefined;
     clear(): void;
     sync(): void;
     destroy(): void;
@@ -494,9 +520,20 @@ export function createAnnotationOverlay({
     // Placement is derived from rendered geometry, so the runtime re-syncs it
     // whenever the renderer is resized or the host rescales the chart.
     let current: { element: SemanticElement; annotation: RenderableAnnotation } | undefined;
+    let laidOut: string | undefined;
+    let inView: boolean | undefined;
 
     const clear = (): void => {
         current = undefined;
+        laidOut = undefined;
+        inView = undefined;
+        annotationLayer.remove();
+    };
+    // A note whose target is out of view keeps its place in `current`, so it comes back on the
+    // sync after the target returns.
+    const hide = (): void => {
+        laidOut = undefined;
+        inView = false;
         annotationLayer.remove();
     };
     const render = (element: SemanticElement, annotation: RenderableAnnotation): void => {
@@ -514,9 +551,26 @@ export function createAnnotationOverlay({
             )
             : undefined;
         if (!item?.bounds) {
-            clear();
+            if (inView === undefined) clear();
+            else hide();
             return;
         }
+        const rowPoint = segmentRowPoint(item, element.value, annotation.anchor);
+        const clip = item.interactionClip;
+        const visibility = rowPoint
+            ? (pointInClip(rowPoint, clip) ? 'full' : 'none')
+            : item.interactionVisibility ?? 'full';
+        if (visibility === 'none') {
+            hide();
+            return;
+        }
+        inView = true;
+        // A shape the clip cuts connects to the part of it on screen.
+        const subject = rowPoint
+            ? { datum: item.datum, mark: item.mark, bounds: { x1: rowPoint.x, x2: rowPoint.x, y1: rowPoint.y, y2: rowPoint.y } }
+            : visibility === 'partial' && !item.interactionGeometry
+                ? { ...item, bounds: pickBounds(item) }
+                : item;
         if (!annotationLayer.isConnected) container.append(annotationLayer);
         if (getComputedStyle(container).position === 'static') container.style.position = 'relative';
 
@@ -555,7 +609,9 @@ export function createAnnotationOverlay({
             width: Math.abs(plotTrailing.x - plotLeading.x),
             height: Math.abs(plotTrailing.y - plotLeading.y),
         };
-        const sourceBounds = annotationSourceBounds(items, item);
+        const sourceBounds = rowPoint
+            ? subject.bounds
+            : clippedBounds(annotationSourceBounds(items, item), clip) ?? subject.bounds;
         const sourceLeading = toLayout({ x: sourceBounds.x1, y: sourceBounds.y1 });
         const sourceTrailing = toLayout({ x: sourceBounds.x2, y: sourceBounds.y2 });
         const markSourceRect: LayoutRect = {
@@ -565,13 +621,27 @@ export function createAnnotationOverlay({
             height: Math.abs(sourceTrailing.y - sourceLeading.y),
         };
         const canvasRect = { left: 0, top: 0, width, height };
+        const layoutInputs = JSON.stringify([
+            annotation, markSourceRect, plotRect, canvasRect, obstacles.map((obstacle) => obstacle.rect),
+        ]);
+        if (layoutInputs === laidOut && annotationLayer.isConnected) return;
         const plotCenter = { x: space.plotWidth / 2, y: space.plotHeight / 2 };
         const sourceGap = 10;
         let best: AnnotationLayout | undefined;
         let fallback: AnnotationLayout | undefined;
+        const cardSizes = new Map<number, { width: number; height: number }>();
+        const cardSize = (maxWidth: number): { width: number; height: number } => {
+            let size = cardSizes.get(maxWidth);
+            if (!size) {
+                annotationCard.style.maxWidth = `${maxWidth}px`;
+                size = { width: annotationCard.offsetWidth, height: annotationCard.offsetHeight };
+                cardSizes.set(maxWidth, size);
+            }
+            return size;
+        };
         for (const candidate of annotation.candidates) {
             const connection = annotationConnectionPoint(
-                item,
+                subject,
                 candidate.connection,
                 items,
                 plotCenter,
@@ -601,9 +671,7 @@ export function createAnnotationOverlay({
             for (const angle of angles) {
                 for (const distance of distances) {
                 for (const maxWidth of maxWidths) {
-                    annotationCard.style.maxWidth = `${maxWidth}px`;
-                    const cardWidth = annotationCard.offsetWidth;
-                    const cardHeight = annotationCard.offsetHeight;
+                    const { width: cardWidth, height: cardHeight } = cardSize(maxWidth);
                     const center = {
                         x: anchor.x + Math.cos(angle) * distance,
                         y: anchor.y + Math.sin(angle) * distance,
@@ -617,7 +685,6 @@ export function createAnnotationOverlay({
                     const route = routeAnnotationLeaders({ card, sources: [anchor] })[0];
                     if (!route) continue;
                     const align = candidate.textAlign ?? textAlignForPort(route.port.edge);
-                    annotationCard.style.textAlign = align;
                     const end = route.port;
                     const canvasOverflow = overflowDistance(card, canvasRect, 8);
                     const plotOverflow = overflowDistance(card, plotRect, 6);
@@ -718,7 +785,7 @@ export function createAnnotationOverlay({
         });
         const fallbackAnchor = toLayout(best.connection.point);
         const primaryAnchor = annotationPrimaryAnchor(
-            item,
+            subject,
             markSourceRect,
             best.card,
             best.candidate.connection,
@@ -740,10 +807,12 @@ export function createAnnotationOverlay({
         annotationLayer.dataset.align = best.align;
         annotationLayer.dataset.connector = connector;
         annotationLayer.dataset.score = String(Math.round(best.score));
+        laidOut = layoutInputs;
     };
 
     return {
         render,
+        inView: () => inView,
         clear,
         sync: () => {
             if (current) render(current.element, current.annotation);

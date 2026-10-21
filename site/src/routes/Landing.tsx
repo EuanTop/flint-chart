@@ -1,25 +1,34 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState, type ComponentType, type CSSProperties, type ReactNode } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { LocaleLink } from '../i18n/LocaleLink';
 import { TEST_GENERATORS, makeField, makeEncodingItem, buildMetadata, type TestCase } from 'flint-chart/test-data';
-import { THEME_PRESETS } from 'flint-chart';
-import { SiteNavBar, MicrosoftDisclosures, GitHubIcon, LabIcon } from '../components/SiteShell';
+import { INTERACTION_PRESET_TYPES, THEME_PRESETS, type ChartAssemblyInput, type InteractionSpec } from 'flint-chart';
+import { FlintChart } from 'flint-chart/react';
+import type { ChartChange } from 'flint-chart/interactive';
+import { SiteNavBar, MicrosoftDisclosures, GitHubIcon, DiscordIcon } from '../components/SiteShell';
 import { WallChart } from '../components/WallChart';
 import { ScaleToFit } from '../components/ScaleToFit';
 import { GalleryOptionsBar, ThemeControl } from '../components/GalleryOptionsBar';
 import { SpecPipelineFigure } from '../components/SpecPipelineFigure';
-import { testCaseToFlintSummary, testCaseToAssemblyInput, withHouse } from '../shared/test-case-utils';
+import { CodeBlock } from '../components/CodeBlock';
+import stringify from 'json-stringify-pretty-compact';
+import { testCaseToFlintSummary, testCaseToAssemblyInput, withHouse, withHouseId } from '../shared/test-case-utils';
 import { buildPanelModel, withoutEchoedOverrides } from '../shared/chart-options';
 import { CHART_CATEGORIES } from '../shared/chart-categories';
 import { MOVIE_RATINGS } from './movie-ratings-data';
+import gapminderCsv from '../assets/gapminder-five-year.csv?raw';
+import classicDatasets from '../data/classic-datasets.json';
+import foodPrices from '../data/cpi-food-prices.json';
+import { version as FLINT_VERSION } from '../../../packages/flint-js/package.json';
+import { csvParseRows } from 'd3-dsv';
 import {
   ALL_BACKENDS,
   BACKEND_LABELS,
   getSupportedBackends,
   type PreviewBackend,
 } from '../shared/supported-backends';
-import { GITHUB_REPO, LANDING_SCROLL_TO_KEY, WECHAT_SECTION_ID, siteTheme } from '../shared/theme';
+import { DISCORD_INVITE, GITHUB_REPO, LANDING_SCROLL_TO_KEY, WECHAT_SECTION_ID, siteTheme } from '../shared/theme';
 import { scrollToHeading } from '../shared/scroll-to-heading';
 import flintLogo from '../assets/flint-logo.svg';
 import wechatQr from '../../../docs/figs/QR-code.png';
@@ -60,7 +69,8 @@ export function Landing() {
             <img src={flintLogo} alt="" aria-hidden="true" style={heroLogoStyle} />
             <div style={heroHeadingBlockStyle}>
               <h1 style={heroTitleStyle}>{t('landing.heroTitle')}</h1>
-              <div style={heroAttributionStyle}>{t('landing.attribution')}</div>
+              <a className="site-text-link" style={heroVersionStyle} href={`${GITHUB_REPO}/blob/main/CHANGELOG.md`}
+                target="_blank" rel="noreferrer">v{FLINT_VERSION}</a>
             </div>
           </div>
 
@@ -69,14 +79,30 @@ export function Landing() {
               <p style={leadStyle}>
                 {t('landing.leadBefore')}{' '}
                 <LeadHighlight>{t('landing.leadHighlight1')}</LeadHighlight>
-                {t('landing.leadMiddle')}{' '}
-                <LeadHighlight>
-                  {t('landing.leadHighlight2', {
-                    chartTypes: CHART_FAMILY_COUNT,
-                    backends: BACKEND_ROSTER_LINKS.length,
-                  })}
-                </LeadHighlight>
-                . {t('landing.themeLead')}
+                {t('landing.leadStop')}
+                <Trans
+                  i18nKey="landing.leadAvailability"
+                  components={{
+                    mcp: <LocaleLink className="site-text-link" style={contributorLinkStyle} to="/mcp" />,
+                    npm: <a className="site-text-link" style={contributorLinkStyle} href="https://www.npmjs.com/package/flint-chart" target="_blank" rel="noreferrer" />,
+                  }}
+                />
+              </p>
+              <p style={{ ...leadStyle, marginTop: 14 }}>
+                {t('landing.leadHighlight2', {
+                  chartTypes: CHART_FAMILY_COUNT,
+                  backends: BACKEND_ROSTER_LINKS.length,
+                  themes: Object.keys(THEME_PRESETS).length,
+                  presets: INTERACTION_PRESET_TYPES.length,
+                })}
+                {t('landing.leadStop')}
+                <Trans
+                  i18nKey="landing.leadAfter"
+                  components={{
+                    themeLab: <LocaleLink className="site-text-link" style={contributorLinkStyle} to="/theme-lab" />,
+                    advanced: <LocaleLink className="site-text-link" style={contributorLinkStyle} to="/interactions/advanced" />,
+                  }}
+                />
               </p>
 
               <div style={rostersStyle}>
@@ -116,76 +142,39 @@ export function Landing() {
                     </LocaleLink>
                   </span>
                 </div>
-              </div>
-
-              <div style={installLinesStyle}>
-                <div style={installLineStyle}>
-                  <span style={promptMarkStyle}>&gt;</span>{' '}
-                  <Trans
-                    i18nKey="landing.installNpm"
-                    components={{
-                      npmLink: (
-                        <LocaleLink
-                          to="/documentation/getting-started#javascript-typescript"
-                          className="landing-skill-link"
-                          style={installLineLinkStyle}
-                        />
-                      ),
-                    }}
-                  />
-                </div>
-                <div style={installLineStyle}>
-                  <span style={promptMarkStyle}>&gt;</span>{' '}
-                  <Trans
-                    i18nKey="landing.installMcp"
-                    components={{
-                      mcpLink: (
-                        <LocaleLink to="/mcp" className="landing-skill-link" style={installLineLinkStyle} />
-                      ),
-                      skillLink: (
-                        <a
-                          href="https://skills.sh/microsoft/flint-chart/flint-chart-author"
-                          className="landing-skill-link"
-                          style={installLineLinkStyle}
-                          target="_blank"
-                          rel="noreferrer"
-                        />
-                      ),
-                    }}
-                  />
-                </div>
-                <div style={installLineStyle}>
-                  <span style={promptMarkStyle}>&gt;</span>{' '}
-                  <Trans
-                    i18nKey="landing.installGallery"
-                    values={{ chartTypes: CHART_FAMILY_COUNT, examples: CHART_GALLERY_ENTRY_COUNT }}
-                    components={{
-                      galleryLink: (
-                        <LocaleLink to="/gallery" className="landing-skill-link" style={installLineLinkStyle} />
-                      ),
-                      themesLink: (
-                        <LocaleLink to="/themes" className="landing-skill-link" style={installLineLinkStyle} />
-                      ),
-                    }}
-                  />
-                </div>
-                <div style={installLineStyle}>
-                  <span style={{ ...promptMarkStyle, display: 'inline-flex', verticalAlign: '-2px' }} aria-hidden="true">
-                    <LabIcon size={14} />
-                  </span>{' '}
-                  <Trans
-                    i18nKey="landing.installThemeLab"
-                    components={{
-                      themeLabLink: (
-                        <LocaleLink to="/theme-lab" className="landing-skill-link" style={installLineLinkStyle} />
-                      ),
-                    }}
-                  />
+                <div className="landing-backend-roster" style={backendRosterStyle} aria-label={t('landing.interactionRosterLabel')}>
+                  <span className="landing-backend-roster-label" style={backendRosterLabelStyle}>
+                    {t('landing.interactionRosterLabel')}
+                  </span>
+                  {INTERACTION_ROSTER_PREVIEW.map((preset, index) => (
+                    <span key={preset.mode} style={backendRosterItemStyle}>
+                      {index > 0 && <span aria-hidden="true" style={backendRosterSeparatorStyle} />}
+                      <LocaleLink
+                        className="landing-backend-link"
+                        to={`/interactions/gallery/${preset.mode}`}
+                        style={backendRosterLinkStyle}
+                      >
+                        {preset.label}
+                      </LocaleLink>
+                    </span>
+                  ))}
+                  <span style={backendRosterItemStyle}>
+                    <span aria-hidden="true" style={backendRosterSeparatorStyle} />
+                    <LocaleLink className="landing-backend-link" to="/interactions/gallery" style={backendRosterMoreLinkStyle}>
+                      {t('landing.themeRosterMore', { count: INTERACTION_PRESET_TYPES.length - INTERACTION_ROSTER_PREVIEW.length })}
+                    </LocaleLink>
+                  </span>
                 </div>
               </div>
             </div>
             <div className="landing-hero-actions" style={leadButtonsColStyle}>
               <div style={actionBoxStyle}>
+                <HeroCTA
+                  to="/interactions"
+                  label={t('landing.ctaInteractions')}
+                  attention
+                  variant="secondary"
+                />
                 <HeroCTA
                   to="/themes"
                   label={t('landing.ctaThemes')}
@@ -234,15 +223,34 @@ export function Landing() {
           <h2 style={newsHeadingStyle}>{t('landing.news.title')}</h2>
           <div style={newsListStyle}>
             {([
+              { key: 'release100', to: '/interactions', linkLabel: 'Interactive', video: 'https://youtu.be/JAJy7ToczMs' },
               { key: 'release051', href: `${GITHUB_REPO}/blob/main/CHANGELOG.md`, linkLabel: 'Changelog' },
               { key: 'release050', href: `${GITHUB_REPO}/releases/tag/0.5.0`, linkLabel: 'v0.5.0' },
-              { key: 'release040', href: `${GITHUB_REPO}/releases/tag/0.4.0`, linkLabel: 'v0.4.0' },
-            ] as const).map((update) => (
+            ] as { key: string; href?: string; to?: string; linkLabel: string; video?: string }[]).map((update) => (
               <article className="landing-news-item" style={newsItemStyle} key={update.key}>
                 <time style={newsDateStyle} dateTime={t(`landing.news.${update.key}.dateTime`)}>
                   {t(`landing.news.${update.key}.date`)}
                 </time>
                 <p style={newsTextStyle}>{t(`landing.news.${update.key}.text`)}</p>
+                <span style={newsLinksStyle}>
+                {update.video && (
+                  <a
+                    className="site-text-link"
+                    style={{ ...newsLinkStyle, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                    href={update.video}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={t('landing.news.watchVideo')}
+                  >
+                    <YouTubeIcon />
+                    {t('landing.news.video')}
+                  </a>
+                )}
+                {update.to && (
+                  <LocaleLink className="site-text-link" style={newsLinkStyle} to={update.to}>
+                    {update.linkLabel}
+                  </LocaleLink>
+                )}
                 {update.href && (
                   <a
                     className="site-text-link"
@@ -254,6 +262,7 @@ export function Landing() {
                     {update.linkLabel}
                   </a>
                 )}
+                </span>
               </article>
             ))}
           </div>
@@ -287,7 +296,7 @@ export function Landing() {
                   <h2 style={featureTitleStyle}>
                     <span style={featureNumberStyle}>{i + 1}.</span>
                     {feature.isNew ? <span aria-hidden="true" style={attentionStarStyle}>★</span> : null}
-                    {feature.title}
+                    <span>{feature.title}</span>
                   </h2>
                   <p style={featureBodyStyle}>{feature.body}</p>
                 </div>
@@ -296,11 +305,7 @@ export function Landing() {
                     <FeatureDemoView build={feature.demo} />
                   </div>
                 )}
-                {feature.example && (
-                  <p style={featureExampleStyle} aria-label={`Example: ${feature.example}`}>
-                    {feature.example}
-                  </p>
-                )}
+                {feature.visual && <div style={featureGridVisualStyle}>{feature.visual}</div>}
               </article>
             ))}
           </div>
@@ -322,55 +327,85 @@ export function Landing() {
               {t('landing.seeGallery')}
             </LocaleLink>
           </div>
-          <p style={{ margin: '32px 0 0', color: siteTheme.text, fontSize: 16, lineHeight: 1.7 }}>
-            <Trans
-              i18nKey="landing.closingCollab"
-              components={{
-                msr: (
-                  <a
-                    className="site-text-link"
-                    style={contributorLinkStyle}
-                    href="https://www.microsoft.com/en-us/research/"
-                    target="_blank"
-                    rel="noreferrer"
-                  />
-                ),
-                ideas: (
-                  <a
-                    className="site-text-link"
-                    style={contributorLinkStyle}
-                    href="https://ideas-lab.net/"
-                    target="_blank"
-                    rel="noreferrer"
-                  />
-                ),
-              }}
-            />
-          </p>
+          <div style={{ margin: '40px 0 0', color: siteTheme.text, fontSize: 14, lineHeight: 1.5 }}>
+            <Contributors label={t('landing.contributors')} />
+          </div>
         </section>
 
-        {/* ---- WeChat community -------------------------------------- */}
+        {/* ---- Community: WeChat and Discord, side by side ------------- */}
         <section
-          id={WECHAT_SECTION_ID}
-          style={{ ...sectionStyle, paddingTop: 20, paddingBottom: 72, textAlign: 'center' }}
+          style={{
+            ...sectionStyle,
+            paddingTop: 20,
+            paddingBottom: 72,
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))',
+            gap: 48,
+            alignItems: 'start',
+            textAlign: 'center',
+          }}
         >
-          <h2 style={{ fontSize: 22, margin: '0 0 10px', fontWeight: 500 }}>
-            {t('landing.wechatTitle')}
-          </h2>
-          <p style={{ margin: '0 0 24px', color: siteTheme.text, fontSize: 15, lineHeight: 1.6 }}>
-            {t('landing.wechatBody')}
-          </p>
-          <img
-            src={wechatQr}
-            alt={t('landing.wechatAlt')}
-            width={220}
-            style={{ display: 'block', margin: '0 auto', maxWidth: '100%', height: 'auto' }}
-          />
+          <div id={WECHAT_SECTION_ID}>
+            <h2 style={communityTitleStyle}>{t('landing.wechatTitle')}</h2>
+            <p style={communityBodyStyle}>{t('landing.wechatBody')}</p>
+            <img
+              src={wechatQr}
+              alt={t('landing.wechatAlt')}
+              width={180}
+              style={{ display: 'block', margin: '0 auto', maxWidth: '100%', height: 'auto' }}
+            />
+          </div>
+          <div>
+            <h2 style={communityTitleStyle}>{t('landing.discordTitle')}</h2>
+            <p style={communityBodyStyle}>{t('landing.discordBody')}</p>
+            <a
+              href={DISCORD_INVITE}
+              target="_blank"
+              rel="noreferrer"
+              style={{ ...secondaryBtn, display: 'inline-flex', alignItems: 'center', gap: 8 }}
+            >
+              <DiscordIcon size={17} />
+              {t('landing.discordCta')}
+            </a>
+          </div>
         </section>
       </main>
       <MicrosoftDisclosures />
     </div>
   );
+}
+
+// GitHub snapshot by contribution count; refreshed from the API when it is reachable.
+const CONTRIBUTORS_SNAPSHOT = [
+  'Chenglong-MS', 'xavier-shaw', 'IAMkecheng', 'zl190', 'lx9days', 'spboyer', 'taoche', 'zhb-y-agent',
+  'zhnd', 'yelper', 'chen1plus', 'FGRibreau', 'Hughhhhcoder', 'joshpoll', 'nyxst4ck', 'fix2015',
+];
+
+function Contributors({ label }: { label: string }) {
+  const [logins, setLogins] = useState(CONTRIBUTORS_SNAPSHOT);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('https://api.github.com/repos/microsoft/flint-chart/contributors?per_page=100', { signal: controller.signal })
+      .then(response => (response.ok ? response.json() : null))
+      .then((rows: { login?: unknown; type?: unknown }[] | null) => {
+        const users = rows?.filter(row => row.type === 'User' && typeof row.login === 'string').map(row => row.login as string);
+        if (users?.length) setLogins(users);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, []);
+  return <>
+    <a className="site-text-link" style={{ ...contributorLinkStyle, color: siteTheme.text, fontSize: 15, fontWeight: 600 }}
+      href={`${GITHUB_REPO}/graphs/contributors`} target="_blank" rel="noreferrer">{label}</a>
+    <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '10px 18px', maxWidth: 760, margin: '14px auto 0' }}>
+      {logins.map(login => <a key={login} className="site-text-link" style={contributorChipStyle}
+        href={`https://github.com/${encodeURIComponent(login)}`} target="_blank" rel="noreferrer">
+        <img src={`https://github.com/${encodeURIComponent(login)}.png?size=56`} alt="" width={28} height={28}
+          loading="lazy" style={contributorAvatarStyle} />
+        {login}
+      </a>)}
+    </div>
+  </>;
 }
 
 /* ------------------------------------------------------------------ */
@@ -382,9 +417,39 @@ type ShowcaseExampleKey =
   | 'heatmap'
   | 'waterfall'
   | 'sunburst'
-  | 'donut'
+  | 'ridgeline'
   | 'regression'
-  | 'sortedBar';
+  | 'linkedBrush'
+  | 'penguins'
+  | 'inspect'
+  | 'globe'
+  | 'climatePhase'
+  | 'drawIt'
+  | 'countryTable'
+  | 'originTable'
+  | 'companionTabs'
+  | 'usMap'
+  | 'worldCup'
+  | 'selectionChat';
+
+interface ShowcaseApplication {
+  /** The Advanced Interactions case that carries the application's full code, when it has one. */
+  caseId?: string;
+  /** The width the application is laid out at before it is scaled into the pane. */
+  width: number;
+  /** How far the pane may enlarge it; text-heavy applications stay at their own size. */
+  maxScale?: number;
+  /** The house the application opens in; the reader can still switch it. */
+  theme?: string;
+  load(): Promise<{ Demo: ComponentType<{ themeId: string | null }>; spec: ChartAssemblyInput }>;
+}
+
+type ShowcaseGroup = 'charts' | 'interactions' | 'applications';
+
+/** Every group is one row of this many equal cells. */
+const SHOWCASE_COLUMNS = 6;
+
+const SHOWCASE_GROUPS: readonly ShowcaseGroup[] = ['charts', 'interactions', 'applications'];
 
 interface ShowcaseExample {
   id: string;
@@ -399,6 +464,14 @@ interface ShowcaseExample {
   canvasSize?: { width: number; height: number };
   /** Showcase-only defaults applied without changing the underlying gallery case. */
   defaultChartProperties?: Record<string, unknown>;
+  /** Presets the chart mounts with; only the Vega-Lite backend runs them. */
+  interactions?: InteractionSpec['interactions'];
+  /** An application built around the chart; the spec pane shows only the chart's spec. */
+  application?: ShowcaseApplication;
+  /** The tab row it is listed in. */
+  group: ShowcaseGroup;
+  /** Lines for a callout over the chart while the reader has a selection. */
+  summarizeSelection?: (rows: readonly Record<string, unknown>[]) => string[];
 }
 
 /* ---- Chart-property examples (real data-formulator "movies" dataset) ---- */
@@ -412,22 +485,6 @@ const MOVIE_MPAA: Array<[rating: string, films: number]> = [
   ['G', 79],
   ['NC-17', 8],
 ];
-
-/** Pie made into a donut purely by an `innerRadius` chart property. */
-function moviesDonut(): TestCase {
-  const data = MOVIE_MPAA.map(([Rating, Films]) => ({ Rating, Films }));
-  return {
-    title: 'Films by MPAA rating',
-    description: '',
-    tags: [],
-    chartType: 'Pie Chart',
-    data,
-    fields: [makeField('Rating'), makeField('Films')],
-    metadata: buildMetadata(data),
-    encodingMap: { color: makeEncodingItem('Rating'), size: makeEncodingItem('Films') },
-    chartProperties: { innerRadius: 50 },
-  };
-}
 
 /** Scatter + fitted trend line via the `Regression` chart type. */
 function moviesRegression(): TestCase {
@@ -465,22 +522,85 @@ const MOVIE_GENRE: Array<[genre: string, films: number]> = [
   ['Western', 36],
 ];
 
-/** Bars ordered by descending film count via a sort-by-measure (`-y`) override. */
-function moviesSortedBar(): TestCase {
-  const data = MOVIE_GENRE.map(([Genre, Films]) => ({ Genre, Films }));
+/** The same countries in 1952 and 2007, side by side, so a brush in one year finds them in the other. */
+function gapminderLinkedYears(): TestCase {
+  const data = csvParseRows(gapminderCsv).slice(1)
+    .filter(([, year]) => year === '1952' || year === '2007')
+    .map(([Country, year, , Continent, life, gdp]) => ({
+      Country,
+      Continent,
+      Year: Number(year),
+      'GDP per capita': Math.round(Number(gdp)),
+      'Life expectancy': Number(life),
+    }));
+  const metadata = buildMetadata(data);
+  metadata.Country.semanticType = 'Country';
+  metadata.Year.semanticType = 'Year';
   return {
-    title: 'Films by genre (most to fewest)',
+    title: 'Gapminder 1952 and 2007',
     description: '',
     tags: [],
-    chartType: 'Bar Chart',
+    chartType: 'Scatter Plot',
     data,
-    fields: [makeField('Genre'), makeField('Films')],
-    metadata: buildMetadata(data),
+    fields: ['Country', 'Continent', 'Year', 'GDP per capita', 'Life expectancy'].map((name) => makeField(name)),
+    metadata,
     encodingMap: {
-      x: makeEncodingItem('Genre', { sortBy: 'y', sortOrder: 'descending' }),
-      y: makeEncodingItem('Films'),
+      x: makeEncodingItem('GDP per capita'),
+      y: makeEncodingItem('Life expectancy'),
+      color: makeEncodingItem('Continent'),
+      detail: makeEncodingItem('Country'),
+      column: makeEncodingItem('Year'),
+    },
+    chartProperties: { facetColumns: 2, logScale_x: true },
+  };
+}
+
+/** BLS average U.S. prices of a dozen eggs and a pound of white bread. */
+function eggAndBreadPrices(): TestCase {
+  const data = foodPrices.values
+    .filter(({ item }) => item === 'Eggs' || item === 'White bread')
+    .map(({ month, item, price }) => ({ Month: month, Food: item, Price: price }));
+  const metadata = buildMetadata(data);
+  metadata.Month.semanticType = 'Date';
+  metadata.Food.semanticType = 'Category';
+  metadata.Price.semanticType = 'Currency';
+  return {
+    title: 'Egg and bread prices',
+    description: '',
+    tags: [],
+    chartType: 'Line Chart',
+    data,
+    fields: ['Month', 'Food', 'Price'].map((name) => makeField(name)),
+    metadata,
+    encodingMap: {
+      x: makeEncodingItem('Month'),
+      y: makeEncodingItem('Price'),
+      color: makeEncodingItem('Food'),
     },
   };
+}
+
+/** All 342 measured Palmer penguins, in place of the gallery case's small sample. */
+function palmerPenguins(): TestCase {
+  const sample = TEST_GENERATORS['Scatter Plot']()
+    .find((testCase) => testCase.title === 'Palmer Penguins — flipper length vs body mass')!;
+  const { columns, rows } = classicDatasets.penguins;
+  const data = rows.map((row) => Object.fromEntries(columns.map((column, index) => [column, row[index]])))
+    .map(({ Species, 'Flipper length (mm)': flipper, 'Body mass (g)': mass }) =>
+      ({ Species, 'Flipper length (mm)': flipper, 'Body mass (g)': mass }));
+  return { ...sample, data };
+}
+
+/** What a lasso around some penguins caught: how many, of which species, and their average build. */
+function penguinSelectionSummary(rows: readonly Record<string, unknown>[]): string[] {
+  const species = new Map<string, number>();
+  for (const row of rows) species.set(String(row.Species), (species.get(String(row.Species)) ?? 0) + 1);
+  const mean = (field: string) => rows.reduce((total, row) => total + Number(row[field]), 0) / rows.length;
+  return [
+    `${rows.length} penguin${rows.length === 1 ? '' : 's'} selected`,
+    [...species].map(([name, count]) => `${name} ${count}`).join(' · '),
+    `Avg flipper ${mean('Flipper length (mm)').toFixed(0)} mm · Avg mass ${Math.round(mean('Body mass (g)')).toLocaleString('en-US')} g`,
+  ];
 }
 
 /**
@@ -497,6 +617,18 @@ function moviesSortedBar(): TestCase {
  */
 const SHOWCASE_CANVAS = { width: 560, height: 440 };
 
+/**
+ * A showcase chart in its house: the house's own base size, and the room the base allows it to
+ * stretch to — the house's canvas, or its base times the compiler's stretch — rather than a fixed
+ * canvas, so the spec beside it reads as one would write it.
+ */
+function inHouse<T extends { chart_spec: Record<string, unknown> }>(input: T, theme: string | undefined, themed: boolean): T {
+  const housed = withHouse(input, theme, themed);
+  if (housed === input) return input;
+  const { canvasSize: _ceiling, ...chartSpec } = housed.chart_spec;
+  return { ...housed, chart_spec: chartSpec };
+}
+
 function randomWelcomeTheme(): string {
   const themeIds = Object.keys(THEME_PRESETS);
   return themeIds[Math.floor(Math.random() * themeIds.length)] ?? 'pop';
@@ -506,47 +638,209 @@ const SHOWCASE_EXAMPLES: ShowcaseExample[] = [
   {
     id: 'waterfall',
     exampleKey: 'waterfall',
+    group: 'charts',
     generator: 'Omni: Waterfall',
     index: 0,
+    interactions: [{ type: 'click-highlight' }],
   },
   {
     id: 'line',
     exampleKey: 'facetedLine',
+    group: 'charts',
     generator: 'Omni: Line',
     index: 0,
     // Four regions, so two columns is a 2x2 block. Four columns would be a
     // single row: it compiles to a 2.62 aspect against a pane of 1.21 and fills
     // only 46% of the pane's height, where 2x2 fills 95%.
     defaultChartProperties: { facetColumns: 2 },
+    // Six series in four panels: following one platform across panels reads better than a readout.
+    interactions: [{ type: 'hover-group-focus', options: { groupBy: 'gameType' } }, { type: 'legend-toggle' }],
   },
   {
     id: 'heatmap',
     exampleKey: 'heatmap',
+    group: 'charts',
     generator: 'Heatmap',
     testTitle: 'Average monthly temperature by city',
+    interactions: [{ type: 'hover-group-focus', options: { groupBy: 'City' } }],
   },
   {
     id: 'sunburst',
     exampleKey: 'sunburst',
+    group: 'charts',
     generator: 'Omni: Sunburst',
     index: 0,
   },
   {
-    id: 'donut',
-    exampleKey: 'donut',
-    testCase: moviesDonut(),
+    id: 'ridgeline',
+    exampleKey: 'ridgeline',
+    group: 'charts',
+    generator: 'Ridgeline Plot',
+    testTitle: 'Monthly Temperatures (12 ridges)',
   },
   {
     id: 'regression',
     exampleKey: 'regression',
+    group: 'charts',
     testCase: moviesRegression(),
   },
   {
-    id: 'sorted-bar',
-    exampleKey: 'sortedBar',
-    testCase: moviesSortedBar(),
+    id: 'linked-brush',
+    exampleKey: 'linkedBrush',
+    group: 'interactions',
+    testCase: gapminderLinkedYears(),
+    canvasSize: { width: 620, height: 360 },
+    interactions: [{ type: 'linked-brush', options: { groupBy: 'Country', mode: 'stateful' } }],
+  },
+  {
+    id: 'penguins',
+    exampleKey: 'penguins',
+    group: 'interactions',
+    testCase: palmerPenguins(),
+    interactions: [{ type: 'lasso-select' }, { type: 'legend-toggle' }],
+    summarizeSelection: penguinSelectionSummary,
+  },
+  {
+    id: 'inspect',
+    exampleKey: 'inspect',
+    group: 'interactions',
+    testCase: eggAndBreadPrices(),
+    canvasSize: { width: 600, height: 380 },
+    interactions: [{ type: 'inspect-index', options: { axis: 'x', show: 'all', displayValue: true, seriesBy: 'Food' } }],
+  },
+  {
+    id: 'globe',
+    exampleKey: 'globe',
+    group: 'interactions',
+    application: {
+      caseId: 'turn-the-globe',
+      width: 560,
+      load: () => withApplicationStyles(import('../playground/GlobeWarmingStage')
+        .then((module) => ({ Demo: () => <module.GlobeWarmingStage layout="stacked" />, spec: module.GLOBE_INPUT }))),
+    },
+  },
+  {
+    id: 'climate-phase',
+    exampleKey: 'climatePhase',
+    group: 'interactions',
+    application: {
+      caseId: 'climate-phase-portrait',
+      theme: 'datawrapper',
+      width: 640,
+      load: () => withApplicationStyles(import('../playground/ClimatePhaseStage')
+        .then((module) => ({
+          Demo: function ClimateDemo({ themeId }: { themeId: string | null }) {
+            const { t } = useTranslation();
+            return <module.ClimatePhaseStage compact height={440} showReadout hint={t('landing.examples.climatePhase.hint')} themeId={themeId} />;
+          },
+          spec: module.READOUT_CHART_INPUT,
+        }))),
+    },
+  },
+  {
+    id: 'draw-it',
+    exampleKey: 'drawIt',
+    group: 'interactions',
+    application: {
+      caseId: 'you-draw-it',
+      theme: 'datawrapper',
+      width: 680,
+      load: () => withApplicationStyles(import('../playground/YouDrawItStage')
+        .then((module) => ({ Demo: () => <module.YouDrawItStage />, spec: module.DRAW_IT_INPUT }))),
+    },
+  },
+  {
+    id: 'country-table',
+    exampleKey: 'countryTable',
+    group: 'applications',
+    application: {
+      width: 560,
+      theme: 'powerbi-light',
+      load: () => withApplicationStyles(Promise.all([
+        import('../playground/ExternalToChartLab'),
+        import('../playground/interaction-demo-data'),
+      ]).then(([lab, data]) => ({ Demo: lab.CountryTableStage, spec: data.countriesFixture.input }))),
+    },
+  },
+  {
+    id: 'origin-table',
+    exampleKey: 'originTable',
+    group: 'applications',
+    application: {
+      caseId: 'cars-by-origin',
+      width: 560,
+      theme: 'powerbi-light',
+      load: () => withApplicationStyles(import('../playground/ExternalToChartLab')
+        .then((lab) => ({ Demo: lab.CarOriginTableStage, spec: lab.CARS_INPUT }))),
+    },
+  },
+  {
+    id: 'companion-tabs',
+    exampleKey: 'companionTabs',
+    group: 'applications',
+    application: {
+      caseId: 'company-we-keep',
+      width: 560,
+      theme: 'powerbi-light',
+      load: () => withApplicationStyles(import('../playground/ExternalToChartLab')
+        .then((lab) => ({ Demo: lab.CompanionTabsStage, spec: lab.COMPANIONS_INPUT }))),
+    },
+  },
+  {
+    id: 'us-map',
+    exampleKey: 'usMap',
+    group: 'applications',
+    application: {
+      caseId: 'zoom-into-counties',
+      width: 560,
+      load: () => withApplicationStyles(Promise.all([
+        import('../playground/release-examples/application-demos-election-profile'),
+        import('../playground/election-semantic-zoom-input'),
+      ]).then(([demo, input]) => ({ Demo: () => <demo.ElectionProfileDemo stacked />, spec: input.ELECTION_DATASET.input() }))),
+    },
+  },
+  {
+    id: 'world-cup',
+    exampleKey: 'worldCup',
+    group: 'applications',
+    application: {
+      caseId: 'click-a-team',
+      theme: 'nyt',
+      width: 760,
+      load: () => withApplicationStyles(import('../playground/WorldCupScorersDemo')
+        .then((module) => ({ Demo: module.WorldCupScorersDemo, spec: module.TEAMS_SPEC }))),
+    },
+  },
+  {
+    id: 'selection-chat',
+    exampleKey: 'selectionChat',
+    group: 'applications',
+    application: {
+      caseId: 'brush-for-the-agent',
+      theme: 'economist',
+      width: 600,
+      maxScale: 1,
+      load: () => withApplicationStyles(Promise.all([
+        import('../playground/InteractiveDataReportLab'),
+        import('../playground/interactive-data-report-content'),
+      ]).then(([lab, content]) => ({
+        Demo: ({ themeId }) => <div className="it-page idr-page app-demo-embed"><lab.SelectionChatDemo spec={content.SELECTION_CHAT} editable={false} themeId={themeId} /></div>,
+        spec: content.SELECTION_CHAT.fixture.input,
+      }))),
+    },
   },
 ];
+
+/** The stylesheets the Advanced Interactions page loads for its applications. */
+function withApplicationStyles<T>(module: Promise<T>): Promise<T> {
+  return Promise.all([
+    module,
+    import('../playground/click-focus-lab.css'),
+    import('../playground/interaction-transport.css'),
+    import('../playground/bespoke-interaction-lab.css'),
+    import('../playground/release-examples/application-demos.css'),
+  ]).then(([loaded]) => loaded);
+}
 
 
 function HeroCTA({
@@ -621,23 +915,42 @@ function HeroShowcase() {
   );
   const canvasSize = example.canvasSize ?? SHOWCASE_CANVAS;
   const galleryTestCase = useTestCase(example.generator ?? '', example.index ?? 0, example.testTitle);
-  const testCase = example.testCase ?? galleryTestCase;
+  const baseTestCase = example.testCase ?? galleryTestCase;
   const supported = useMemo(
-    () => (testCase ? getSupportedBackends(testCase.chartType) : []),
-    [testCase],
+    () => (baseTestCase ? getSupportedBackends(baseTestCase.chartType) : []),
+    [baseTestCase],
   );
   // Keep the chosen backend when the new example supports it; otherwise fall
   // back to that example's first available backend.
   const backend = supported.includes(selectedBackend) ? selectedBackend : supported[0] ?? 'vegalite';
+  const testCase = useMemo(
+    () => (baseTestCase && example.interactions && backend === 'vegalite'
+      ? { ...baseTestCase, interactionSpec: { interactions: example.interactions } }
+      : baseTestCase),
+    [baseTestCase, example.interactions, backend],
+  );
   const effectiveOptions = useMemo(
     () => ({ ...example.defaultChartProperties, ...tempOptions }),
     [example.defaultChartProperties, tempOptions],
   );
 
+  const [selectionSummary, setSelectionSummary] = useState<string[] | null>(null);
   useEffect(() => {
     setTempOptions({});
     setPreviewTheme(null);
+    setSelectionSummary(null);
   }, [exampleIdx, backend]);
+
+  const summarize = example.summarizeSelection;
+  const handleChartChange = useCallback((change: ChartChange) => {
+    const rows = change.state.selected.map((element) => element.value as Record<string, unknown>);
+    setSelectionSummary(summarize && rows.length > 0 ? summarize(rows) : null);
+  }, [summarize]);
+
+  const preferredTheme = example.application?.theme;
+  useEffect(() => {
+    if (preferredTheme) setThemeId(preferredTheme);
+  }, [exampleIdx, preferredTheme]);
 
   const canTheme = backend === 'vegalite';
   const activeTheme = canTheme ? (previewTheme ? previewTheme.id : themeId) : undefined;
@@ -658,7 +971,7 @@ function HeroShowcase() {
 
   const displayInput = useMemo(() => {
     if (!testCase) return null;
-    const base = withHouse(testCaseToAssemblyInput(testCase, canvasSize), activeTheme, canTheme);
+    const base = inHouse(testCaseToAssemblyInput(testCase, canvasSize), activeTheme, canTheme);
     return {
       ...base,
       chart_spec: {
@@ -684,7 +997,7 @@ function HeroShowcase() {
     [displayInput, backend],
   );
 
-  if (!testCase) return null;
+  if (!testCase && !example.application) return null;
 
   const count = SHOWCASE_EXAMPLES.length;
   const goPrev = () => setExampleIdx((i) => (i - 1 + count) % count);
@@ -692,6 +1005,31 @@ function HeroShowcase() {
 
   return (
     <section style={heroShowcaseSectionStyle}>
+      <div className="landing-example-tabs" style={exampleTabsStyle} role="tablist" aria-label={t('landing.exampleAria')}>
+        {SHOWCASE_GROUPS.map((group, row) => (
+          <Fragment key={group}>
+            <span className="landing-example-group-label" style={exampleGroupLabelStyle}>
+              {group === 'interactions' && <span aria-hidden="true" style={{ ...attentionStarStyle, marginRight: 4 }}>★</span>}
+              {t(`landing.exampleGroups.${group}`)}
+            </span>
+            <div className="landing-example-row" style={exampleRowStyle(row === 0, row === SHOWCASE_GROUPS.length - 1)}>
+              {SHOWCASE_EXAMPLES.map((ex, i) => ex.group !== group ? null : (
+                <button
+                  key={ex.id}
+                  type="button"
+                  role="tab"
+                  className="landing-example-tab"
+                  aria-selected={i === exampleIdx}
+                  onClick={() => setExampleIdx(i)}
+                  style={exampleTabStyle(i === exampleIdx)}
+                >
+                  {t(`landing.examples.${ex.exampleKey}.label`)}
+                </button>
+              ))}
+            </div>
+          </Fragment>
+        ))}
+      </div>
       <div className="landing-showcase-row" style={carouselRowStyle}>
         <button
           className="landing-carousel-arrow"
@@ -704,6 +1042,24 @@ function HeroShowcase() {
           <ChevronIcon dir="left" />
         </button>
 
+        {example.application ? (
+          <ShowcaseApplicationCard
+            key={example.id}
+            exampleKey={example.exampleKey}
+            application={example.application}
+            themeId={previewTheme ? previewTheme.id : themeId}
+            themeControl={(
+              <ThemeControl
+                themeId={themeId}
+                onTheme={chooseTheme}
+                onPreview={(id) => setPreviewTheme({ id })}
+                onPreviewEnd={() => setPreviewTheme(null)}
+                placement="bottom"
+                prominent
+              />
+            )}
+          />
+        ) : testCase && (
         <div className="landing-showcase-card" style={{ ...showcaseCardStyle, flex: 1, minWidth: 0 }}>
           <div className="landing-spec-pane" style={{ ...showcasePaneStyle, ...specPaneStyle }}>
             <div style={paneHeaderRowStyle}>
@@ -772,8 +1128,17 @@ function HeroShowcase() {
                     themeId={activeTheme}
                     useThemeCanvas={canTheme}
                     headline={headline}
+                    onChange={summarize ? handleChartChange : undefined}
                   />
                 </ScaleToFit>
+                {selectionSummary && (
+                  <div style={selectionCalloutStyle} aria-live="polite">
+                    {selectionSummary.map((line, index) => (
+                      <div key={line} style={index === 0 ? { fontWeight: 600, color: siteTheme.text } : undefined}>{line}</div>
+                    ))}
+                    <span aria-hidden="true" style={selectionCalloutTailStyle} />
+                  </div>
+                )}
               </div>
               {panelModel && displayInput && (
                 <div className="landing-canvas-options" style={canvasOptionsStyle}>
@@ -799,6 +1164,7 @@ function HeroShowcase() {
             </div>
           </div>
         </div>
+        )}
 
         <button
           className="landing-carousel-arrow"
@@ -811,25 +1177,79 @@ function HeroShowcase() {
           <ChevronIcon dir="right" />
         </button>
       </div>
-      {/* Example pager dots */}
-      <div style={{ ...dotsRowStyle, marginTop: 16 }} role="tablist" aria-label={t('landing.exampleAria')}>
-        {SHOWCASE_EXAMPLES.map((ex, i) => {
-          const label = t(`landing.examples.${ex.exampleKey}.label`);
-          return (
-          <button
-            key={ex.id}
-            type="button"
-            role="tab"
-            aria-selected={i === exampleIdx}
-            aria-label={label}
-            title={label}
-            onClick={() => setExampleIdx(i)}
-            style={dotStyle(i === exampleIdx)}
-          />
-          );
-        })}
-      </div>
     </section>
+  );
+}
+
+function ShowcaseApplicationCard({
+  exampleKey,
+  application,
+  themeId,
+  themeControl,
+}: {
+  exampleKey: ShowcaseExampleKey;
+  application: ShowcaseApplication;
+  /** The carousel's house; none is Flint's default. */
+  themeId: string | undefined;
+  themeControl: ReactNode;
+}) {
+  const { t } = useTranslation();
+  const [loaded, setLoaded] = useState<Awaited<ReturnType<ShowcaseApplication['load']>> | null>(null);
+  useEffect(() => {
+    let live = true;
+    void application.load().then((next) => { if (live) setLoaded(next); });
+    return () => { live = false; };
+  }, [application]);
+  const house = themeId ?? null;
+  const specText = useMemo(() => {
+    if (!loaded) return '';
+    // The application's own code is on the Advanced Interactions page; here only the chart is specified.
+    const spec: Record<string, unknown> = { ...withHouseId(loaded.spec, house) };
+    delete spec.data;
+    delete spec.options;
+    return stringify(spec, { maxLength: 52 }).replace(/^{\n/, '{\n  "data": {...},\n');
+  }, [loaded, house]);
+
+  return (
+    <div className="landing-showcase-card" style={{ ...showcaseCardStyle, flex: 1, minWidth: 0 }}>
+      <div className="landing-spec-pane" style={{ ...showcasePaneStyle, ...specPaneStyle }}>
+        <div style={paneHeaderRowStyle}>
+          <span style={paneLabelStyle}>{t('landing.flintSpec')}</span>
+        </div>
+        {loaded && <CodeBlock language="json" variant="light" wrapLongLines customStyle={specPreStyle}>{specText}</CodeBlock>}
+        {loaded && (
+          <p style={applicationNoteStyle}>
+            <Trans
+              i18nKey="landing.applicationNote"
+              components={{ api: <LocaleLink className="site-text-link" to="/documentation/interaction-api" /> }}
+            />
+            {application.caseId && (
+              <>
+                {' '}
+                <LocaleLink className="site-text-link" to={`/interactions/advanced?case=${application.caseId}`}>
+                  {t('landing.applicationCode')}
+                </LocaleLink>
+              </>
+            )}
+          </p>
+        )}
+      </div>
+      <div className="landing-chart-pane" style={{ ...showcasePaneStyle, ...chartPaneStyle, borderLeft: `1px solid ${HAIRLINE}` }}>
+        <div className="landing-pane-header" style={paneHeaderRowStyle}>
+          {themeControl}
+          <span style={paneLabelStyle}>{t(`landing.examples.${exampleKey}.label`)}</span>
+        </div>
+        <div className="landing-chart-canvas landing-application" style={chartCanvasStyle}>
+          <div style={chartViewportStyle}>
+            {loaded && (
+              <ScaleToFit fill height={465} padding={8} maxScale={application.maxScale ?? 1.3}>
+                <div style={{ width: application.width }} data-app={exampleKey}><loaded.Demo themeId={house} /></div>
+              </ScaleToFit>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -878,11 +1298,27 @@ function FlintSpecCode({
           }
         : {}),
     };
-    const withCanvas = withHouse({ ...summary, chart_spec: chartSpec }, themeId, useThemeCanvas);
-    const body = JSON.stringify(withCanvas, null, 2);
-    return body.replace(/^{\n/, '{\n  "data": {...},\n');
+    const withCanvas = inHouse({ ...summary, chart_spec: chartSpec }, themeId, Boolean(useThemeCanvas));
+    // The chart_spec's objects get one entry per line; the rest stays compact.
+    const expanded = ['encodings', 'chartProperties', 'canvasSize', 'baseSize'] as const;
+    const chartSpecOut: Record<string, unknown> = { ...withCanvas.chart_spec };
+    for (const key of expanded) {
+      if (chartSpecOut[key] && typeof chartSpecOut[key] === 'object') chartSpecOut[key] = `__${key}__`;
+    }
+    let text = stringify({
+      ...withCanvas,
+      chart_spec: chartSpecOut,
+      ...(testCase.interactionSpec ? { interaction_spec: testCase.interactionSpec } : {}),
+    }, { maxLength: 52 });
+    for (const key of expanded) {
+      const value = (withCanvas.chart_spec as Record<string, unknown>)[key];
+      if (value && typeof value === 'object') {
+        text = text.replace(`"__${key}__"`, JSON.stringify(value, null, 2).replace(/\n/g, '\n    '));
+      }
+    }
+    return text.replace(/^{\n/, '{\n  "data": {...},\n');
   }, [testCase, canvasSize, chartPropertyOverrides, themeId, useThemeCanvas, headline?.title, headline?.subtitle]);
-  return <pre style={specPreStyle}>{text}</pre>;
+  return <CodeBlock language="json" variant="light" wrapLongLines customStyle={specPreStyle}>{text}</CodeBlock>;
 }
 
 /* ------------------------------------------------------------------ */
@@ -936,62 +1372,56 @@ const THEME_ROSTER_PREVIEW = [
   THEME_PRESETS.pop,
 ];
 const THEME_ROSTER_REMAINDER = Object.keys(THEME_PRESETS).length - THEME_ROSTER_PREVIEW.length;
-const CHART_GALLERY_ENTRY_COUNT = CHART_CATEGORIES.reduce(
-  (count, category) => count + category.charts.length,
-  0,
-);
+const INTERACTION_ROSTER_PREVIEW = [
+  { mode: 'click-highlight', label: 'Click highlight' },
+  { mode: 'brush-x', label: 'Brush' },
+  { mode: 'inspect-index', label: 'Hover readout' },
+  { mode: 'brush-zoom', label: 'Zoom' },
+  { mode: 'legend-toggle', label: 'Legend toggle' },
+  { mode: 'filter-controls', label: 'Filters' },
+] as const;
 
 // Lead paragraph shown in the hero (the single intro to Flint).
 interface Feature {
   id: string;
-  title: string;
+  title: ReactNode;
   body: string;
-  // Optional concrete example rendered as a callout beneath the body.
-  example?: string;
   // Before/after demo shown alongside the text, illustrating the feature.
   demo?: () => FeatureDemoConfig;
+  // A live visual in place of the before/after cards.
+  visual?: ReactNode;
   isNew?: boolean;
 }
 
 function getFeatures(t: TFunction): Feature[] {
+  const title = (id: string) => (
+    <Trans i18nKey={`landing.features.${id}.title`} components={{ hl: <span style={featureTitleHighlightStyle} /> }} />
+  );
   return [
     {
       id: 'semantic',
-      title: t('landing.features.semantic.title'),
+      title: title('semantic'),
       body: t('landing.features.semantic.body'),
-      example: t('landing.features.semantic.example'),
       demo: demoSemanticTypes,
     },
     {
-      id: 'layout',
-      title: t('landing.features.layout.title'),
-      body: t('landing.features.layout.body'),
-      example: t('landing.features.layout.example'),
+      id: 'chart',
+      title: title('chart'),
+      body: t('landing.features.chart.body'),
       demo: demoLayout,
     },
     {
-      id: 'adapt',
-      title: t('landing.features.adapt.title'),
-      body: t('landing.features.adapt.body'),
-      example: t('landing.features.adapt.example'),
-      demo: demoAdapt,
-    },
-    {
-      id: 'backends',
-      title: t('landing.features.backends.title'),
-      body: t('landing.features.backends.body', {
-        chartTypes: CHART_FAMILY_COUNT,
-        examples: CHART_GALLERY_ENTRY_COUNT,
-      }),
-      example: t('landing.features.backends.example'),
-      demo: demoBackends,
-    },
-    {
       id: 'themes',
-      title: t('landing.features.themes.title'),
-      body: t('landing.features.themes.body'),
-      example: t('landing.features.themes.example'),
+      title: title('themes'),
+      body: t('landing.features.themes.body', { themes: Object.keys(THEME_PRESETS).length }),
       demo: demoThemes,
+      isNew: true,
+    },
+    {
+      id: 'interactions',
+      title: title('interactions'),
+      body: t('landing.features.interactions.body', { presets: INTERACTION_PRESET_TYPES.length }),
+      visual: <InteractionDemo label={t('landing.features.interactions.demoLabel')} />,
       isNew: true,
     },
   ];
@@ -1038,11 +1468,6 @@ interface FeatureDemoConfig {
 /** First test case for an Omni generator key. */
 function omni(key: string): TestCase {
   return TEST_GENERATORS[key]!()[0];
-}
-
-/** Clone a test case, changing only its chart type (encodings preserved). */
-function asChartType(base: TestCase, chartType: string): TestCase {
-  return { ...base, chartType };
 }
 
 /** A synthetic grouped bar chart with `nCats` categories × `nGroups` series (for layout demos). */
@@ -1093,83 +1518,7 @@ function demoLayout(): FeatureDemoConfig {
   };
 }
 
-// Card 3: same encoding, different chart type — a faceted bar becomes a pyramid.
-//
-// Real data: U.S. resident population by 5-year age band and sex, 2000 census
-// (the same source Vega-Lite's own population-pyramid example draws from).
-const US_POP_2000: Array<[band: string, male: number, female: number]> = [
-  ['0–4', 9735380, 9310714],
-  ['5–9', 10552146, 10069564],
-  ['10–14', 10563233, 10022524],
-  ['15–19', 10237419, 9692669],
-  ['20–24', 9731315, 9324244],
-  ['25–29', 9659493, 9518507],
-  ['30–34', 10205879, 10119296],
-  ['35–39', 11475182, 11635647],
-  ['40–44', 11320252, 11488578],
-  ['45–49', 9925006, 10261253],
-  ['50–54', 8507934, 8911133],
-  ['55–59', 6459082, 6921268],
-  ['60–64', 5123399, 5668961],
-  ['65–69', 4453623, 4804784],
-  ['70–74', 3792145, 5184855],
-  ['75–79', 2912655, 4355644],
-  ['80–84', 1902638, 3221898],
-  ['85–89', 970357, 1981156],
-  ['90+', 336303, 1064581],
-];
-
-/** Long-format population table built from the real 2000 census slice (millions). */
-function usPopulationPyramid(): TestCase {
-  const data: Array<Record<string, unknown>> = [];
-  for (const [band, male, female] of US_POP_2000) {
-    data.push({ 'Age Band': band, Sex: 'Male', People: Math.round(male / 1e5) / 10 });
-    data.push({ 'Age Band': band, Sex: 'Female', People: Math.round(female / 1e5) / 10 });
-  }
-  return {
-    title: 'U.S. population by age and sex (2000)',
-    description: '',
-    tags: [],
-    chartType: 'Pyramid Chart',
-    data,
-    fields: [makeField('Age Band'), makeField('People'), makeField('Sex')],
-    metadata: buildMetadata(data),
-    encodingMap: {
-      y: makeEncodingItem('Age Band'),
-      x: makeEncodingItem('People'),
-      color: makeEncodingItem('Sex'),
-    },
-  };
-}
-
-function demoAdapt(): FeatureDemoConfig {
-  const pyr = usPopulationPyramid();
-  const facetedBar: TestCase = {
-    ...pyr,
-    chartType: 'Bar Chart',
-    encodingMap: {
-      x: makeEncodingItem('Age Band'),
-      y: makeEncodingItem('People'),
-      column: makeEncodingItem('Sex'),
-    },
-  };
-  return {
-    before: { kind: 'chart', label: 'Faceted bar', testCase: facetedBar, backend: 'vegalite' },
-    after: { kind: 'chart', label: 'Pyramid', testCase: pyr, backend: 'vegalite' },
-  };
-}
-
-// Card 4: a Vega-Lite faceted bar and an ECharts sunburst of the same story.
-function demoBackends(): FeatureDemoConfig {
-  const line = omni('Omni: Line');
-  const sun = omni('Omni: Sunburst');
-  return {
-    before: { kind: 'chart', label: 'Vega-Lite faceted bar', testCase: asChartType(line, 'Bar Chart'), backend: 'vegalite' },
-    after: { kind: 'chart', label: 'ECharts sunburst', testCase: sun, backend: 'echarts' },
-  };
-}
-
-// Card 5: the data and ChartSpec stay fixed; only the formal theme changes.
+// Card 3: the data and ChartSpec stay fixed; only the formal theme changes.
 // A grouped bar exposes the whole system at once: palette, bar geometry,
 // axes/grid, legend, labels, typography, and spacing.
 function demoThemes(): FeatureDemoConfig {
@@ -1196,6 +1545,46 @@ function demoThemes(): FeatureDemoConfig {
       headline,
     },
   };
+}
+
+// Card 4: the gallery's two-line food-price case, read with the inspect-index preset.
+function InteractionDemo({ label }: { label: string }) {
+  const [spec, setSpec] = useState<ChartAssemblyInput | null>(null);
+  useEffect(() => {
+    let alive = true;
+    // Loaded on demand so the price table stays out of the landing bundle.
+    import('../data/cpi-food-prices.json').then(({ default: foodPrices }) => {
+      if (!alive) return;
+      const values = foodPrices.values
+        .filter(({ item }) => item === 'Eggs' || item === 'White bread')
+        .map(({ month, price, item }) => ({ Month: month, Price: price, Food: item }));
+      setSpec({
+        data: { values },
+        semantic_types: { Month: 'Date', Price: 'Currency', Food: 'Category' },
+        field_display_names: { Price: 'Average price (USD)' },
+        chart_spec: {
+          chartType: 'Line Chart',
+          title: 'U.S. food prices',
+          encodings: { x: { field: 'Month' }, y: { field: 'Price' }, color: { field: 'Food' } },
+          baseSize: { width: 420, height: 240 },
+        },
+        interaction_spec: { interactions: [{ type: 'inspect-index', options: { show: 'all' } }] },
+      } as ChartAssemblyInput);
+    });
+    return () => { alive = false; };
+  }, []);
+  return (
+    <div style={featureLiveStyle}>
+      <div style={featureLiveCardStyle}>
+        <span style={stackBadgeStyle}>{label}</span>
+        {spec && (
+          <ScaleToFit height={300} padding={6}>
+            <FlintChart spec={spec} renderer="svg" ariaLabel="U.S. food prices" />
+          </ScaleToFit>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function themedRevenue(): TestCase {
@@ -1231,9 +1620,9 @@ function pickBackend(t: TestCase, want: PreviewBackend): PreviewBackend {
   return supported.includes(want) ? want : supported[0] ?? 'vegalite';
 }
 
-/** A Flint spec with the data spec (semantic types) block color-highlighted. */
+/** A Flint spec with the data spec (semantic types) block highlighted. */
 function HighlightedFlintSpec({ testCase }: { testCase: TestCase }) {
-  const lines = useMemo(() => {
+  const { json, hotLines } = useMemo(() => {
     const json = JSON.stringify(testCaseToFlintSummary(testCase), null, 2);
     const all = json.split('\n');
     // Mark the lines that make up the "semantic_types" (data spec) block.
@@ -1256,17 +1645,14 @@ function HighlightedFlintSpec({ testCase }: { testCase: TestCase }) {
         }
       }
     }
-    return all.map((text, i) => ({ text, hot: start !== -1 && i >= start && i <= end }));
+    const hotLines = start === -1 ? [] : Array.from({ length: end - start + 1 }, (_, i) => start + i + 1);
+    return { json, hotLines };
   }, [testCase]);
 
   return (
-    <pre style={demoSpecPreStyle}>
-      {lines.map((ln, i) => (
-        <div key={i} style={ln.hot ? demoSpecHotLineStyle : undefined}>
-          {ln.text || ' '}
-        </div>
-      ))}
-    </pre>
+    <CodeBlock language="json" variant="light" highlightLines={hotLines} customStyle={demoSpecPreStyle}>
+      {json}
+    </CodeBlock>
   );
 }
 
@@ -1404,18 +1790,18 @@ const howItWorksSectionStyle: CSSProperties = {
 const newsSectionStyle: CSSProperties = {
   ...sectionStyle,
   display: 'grid',
-  gridTemplateColumns: '140px minmax(0, 1fr)',
-  gap: 32,
-  paddingTop: 28,
-  paddingBottom: 28,
+  gridTemplateColumns: '110px minmax(0, 1fr)',
+  gap: 24,
+  paddingTop: 16,
+  paddingBottom: 16,
   borderTop: `1px solid ${HAIRLINE}`,
   borderBottom: `1px solid ${HAIRLINE}`,
 };
 
 const newsHeadingStyle: CSSProperties = {
   margin: 0,
-  fontSize: 22,
-  lineHeight: 1.4,
+  fontSize: 17,
+  lineHeight: 1.5,
   fontWeight: 650,
 };
 
@@ -1425,14 +1811,14 @@ const newsListStyle: CSSProperties = {
 
 const newsItemStyle: CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: '118px minmax(0, 1fr) 64px',
-  gap: 18,
-  padding: '5px 0',
+  gridTemplateColumns: '112px minmax(0, 1fr) auto',
+  gap: 16,
+  padding: '2px 0',
 };
 
 const newsDateStyle: CSSProperties = {
   color: siteTheme.textMuted,
-  fontSize: 13,
+  fontSize: 12.5,
   lineHeight: 1.6,
   fontVariantNumeric: 'tabular-nums',
 };
@@ -1440,13 +1826,31 @@ const newsDateStyle: CSSProperties = {
 const newsTextStyle: CSSProperties = {
   margin: 0,
   color: siteTheme.text,
-  fontSize: 14,
-  lineHeight: 1.6,
+  fontSize: 13.5,
+  lineHeight: 1.55,
+};
+
+/** YouTube's play mark, in its own red. */
+function YouTubeIcon() {
+  return (
+    <svg viewBox="0 0 24 17" width={17} height={12} aria-hidden="true" focusable="false">
+      <path fill="#ff0000" d="M23.5 2.65A3 3 0 0 0 21.4.53C19.5 0 12 0 12 0S4.5 0 2.6.53A3 3 0 0 0 .5 2.65C0 4.55 0 8.5 0 8.5s0 3.95.5 5.85a3 3 0 0 0 2.1 2.12C4.5 17 12 17 12 17s7.5 0 9.4-.53a3 3 0 0 0 2.1-2.12c.5-1.9.5-5.85.5-5.85s0-3.95-.5-5.85Z" />
+      <path fill="#fff" d="M9.6 12.14 15.86 8.5 9.6 4.86z" />
+    </svg>
+  );
+}
+
+const newsLinksStyle: CSSProperties = {
+  display: 'inline-flex',
+  justifyContent: 'flex-end',
+  alignItems: 'baseline',
+  gap: 12,
+  minWidth: 72,
 };
 
 const newsLinkStyle: CSSProperties = {
   color: siteTheme.accent,
-  fontSize: 13,
+  fontSize: 12.5,
   lineHeight: 1.6,
   textAlign: 'right',
   whiteSpace: 'nowrap',
@@ -1461,6 +1865,15 @@ const heroTitleStyle: CSSProperties = {
   maxWidth: 960,
   fontWeight: 700,
   letterSpacing: '-0.02em',
+};
+
+const heroVersionStyle: CSSProperties = {
+  display: 'inline-block',
+  marginTop: 8,
+  color: siteTheme.textMuted,
+  fontSize: 14,
+  fontVariantNumeric: 'tabular-nums',
+  textDecoration: 'none',
 };
 
 const heroLockupStyle: CSSProperties = {
@@ -1480,14 +1893,6 @@ const heroLogoStyle: CSSProperties = {
   width: 40,
   height: 40,
   marginTop: 7,
-};
-
-const heroAttributionStyle: CSSProperties = {
-  margin: '14px 0 0',
-  color: siteTheme.textMuted,
-  fontSize: 13,
-  fontWeight: 500,
-  letterSpacing: '0.03em',
 };
 
 const leadColumnsStyle: CSSProperties = {
@@ -1593,32 +1998,6 @@ const backendRosterSeparatorStyle: CSSProperties = {
   background: HAIRLINE,
 };
 
-const installLinesStyle: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 8,
-  margin: '28px 0 0',
-};
-
-const installLineStyle: CSSProperties = {
-  color: siteTheme.text,
-  fontSize: 15.5,
-  lineHeight: 1.65,
-};
-
-const promptMarkStyle: CSSProperties = {
-  fontFamily: siteTheme.fontMono,
-  color: siteTheme.textMuted,
-  userSelect: 'none',
-};
-
-const installLineLinkStyle: CSSProperties = {
-  color: siteTheme.accent,
-  fontWeight: 500,
-  textDecoration: 'none',
-  transition: 'color 120ms ease',
-};
-
 const landingInteractiveStyles = `
   .landing-hero-cta:focus-visible {
     outline: 2px solid ${siteTheme.accent};
@@ -1644,6 +2023,170 @@ const landingInteractiveStyles = `
 
   .landing-pipeline-figure--mobile {
     display: none;
+  }
+
+  /* A long string that wraps continues under its key, not at the left edge. */
+  .landing-spec-pane code > span {
+    display: block;
+    padding-left: 6ch;
+    text-indent: -6ch;
+  }
+
+  .landing-example-tab:hover {
+    color: ${siteTheme.text} !important;
+    background: #f6f8fa !important;
+  }
+
+  .landing-example-tab:focus-visible {
+    outline: 2px solid ${siteTheme.accent};
+    outline-offset: -2px;
+  }
+
+  /* The pane header already names the application. */
+  .landing-application .it-example-header {
+    display: none;
+  }
+
+  /* The pane is the card, so the application's own frame would be a second one. */
+  .landing-application .it-workspace {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  /* The chart takes the conversation's width; the text keeps its size. */
+  .landing-application .idr-chat-window .idr-chat-chart-bubble {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* The pane is taller than wide: the chart leads and the table runs beneath it. */
+  .landing-application :is([data-app='countryTable'], [data-app='originTable'], [data-app='companionTabs']) .it-workspace-external {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .landing-application :is([data-app='countryTable'], [data-app='originTable'], [data-app='companionTabs']) .it-chart-panel {
+    order: -1;
+    padding: 0 0 10px;
+    border-left: 0;
+  }
+
+  .landing-application :is([data-app='countryTable'], [data-app='originTable'], [data-app='companionTabs']) .it-control-panel {
+    padding: 14px 0 0;
+    border-top: 1px solid #e9edef;
+  }
+
+  .landing-application :is([data-app='countryTable'], [data-app='originTable'], [data-app='companionTabs']) .it-control-content {
+    margin-top: 8px;
+  }
+
+  .landing-application [data-app='countryTable'] .it-country-table-scroll {
+    max-height: 112px;
+  }
+
+  /* The tabs sit on their own surface, as segmented buttons, so they read as the control for the chart. */
+  .landing-application [data-app='companionTabs'] .it-control-panel {
+    margin-top: 4px;
+    padding: 12px 14px 14px;
+    border: 1px solid #e4e8eb;
+    border-radius: 8px;
+    background: #f6f8fa;
+  }
+
+  .landing-application [data-app='companionTabs'] .it-control-content {
+    margin-top: 10px;
+  }
+
+  .landing-application [data-app='companionTabs'] .it-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid #dfe4e8;
+    border-radius: 7px;
+    background: #fff;
+  }
+
+  .landing-application [data-app='companionTabs'] .it-tab {
+    flex: 1 1 auto;
+    border: 0;
+    border-radius: 5px;
+    padding: 5px 10px;
+  }
+
+  .landing-application [data-app='companionTabs'] .it-tab:hover {
+    color: #1f2328;
+    background: #eef1f3;
+  }
+
+  .landing-application [data-app='companionTabs'] .it-tab.active {
+    color: #fff;
+    background: var(--it-accent);
+  }
+
+  .landing-application [data-app='companionTabs'] .it-tab:focus-visible {
+    outline: 2px solid var(--it-accent);
+    outline-offset: 1px;
+  }
+
+  .landing-application [data-app='companionTabs'] .it-tab-copy {
+    padding: 12px 2px 0;
+  }
+
+  /* Two lines held open, so switching tabs never moves the pane. */
+  .landing-application [data-app='companionTabs'] .it-tab-copy p {
+    max-width: none;
+    min-height: calc(2 * 1.65em);
+  }
+
+  /* The climate readout runs as one row under the chart rather than a column beside it. */
+  .landing-application .climate-phase-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .landing-application .climate-phase-shell .ic-flint-dimpvis-panel {
+    border: 0;
+    background: transparent;
+  }
+
+  .landing-application .climate-phase-hint {
+    margin: 8px 4px 0;
+    color: #57606a;
+    font-size: 13px;
+  }
+
+  .landing-application .climate-phase-readout {
+    grid-column: 1;
+    grid-row: auto;
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    margin: 10px 0 0;
+    padding: 0 4px;
+  }
+
+  .landing-application .climate-phase-readout-header {
+    gap: 10px;
+    margin: 0;
+  }
+
+  .landing-application .climate-phase-readout dl {
+    grid-auto-flow: column;
+    grid-template-rows: auto auto;
+    column-gap: 28px;
+    row-gap: 0;
+  }
+
+  .landing-application .climate-phase-readout dd {
+    margin: 0;
+    font-size: 18px;
   }
 
   @media (min-width: 901px) {
@@ -1778,6 +2321,25 @@ const landingInteractiveStyles = `
       order: 2;
     }
 
+    .landing-example-tabs {
+      margin: 0 0 12px !important;
+    }
+
+    .landing-example-tabs {
+      grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    .landing-example-group-label {
+      justify-content: flex-start !important;
+      padding: 10px 0 4px !important;
+    }
+
+    .landing-example-row {
+      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+      border-top-width: 1px !important;
+      border-radius: 8px !important;
+    }
+
     .landing-canvas-options {
       max-width: calc(100% - 20px) !important;
     }
@@ -1826,6 +2388,20 @@ const contributorLinkStyle: CSSProperties = {
   color: siteTheme.accent,
   textDecoration: 'none',
   fontWeight: 500,
+};
+
+const contributorChipStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 8,
+  color: siteTheme.text,
+  textDecoration: 'none',
+};
+
+const contributorAvatarStyle: CSSProperties = {
+  borderRadius: '50%',
+  border: `1px solid ${siteTheme.border}`,
+  background: siteTheme.hover,
 };
 
 const overviewSectionStyle: CSSProperties = {
@@ -1900,6 +2476,38 @@ const chartViewportStyle: CSSProperties = {
   flex: 1,
   minHeight: 0,
   width: '100%',
+};
+
+const selectionCalloutStyle: CSSProperties = {
+  position: 'absolute',
+  top: 10,
+  right: 10,
+  zIndex: 5,
+  display: 'grid',
+  gap: 2,
+  padding: '8px 12px',
+  border: `1px solid ${HAIRLINE}`,
+  borderRadius: 8,
+  background: 'rgba(255, 255, 255, 0.94)',
+  boxShadow: '0 4px 14px rgba(0, 0, 0, 0.08)',
+  color: siteTheme.textMuted,
+  fontSize: 12,
+  lineHeight: 1.45,
+  fontVariantNumeric: 'tabular-nums',
+  pointerEvents: 'none',
+};
+
+// A notch on the callout's lower edge, pointing down into the chart.
+const selectionCalloutTailStyle: CSSProperties = {
+  position: 'absolute',
+  bottom: -5,
+  left: 22,
+  width: 9,
+  height: 9,
+  background: 'rgb(255, 255, 255)',
+  borderRight: `1px solid ${HAIRLINE}`,
+  borderBottom: `1px solid ${HAIRLINE}`,
+  transform: 'rotate(45deg)',
 };
 
 const canvasOptionsStyle: CSSProperties = {
@@ -2016,24 +2624,67 @@ const pagerArrowStyle: CSSProperties = {
   fontFamily: 'inherit',
 };
 
-const dotsRowStyle: CSSProperties = {
-  display: 'flex',
-  justifyContent: 'center',
-  gap: 10,
+// Group names stand in a right-aligned margin; the rows beside them stack into one table.
+const exampleTabsStyle: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'auto minmax(0, 1fr)',
+  margin: '0 0 14px',
 };
 
-function dotStyle(active: boolean): CSSProperties {
+// One row per group, every cell the same width; the rows share their rules.
+function exampleRowStyle(first: boolean, last: boolean): CSSProperties {
   return {
-    width: active ? 22 : 9,
-    height: 9,
-    padding: 0,
-    border: 0,
-    borderRadius: 999,
-    background: active ? siteTheme.accent : 'rgba(0,0,0,0.18)',
-    cursor: 'pointer',
-    transition: 'width 0.15s ease, background 0.15s ease',
+    display: 'grid',
+    gridTemplateColumns: `repeat(${SHOWCASE_COLUMNS}, minmax(0, 1fr))`,
+    gap: 1,
+    border: `1px solid ${HAIRLINE}`,
+    borderTopWidth: first ? 1 : 0,
+    borderRadius: `${first ? 8 : 0}px ${first ? 8 : 0}px ${last ? 8 : 0}px ${last ? 8 : 0}px`,
+    overflow: 'hidden',
+    background: HAIRLINE,
   };
 }
+
+const exampleGroupLabelStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'flex-end',
+  padding: '0 12px 0 0',
+  color: siteTheme.textMuted,
+  fontSize: 10,
+  fontWeight: 600,
+  letterSpacing: '0.05em',
+  textTransform: 'uppercase',
+  whiteSpace: 'nowrap',
+};
+
+function exampleTabStyle(active: boolean): CSSProperties {
+  return {
+    minWidth: 0,
+    padding: '7px 10px',
+    border: 0,
+    boxShadow: active ? `inset 0 -2px 0 ${siteTheme.accent}` : 'none',
+    background: PAPER,
+    color: active ? siteTheme.text : siteTheme.textMuted,
+    fontFamily: 'inherit',
+    fontSize: 12.5,
+    fontWeight: active ? 600 : 500,
+    textAlign: 'left',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    cursor: 'pointer',
+  };
+}
+
+const applicationNoteStyle: CSSProperties = {
+  margin: '4px 16px 16px',
+  paddingTop: 12,
+  borderTop: `1px solid ${HAIRLINE}`,
+  color: siteTheme.textMuted,
+  fontSize: 13,
+  lineHeight: 1.5,
+};
 
 const specPreStyle: CSSProperties = {
   margin: 0,
@@ -2133,6 +2784,20 @@ const featureStackCardStyle: CSSProperties = {
   willChange: 'opacity',
 };
 
+const featureLiveStyle: CSSProperties = {
+  height: '100%',
+  boxSizing: 'border-box',
+  padding: '10px 12px 24px 10px',
+};
+
+const featureLiveCardStyle: CSSProperties = {
+  ...featureStackCardStyle,
+  height: '100%',
+  boxSizing: 'border-box',
+  padding: '30px 14px 12px',
+  boxShadow: SOFT_SHADOW,
+};
+
 const stackBadgeStyle: CSSProperties = {
   position: 'absolute',
   top: 8,
@@ -2163,12 +2828,6 @@ const demoSpecPreStyle: CSSProperties = {
   overflow: 'hidden',
 };
 
-const demoSpecHotLineStyle: CSSProperties = {
-  background: siteTheme.accentBg,
-  boxShadow: `inset 2px 0 0 ${siteTheme.accent}`,
-  color: siteTheme.text,
-};
-
 const featureTitleStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'baseline',
@@ -2177,6 +2836,13 @@ const featureTitleStyle: CSSProperties = {
   lineHeight: 1.35,
   fontWeight: 500,
   margin: '0 0 14px',
+};
+
+const featureTitleHighlightStyle: CSSProperties = {
+  textDecoration: 'underline',
+  textDecorationColor: 'rgba(0, 0, 0, 0.22)',
+  textDecorationThickness: 2,
+  textUnderlineOffset: 5,
 };
 
 const featureNumberStyle: CSSProperties = {
@@ -2200,26 +2866,6 @@ const attentionStarStyle: CSSProperties = {
   lineHeight: 1,
 };
 
-function featureExampleRowStyle(): CSSProperties {
-  return {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 14,
-    margin: '12px 0 0',
-    // Paragraph stays first so its left border lines up with the text above;
-    // the arrow trails on the right.
-    flexDirection: 'row',
-  };
-}
-
-const featureExampleStyle: CSSProperties = {
-  margin: '0',
-  padding: 0,
-  fontSize: 14,
-  lineHeight: 1.7,
-  color: siteTheme.textMuted,
-};
-
 const codeStyle: CSSProperties = {
   background: NEUTRAL_FILL,
   padding: '2px 6px',
@@ -2227,6 +2873,9 @@ const codeStyle: CSSProperties = {
   fontSize: '0.9em',
   fontFamily: siteTheme.fontMono,
 };
+
+const communityTitleStyle: CSSProperties = { fontSize: 22, margin: '0 0 10px', fontWeight: 500 };
+const communityBodyStyle: CSSProperties = { margin: '0 auto 24px', maxWidth: 380, color: siteTheme.text, fontSize: 15, lineHeight: 1.6 };
 
 const primaryBtn: CSSProperties = {
   display: 'inline-block',

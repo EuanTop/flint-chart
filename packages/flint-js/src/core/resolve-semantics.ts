@@ -21,8 +21,10 @@
  * =============================================================================
  */
 
+import { schemeName } from './color-controls';
 import type {
     ChartEncoding,
+    ChartWarning,
     ChannelSemantics,
     SemanticResult,
 } from './types';
@@ -34,7 +36,11 @@ import {
 } from './semantic-types';
 import {
     resolveEncodingType as resolveEncodingTypeDecision,
+    chronologicalOrder,
+    isDateField,
+    type EncodingTypeContext,
 } from './decisions';
+import { hasTemporalParsers, parseTemporalByType } from './temporal-parse';
 import {
     resolveFieldSemantics,
     toTypeString,
@@ -46,6 +52,165 @@ import {
     resolveDivergingInfo,
     type SemanticAnnotation,
 } from './field-semantics';
+
+export type EncodingSort =
+    | { kind: 'channel'; channel: 'x' | 'y' | 'color' }
+    | { kind: 'field'; field: string }
+    | { kind: 'values'; values: (string | number | boolean)[] };
+
+export interface EncodingSortIssue {
+    property: 'sortBy' | 'sortOrder';
+    value: unknown;
+    /** Message reported by strict validation. */
+    error: string;
+    /** Message reported when assembly repairs the hint. */
+    warning: string;
+}
+
+export interface EncodingSortInspection {
+    sort?: EncodingSort;
+    /** The `sortBy` that remains usable after invalid parts are removed. */
+    sortBy?: string;
+    sortOrder?: 'ascending' | 'descending';
+    issues: EncodingSortIssue[];
+}
+
+export interface EncodingSortOptions {
+    /** Whether the caller can sort categories by a raw data field. Default: true. */
+    fieldSort?: boolean;
+}
+
+const isCategoryValue = (value: unknown): value is string | number | boolean =>
+    typeof value === 'string' || typeof value === 'boolean'
+    || (typeof value === 'number' && Number.isFinite(value));
+
+/** Apply the sort-hint rules without throwing; strict and lenient callers share this. */
+export function inspectEncodingSort(
+    encoding: { sortBy?: unknown; sortOrder?: unknown },
+    channel: string,
+    encodings: Record<string, unknown>,
+    dataFields: ReadonlySet<string>,
+    options: EncodingSortOptions = {},
+): EncodingSortInspection {
+    const issues: EncodingSortIssue[] = [];
+    const describe = (property: 'sortBy' | 'sortOrder', value: unknown) =>
+        `encodings.${channel}.${property} ${typeof value === 'string' ? `"${value}"` : JSON.stringify(value)}`;
+    let sortOrder: EncodingSortInspection['sortOrder'];
+    if (encoding.sortOrder === 'ascending' || encoding.sortOrder === 'descending') {
+        sortOrder = encoding.sortOrder;
+    } else if (encoding.sortOrder !== undefined) {
+        issues.push({
+            property: 'sortOrder',
+            value: encoding.sortOrder,
+            error: `encodings.${channel}.sortOrder must be "ascending" or "descending".`,
+            warning: `${describe('sortOrder', encoding.sortOrder)} must be "ascending" or "descending"; ignoring it.`,
+        });
+    }
+    const sortBy = encoding.sortBy;
+    if (sortBy === undefined) return { sortOrder, issues };
+    // A rejected sortBy also drops its sortOrder, so the chart keeps its default order.
+    const reject = (error: string, reason: string): EncodingSortInspection => {
+        issues.push({
+            property: 'sortBy',
+            value: sortBy,
+            error,
+            warning: `${describe('sortBy', sortBy)} ${reason}; using default order.`,
+        });
+        return { issues };
+    };
+    const invalid = `encodings.${channel}.sortBy must name an existing data field, a mapped channel (x, y, color), or a JSON category-order array; received ${JSON.stringify(sortBy)}.`;
+    if (typeof sortBy !== 'string' || !sortBy.trim()) {
+        return reject(invalid, 'is not a data field, mapped channel, or JSON category array');
+    }
+    if (sortBy === 'x' || sortBy === 'y' || sortBy === 'color') {
+        const binding = encodings[sortBy];
+        const targets = Array.isArray(binding) ? binding : [binding];
+        if (!targets.some(target => typeof target === 'string' ? target.length > 0
+            : target && typeof target === 'object' && (typeof target.field === 'string' || target.aggregate === 'count'))) {
+            return reject(
+                `encodings.${channel}.sortBy: channel "${sortBy}" must be mapped to a field or count aggregation.`,
+                'names a channel that is not mapped',
+            );
+        }
+        return { sort: { kind: 'channel', channel: sortBy }, sortBy, sortOrder, issues };
+    }
+    if (dataFields.has(sortBy)) {
+        if (options.fieldSort === false) {
+            return reject(
+                `chart_spec.encodings.${channel}.sortBy: raw field-name sorting is not supported by this backend; bind the sort field to a supported measure channel and sort by that channel.`,
+                'sorts by a raw data field, which this backend does not support',
+            );
+        }
+        return { sort: { kind: 'field', field: sortBy }, sortBy, sortOrder, issues };
+    }
+    let values: unknown;
+    try {
+        values = JSON.parse(sortBy);
+    } catch {
+        return reject(invalid, 'is not a data field');
+    }
+    if (!Array.isArray(values)) return reject(invalid, 'is not a data field or JSON category array');
+    const valid = values.filter(isCategoryValue);
+    if (valid.length === 0 && values.length > 0) return reject(invalid, 'contains no valid category values');
+    if (valid.length < values.length) {
+        const dropped = values.length - valid.length;
+        issues.push({
+            property: 'sortBy',
+            value: sortBy,
+            error: invalid,
+            warning: `${describe('sortBy', sortBy)} contains ${dropped} invalid category value${dropped === 1 ? '' : 's'}; ignoring ${dropped === 1 ? 'it' : 'them'}.`,
+        });
+        return { sort: { kind: 'values', values: valid }, sortBy: JSON.stringify(valid), sortOrder, issues };
+    }
+    return { sort: { kind: 'values', values: valid }, sortBy, sortOrder, issues };
+}
+
+/** Strict sort resolution for validation: throws the first rule violation. */
+export function resolveEncodingSort(
+    encoding: { sortBy?: unknown; sortOrder?: unknown },
+    channel: string,
+    encodings: Record<string, unknown>,
+    dataFields: ReadonlySet<string>,
+    options: EncodingSortOptions = {},
+): EncodingSort | undefined {
+    const inspection = inspectEncodingSort(encoding, channel, encodings, dataFields, options);
+    if (inspection.issues.length > 0) throw new Error(inspection.issues[0].error);
+    return inspection.sort;
+}
+
+/**
+ * Lenient sort resolution for assembly: removes unusable sort hints so the
+ * chart renders in its default order, and reports each repair as a warning.
+ */
+export function repairEncodingSorts<T>(
+    encodings: Record<string, T>,
+    data: readonly unknown[],
+    options: EncodingSortOptions = {},
+): { encodings: Record<string, T>; warnings: ChartWarning[] } {
+    const warnings: ChartWarning[] = [];
+    if (!encodings || typeof encodings !== 'object') return { encodings, warnings };
+    const dataFields = new Set(data.flatMap(row => row && typeof row === 'object' ? Object.keys(row) : []));
+    const repair = (channel: string, entry: unknown): unknown => {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return entry;
+        const encoding = entry as Record<string, unknown>;
+        const { sortBy, sortOrder, issues } = inspectEncodingSort(encoding, channel, encodings, dataFields, options);
+        if (issues.length === 0) return entry;
+        for (const issue of issues) {
+            warnings.push({ severity: 'warning', code: 'invalid_sort', message: issue.warning, channel });
+        }
+        const next = { ...encoding };
+        delete next.sortBy;
+        delete next.sortOrder;
+        if (sortBy !== undefined) next.sortBy = sortBy;
+        if (sortOrder !== undefined) next.sortOrder = sortOrder;
+        return next;
+    };
+    const repaired = Object.fromEntries(Object.entries(encodings).map(([channel, value]) => [
+        channel,
+        Array.isArray(value) ? value.map(entry => repair(channel, entry)) : repair(channel, value),
+    ])) as Record<string, T>;
+    return { encodings: repaired, warnings };
+}
 
 // ---------------------------------------------------------------------------
 // Internal helpers (moved from assemble.ts)
@@ -81,6 +246,10 @@ function inferImplicitSemanticType(fieldName: string, values: any[]): string {
     });
     return allYears ? 'Year' : '';
 }
+
+/** Strings that open as an ISO date, which every engine reads alike. */
+const ISO_PREFIX = /^\d{4}-\d{2}/;
+
 
 function looksLikeDateString(s: string): boolean {
     const t = s.trim();
@@ -282,8 +451,13 @@ export function convertTemporalData(
         for (const temporalKey of temporalKeys) {
             const val = r[temporalKey];
             const st = effectiveSemanticTypes[temporalKey];
+            // An untyped full date in a spelling only some engines parse is read here, once.
+            const parsed = parseTemporalByType(val, st)
+                ?? (!st && typeof val === 'string' && !ISO_PREFIX.test(val.trim()) ? parseTemporalByType(val, 'Date') : null);
 
-            if (typeof val === 'number') {
+            if (parsed !== null) {
+                r[temporalKey] = parsed;
+            } else if (typeof val === 'number') {
                 if (st === 'Year' || st === 'Decade') {
                     r[temporalKey] = `${Math.floor(val)}`;
                 } else if (isLikelyTimestamp(val)) {
@@ -308,9 +482,114 @@ export function convertTemporalData(
     });
 }
 
+/**
+ * One value of a temporal field as the compiled chart holds it (UTC epoch ms),
+ * read the way {@link convertTemporalData} reads the input rows. A value that
+ * does not parse as a date is returned as given.
+ */
+export function temporalFieldValue(
+    field: string,
+    value: unknown,
+    semanticTypes: Record<string, string | SemanticAnnotation>,
+): unknown {
+    if (value instanceof Date) {
+        const time = value.getTime();
+        if (!Number.isFinite(time)) return value;
+        // A Date built from calendar parts (`new Date(2025, 5, 1)`) names that day on the local
+        // calendar; where the field is a calendar grain, it means the same day the rows hold.
+        const level = SEMANTIC_LEVEL[toTypeString(semanticTypes[field])] ?? -1;
+        const localMidnight = !value.getHours() && !value.getMinutes() && !value.getSeconds() && !value.getMilliseconds();
+        return level >= SEMANTIC_LEVEL.Date && localMidnight
+            ? Date.UTC(value.getFullYear(), value.getMonth(), value.getDate())
+            : time;
+    }
+    if (typeof value !== 'string' && typeof value !== 'number') return value;
+    const converted = convertTemporalData([{ [field]: value }], semanticTypes)[0][field];
+    const time = Date.parse(String(converted));
+    return Number.isFinite(time) ? time : value;
+}
+
 // ---------------------------------------------------------------------------
 // Public API: resolveChannelSemantics
 // ---------------------------------------------------------------------------
+
+/** A field channel's semantic type, its values, and the encoding type it resolves to before aggregation. */
+function resolveFieldChannelType(
+    channel: string,
+    encoding: ChartEncoding,
+    fieldName: string,
+    data: any[],
+    semanticTypes: Record<string, string | SemanticAnnotation>,
+    context: EncodingTypeContext = {},
+): { semanticType: string; fieldValues: any[]; type: ChannelSemantics['type']; snapshots: boolean } {
+    const rawAnnotation = semanticTypes[fieldName];
+    const suppliedSemanticType = typeof rawAnnotation === 'string'
+        ? (rawAnnotation || '')
+        : (rawAnnotation?.semanticType ?? '');
+    const fieldValues = data.map(r => r[fieldName]);
+    const semanticType = suppliedSemanticType
+        || inferImplicitSemanticType(fieldName, fieldValues);
+
+    // Decide on the values as the chart will hold them: a YearMonth 202501 is a date.
+    let decisionData = data;
+    let decisionValues = fieldValues;
+    if (hasTemporalParsers(semanticType)) {
+        const parsed = fieldValues.map(v => parseTemporalByType(v, semanticType) ?? v);
+        if (parsed.some((v, i) => v !== fieldValues[i])) {
+            decisionValues = parsed;
+            decisionData = data.map((r, i) => ({ ...r, [fieldName]: parsed[i] }));
+        }
+    }
+    const typeDecision = resolveEncodingTypeDecision(
+        semanticType, decisionValues, channel, decisionData, fieldName, context,
+    );
+
+    // Apply explicit type override
+    let type: ChannelSemantics['type'] = typeDecision.vlType;
+    if (encoding.type) {
+        type = encoding.type;
+    } else if (channel === 'column' || channel === 'row') {
+        if (type !== 'nominal' && type !== 'ordinal') {
+            type = 'nominal';
+        }
+    }
+
+    // ISO date hack
+    if (type === 'quantitative') {
+        const sampleValues = data.slice(0, 15).filter(r => r[fieldName] != undefined).map(r => r[fieldName]);
+        const isoDateRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?$/;
+        if (sampleValues.length > 0 && sampleValues.every((val: any) => isoDateRegex.test(`${val}`.trim()))) {
+            type = 'temporal';
+        }
+    }
+    // An explicit discrete type keeps the dates' reading as snapshots; a time scale drops it.
+    const snapshots = typeDecision.snapshots === true && (type === 'ordinal' || type === 'nominal');
+    return { semanticType, fieldValues, type, snapshots };
+}
+
+/**
+ * The encoding type each channel resolves to, as {@link resolveChannelSemantics} would
+ * resolve it, without the rest of the channel's semantics.
+ */
+export function resolveChannelTypes(
+    encodings: Record<string, ChartEncoding>,
+    data: any[],
+    semanticTypes: Record<string, string | SemanticAnnotation>,
+    context: EncodingTypeContext = {},
+): Record<string, ChannelSemantics['type']> {
+    const types: Record<string, ChannelSemantics['type']> = {};
+    for (const [channel, encoding] of Object.entries(encodings)) {
+        const fieldName = encoding.field;
+        if (!fieldName) {
+            if (encoding.aggregate === 'count') types[channel] = 'quantitative';
+            continue;
+        }
+        types[channel] = encoding.aggregate
+            ? 'quantitative'
+            : resolveFieldChannelType(channel, encoding, fieldName, data, semanticTypes, context).type;
+    }
+    return types;
+}
 
 /**
  * Resolve all channel-level semantic decisions.
@@ -328,12 +607,14 @@ export function convertTemporalData(
  * @param semanticTypes   Field name -> semantic type string
  * @param convertedData   Pre-converted temporal data (from convertTemporalData).
  *                        If omitted, falls back to data for temporal format detection.
+ * @param context         The chart around the channels (its type).
  */
 export function resolveChannelSemantics(
     encodings: Record<string, ChartEncoding>,
     data: any[],
     semanticTypes: Record<string, string | SemanticAnnotation>,
     convertedData?: any[],
+    context: EncodingTypeContext = {},
 ): SemanticResult {
     const result: SemanticResult = {};
 
@@ -358,36 +639,9 @@ export function resolveChannelSemantics(
         if (!fieldName) continue;
 
         const rawAnnotation = semanticTypes[fieldName];
-        const suppliedSemanticType = typeof rawAnnotation === 'string'
-            ? (rawAnnotation || '')
-            : (rawAnnotation?.semanticType ?? '');
-        const fieldValues = data.map(r => r[fieldName]);
-        const semanticType = suppliedSemanticType
-            || inferImplicitSemanticType(fieldName, fieldValues);
-
-        // Resolve encoding type
-        const typeDecision = resolveEncodingTypeDecision(
-            semanticType, fieldValues, channel, data, fieldName,
+        const { semanticType, fieldValues, type: resolvedType, snapshots } = resolveFieldChannelType(
+            channel, encoding, fieldName, data, semanticTypes, context,
         );
-
-        // Apply explicit type override
-        let resolvedType = typeDecision.vlType;
-        if (encoding.type) {
-            resolvedType = encoding.type;
-        } else if (channel === 'column' || channel === 'row') {
-            if (resolvedType !== 'nominal' && resolvedType !== 'ordinal') {
-                resolvedType = 'nominal';
-            }
-        }
-
-        // ISO date hack
-        if (resolvedType === 'quantitative') {
-            const sampleValues = data.slice(0, 15).filter(r => r[fieldName] != undefined).map(r => r[fieldName]);
-            const isoDateRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?$/;
-            if (sampleValues.length > 0 && sampleValues.every((val: any) => isoDateRegex.test(`${val}`.trim()))) {
-                resolvedType = 'temporal';
-            }
-        }
 
         // Build ChannelSemantics entry
         // Stage 1: resolve field-level semantics (data identity)
@@ -420,6 +674,7 @@ export function resolveChannelSemantics(
             tickConstraint,
             reversed: reversed || undefined,
             stackable,
+            ...(snapshots && !encoding.aggregate ? { snapshots: true } : {}),
         };
 
         // Adjust field name for aggregated fields (the derived column is either
@@ -438,9 +693,10 @@ export function resolveChannelSemantics(
 
         // Color scheme (color and group channels)
         if ((channel === 'color' || channel === 'group') && fieldName) {
-            if (encoding.scheme && encoding.scheme !== 'default') {
+            const named = schemeName(encoding.scheme);
+            if (named && named !== 'default') {
                 cs.colorScheme = {
-                    scheme: encoding.scheme,
+                    scheme: named,
                     type: 'categorical',
                     reason: 'explicit user scheme',
                 };
@@ -460,6 +716,13 @@ export function resolveChannelSemantics(
                     if (divInfo) {
                         cs.colorScheme.domainMid = divInfo.midpoint;
                     }
+                    // A declared polarity says which end is the bad one: warm (red) goes there.
+                    // Themes turn their own ramps to match the scheme named here.
+                    if (annotation.polarity === 'higher-is-better') {
+                        cs.colorScheme = { ...cs.colorScheme, scheme: 'redblue', reason: 'declared higher-is-better: red is the low side' };
+                    } else if (annotation.polarity === 'lower-is-better') {
+                        cs.colorScheme = { ...cs.colorScheme, scheme: 'blueorange', reason: 'declared lower-is-better: the warm end is high' };
+                    }
                 }
             }
         }
@@ -473,10 +736,14 @@ export function resolveChannelSemantics(
 
         // Ordinal sort order (canonical ordering for months, days, quarters, etc.)
         if (cs.type === 'ordinal' || cs.type === 'nominal') {
-            if (!encoding.sortOrder && !encoding.sortBy) {
+            if (encoding.sortBy === undefined) {
                 const ordinalSort = inferOrdinalSortOrder(semanticType, fieldValues);
                 if (ordinalSort) {
                     cs.ordinalSortOrder = ordinalSort;
+                } else if (isDateField(semanticType, fieldValues)) {
+                    // Dates drawn as categories run in time order, whatever order the rows come in.
+                    const chronological = chronologicalOrder(temporalData.map(r => r[fieldName]));
+                    if (chronological) cs.ordinalSortOrder = chronological;
                 }
             }
         }
@@ -490,6 +757,7 @@ export function resolveChannelSemantics(
 // Re-export helpers needed by other modules
 export {
     analyzeTemporalField,
+    resolveTemporalFormat,
     computeDataVotes,
     pickBestLevel,
     levelToFormat,

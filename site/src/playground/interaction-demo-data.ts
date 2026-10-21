@@ -1,4 +1,8 @@
 import type { ChartAssemblyInput } from 'flint-chart';
+import { csvParseRows } from 'd3-dsv';
+import gapminderCsv from '../assets/gapminder-five-year.csv?raw';
+import classicDatasets from '../data/classic-datasets.json';
+import timeUse from '../data/time-use-companions.json';
 
 export interface InteractionDemoFixture {
   id: string;
@@ -51,19 +55,18 @@ export const salesFixture = fixture(
   { x: 'Region', y: 'Sales ($K)', group: 'Segment' },
 );
 
-const countryRows = [
-  ['Norway', 'Europe', 64800, 82.3, 5.4], ['Germany', 'Europe', 50900, 81.0, 83.2],
-  ['United States', 'Americas', 62600, 78.6, 331.9], ['Brazil', 'Americas', 15600, 75.7, 214.3],
-  ['Chile', 'Americas', 25200, 80.0, 19.5], ['China', 'Asia', 16800, 76.7, 1412],
-  ['Japan', 'Asia', 39300, 84.2, 125.7], ['India', 'Asia', 7400, 67.2, 1408],
-  ['Nigeria', 'Africa', 5300, 54.3, 218.5], ['Ethiopia', 'Africa', 2000, 66.2, 123.4],
-  ['South Africa', 'Africa', 13000, 63.9, 59.9], ['Australia', 'Oceania', 58900, 83.2, 26.0],
-].map(([Country, Continent, GDP, Life, Population]) => ({
-  Country, Continent, 'GDP per capita ($)': GDP, 'Life expectancy': Life, 'Population (M)': Population,
-}));
+const countryRows = csvParseRows(gapminderCsv).slice(1)
+  .filter(([, year]) => year === '2007')
+  .map(([Country, , population, Continent, lifeExpectancy, gdpPerCapita]) => ({
+    Country,
+    Continent,
+    'GDP per capita ($)': Number(gdpPerCapita),
+    'Life expectancy': Number(lifeExpectancy),
+    'Population (M)': Number(population) / 1_000_000,
+  }));
 
 export const countriesFixture = fixture(
-  'countries', 'Income and life expectancy', 'Gapminder / World Bank-style 2021 snapshot',
+  'countries', 'Income and life expectancy, 2007', 'Gapminder, 2007 (142 countries)',
   'Scatter Plot', countryRows,
   { Country: 'Country', Continent: 'Category', 'GDP per capita ($)': 'Quantity', 'Life expectancy': 'Quantity', 'Population (M)': 'Quantity' },
   { x: 'GDP per capita ($)', y: 'Life expectancy', color: 'Continent', size: 'Population (M)', detail: 'Country' },
@@ -178,6 +181,23 @@ export const penguinsFixture = fixture(
   { x: 'Bill length (mm)', y: 'Flipper length (mm)', color: 'Species', size: 'Body mass (g)', detail: 'Island' },
 );
 
+const revenueByRegion: Record<string, number[]> = {
+  North: [182, 191, 187, 204, 215, 224],
+  South: [141, 139, 152, 158, 171, 169],
+  West: [120, 128, 133, 129, 146, 158],
+};
+const revenueRows = Object.entries(revenueByRegion).flatMap(([Region, revenues]) =>
+  revenues.map((revenue, index) => ({
+    Region, Month: `2024-0${index + 1}-01`, 'Revenue ($K)': revenue,
+  })));
+
+export const revenueFixture = fixture(
+  'revenue', 'Monthly revenue by region', 'Illustrative SaaS revenue snapshot',
+  'Line Chart', revenueRows,
+  { Region: 'Category', Month: 'Date', 'Revenue ($K)': 'Quantity' },
+  { x: 'Month', y: 'Revenue ($K)', color: 'Region' },
+);
+
 export const externalFixtures = [
   salesFixture, countriesFixture, stocksFixture, weatherFixture,
   ganttFixture, lifeFixture, populationFixture, incidentsFixture,
@@ -187,3 +207,38 @@ export const outboundFixtures = [
   salesFixture, countriesFixture, penguinsFixture, weatherFixture,
   stocksFixture, ganttFixture, populationFixture, lifeFixture,
 ];
+
+const { columns: carColumns, rows: carValues } = classicDatasets.autoMpg;
+const carRows = carValues.map((row) => Object.fromEntries(carColumns.map((column, index) => [column, row[index]])));
+
+/** 392 cars from 1970 to 1982, grouped by where they were made. */
+export const carsFixture = fixture(
+  'cars', 'Horsepower and fuel economy, 1970–1982', 'Auto MPG (UCI), 392 cars',
+  'Scatter Plot', carRows,
+  { Horsepower: 'Quantity', MPG: 'Quantity', Origin: 'Category', 'Model year': 'Year' },
+  { x: 'Horsepower', y: 'MPG', color: 'Origin' },
+);
+
+/** Hours a day women and men spend with each kind of company, by age. */
+export const companionsFixture: InteractionDemoFixture = {
+  id: 'companions',
+  title: 'Who Americans spend their time with',
+  source: 'American Time Use Survey (BLS), averages 2010–2024, via Our World in Data',
+  input: {
+    data: {
+      values: timeUse.values
+        .filter((row) => row.Group !== 'All people')
+        .map(({ Group, Age, Who, Hours }) => ({ Sex: Group, Age, Who, Hours })),
+    },
+    semantic_types: { Sex: 'Category', Age: 'Quantity', Who: 'Category', Hours: 'Quantity' },
+    field_display_names: { Hours: 'Hours per day' },
+    chart_spec: {
+      chartType: 'Line Chart',
+      title: 'Who Americans spend their time with',
+      subtitle: 'Hours per day by age, women and men',
+      encodings: { x: 'Age', y: 'Hours', color: 'Who', column: 'Sex' },
+      baseSize: { width: 520, height: 260 },
+      chartProperties: { facetColumns: 2 },
+    },
+  } as ChartAssemblyInput,
+};

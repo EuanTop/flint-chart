@@ -1,3 +1,4 @@
+import * as vega from 'vega';
 import type { PlotPoint } from '../../../interactive/interactions';
 import type { VegaInteractionPlan } from '../contracts';
 import {
@@ -76,7 +77,8 @@ export function selectionBoundarySegments(
 }
 
 export interface FocusOverlayController {
-    render(selected: ReadonlySet<string>, hoveredPathKeys: ReadonlySet<string>): void;
+    /** `hoveredKeys` are the hovered marks that are not paths: the points a drawn line passes through. */
+    render(selected: ReadonlySet<string>, hoveredPathKeys: ReadonlySet<string>, hoveredKeys?: ReadonlySet<string>): void;
     destroy(): void;
 }
 
@@ -102,6 +104,8 @@ export function areaSpotlightOpacity(
     return selected ? authoredOpacity * 0.9 : currentOpacity;
 }
 
+let focusClipSequence = 0;
+
 export function createFocusOverlay({
     view,
     container,
@@ -110,21 +114,34 @@ export function createFocusOverlay({
     containerLayoutSize,
 }: FocusOverlayOptions): FocusOverlayController {
     const focusLayer = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const clipPrefix = `flint-focus-clip-${focusClipSequence += 1}`;
     const pathVisuals = new Map<string, {
         fill?: string;
         fillOpacity: number;
         stroke?: string;
         strokeWidth: number;
     }>();
+    // A point's outline while not hovered: redrawn over a hovered line, the line is its cue.
+    const symbolVisuals = new Map<string, { stroke?: unknown; strokeWidth?: unknown }>();
     Object.assign(focusLayer.style, {
         position: 'absolute', inset: '0', zIndex: '3', width: '100%', height: '100%',
         pointerEvents: 'none', overflow: 'hidden',
     });
 
-    const render = (selected: ReadonlySet<string>, hoveredPathKeys: ReadonlySet<string>): void => {
+    const render = (
+        selected: ReadonlySet<string>,
+        hoveredPathKeys: ReadonlySet<string>,
+        hoveredKeys: ReadonlySet<string> = new Set(),
+    ): void => {
         focusLayer.replaceChildren();
         const scene = sceneItems(view);
         for (const item of scene) {
+            if (item.mark?.marktype === 'symbol') {
+                const key = renderHit(item)?.datum[INTERACTION_KEY];
+                if (typeof key === 'string' && !hoveredKeys.has(key)) {
+                    symbolVisuals.set(key, { stroke: item.stroke, strokeWidth: item.strokeWidth });
+                }
+            }
             if (!item.interactionGeometry) continue;
             const hit = renderHit(item);
             const key = hit?.datum[INTERACTION_KEY];
@@ -161,10 +178,8 @@ export function createFocusOverlay({
         if (!focusLayer.isConnected) container.append(focusLayer);
         if (getComputedStyle(container).position === 'static') container.style.position = 'relative';
         const space = coordinateSpace();
-        const renderer = container.querySelector('svg') as SVGSVGElement | null;
         const containerRect = container.getBoundingClientRect();
-        const rendererRect = renderer?.getBoundingClientRect() ?? space.rect;
-        const rendererLayout = clientRectToLayoutRect(rendererRect, containerRect, containerLayoutSize());
+        const rendererLayout = clientRectToLayoutRect(space.rect, containerRect, containerLayoutSize());
         Object.assign(focusLayer.style, {
             inset: 'auto',
             left: `${rendererLayout.left}px`,
@@ -173,6 +188,32 @@ export function createFocusOverlay({
             height: `${rendererLayout.height}px`,
         });
         focusLayer.setAttribute('viewBox', `0 0 ${space.logicalWidth} ${space.logicalHeight}`);
+        const clipIds = new Map<string, string>();
+        const clipTo = (element: SVGElement, item: any): void => {
+            // Vega keeps the out-of-domain items of a clipped mark in the scene, so a
+            // restyle drawn from scene items applies the same clip itself.
+            const clip = item.interactionClip as { x1: number; y1: number; x2: number; y2: number } | undefined;
+            if (!clip) return;
+            const rect = { width: Math.max(0, clip.x2 - clip.x1), height: Math.max(0, clip.y2 - clip.y1) };
+            const x = clip.x1 + space.originX;
+            const y = clip.y1 + space.originY;
+            const signature = `${x},${y},${rect.width},${rect.height}`;
+            let id = clipIds.get(signature);
+            if (!id) {
+                id = `${clipPrefix}-${clipIds.size}`;
+                clipIds.set(signature, id);
+                const clipPath = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+                clipPath.setAttribute('id', id);
+                const clipRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                clipRect.setAttribute('x', String(x));
+                clipRect.setAttribute('y', String(y));
+                clipRect.setAttribute('width', String(rect.width));
+                clipRect.setAttribute('height', String(rect.height));
+                clipPath.append(clipRect);
+                focusLayer.prepend(clipPath);
+            }
+            element.setAttribute('clip-path', `url(#${id})`);
+        };
         const filledClosedMarks = new Set<any>();
         for (const item of items) {
             if (!item.interactionGeometry.closed || filledClosedMarks.has(item.mark)) continue;
@@ -190,6 +231,7 @@ export function createFocusOverlay({
             }).join(' '));
             polygon.setAttribute('fill', style?.fill ?? item.fill ?? '#4c78a8');
             polygon.setAttribute('fill-opacity', String(style?.fillOpacity ?? 1));
+            clipTo(polygon, item);
             focusLayer.append(polygon);
             filledClosedMarks.add(item.mark);
         }
@@ -214,9 +256,12 @@ export function createFocusOverlay({
                 shape.setAttribute('fill', 'none');
                 shape.setAttribute('stroke', hoverStyle?.stroke ?? visual?.stroke ?? item.stroke ?? '#4c78a8');
                 const authoredWidth = visual?.strokeWidth ?? item.strokeWidth ?? 2;
+                // A hovered line is drawn at least half again as wide as it stands, so the cue
+                // still shows on a theme whose lines are already as wide as the hover width.
                 shape.setAttribute('stroke-width', String(
-                    hoverStyle?.strokeWidth
-                    ?? authoredWidth * (selectionStyle?.strokeWidthMultiplier ?? 1),
+                    hoverStyle?.strokeWidth !== undefined
+                        ? Math.max(hoverStyle.strokeWidth, authoredWidth * 1.5)
+                        : authoredWidth * (selectionStyle?.strokeWidthMultiplier ?? 1),
                 ));
                 shape.setAttribute('stroke-linecap', 'round');
             } else {
@@ -239,7 +284,37 @@ export function createFocusOverlay({
                 if (hoverStyle?.stroke) shape.setAttribute('stroke', hoverStyle.stroke);
                 if (hoverStyle?.strokeWidth !== undefined) shape.setAttribute('stroke-width', String(hoverStyle.strokeWidth));
             }
+            clipTo(shape, item);
             focusLayer.append(shape);
+        }
+        // A line drawn here covers the points it passes through on the canvas below, so the points
+        // of the same marks are drawn again over it, in their own paint: the line is their cue.
+        if (items.some((item) => item.interactionGeometry.kind === 'segment')) {
+            const symbolMark = (vega as any).Marks?.symbol;
+            for (const item of symbolMark ? scene : []) {
+                const key = renderHit(item)?.datum[INTERACTION_KEY];
+                if (item.mark?.marktype !== 'symbol' || typeof key !== 'string'
+                    || !(selected.has(key) || hoveredKeys.has(key))
+                    || item.interactionVisibility === 'hidden') continue;
+                const idle = symbolVisuals.get(key);
+                const paint: Record<string, any> = { ...item, ...(idle ? { stroke: idle.stroke, strokeWidth: idle.strokeWidth } : {}) };
+                const point = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                symbolMark.attr((name: string, value: unknown) => {
+                    if (value != null) point.setAttribute(name, String(value));
+                }, { ...item, x: item.x + space.originX, y: item.y + space.originY });
+                point.setAttribute('fill', paint.fill ?? 'none');
+                point.setAttribute('stroke', paint.stroke ?? 'none');
+                for (const [attribute, value] of [
+                    ['fill-opacity', paint.fillOpacity],
+                    ['stroke-opacity', paint.strokeOpacity],
+                    ['stroke-width', paint.strokeWidth],
+                    ['opacity', paint.opacity],
+                ] as const) {
+                    if (typeof value === 'number') point.setAttribute(attribute, String(value));
+                }
+                clipTo(point, item);
+                focusLayer.append(point);
+            }
         }
         if (boundarySegments.length > 0) {
             const boundaryStyle = plan.selectionBoundary ?? {

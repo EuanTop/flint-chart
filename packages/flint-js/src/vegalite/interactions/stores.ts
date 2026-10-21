@@ -1,3 +1,9 @@
+/** The fields a compiled mark's rows carry for interaction: identity, role, and a legend entry's channel and field. */
+export const INTERACTION_KEY = '__flint_interaction_key';
+export const INTERACTION_ROLE = '__flint_interaction_role';
+export const INTERACTION_LEGEND_CHANNEL = '__flint_legend_channel';
+export const INTERACTION_LEGEND_FIELD = '__flint_legend_field';
+
 export const INTERACTION_STORE = '__flint_interaction_store';
 export const HOVER_STORE = '__flint_hover_store';
 export const HIDDEN_STORE = '__flint_hidden_store';

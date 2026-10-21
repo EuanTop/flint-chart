@@ -96,7 +96,7 @@ export const cjsRangeAreaChartDef: ChartTemplateDef = {
                                         const n = typeof v === 'number' ? v : Number(v);
                                         if (!Number.isFinite(n)) return String(v);
                                         return new Date(n).toLocaleDateString(undefined, {
-                                            month: 'short', day: 'numeric', year: 'numeric',
+                                            month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC',
                                         });
                                     },
                                 }

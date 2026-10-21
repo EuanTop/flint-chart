@@ -22,9 +22,30 @@ import type {
     ChartWarning,
 } from '../core/types';
 import { formatSpecToLabelExpr } from './format';
-import { snapToBoundHeuristic } from '../core/field-semantics';
+import { measureDomain, type MeasureDomain } from '../core/measure-domain';
+import type { AxisRuler } from '../core/ruler';
+import type { LayoutPlan } from '../core/plan';
+import { AXIS_LABEL_LIMIT } from '../core/compute-layout';
+import { planAxisLabels, type AxisLabelPlan } from '../core/axis-labels';
+import { OWNED_AXIS_KEYS } from './owned-axis-keys';
+import {
+    timeMillisecond, timeSecond, timeMinute, timeHour, timeDay, timeWeek, timeMonth, timeYear,
+    utcMillisecond, utcSecond, utcMinute, utcHour, utcDay, utcWeek, utcMonth, utcYear,
+} from 'd3-time';
+import { timeFormat, utcFormat } from 'd3-time-format';
+import { hostTextMeasurer } from '../core/text-width';
 
 const DEFAULT_QUANTITATIVE_AXIS_FORMAT = ',.12~g';
+const VEGA_AXIS_LABEL_LIMIT = AXIS_LABEL_LIMIT;
+
+/** Whether a template states its own labels for this axis, so the band labels are left as it wrote them. */
+export function templateStatesAxisLabels(template: any, channel: 'x' | 'y'): boolean {
+    return [template.encoding?.[channel], ...(template.layer ?? []).map((layer: any) => layer.encoding?.[channel])]
+        .filter(Boolean)
+        .some((encoding) => encoding.axis === null || encoding.axis === false
+            || encoding.axis?.labelExpr !== undefined || encoding.axis?.labelAngle !== undefined
+            || encoding.axis?.labelLimit !== undefined || encoding.axis?.format !== undefined);
+}
 
 // ---------------------------------------------------------------------------
 // Public API: instantiateSpec
@@ -56,8 +77,13 @@ export function vlApplyLayoutToSpec(
     vgObj: any,
     context: InstantiateContext,
     warnings: ChartWarning[],
+    axisLabels: Record<'x' | 'y', AxisLabelPlan> = planAxisLabels(context.layout, {}, undefined),
+    themed = false,
+    domains?: Partial<Record<'x' | 'y', MeasureDomain>>,
+    rulers: Partial<Record<'x' | 'y', AxisRuler>> = {},
+    bandSpans: LayoutPlan['bandSpans'] = {},
 ): void {
-    const { channelSemantics, layout, canvasSize } = context;
+    const { channelSemantics, layout } = context;
 
     const xIsDiscrete = layout.xNominalCount > 0;
     const yIsDiscrete = layout.yNominalCount > 0;
@@ -85,8 +111,8 @@ export function vlApplyLayoutToSpec(
     // --- Apply zero-baseline decisions ---
     for (const ch of ['x', 'y'] as const) {
         const cs = channelSemantics[ch];
-        if (!cs?.zero) continue;
-        const decision = cs.zero;
+        const zero = domains ? domains[ch]?.zero : cs?.zero?.zero;
+        if (zero === undefined) continue;
 
         const targets = collectEncodingTargets(ch)
             .filter(enc => enc.type === 'quantitative');
@@ -97,12 +123,12 @@ export function vlApplyLayoutToSpec(
             if (enc.bin) continue;
             // Skip encodings using a private/synthetic field distinct from
             // the channel's semantic field (e.g. Radar's `__y` polar coord).
-            if (cs.field && enc.field && enc.field !== cs.field) continue;
+            if (cs?.field && enc.field && enc.field !== cs.field) continue;
             if (!enc.scale) enc.scale = {};
             if (enc.scale.zero !== undefined) continue;
             if (enc.scale.domain && Array.isArray(enc.scale.domain)) continue;
 
-            enc.scale.zero = decision.zero;
+            enc.scale.zero = zero;
 
             // No explicit domain padding — VL's native `nice` rounding
             // (on by default) already provides breathing room with clean
@@ -113,17 +139,24 @@ export function vlApplyLayoutToSpec(
     }
 
     // --- Apply field-context semantic decisions (format, domain, ticks, etc.) ---
-    vlApplyFieldContext(vgObj, channelSemantics, collectEncodingTargets, context);
+    vlApplyFieldContext(vgObj, channelSemantics, collectEncodingTargets, context, domains);
 
-    // --- Apply safe default formatting to quantitative axes ---
-    vlApplyDefaultQuantitativeAxisFormat(collectEncodingTargets);
+    // --- Write the planned rulers: the domain unrounded, and the ticks with their count so none is thinned ---
+    for (const [ch, ruler] of Object.entries(rulers) as Array<['x' | 'y', AxisRuler]>) {
+        for (const enc of collectEncodingTargets(ch)) {
+            if ((enc.type && enc.type !== 'quantitative') || enc.bin) continue;
+            const scale = { ...(enc.scale ?? {}), nice: false };
+            if (scale.domain != null) scale.domain = ruler.domain;
+            else Object.assign(scale, { domainMin: ruler.domain[0], domainMax: ruler.domain[1] });
+            enc.scale = scale;
+            if (enc.axis !== null) enc.axis = { ...(enc.axis ?? {}), values: ruler.values, tickCount: ruler.values.length };
+        }
+    }
+
+    // --- Apply safe default formatting to positional axes ---
+    vlApplyDefaultAxisFormat(vgObj, collectEncodingTargets, context, axisLabels, themed);
 
     // --- Apply temporal formatting ---
-    // For positional temporal axes (x/y), do NOT set axis.format — VL's
-    // built-in multi-level temporal labeling (e.g. "2016" at year boundaries,
-    // "April" / "July" within a year) is far superior to a single uniform
-    // format string which loses hierarchical context.
-    // We still apply the format to color legends where multi-level is unavailable.
     const applyTemporalFormat = (enc: any, channel: string, cs: ChannelSemantics | undefined) => {
         if (!enc || !cs?.temporalFormat) return;
         if (enc.type === 'temporal') {
@@ -164,122 +197,117 @@ export function vlApplyLayoutToSpec(
         }
     }
 
-    // --- Banded continuous axis domain padding ---
-    // For banded continuous axes (e.g. Heatmap with quantitative X/Y),
-    // add a half-step buffer so edge cells aren't clipped at the boundary.
-    // Without this, the domain starts/ends exactly at min/max data values
-    // and rect marks at the edges are only half-visible.
-    for (const axis of ['x', 'y'] as const) {
-        const bandedCount = axis === 'x' ? layout.xContinuousAsDiscrete : layout.yContinuousAsDiscrete;
-        if (bandedCount <= 1) continue;
-
-        // Labelled heatmaps move X/Y onto rect and text layers. Looking only at
-        // the top-level encoding skips both, so temporal edge cells lose their
-        // half-step domain and are clipped against the axis. Apply the same
-        // domain to every matching layer target; shared scales then resolve
-        // consistently and neither layer introduces a competing boundary.
+    // --- Write the planned spans of banded continuous axes, where no domain is stated ---
+    // Labelled heatmaps move X/Y onto rect and text layers, so every matching target takes the span.
+    for (const [axis, planned] of Object.entries(bandSpans) as Array<['x' | 'y', NonNullable<LayoutPlan['bandSpans']['x']>]>) {
         for (const enc of collectEncodingTargets(axis)) {
-            // Skip binned encodings — VL handles bin domain automatically
-            if (enc.bin) continue;
-
-            const isTemporal = enc.type === 'temporal';
-            const isContinuous = enc.type === 'quantitative' || isTemporal;
-            if (!isContinuous) continue;
-            if (enc.scale?.domain) continue;
-
-            const numericVals = context.table
-                .map((r: any) => {
-                    const raw = r[enc.field];
-                    if (raw == null) return NaN;
-                    if (isTemporal) return +new Date(raw);
-                    return +raw;
-                })
-                .filter((v: number) => !isNaN(v));
-            if (numericVals.length <= 1) continue;
-
-            const minVal = Math.min(...numericVals);
-            const maxVal = Math.max(...numericVals);
-            const dataRange = maxVal - minVal;
-            if (dataRange === 0) continue;
-
-            const pad = dataRange / (bandedCount - 1) / 2;
-            if (!enc.scale) enc.scale = {};
-            enc.scale.nice = false;
-
-            if (isTemporal) {
-                enc.scale.domain = [
-                    new Date(minVal - pad).toISOString(),
-                    new Date(maxVal + pad).toISOString(),
-                ];
-            } else {
-                enc.scale.zero = false;
-                enc.scale.domain = [minVal - pad, maxVal + pad];
-            }
+            if (enc.bin || enc.scale?.domain) continue;
+            if (enc.type !== (planned.temporal ? 'temporal' : 'quantitative')) continue;
+            const [min, max] = planned.span;
+            enc.scale = {
+                ...(enc.scale ?? {}),
+                nice: false,
+                ...(planned.temporal
+                    ? { domain: [new Date(min).toISOString(), new Date(max).toISOString()] }
+                    : { zero: false, domain: [min, max] }),
+            };
         }
     }
 
     // --- Canvas sizing ---
     const axisXConfig: Record<string, any> = {
-        labelLimit: layout.xLabel.labelLimit,
-        labelFontSize: layout.xLabel.fontSize,
+        labelLimit: axisLabels.x.limit,
+        labelFontSize: axisLabels.x.fontSize,
         titleFontSize: layout.titleFontSize,
     };
-    if (layout.xLabel.labelAngle !== undefined) {
-        axisXConfig.labelAngle = layout.xLabel.labelAngle;
-        axisXConfig.labelAlign = layout.xLabel.labelAlign;
-        axisXConfig.labelBaseline = layout.xLabel.labelBaseline;
-    }
     const axisYConfig: Record<string, any> = {
-        labelFontSize: layout.yLabel.fontSize,
+        labelFontSize: axisLabels.y.fontSize,
         titleFontSize: layout.titleFontSize,
     };
-    // Vega drops a tick label only once its box *overlaps* its neighbour's, so
-    // two numbers whose boxes merely abut both survive and are read as one:
-    // `20,000` beside `30,000` prints `20,00030,000`. Numbers need a
-    // character's worth of air between them before they read as two. Bands are
-    // exempt — their labels are spaced by the scale, and thinning them drops a
-    // category rather than a tick.
-    if (!xIsDiscrete) axisXConfig.labelSeparation = Math.round(layout.xLabel.fontSize * 0.6);
-    if (!yIsDiscrete) axisYConfig.labelSeparation = Math.round(layout.yLabel.fontSize * 0.6);
+    if (axisLabels.y.limit !== undefined && !(layout.yLabel.labelLines && layout.yLabel.labelValues)) {
+        axisYConfig.labelLimit = axisLabels.y.limit;
+    }
+    for (const [channel, config] of [['x', axisXConfig], ['y', axisYConfig]] as const) {
+        const labels = axisLabels[channel];
+        if (labels.angle === undefined) continue;
+        config.labelAngle = labels.angle;
+        if (labels.align !== undefined) config.labelAlign = labels.align;
+        if (labels.baseline !== undefined) config.labelBaseline = labels.baseline;
+        const fit = labels.overflowFit;
+        if (fit?.step === 'skip' && fit.shown) {
+            // The names on round values (16:45, 17:00 …), looked up by the value as written; each band keeps its tick.
+            config.labelExpr = `indexof(${JSON.stringify(fit.shown)}, toString(datum.value)) >= 0 ? datum.label : ''`;
+        }
+    }
+    for (const channel of ['x', 'y'] as const) {
+        const sizing = channel === 'x' ? layout.xLabel : layout.yLabel;
+        if (!sizing.labelLines || !sizing.labelValues) continue;
+        const targets = collectEncodingTargets(channel);
+        if (targets.some((encoding) => encoding.axis === null || encoding.axis === false
+            || encoding.axis?.labelExpr !== undefined || encoding.axis?.labelAngle !== undefined
+            || encoding.axis?.labelLimit !== undefined || encoding.axis?.format !== undefined)) continue;
+        const config = channel === 'x' ? axisXConfig : axisYConfig;
+        const labelIndex = `indexof(${JSON.stringify(sizing.labelValues)}, toString(datum.value))`;
+        Object.assign(config, {
+            labelAngle: axisLabels[channel].angle,
+            labelAlign: axisLabels[channel].align,
+            labelBaseline: axisLabels[channel].baseline,
+            labelLimit: axisLabels[channel].limit,
+            labelLineHeight: axisLabels[channel].lineHeight,
+            labelExpr: `${labelIndex} < 0 ? datum.label : ${JSON.stringify(sizing.labelLines)}[${labelIndex}]`,
+        });
+        if (channel === 'y') {
+            const offsets = sizing.labelLines.map(lines => -(lines.length - 1) * (sizing.labelLineHeight ?? sizing.fontSize + 2) / 2);
+            config.labelOffset = { expr: `${labelIndex} < 0 ? 0 : ${JSON.stringify(offsets)}[${labelIndex}]` };
+        }
+    }
+    if (axisLabels.x.separation !== undefined) axisXConfig.labelSeparation = axisLabels.x.separation;
+    if (axisLabels.y.separation !== undefined) axisYConfig.labelSeparation = axisLabels.y.separation;
 
+    // The template's own config stands where the layout sets nothing.
+    const templateConfig = vgObj.config ?? {};
     vgObj.config = {
+        ...templateConfig,
         view: {
+            ...templateConfig.view,
             continuousWidth: layout.subplotWidth,
             continuousHeight: layout.subplotHeight,
             ...((!vgObj.encoding || vgObj._hideViewStroke) && { stroke: null }),
         },
-        axisX: axisXConfig,
-        axisY: axisYConfig,
+        axisX: { ...templateConfig.axisX, ...axisXConfig },
+        axisY: { ...templateConfig.axisY, ...axisYConfig },
         legend: {
+            ...templateConfig.legend,
             labelFontSize: layout.legendFontSize,
             titleFontSize: layout.titleFontSize,
         },
     };
 
     // --- Step-based sizing for discrete axes ---
-    if (xIsDiscrete && typeof vgObj.width !== 'number') {
-        vgObj.width = layout.xStepUnit === 'group'
+    const plotSpec = vgObj.facet && vgObj.spec ? vgObj.spec : vgObj;
+    if (xIsDiscrete && typeof plotSpec.width !== 'number') {
+        plotSpec.width = layout.xStepUnit === 'group'
             ? { step: layout.xStep, for: 'position' }
             : { step: layout.xStep };
     }
-    if (yIsDiscrete && typeof vgObj.height !== 'number') {
-        vgObj.height = layout.yStepUnit === 'group'
+    if (yIsDiscrete && typeof plotSpec.height !== 'number') {
+        plotSpec.height = layout.yStepUnit === 'group'
             ? { step: layout.yStep, for: 'position' }
             : { step: layout.yStep };
     }
 
     // Sync hardcoded template width/height to config.view
-    if (typeof vgObj.width === 'number') {
-        vgObj.config.view.continuousWidth = vgObj.width;
-    } else if (vgObj.width && typeof vgObj.width === 'object' && 'step' in vgObj.width) {
-        vgObj.width = layout.xStepUnit === 'group'
+    if (typeof plotSpec.width === 'number') {
+        vgObj.config.view.continuousWidth = plotSpec.width;
+    } else if (plotSpec.width && typeof plotSpec.width === 'object' && 'step' in plotSpec.width) {
+        plotSpec.width = layout.xStepUnit === 'group'
             ? { step: layout.xStep, for: 'position' }
             : { step: layout.xStep };
     }
-    if (typeof vgObj.height === 'number') {
-        vgObj.config.view.continuousHeight = vgObj.height;
-    } else if (vgObj.height && typeof vgObj.height === 'object' && 'step' in vgObj.height) {
-        vgObj.height = layout.yStepUnit === 'group'
+    if (typeof plotSpec.height === 'number') {
+        vgObj.config.view.continuousHeight = plotSpec.height;
+    } else if (plotSpec.height && typeof plotSpec.height === 'object' && 'step' in plotSpec.height) {
+        plotSpec.height = layout.yStepUnit === 'group'
             ? { step: layout.yStep, for: 'position' }
             : { step: layout.yStep };
     }
@@ -356,104 +384,6 @@ export function vlApplyLayoutToSpec(
         }
     }
 
-    // --- Dual-legend repositioning ---
-    // When multiple channels produce legends (e.g. color + size, color + opacity),
-    // Vega-Lite stacks them all on the right, which eats into the plot area on a
-    // 400×300 canvas.  Detect this and move the categorical (nominal/ordinal)
-    // legend to the bottom with horizontal orientation, keeping the quantitative
-    // legend compact on the right — BUT only when the total chart height is too
-    // short to fit both stacked on the right comfortably.
-    const legendChannels = (['color', 'size', 'shape', 'opacity', 'strokeDash', 'strokeWidth'] as const)
-        .filter(ch => {
-            const targets = collectEncodingTargets(ch);
-            return targets.some(enc => enc.field && enc.legend !== null);
-        });
-
-    if (legendChannels.length >= 2) {
-        // Separate categorical vs quantitative legend channels
-        const categoricalChs: string[] = [];
-        const quantitativeChs: string[] = [];
-        for (const ch of legendChannels) {
-            const targets = collectEncodingTargets(ch);
-            const isQuant = targets.some(enc => enc.type === 'quantitative' || enc.type === 'temporal');
-            if (isQuant) {
-                quantitativeChs.push(ch);
-            } else {
-                categoricalChs.push(ch);
-            }
-        }
-
-        // Move categorical legends to bottom, keep quantitative ones on right
-        // — but only if the total chart height can't comfortably fit both.
-        if (categoricalChs.length > 0 && quantitativeChs.length > 0) {
-            // Estimate total right-side legend height:
-            //   Quantitative legend ≈ 100px (gradient + title + labels)
-            //   Categorical legend ≈ title(20px) + entries × 20px each
-            const QUANT_LEGEND_HEIGHT = 100;
-            const CAT_TITLE_HEIGHT = 20;
-            const CAT_ENTRY_HEIGHT = 20;
-
-            // Estimate domain sizes for categorical legends
-            let totalCatEntries = 0;
-            for (const ch of categoricalChs) {
-                const targets = collectEncodingTargets(ch);
-                for (const enc of targets) {
-                    if (!enc.field) continue;
-                    const domainSize = new Set(context.table.map((r: any) => r[enc.field])).size;
-                    totalCatEntries += domainSize;
-                }
-            }
-            const estCatHeight = CAT_TITLE_HEIGHT * categoricalChs.length + totalCatEntries * CAT_ENTRY_HEIGHT;
-            const estTotalLegendHeight = QUANT_LEGEND_HEIGHT + estCatHeight + 20; // 20px gap between legends
-
-            // Total chart height = subplot height × facet rows + overhead
-            const totalChartHeight = layout.subplotHeight * (layout.facet?.rows ?? 1)
-                + (layout.facet?.rows ?? 1) * 10; // approx facet spacing
-
-            const fitsOnRight = totalChartHeight >= estTotalLegendHeight;
-
-            if (!fitsOnRight) {
-                for (const ch of categoricalChs) {
-                    const targets = collectEncodingTargets(ch);
-                    for (const enc of targets) {
-                        if (!enc.field) continue;
-                        if (!enc.legend) enc.legend = {};
-                        enc.legend.orient = 'bottom';
-                        enc.legend.direction = 'horizontal';
-
-                        // Responsive columns: estimate how many legend entries fit
-                        // per row based on the available canvas width.
-                        // Each entry ≈ symbol(16) + label + padding.  Estimate label
-                        // width from the longest domain value, then derive columns.
-                        const domainValues = [...new Set(context.table.map((r: any) => r[enc.field]))];
-                        const domainSize = domainValues.length;
-                        const maxLabelLen = Math.max(
-                            ...domainValues.map((v: any) => String(v ?? '').length), 3,
-                        );
-                        // VL legend: symbol (~15px) + label (~5px/char at 11px proportional font) + gap (~8px)
-                        const entryWidth = 15 + maxLabelLen * 5 + 8;
-                        // Available width: VL's bottom legend spans the full SVG width,
-                        // which includes the plot area plus the right-side quantitative
-                        // legend (~130px).  Use that total for column estimation.
-                        const rightLegendWidth = 130;
-                        const availableWidth = canvasSize.width + rightLegendWidth;
-                        const columnsByWidth = Math.max(1, Math.floor(availableWidth / entryWidth));
-                        enc.legend.columns = Math.min(columnsByWidth, domainSize);
-
-                        // For very high cardinality, cap visible symbols to keep
-                        // the bottom legend from growing too tall.
-                        const maxRows = 4;
-                        const maxVisible = columnsByWidth * maxRows;
-                        if (domainSize > maxVisible) {
-                            enc.legend.symbolLimit = maxVisible;
-                        }
-                    }
-                }
-            }
-            // else: chart is tall enough — leave both legends on the right (VL default)
-        }
-    }
-
     // --- Overflow styling (from TruncationWarning[]) ---
     // Applied AFTER template.instantiate and facet restructuring,
     // so we modify the spec's actual encoding objects.
@@ -491,133 +421,29 @@ export function vlApplyLayoutToSpec(
 // ---------------------------------------------------------------------------
 
 /**
- * Compute the positive and negative stacked extremes for a quantitative field.
- *
- * For a stacked bar chart with:
- *   x = category (grouping), y = value (stacked), color = series
- *
- * Vega-Lite stacks positive and negative contributions *separately* (positives
- * grow up from 0, negatives down from 0), so we track each side independently —
- * summing signed values together would let a mix of +0.9 and −0.2 cancel and
- * hide a tall positive stack. Returns the largest positive group sum and the
- * most-negative group sum, used to check whether either side overflows an
- * intrinsic domain bound (e.g., correlations summing past 1).
- *
- * Returns undefined if the grouping field can't be determined.
+ * Whether Vega-Lite sums stacked segments on this channel: a stated stack other than normalize,
+ * or length marks it stacks by default, which it does where a colour series splits them or a
+ * category repeats across rows.
  */
-function computeStackedExtremes(
-    table: any[],
-    measureField: string,
-    measureChannel: string,
-    channelSemantics: Record<string, ChannelSemantics>,
-): { maxPos: number; minNeg: number } | undefined {
-    if (!table || table.length === 0) return undefined;
-
-    // The grouping axis is the *other* positional channel
-    const groupChannel = measureChannel === 'y' ? 'x' : 'y';
-    const groupCS = channelSemantics[groupChannel];
-    if (!groupCS) return undefined;
-    const groupField = groupCS.field;
-    if (!groupField) return undefined;
-
-    // Also consider facet fields (row/column) as additional grouping
-    const facetFields: string[] = [];
-    for (const ch of ['row', 'column']) {
-        const fcs = channelSemantics[ch];
-        if (fcs?.field) facetFields.push(fcs.field);
-    }
-
-    // Group rows and sum positive / negative contributions per group separately
-    const posTotals = new Map<string, number>();
-    const negTotals = new Map<string, number>();
-    for (const row of table) {
-        const val = row[measureField];
-        if (typeof val !== 'number' || isNaN(val)) continue;
-
-        // Build group key from grouping field + facet fields
-        const keyParts = [String(row[groupField])];
-        for (const ff of facetFields) {
-            keyParts.push(String(row[ff]));
-        }
-        const key = keyParts.join('|||');
-        if (val >= 0) {
-            posTotals.set(key, (posTotals.get(key) ?? 0) + val);
-        } else {
-            negTotals.set(key, (negTotals.get(key) ?? 0) + val);
-        }
-    }
-
-    if (posTotals.size === 0 && negTotals.size === 0) return undefined;
-    const maxPos = posTotals.size > 0 ? Math.max(...posTotals.values()) : 0;
-    const minNeg = negTotals.size > 0 ? Math.min(...negTotals.values()) : 0;
-    return { maxPos, minNeg };
-}
-
-const NICE_E10 = Math.sqrt(50);
-const NICE_E5 = Math.sqrt(10);
-const NICE_E2 = Math.SQRT2;
-
-function niceStackSpan(start: number, stop: number, count: number): [number, number] {
-    let lo = start;
-    let hi = stop;
-    let previousStep: number | undefined;
-    for (let index = 0; index < 32; index += 1) {
-        const rawStep = (hi - lo) / Math.max(1, count);
-        const power = Math.floor(Math.log10(rawStep));
-        const error = rawStep / 10 ** power;
-        const factor = error >= NICE_E10 ? 10 : error >= NICE_E5 ? 5 : error >= NICE_E2 ? 2 : 1;
-        const step = power >= 0 ? factor * 10 ** power : -(10 ** -power) / factor;
-        if (step === previousStep || step === 0 || !Number.isFinite(step)) break;
-        if (step > 0) {
-            lo = Math.floor(lo / step) * step;
-            hi = Math.ceil(hi / step) * step;
-        } else {
-            lo = Math.ceil(lo * step) / step;
-            hi = Math.floor(hi * step) / step;
-        }
-        previousStep = step;
-    }
-    return [lo, hi];
-}
-
-/**
- * Pin a positive sum stack that already ends on the clean tick `nice` would
- * choose. Stored calculated shares can total 99.9999999999; leaving that to
- * Vega's post-stack arithmetic may cross the tick by a rounding bit and add a
- * whole empty interval. A meaningful excess remains on automatic nice.
- */
-function pinCleanStackEndpoint(enc: any, extremes: { maxPos: number; minNeg: number }): void {
-    if (extremes.minNeg < 0 || !(extremes.maxPos > 0)) return;
-    if (enc.scale?.domain != null || enc.scale?.domainMax != null || enc.scale?.nice === false) return;
-    const count = typeof enc.scale?.nice === 'number' ? enc.scale.nice : 10;
-    const tolerance = Math.max(1, Math.abs(extremes.maxPos)) * 1e-9;
-    const [, cleanMax] = niceStackSpan(0, extremes.maxPos - tolerance, count);
-    if (Math.abs(cleanMax - extremes.maxPos) > tolerance) return;
-    enc.scale = {
-        ...(enc.scale ?? {}),
-        domainMin: enc.scale?.domainMin ?? 0,
-        domainMax: cleanMax,
-        nice: false,
-    };
-}
-
-/**
- * Detect whether a discrete category repeats across rows — i.e., multiple rows
- * share the same category value, which makes Vega-Lite stack the measure even
- * with no color encoding. Used to recognise implicit no-color stacking so the
- * intrinsic-domain check runs against the stacked total, not individual values.
- */
-function hasRepeatedCategory(
-    table: any[],
-    categoryField: string | undefined,
-    measureField: string,
+function vegaLiteSums(
+    vgObj: any, enc: any, ch: string, lengthMark: boolean, channelSemantics: Record<string, ChannelSemantics>, rows: any[],
 ): boolean {
-    if (!table || table.length === 0 || !categoryField) return false;
+    if (enc.stack === 'normalize') return false;
+    if (enc.stack !== undefined && enc.stack !== null && enc.stack !== false) return true;
+    if (!lengthMark || enc.stack === null) return false;
+    const colorSeries = !!(
+        vgObj.encoding?.color?.field
+        || (Array.isArray(vgObj.layer) && vgObj.layer.some((l: any) => l.encoding?.color?.field))
+        || vgObj.spec?.encoding?.color?.field
+    );
+    if (colorSeries) return true;
+    const other = channelSemantics[ch === 'y' ? 'x' : 'y'];
+    if (other?.type !== 'nominal' && other?.type !== 'ordinal' || !other.field) return false;
     const seen = new Set<string>();
-    for (const row of table) {
-        const val = row[measureField];
+    for (const row of rows ?? []) {
+        const val = row[enc.field];
         if (typeof val !== 'number' || isNaN(val)) continue;
-        const key = String(row[categoryField]);
+        const key = String(row[other.field]);
         if (seen.has(key)) return true;
         seen.add(key);
     }
@@ -625,51 +451,29 @@ function hasRepeatedCategory(
 }
 
 /**
- * Get the effective intrinsic domain for a field, even when no explicit
- * `intrinsicDomain` is provided in the annotation.
- *
- * Mirrors steps 2–3 of `resolveDomainConstraint` (in field-semantics.ts)
- * which infer intrinsic bounds from the semantic type:
- *   - Percentage → [0, 1] or [0, 100] depending on data scale
- *   - Latitude → [-90, 90]
- *   - Longitude → [-180, 180]
- *   - Correlation → [-1, 1]
- *
- * Without this: stacked charts with Percentage fields that lack explicit
- * annotation never get domain constraints, because the stacking re-check
- * in vlApplyFieldContext couldn't find the intrinsic bounds.
+ * Write a channel's decided extent to its encoding. Fixed bounds set the domain; one bound sets
+ * that end and keeps the other rounded. A stack that ends on a clean tick is pinned there unless
+ * the scale already has an upper end.
  */
-function getEffectiveIntrinsicDomain(
-    cs: ChannelSemantics,
-    table: any[],
-    field: string,
-): [number, number] | undefined {
-    // 1. Explicit annotation — authoritative
-    if (cs.semanticAnnotation?.intrinsicDomain) {
-        return cs.semanticAnnotation.intrinsicDomain;
-    }
-
-    // 2. Infer from semantic type
-    const semanticType = cs.semanticAnnotation?.semanticType;
-    if (!semanticType) return undefined;
-
-    if (semanticType === 'Latitude')    return [-90, 90];
-    if (semanticType === 'Longitude')   return [-180, 180];
-    if (semanticType === 'Correlation') return [-1, 1];
-
-    if (semanticType === 'Percentage') {
-        const nums = table
-            .map(r => r[field])
-            .filter((v: any) => typeof v === 'number' && !isNaN(v));
-        if (nums.length > 0) {
-            // Inline scale detection: if ≥80% of |values| are ≤1, it's 0-1 scale
-            const countBelow1 = nums.filter(v => Math.abs(v) <= 1).length;
-            const isFractional = countBelow1 / nums.length >= 0.8;
-            return isFractional ? [0, 1] : [0, 100];
+function applyMeasureDomain(enc: any, ch: string, decided: MeasureDomain): void {
+    const { bounds } = decided;
+    if (bounds && enc.type === 'quantitative' && (ch === 'x' || ch === 'y' || ch === 'size' || ch === 'color') && !enc.bin) {
+        if (!enc.scale) enc.scale = {};
+        const { min, max, clamp } = bounds;
+        if (min !== undefined && max !== undefined) {
+            enc.scale.domain = [min, max];
+            if (decided.dropZero && enc.scale.zero !== undefined) delete enc.scale.zero;
+        } else {
+            if (min !== undefined) enc.scale.domainMin = min;
+            if (max !== undefined) enc.scale.domainMax = max;
+            enc.scale.nice = true;
         }
+        if (clamp) enc.scale.clamp = true;
     }
-
-    return undefined;
+    const top = decided.stackTop;
+    if (top === undefined) return;
+    if (enc.scale?.domain != null || enc.scale?.domainMax != null || enc.scale?.nice === false) return;
+    enc.scale = { ...(enc.scale ?? {}), domainMin: enc.scale?.domainMin ?? 0, domainMax: top, nice: false };
 }
 
 /**
@@ -691,6 +495,7 @@ function vlApplyFieldContext(
     channelSemantics: Record<string, ChannelSemantics>,
     collectEncodingTargets: (ch: string) => any[],
     context: InstantiateContext,
+    domains?: Partial<Record<'x' | 'y', MeasureDomain>>,
 ): void {
     for (const [ch, cs] of Object.entries(channelSemantics)) {
         const targets = collectEncodingTargets(ch);
@@ -740,6 +545,14 @@ function vlApplyFieldContext(
                     }
                 }
             }
+            // A key to values reads its numbers the way an axis on the same field would: a ramp of
+            // percentage changes is labelled "−20%", not "−0.20".
+            if ((cs.format?.pattern || cs.format?.abbreviate) && (ch === 'color' || ch === 'size')
+                && enc.type === 'quantitative' && !enc.bin && enc.legend !== null
+                && !enc.legend?.format && !enc.legend?.labelExpr) {
+                const expr = formatSpecToLabelExpr(cs.format);
+                enc.legend = { ...(enc.legend ?? {}), ...(expr ? { labelExpr: expr } : { format: cs.format.pattern }) };
+            }
 
             // ── 2. Tooltip format ──
             // Tooltip formatting is handled via VL's tooltip encoding with format.
@@ -751,181 +564,19 @@ function vlApplyFieldContext(
             // Full tooltip encoding is deferred to template-level implementation.
 
             // ── 3. Domain constraint (scale.domain + scale.clamp) ──
-            // Semantic domain constraints represent *intrinsic* field bounds.
-            // Full constraints (both min+max) set scale.domain directly.
-            // Partial constraints (only min or max) use VL's domainMin/domainMax
-            // for single-ended bounds, letting the other end auto-fit from data.
             // Skip binned encodings — VL handles bin domain automatically.
-            //
-            // Stacking interaction:
-            //   Sum-stacked charts (default / "zero" / "center") show stacked
-            //   totals on the axis, not individual values. The field-level snap
-            //   heuristic only saw individual values, which may not reflect the
-            //   actual axis range.  We recompute: if the max group total still
-            //   fits within the intrinsic bound, the snap constraint is safe
-            //   (e.g., percentages summing to exactly 100%).  If totals exceed
-            //   the bound, we skip the constraint to avoid clipping bars.
-            //   Normalize-stacked (stack: "normalize"): VL normalizes to [0,1],
-            //   so domain is always [0,1]. Constraint is harmless. → Keep.
-            //   Layered / no stack (stack: null/false): each bar is
-            //   independent. → Apply domain constraints as normal.
-            //
-            // VL auto-stacks bar/area marks whenever multiple rows share the
-            // same discrete position — most obviously with a color series, but
-            // ALSO with no color at all when a category repeats (several rows
-            // per x). Both cases sum on the measure axis, so the intrinsic
-            // domain must be checked against the stacked total, not individual
-            // values.
-            //
-            // Without this: Rating gets auto-fitted to data range (e.g., 2-4.5)
-            // instead of showing the full 1-5 scale.
-            const isExplicitlyStacked = enc.stack !== undefined && enc.stack !== null && enc.stack !== false;
             const markType = typeof vgObj.mark === 'string' ? vgObj.mark : vgObj.mark?.type;
-            const isBarLike = ['bar', 'area', 'rect'].includes(markType);
-            // Check for color encoding at top level, in layers, or in faceted spec
-            const hasColorEncoding = !!(
-                vgObj.encoding?.color?.field
-                || (Array.isArray(vgObj.layer) && vgObj.layer.some((l: any) => l.encoding?.color?.field))
-                || vgObj.spec?.encoding?.color?.field
-            );
-            // The other positional channel; bar-like charts stack the measure
-            // when this axis is discrete and a category repeats across rows.
-            const otherChannel = ch === 'y' ? 'x' : 'y';
-            const otherCS = channelSemantics[otherChannel];
-            const otherIsDiscrete = otherCS?.type === 'nominal' || otherCS?.type === 'ordinal';
-            const isImplicitlyStacked = isBarLike && enc.stack !== null
-                && (hasColorEncoding
-                    || (otherIsDiscrete && hasRepeatedCategory(context.table, otherCS?.field, enc.field)));
-            const isStacked = isExplicitlyStacked || isImplicitlyStacked;
-            const isNormalizeStacked = enc.stack === 'normalize';
-            const isSumStacked = isStacked && !isNormalizeStacked;
-            const stackedExtremes = isSumStacked
-                ? computeStackedExtremes(context.table, enc.field, ch, channelSemantics)
-                : undefined;
-
-            // For sum-stacked charts, check if stacked totals exceed the
-            // intrinsic domain.  If they do, skip the domain constraint.
-            //
-            // Also, if snap didn't fire on individual values but stacked
-            // totals are near the intrinsic bound, re-run snap on the totals.
-            // Example: individual percentages range 20–50% (no snap), but
-            // they sum to ~100% per group → should snap to 100%.
-            let skipDomain = false;
-            // Size and color scales must not silently re-normalize when a
-            // mounted chart replaces its rows. An explicit intrinsic domain is
-            // the author's stable reference frame for both symbol area and
-            // quantitative color (including a diverging scale's center).
-            const declaredScaleDomain = ch === 'size' || ch === 'color'
-                ? cs.semanticAnnotation?.intrinsicDomain
-                : undefined;
-            let effectiveDomainConstraint = declaredScaleDomain
-                ? { min: declaredScaleDomain[0], max: declaredScaleDomain[1], clamp: true }
-                : cs.domainConstraint;
-
-            if (isSumStacked) {
-                // Use explicit intrinsicDomain from annotation, or infer from
-                // semantic type for known bounded types (Percentage, Lat/Lon, etc.)
-                // Without this: Percentage fields without explicit annotation
-                // never get a domain constraint on stacked charts because
-                // individual values don't trigger snap, and the stacked re-check
-                // can't find the intrinsic bounds to snap totals against.
-                const intrinsic = getEffectiveIntrinsicDomain(cs, context.table, enc.field);
-                if (intrinsic) {
-                    const extremes = stackedExtremes;
-
-                    if (extremes !== undefined) {
-                        // VL stacks positive and negative contributions
-                        // separately, so either side can overflow its bound.
-                        const { maxPos, minNeg } = extremes;
-                        const range = intrinsic[1] - intrinsic[0];
-                        // Small epsilon tolerance for floating-point imprecision
-                        // (e.g., shares summing to 1.0000000001 should still be
-                        // treated as within bounds). Scaled to the domain range.
-                        const epsilon = range * 1e-6;
-                        const overflowsTop = maxPos > intrinsic[1] + epsilon;
-                        const overflowsBottom = minNeg < intrinsic[0] - epsilon;
-
-                        if (overflowsTop || overflowsBottom) {
-                            // Stacked totals exceed the intrinsic bound on at
-                            // least one side → skip the domain constraint so
-                            // bars aren't clipped (e.g., correlations summing
-                            // past 1, or percentages past 100%).
-                            if (cs.domainConstraint) {
-                                skipDomain = true;
-                            }
-                        } else {
-                            // Stacked extremes are within intrinsic bounds.
-                            // Re-run snap on the stacked extremes to pick up
-                            // bounds that individual values missed (e.g.,
-                            // individual shares of 20–40% don't snap to 100%,
-                            // but stacked totals of ~100% should).
-                            const stackedSnap = snapToBoundHeuristic(intrinsic, [maxPos, minNeg]);
-                            if (stackedSnap) {
-                                // Merge with existing constraint: keep any bound
-                                // already snapped from individual values, add any
-                                // new bound from stacked totals.
-                                if (cs.domainConstraint) {
-                                    effectiveDomainConstraint = {
-                                        min: cs.domainConstraint.min ?? stackedSnap.min,
-                                        max: cs.domainConstraint.max ?? stackedSnap.max,
-                                        clamp: cs.domainConstraint.clamp || stackedSnap.clamp,
-                                    };
-                                } else {
-                                    effectiveDomainConstraint = stackedSnap;
-                                }
-                            }
-                        }
-                    }
-                } else if (cs.domainConstraint) {
-                    // No intrinsic domain to compare against → skip to be safe
-                    skipDomain = true;
-                }
-            }
-
-            if (effectiveDomainConstraint && enc.type === 'quantitative' && (ch === 'x' || ch === 'y' || ch === 'size' || ch === 'color') && !enc.bin && !skipDomain) {
-                if (!enc.scale) enc.scale = {};
-                let { min } = effectiveDomainConstraint;
-                const { max, clamp } = effectiveDomainConstraint;
-                // The resolved zero decision (engine default, or the host's
-                // includeZero_x/_y override) is authoritative. When it says "no
-                // zero", a lower bound of exactly 0 in the semantic domain is
-                // merely a non-negativity floor, not a real semantic minimum —
-                // drop it so the axis fits the data instead of being re-pinned
-                // to zero. Length marks (bar/area/rect) always keep zero.
-                const wantsNoZero = cs.zero?.zero === false;
-                if (!isBarLike && wantsNoZero && min === 0) min = undefined;
-                if (min !== undefined && max !== undefined) {
-                    enc.scale.domain = [min, max];
-                    // For non-bar marks (scatter, line, etc.), the explicit
-                    // semantic domain is authoritative — clear zero so VL
-                    // doesn't extend beyond intrinsic bounds (e.g., Rating
-                    // scatter [1,5] shouldn't stretch to [0,5]).
-                    // For bar/area marks, keep zero:true so bars grow from
-                    // zero with correct proportional lengths — VL extends
-                    // the domain to include 0, and the upper bound is still
-                    // capped by the domain constraint (e.g., [0,5] not [0,6]).
-                    // Never clobber a decided zero:false.
-                    if (!isBarLike && enc.scale.zero !== undefined && !wantsNoZero) {
-                        delete enc.scale.zero;
-                    }
-                } else {
-                    // Partial constraint (or the zero-floor dropped above) — snap
-                    // the bounded end while auto-fitting the other.
-                    // E.g., Percentage data at 97% → domainMax = 100, domainMin auto-fits.
-                    if (min !== undefined) enc.scale.domainMin = min;
-                    if (max !== undefined) enc.scale.domainMax = max;
-                    // VL may suppress nice rounding on the free end when
-                    // domainMin/domainMax is set, causing data to touch the
-                    // chart border.  Force nice so the unconstrained end
-                    // gets proper headroom (e.g., data at +26% rounds to +40%).
-                    enc.scale.nice = true;
-                }
-                if (clamp) {
-                    enc.scale.clamp = true;
-                }
-            }
-
-            if (stackedExtremes) pinCleanStackEndpoint(enc, stackedExtremes);
+            const lengthMark = ['bar', 'area', 'rect'].includes(markType);
+            const planned = domains && (ch === 'x' || ch === 'y');
+            const decided = planned ? domains[ch] : measureDomain({
+                channel: ch,
+                field: enc.field,
+                summed: vegaLiteSums(vgObj, enc, ch, lengthMark, channelSemantics, context.table),
+                lengthMark,
+                channelSemantics,
+                rows: context.table,
+            });
+            if (decided) applyMeasureDomain(enc, ch, decided);
 
             // ── 4. Tick constraint (axis.tickMinStep + axis.values) ──
             // Skip binned encodings — VL handles bin ticks natively.
@@ -1025,16 +676,421 @@ function vlApplyFieldContext(
     }
 }
 
-function vlApplyDefaultQuantitativeAxisFormat(
+const TEMPORAL_LEVELS = [
+    { unit: 'millisecond', local: timeMillisecond, utc: utcMillisecond, steps: [1, 2, 5, 10, 20, 50, 100, 200, 500], format: '.%L', context: '%b %-d, %Y %H:%M:%S.%L' },
+    { unit: 'second', local: timeSecond, utc: utcSecond, steps: [1, 5, 15, 30], format: ':%S', context: '%b %-d, %Y %H:%M:%S' },
+    { unit: 'minute', local: timeMinute, utc: utcMinute, steps: [1, 5, 15, 30], format: '%-I:%M', context: '%b %-d, %Y %H:%M' },
+    { unit: 'hour', local: timeHour, utc: utcHour, steps: [1, 3, 6, 12], format: '%-I %p', context: '%b %-d, %Y %-I %p' },
+    { unit: 'day', local: timeDay, utc: utcDay, steps: [1, 2, 7, 14], format: '%-d', context: '%b %-d, %Y' },
+    { unit: 'month', local: timeMonth, utc: utcMonth, steps: [1, 3, 6], format: '%b', context: '%b %Y' },
+    { unit: 'year', local: timeYear, utc: utcYear, steps: [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000], format: '%Y', context: '%Y' },
+] as const;
+
+interface TemporalTickPlan {
+    values: string[];
+    labels: Record<string, string>;
+    labelExpr: string;
+    labelOverlap: false;
+    labelFlush: false;
+}
+
+/** What a temporal axis needs besides its domain and pixel span to plan its ticks again at runtime. */
+export interface TemporalAxisPlanInputs {
+    semanticType: string | undefined;
+    utc: boolean;
+    vertical: boolean;
+    settings: Record<string, unknown>;
+    fontSize: number;
+    /** The first and last instant in the data; ticks are planned over the data the domain shows, as at compile time. */
+    extent?: [number, number];
+}
+
+const TEMPORAL_PLAN_SETTING_KEYS = [
+    'labelFont', 'labelFontStyle', 'labelFontWeight', 'labelAngle', 'labelSeparation', 'labelLimit',
+] as const;
+
+function temporalPlanSettings(settings: Record<string, unknown>): Record<string, unknown> {
+    const kept: Record<string, unknown> = {};
+    for (const key of TEMPORAL_PLAN_SETTING_KEYS) if (settings[key] !== undefined) kept[key] = settings[key];
+    return kept;
+}
+
+/**
+ * The axis properties a tick plan writes. The tick count is the plan's own: Vega-Lite states
+ * `ceil(width / 40)` by default, and Vega strides explicit values down to a count, so a plot
+ * narrower than the plan expected would keep every other tick — and drop the January that names
+ * the year.
+ */
+function axisPropertiesOf({ labels: _labels, ...axis }: TemporalTickPlan): Omit<TemporalTickPlan, 'labels'> & { tickCount: number } {
+    return { ...axis, tickCount: axis.values.length };
+}
+
+export function temporalAxisPlanInputs(encoding: object): TemporalAxisPlanInputs | undefined {
+    return temporalAxisPlans.get(encoding)?.inputs;
+}
+
+/** Tick positions (ms) and label text for a temporal axis over `domain`, laid out across `span` pixels. */
+export function planTemporalTickValues(
+    domain: unknown[], span: number, inputs: TemporalAxisPlanInputs,
+): { values: number[]; labels: Record<string, string> } {
+    const bounds = domain.map((value) => +new Date(value as any));
+    const [lo, hi] = [Math.min(...bounds), Math.max(...bounds)];
+    const start = Math.max(lo, inputs.extent?.[0] ?? lo);
+    const end = Math.min(hi, inputs.extent?.[1] ?? hi);
+    const plan = Number.isFinite(start) && Number.isFinite(end) && hi > lo
+        ? planTemporalTicks({ ...inputs, start, end, span: span * (end - start) / (hi - lo) })
+        : undefined;
+    if (!plan) return { values: [], labels: {} };
+    return { values: plan.values.map(value => +new Date(value)), labels: plan.labels };
+}
+
+interface TemporalTickLayout {
+    start: number;
+    end: number;
+    semanticType: string | undefined;
+    utc: boolean;
+    span: number;
+    vertical: boolean;
+    settings: any;
+    fontSize: number;
+}
+
+const temporalAxisPlans = new WeakMap<object, {
+    start: number; end: number; semanticType: string | undefined; labelExpr: string;
+    /** The pixels the ticks were planned across. */
+    span: number;
+    inputs: TemporalAxisPlanInputs;
+}>();
+
+
+/**
+ * The label settings a temporal axis's ticks are planned with: the plan's labels, under what the
+ * encoding states for itself.
+ */
+function temporalLabelSettings(
+    labels: AxisLabelPlan, formatting: Record<string, unknown>, stated: Record<string, unknown> | undefined, themed: boolean,
+): { fontSize: number; settings: Record<string, unknown> } {
+    const own = { ...stated };
+    if (themed) for (const key of OWNED_AXIS_KEYS) delete own[key];
+    const planned: Record<string, unknown> = {
+        labelFont: labels.font, labelAngle: labels.angle, labelSeparation: labels.separation, labelLimit: labels.limit,
+    };
+    for (const key of Object.keys(planned)) if (planned[key] === undefined) delete planned[key];
+    return {
+        fontSize: typeof own.labelFontSize === 'number' ? own.labelFontSize : labels.fontSize,
+        settings: temporalPlanSettings({ ...formatting, ...planned, ...own }),
+    };
+}
+
+/**
+ * Plans a temporal axis's ticks again where a stage after the plan changed the plot they run
+ * across, such as the theme fitting a long title.
+ */
+export function vlFinalizeTemporalAxes(spec: any, context: InstantiateContext): void {
+    const config = spec.config ?? {};
+    const visit = (node: any, width: number, height: number): void => {
+        const plotWidth = typeof node.width === 'number' ? node.width : width;
+        const plotHeight = typeof node.height === 'number' ? node.height : height;
+        for (const channel of ['x', 'y'] as const) {
+            const encoding = node.encoding?.[channel];
+            const original = encoding && temporalAxisPlans.get(encoding);
+            if (!original || encoding.axis?.labelExpr !== original.labelExpr) continue;
+            const domain = encoding.scale?.domain;
+            const domainSpan = Array.isArray(domain) && domain.length === 2
+                ? +new Date(domain[1]) - +new Date(domain[0]) : original.end - original.start;
+            const span = (channel === 'x' ? plotWidth : plotHeight) * (original.end - original.start) / domainSpan;
+            if (span === original.span) continue;
+            const plan = planTemporalTicks({
+                start: original.start, end: original.end, semanticType: original.semanticType,
+                utc: original.inputs.utc, span, vertical: channel === 'y',
+                settings: original.inputs.settings, fontSize: original.inputs.fontSize,
+            });
+            if (!plan) continue;
+            Object.assign(encoding.axis, axisPropertiesOf(plan));
+            original.labelExpr = plan.labelExpr;
+            original.span = span;
+        }
+        if (node.spec) visit(node.spec, plotWidth, plotHeight);
+        for (const child of [...(node.layer ?? []), ...(node.vconcat ?? []), ...(node.hconcat ?? []), ...(node.concat ?? [])]) {
+            visit(child, plotWidth, plotHeight);
+        }
+    };
+    visit(spec, config.view?.continuousWidth ?? context.layout.subplotWidth,
+        config.view?.continuousHeight ?? context.layout.subplotHeight);
+}
+
+function planTemporalTicks({
+    start, end, semanticType, utc, span, vertical, settings, fontSize,
+}: TemporalTickLayout): TemporalTickPlan | undefined {
+    if (!(end > start && span > 0)) return;
+    if (['Month', 'Quarter', 'Week', 'Day', 'Hour', 'Time', 'YearWeek'].includes(semanticType ?? '')) return;
+    const levels = TEMPORAL_LEVELS.map(level => ({ ...level, interval: utc ? level.utc : level.local }));
+    const format = utc ? utcFormat : timeFormat;
+    const minimumUnit = semanticType === 'Date' ? 'day'
+        : semanticType === 'YearMonth' || semanticType === 'YearQuarter' ? 'month'
+        : semanticType === 'Year' || semanticType === 'Decade' ? 'year' : 'millisecond';
+    const minimumLevel = levels.findIndex(level => level.unit === minimumUnit);
+    const dayLevel = levels.findIndex(level => level.unit === 'day');
+    const month = levels[dayLevel + 1].interval;
+    const monthsCrossed = month.count(new Date(start), new Date(end));
+    let monthDayLabels = false;
+    const ordinaryFormat = (level: number): string =>
+        level === dayLevel && monthDayLabels ? '%b %-d' : levels[level].format;
+    const minimumStep = semanticType === 'YearQuarter' ? 3 : semanticType === 'Decade' ? 10 : 1;
+    const canvas = typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d');
+    if (canvas) canvas.font = `${settings.labelFontStyle ?? 'normal'} ${settings.labelFontWeight ?? 'normal'} ${fontSize}px ${settings.labelFont ?? 'sans-serif'}`;
+    const angle = (typeof settings.labelAngle === 'number' ? settings.labelAngle : 0) * Math.PI / 180;
+    const host = canvas ? undefined : hostTextMeasurer()?.(fontSize, settings.labelFont ?? 'sans-serif', settings.labelFontWeight ?? 'normal', settings.labelFontStyle ?? 'normal');
+    const textWidth = (text: string): number => canvas ? canvas.measureText(text).width : host ? host(text) : text.length * fontSize * 0.8;
+    const extent = (text: string): number => {
+        const width = textWidth(text);
+        return vertical ? Math.abs(Math.sin(angle)) * width + Math.abs(Math.cos(angle)) * fontSize
+            : Math.abs(Math.cos(angle)) * width + Math.abs(Math.sin(angle)) * fontSize;
+    };
+    const gap = typeof settings.labelSeparation === 'number' ? settings.labelSeparation : Math.round(fontSize * 0.6);
+    const position = (value: number): number => (value - start) / (end - start) * span;
+    const rank = (value: number, base: number): number => {
+        for (let level = levels.length - 1; level > base; level--) {
+            if (+levels[level].interval.floor(new Date(value)) === value) return level;
+        }
+        return base;
+    };
+    const boundaryFormat = (level: number, base: number): string => {
+        if (base === dayLevel && monthDayLabels) {
+            return levels[level].unit === 'year' ? '%Y' : ordinaryFormat(base);
+        }
+        if (level === base) return ordinaryFormat(base);
+        const detail = base + 1;
+        if (levels[level].unit === 'year') return levels[detail].context;
+        if (level >= dayLevel && base < dayLevel) return levels[detail].context.replace(', %Y', '');
+        if (levels[detail].unit === 'second' && level > detail) return '%H:%M:%S';
+        return levels[detail].format;
+    };
+    let candidates: number[] = [];
+    let base = minimumLevel;
+    let cadence = 1;
+    for (let level = minimumLevel; level < levels.length && candidates.length === 0; level++) {
+        for (const step of levels[level].steps) {
+            if (level === minimumLevel && step % minimumStep !== 0) continue;
+            if (levels[level].interval.count(new Date(start), new Date(end)) / step > Math.max(2, span / fontSize)) continue;
+            const interval = levels[level].unit === 'day' && step >= 7
+                ? (utc ? utcWeek : timeWeek).every(step / 7)
+                : levels[level].interval.every(step);
+            if (!interval) continue;
+            const ticks = interval.range(new Date(start), new Date(end + 1)).map(Number);
+            if (!ticks.length) continue;
+            monthDayLabels = false;
+            if (level === dayLevel && monthsCrossed >= 2) {
+                const repetitions = new Map<number, number>();
+                for (const value of ticks) {
+                    const period = +month.floor(new Date(value));
+                    repetitions.set(period, (repetitions.get(period) ?? 0) + 1);
+                }
+                monthDayLabels = Math.max(...repetitions.values()) <= 5;
+            }
+            const ordinarySize = (value: number): number => extent(format(ordinaryFormat(level))(new Date(value)));
+            const fits = ticks.every((value, index) => index === 0 || position(value) - position(ticks[index - 1])
+                >= (ordinarySize(value) + ordinarySize(ticks[index - 1])) / 2 + gap);
+            if (fits) {
+                candidates = ticks;
+                base = level;
+                cadence = step;
+                break;
+            }
+        }
+    }
+    if (!candidates.length) return;
+    let startAnchor = +levels[minimumLevel].interval.ceil(new Date(start));
+    if (levels[base].unit === 'day' && cadence > 1) {
+        const day = levels[base].interval;
+        const month = levels[base + 1].interval;
+        let periodStart = day.ceil(new Date(start));
+        const openingDays = day.count(periodStart, month.ceil(new Date(+periodStart + 1)));
+        const openingStep = openingDays / Math.max(1, Math.round(openingDays / cadence));
+        if (Math.abs(openingStep - cadence) > 2) periodStart = month.floor(periodStart);
+        candidates = [];
+        while (+periodStart <= end) {
+            const periodEnd = month.ceil(new Date(+periodStart + 1));
+            const days = day.count(periodStart, periodEnd);
+            const divisions = Math.max(1, Math.round(days / cadence));
+            for (let index = 0; index < divisions; index++) {
+                const value = +day.offset(periodStart, Math.round(days * index / divisions));
+                if (value >= start && value <= end) candidates.push(value);
+            }
+            periodStart = periodEnd;
+        }
+        startAnchor = candidates[0];
+    }
+    for (let level = base + 1; level < levels.length; level++) {
+        candidates.push(...levels[level].interval.range(new Date(start), new Date(end + 1)).map(Number));
+    }
+    if (startAnchor <= end) candidates.push(startAnchor);
+    const choose = (anchor: number, from: number) => {
+        const ticks = [...new Set(candidates)].sort((left, right) => left - right).map(value => {
+            const level = rank(value, base);
+            const calendarLevel = rank(value, minimumLevel);
+            const initial = value === anchor && calendarLevel < levels.length - 1;
+            const pattern = initial ? levels[calendarLevel].context : boundaryFormat(level, base);
+            const text = format(pattern)(new Date(value));
+            const priority = initial ? Math.min(base, calendarLevel) + 0.5
+                : base === dayLevel && monthDayLabels && levels[level].unit === 'month' ? base : level;
+            return { value, pattern, text, priority, size: extent(text), initial, level: calendarLevel };
+        });
+        const selected: typeof ticks = [];
+        for (const tick of [...ticks].sort((left, right) => right.priority - left.priority || left.value - right.value)) {
+            if (tick.value < from) continue;
+            if (tick.initial) {
+                const parent = levels[Math.min(base + 1, levels.length - 1)].interval;
+                const periodEnd = +parent.offset(parent.floor(new Date(tick.value)), 1);
+                const hasYearContext = selected.some(other => other.level > base && levels[other.level].unit === 'year'
+                    && other.value > tick.value && other.value <= periodEnd);
+                if (hasYearContext) {
+                    const floor = Math.max(base, tick.level);
+                    tick.pattern = boundaryFormat(rank(tick.value, floor), floor);
+                    tick.text = format(tick.pattern)(new Date(tick.value));
+                    tick.size = extent(tick.text);
+                }
+            }
+            if (selected.every(other => Math.abs(position(tick.value) - position(other.value)) >= (tick.size + other.size) / 2 + gap)) {
+                selected.push(tick);
+            }
+        }
+        return { ticks, selected };
+    };
+    let { ticks, selected } = choose(startAnchor, -Infinity);
+    // An opening label crowded out (say a half-hour start beside the next full hour) would leave
+    // the axis without its date; the earliest label that fits carries it instead.
+    if (selected.length > 0 && ticks.some(tick => tick.initial) && !selected.some(tick => tick.initial)) {
+        const first = Math.min(...selected.map(tick => tick.value));
+        ({ ticks, selected } = choose(first, first));
+    }
+    selected.sort((left, right) => left.value - right.value);
+    const expandMonth = (pattern: string): string =>
+        pattern === '%b' || pattern === '%b %Y' ? pattern.replace('%b', '%B') : pattern;
+    const expanded = selected.map(tick => {
+        const pattern = expandMonth(tick.pattern);
+        const text = format(pattern)(new Date(tick.value));
+        return { value: tick.value, size: extent(text), width: textWidth(text), changed: pattern !== tick.pattern };
+    });
+    const labelLimit = typeof settings.labelLimit === 'number' ? settings.labelLimit : VEGA_AXIS_LABEL_LIMIT;
+    const fullMonthNames = expanded.every((tick, index) =>
+        (!tick.changed || labelLimit <= 0 || tick.width <= labelLimit)
+        && (index === 0 || position(tick.value) - position(expanded[index - 1].value)
+            >= (tick.size + expanded[index - 1].size) / 2 + gap));
+    const labelPattern = (pattern: string): string => JSON.stringify(fullMonthNames ? expandMonth(pattern) : pattern);
+    const formatter = utc ? 'utcFormat' : 'timeFormat';
+    const boundaries = [
+        ['', ''], ['%L', '000'], ['%S.%L', '00.000'], ['%M:%S.%L', '00:00.000'],
+        ['%H:%M:%S.%L', '00:00:00.000'], ['%d %H:%M:%S.%L', '01 00:00:00.000'],
+        ['%m-%d %H:%M:%S.%L', '01-01 00:00:00.000'],
+    ];
+    const boundaryExpr = (level: number, value: string): string =>
+        `${formatter}(${value}, ${JSON.stringify(boundaries[level][0])}) === ${JSON.stringify(boundaries[level][1])}`;
+    const patternExpr = (floor: number, context: boolean): string => {
+        let pattern = labelPattern(context ? levels[floor].context : ordinaryFormat(floor));
+        for (let level = floor + 1; level < levels.length; level++) {
+            const promoted = context ? levels[level].context : boundaryFormat(level, floor);
+            pattern = `(${boundaryExpr(level, 'datum.value')} ? ${labelPattern(promoted)} : ${pattern})`;
+        }
+        return pattern;
+    };
+    let pattern = patternExpr(base, false);
+    const initial = selected.find(tick => tick.initial);
+    if (initial) {
+        const parent = levels[Math.min(base + 1, levels.length - 1)].interval;
+        const periodEnd = +parent.offset(parent.floor(new Date(initial.value)), 1);
+        const yearContext = selected.filter(tick => tick.level > base && levels[tick.level].unit === 'year'
+            && tick.value > initial.value && tick.value <= periodEnd)
+            .map(tick => `(${boundaryExpr(levels.length - 1, String(tick.value))})`).join(' || ') || 'false';
+        pattern = `(toNumber(datum.value) === ${initial.value} && !(${yearContext}) ? ${patternExpr(minimumLevel, true)} : ${pattern})`;
+    }
+    const labels = Object.fromEntries(selected.map(tick => [tick.value, true]));
+    return {
+        values: ticks.map(tick => new Date(tick.value).toISOString()),
+        labels: Object.fromEntries(selected.map(tick =>
+            [tick.value, format(fullMonthNames ? expandMonth(tick.pattern) : tick.pattern)(new Date(tick.value))])),
+        labelExpr: `(${JSON.stringify(labels)})[toString(toNumber(datum.value))] ? ${formatter}(datum.value, ${pattern}) : ''`,
+        labelOverlap: false,
+        labelFlush: false,
+    };
+}
+
+function vlApplyDefaultAxisFormat(
+    vgObj: any,
     collectEncodingTargets: (ch: string) => any[],
+    context: InstantiateContext,
+    axisLabels: Record<'x' | 'y', AxisLabelPlan>,
+    themed: boolean,
 ): void {
     for (const ch of ['x', 'y'] as const) {
         for (const enc of collectEncodingTargets(ch)) {
-            if (!enc || enc.type !== 'quantitative' || enc.bin || enc.axis === null) continue;
+            if (!enc || enc.bin || enc.axis === null) continue;
             if (enc.axis?.format || enc.axis?.labelExpr) continue;
 
-            if (!enc.axis) enc.axis = {};
-            enc.axis.format = DEFAULT_QUANTITATIVE_AXIS_FORMAT;
+            if (enc.type === 'quantitative') {
+                if (!enc.axis) enc.axis = {};
+                enc.axis.format = DEFAULT_QUANTITATIVE_AXIS_FORMAT;
+            } else if (enc.type === 'temporal' && !enc.timeUnit && enc.scale !== null && enc.format == null) {
+                const config = vgObj.config ?? {};
+                const formatting = {
+                    ...config.axis, ...config.axisTemporal,
+                    ...config[ch === 'x' ? 'axisX' : 'axisY'], ...enc.axis,
+                };
+                if (config.timeFormat != null || formatting.format != null
+                    || formatting.formatType != null || formatting.labelExpr != null
+                    || formatting.tickCount != null || formatting.values != null || formatting.tickMinStep != null
+                    || formatting.labelOverlap != null || formatting.labelFlush != null
+                    || enc.scale?.domain != null || enc.scale?.domainMin != null || enc.scale?.domainMax != null) continue;
+                let earliest = Infinity;
+                let latest = -Infinity;
+                // Date-only strings such as "2026-06" parse to UTC midnights; ticks planned on the local
+                // calendar would sit hours off every point and drop the last one past the domain's end.
+                let utcMidnights = true;
+                let localMidnights = true;
+                for (const row of context.table ?? vgObj.data?.values ?? []) {
+                    const value = row[enc.field];
+                    if (value == null) continue;
+                    const date = new Date(value);
+                    const timestamp = +date;
+                    if (!Number.isFinite(timestamp)) continue;
+                    earliest = Math.min(earliest, timestamp);
+                    latest = Math.max(latest, timestamp);
+                    if (date.getUTCHours() || date.getUTCMinutes() || date.getUTCSeconds() || date.getUTCMilliseconds()) utcMidnights = false;
+                    if (date.getHours() || date.getMinutes() || date.getSeconds() || date.getMilliseconds()) localMidnights = false;
+                }
+                // UTC-midnight dates are calendar dates read as UTC, wherever the chart is built.
+                const utc = enc.scale?.type === 'utc' || utcMidnights;
+                const semantics = context.channelSemantics[ch];
+                const { fontSize, settings } = temporalLabelSettings(axisLabels[ch], formatting, enc.axis, themed);
+                const plot = vgObj.facet && vgObj.spec ? vgObj.spec : vgObj;
+                const size = ch === 'x' ? plot.width : plot.height;
+                const span = typeof size === 'number' ? size
+                    : ch === 'x' ? context.layout.subplotWidth : context.layout.subplotHeight;
+                const semanticType = semantics?.field === enc.field ? semantics.semanticAnnotation?.semanticType : undefined;
+                const plan = planTemporalTicks({
+                    start: earliest, end: latest, semanticType, utc,
+                    span, vertical: ch === 'y', settings, fontSize,
+                });
+                if (!plan) continue;
+                temporalAxisPlans.set(enc, {
+                    start: earliest, end: latest,
+                    semanticType,
+                    labelExpr: plan.labelExpr,
+                    span,
+                    inputs: {
+                        semanticType, utc, vertical: ch === 'y',
+                        settings, fontSize,
+                        extent: [earliest, latest],
+                    },
+                });
+                enc.axis = {
+                    ...enc.axis,
+                    ...axisPropertiesOf(plan),
+                };
+                // The scale agrees with the labels, so tooltips and mark descriptions read
+                // the same calendar date instead of the previous day west of UTC.
+                if (utc) enc.scale = { ...(enc.scale ?? {}), type: 'utc' };
+            }
         }
     }
 }
@@ -1049,4 +1105,77 @@ function vlApplyDefaultQuantitativeAxisFormat(
 export function vlApplyTooltips(vgObj: any): void {
     if (!vgObj.config) vgObj.config = {};
     vgObj.config.mark = { ...vgObj.config.mark, tooltip: true };
+}
+
+/** A working column Flint computes for itself: a position, an order, a jitter, a connector. */
+const isWorkingColumn = (field: unknown): boolean => typeof field === 'string' && /^(__|_flint)/.test(field);
+
+/** The channels a mark's own tooltip lists, as Vega-Lite reads them from its encoding. */
+const NOT_LISTED = new Set(['tooltip', 'href', 'url', 'description', 'key']);
+const TOOLTIP_FIELD_KEYS = ['field', 'type', 'title', 'aggregate', 'timeUnit', 'bin', 'format', 'formatType'] as const;
+const COMPOSITE_MARKS = new Set(['boxplot', 'errorbar', 'errorband']);
+
+/**
+ * Keeps Flint's working columns out of the tooltips Vega-Lite builds from each mark's encoding.
+ * A column that repacks the author's field — a folded colour key, a waterfall's step kind — carries
+ * that field's name as its title and stays, under the name. One with no name of its own — a radar's
+ * positions, a pie's order, a strip's jitter — names nothing a reader asked about, and is left out;
+ * a mark with nothing else to list shows no tooltip. A mark whose tooltip lists no working column
+ * is left as it is, and so is a composite mark (a boxplot), whose summary a stated list would drop.
+ */
+export function vlListTooltipFields(spec: any): void {
+    if (spec?.config?.mark?.tooltip !== true) return;
+    const visit = (node: any, inherited: Record<string, any>): void => {
+        if (!node || typeof node !== 'object') return;
+        const encoding = { ...inherited, ...(node.encoding ?? {}) };
+        const markTooltip = node.mark && typeof node.mark === 'object' ? node.mark.tooltip : undefined;
+        // A mark whose encoding asks for no tooltip shows none: with tooltips on for every mark, an
+        // encoding's `null` alone does not turn its own off — the mark's does.
+        const silence = () => { node.mark = { ...(typeof node.mark === 'object' ? node.mark : { type: node.mark }), tooltip: null }; };
+        // A composite mark lists its own summary — a box's quartiles and whiskers — which a list given
+        // to it would replace: it keeps Vega-Lite's own.
+        const composite = COMPOSITE_MARKS.has(typeof node.mark === 'object' ? node.mark?.type : node.mark);
+        if (node.mark && encoding.tooltip === null && markTooltip !== false && markTooltip !== null) silence();
+        else if (node.mark && !composite && markTooltip !== false && markTooltip !== null && encoding.tooltip === undefined) {
+            const listed: any[] = [];
+            let working = false;
+            for (const [channel, def] of Object.entries<any>(encoding)) {
+                if (NOT_LISTED.has(channel) || !def || typeof def !== 'object' || Array.isArray(def)) continue;
+                if (def.field === undefined && def.aggregate !== 'count') continue;
+                if (isWorkingColumn(def.field)) {
+                    working = true;
+                    // A column that repacks the author's field is listed under that field's name.
+                    if (typeof def.title !== 'string') continue;
+                }
+                const entry: Record<string, unknown> = {};
+                for (const key of TOOLTIP_FIELD_KEYS) if (def[key] !== undefined && def[key] !== null) entry[key] = def[key];
+                listed.push(entry);
+            }
+            // Stated in full, so Vega-Lite adds none of its own working columns — a sorted key's index.
+            if (working && listed.length) node.encoding = { ...(node.encoding ?? {}), tooltip: listed };
+            else if (working) silence();
+        }
+        // A layer's children read its encoding; a facet's or a concatenation's children do not.
+        for (const child of node.layer ?? []) visit(child, encoding);
+        for (const child of [node.spec, ...(node.hconcat ?? []), ...(node.vconcat ?? []), ...(node.concat ?? [])]) if (child) visit(child, {});
+    };
+    visit(spec, {});
+}
+
+/**
+ * Lets the full-text tooltips Flint puts on truncated legend and axis labels fire.
+ *
+ * Vega-Lite has no way to mark a guide's labels interactive, so this runs on the
+ * compiled Vega spec. Pass it as vega-embed's `patch` when embedding yourself;
+ * `mountChart` applies it already.
+ */
+export function enableGuideLabelTooltips<T>(vegaSpec: T): T {
+    const visit = (node: any): void => {
+        for (const guide of [...(node?.legends ?? []), ...(node?.axes ?? [])]) {
+            if (guide.encode?.labels?.update?.tooltip) guide.encode.labels.interactive = true;
+        }
+        for (const child of node?.marks ?? []) visit(child);
+    };
+    visit(vegaSpec);
+    return vegaSpec;
 }

@@ -792,6 +792,36 @@ X 上 20 类别，step = 12 px，canvas height = 300 px，targetBandAR = 10：
 
 > **Implementation:** `computeLayout()` 中的 Band AR blending 块（约 702–735 行）。由 `options.targetBandAR`（`AssembleOptions`）控制。VL backend 在 `assemble.ts` 中设默认 `targetBandAR = 10`。
 
+### §3.9.6 Band Balance
+
+Band AR blending 约束单个 band；**band balance** 约束整个图表。band 轴长为 step × 类别数，类别少时成一条细带，类别多时成一条又长又矮的带。
+
+**自然范围。** 没有 band 的图表从基础尺寸出发，各边最多拉伸 $s_x$、$s_y$，其形状范围为
+
+$$\left[\frac{W_b}{H_b \cdot s_y},\; \frac{W_b \cdot s_x}{H_b}\right]$$
+
+（基础比例两侧至少 1.25×；`targetAspect` 与 `aspectTolerance` 可覆盖中心与范围）。300 × 300、×1.5 时为 0.67–1.5。
+
+**内在形状。** 按读者所见判断：绘图区（分面时为整个网格）加上无法去掉的标签，取一个范围。类别名从平均宽度到最长宽度，上限为 max(40 px, 绘图区边长的 30%)（超过会折行或截断）；放不进 band 的 x 类别名按两行或旋转计；数值标签 3–6 个字符；轴标题可有可无。比例范围为 (W + beside.lo)/(H + below.hi) 到 (W + beside.hi)/(H + below.lo)。
+
+**分层。**
+
+1. 内在范围与自然范围相交时不做任何改动。
+2. 否则用自由边把图表回拉到自然范围较近的一端：
+
+| 偏离 | 一轴 banded | 调整 |
+|---|---|---|
+| 过宽，x banded（列多） | 数值轴为 y | 在拉伸上限内加高绘图区 |
+| 过宽，y banded（行少） | 数值轴为 x | 加粗 step（至 max(`maxBandSize`, 2 × 默认 step)），再缩窄（最多到基础尺寸的一半） |
+| 过高，y banded（行多） | 数值轴为 x | 在拉伸上限内加宽绘图区 |
+| 过高，x banded（列少） | 数值轴为 y | 加粗 step，再降低高度（最多到基础尺寸的一半） |
+
+3. 若这些限制使其无法达到自然范围，则改为瞄准以基础比例为中心、两端各放宽 1.5× 的范围——仍值得做的最小改动。
+
+band 数量以及由类别过多而定下的 step 不变。网格（两轴均 banded）仍按 §2 的方格规则。分面按整个网格判断，各面板的标签在其所在处计入。固定尺寸的绘图区跳过；`bandBalance: false` 关闭。
+
+> **Implementation:** `core/natural-shape.ts` 中的 `naturalAspectRange` / `shapeDivergence`；`computeLayout()` 中 band AR blending 之后、pinned plot 之前的 band balance 块。
+
 ---
 
 # §4 圆周（Radial Pressure Model）
@@ -1064,6 +1094,7 @@ H = round(H₀ · s_y)
 6. **Gas–Banking blend (§3.8.4).** 对数空间 50/50 几何平均：gasAR（密度）× bankingAR（感知）。
 7. **Per-subplot baseline (§3.8.2).** 分面图表向 gas pressure 输入 per-subplot 画布（含 facet elasticity），而非全画布。
 8. **Band AR blending (§3.9).** 一轴 banded、另一 continuous 时，`targetBandAR` 通过对数空间混合防止 band 过度拉长。
+9. **Band balance (§3.9.6).** 通过自由边把图表区（含无法去掉的标签）保持在其基础尺寸自身的形状范围内。
 
 ### 决策树
 
@@ -1073,6 +1104,7 @@ Is the chart axis-based?
 │   ├── Both banded  → §2 Elastic Budget on each axis
 │   ├── One banded   → §2 for banded axis, §3 for continuous axis
 │   │                  + §3.9 Band AR blending if targetBandAR set
+│   │                  + §3.9.6 Band balance
 │   └── Neither      → §3 Gas Pressure (both axes continuous)
 │                      + §3.8 Banking AR + Gas–Banking blend
 └── NO:  Is the layout radial (items around a circle)?

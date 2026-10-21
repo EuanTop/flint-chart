@@ -1,0 +1,99 @@
+{
+  "id": "mailchimp",
+  "org": "Mailchimp (UX patterns: Data)",
+  "urls": [
+    "https://ux.mailchimp.com/patterns/data",
+    "https://www.chadurbanick.com/work/data-viz",
+    "https://www.designsystems.one/design-systems/mailchimp-design"
+  ],
+  "access": "none",
+  "accessNotes": "ux.mailchimp.com returns 503 / Akamai 'DNS failure' (site appears retired); the Wayback Machine was offline (503) at research time, so the original guideline text could not be read. Main secondary source: the portfolio case study of Chad Urbanick, the Mailchimp Design System designer who wrote the guideline ('Our first draft of the guidelines are live here' linking ux.mailchimp.com/patterns/data), which shows the palette work, categorical combos and example charts. Hex values below were SAMPLED from those images with ImageMagick (approximate; not published tokens). Fonts are not stated anywhere read; descriptions of type are visual observations only. A web_search summary (designsystems.one) gave Mailchimp brand yellow #ffe01b, not chart-specific.",
+  "summary": "Mailchimp's product data-viz pattern (c. 2019–2020) for in-app marketing reports: quiet, warm, editorial-feeling charts with a small sans-serif title top-left, very light horizontal gridlines with abbreviated tick labels (20k, $40k), a solid dark baseline with ticks, thin 2px lines in a warm ochre, dark warm-charcoal tooltips with a vertical rule, and multi-category colour assigned from predefined accessible 'combos' that vary hue, saturation and value.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#f97f50", "#4f135e", "#99c7ef", "#fad173", "#a3296e"],
+    "categoricalNotes": "Categories coloured by choosing one predefined 'Categorical Combo' and cycling through it in order (5 colours each). Sampled from the case-study image: Combo One #f97f50 coral, #4f135e plum, #99c7ef light blue, #fad173 pale yellow, #a3296e magenta; Combo Two #fad173, #99c7ef, #de4d14 burnt orange, #83249f purple, #fa8cf8 pink; Combo Four #83249f, #f97f50, #fad173, #99e0d7 mint, #4277ce blue; Combo Five #601d06 dark brown, #dd4b1d, #facf78, #99c7ef, #a22c6d; Combo Six #d99536 ochre, #99c7ef, #a3296e, #de4d14, #005733 dark green. Palette built from brand hues, each main hue expanded into eight steps along a 'predictable, mathematical curve' of hue, value and saturation.",
+    "sequential": [],
+    "diverging": [],
+    "highlight": "#d99536",
+    "context": null,
+    "positive": null,
+    "negative": null,
+    "background": "#ffffff",
+    "text": null,
+    "textSecondary": null,
+    "gridline": "#e9e9e8",
+    "axis": "#24201f",
+    "notes": "All values sampled from portfolio PNGs (approximate). Single-series line charts use a warm ochre/gold (~#d99536); projections in light blue (~#99c7ef) dotted. Tooltip background warm charcoal ~#39332c with white text. Mailchimp brand yellow #ffe01b (secondary source) is not used in the chart examples. Combos designed to remain distinct under colour-vision deficiencies and to avoid placing similar colours adjacently."
+  },
+  "typography": {
+    "family": null,
+    "fallback": null,
+    "title": { "size": null, "weight": "regular (not bold)", "align": "left", "case": "title", "color": null },
+    "subtitle": { "size": null, "weight": null, "style": null, "color": null },
+    "axisLabel": { "size": null, "color": null },
+    "axisTitle": { "size": null, "weight": null, "placement": "omitted" },
+    "dataLabel": { "size": null, "weight": null },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "Observed: chart titles in a regular-weight grotesque sans (looks like Mailchimp's Graphik) in near-black, noticeably larger than the small grey tick labels; the case-study headings use a serif (Mailchimp's 'Means'). Not confirmed by a published spec."
+  },
+  "structure": {
+    "gridlines": "Horizontal only, very light warm grey (~#e9e9e8), 2–3 lines at round values.",
+    "axisLine": "Solid dark x-axis baseline (~#24201f) with short downward ticks at each date label; no y-axis line.",
+    "ticks": "x ticks yes (short, dark); y none.",
+    "zeroLine": "Baseline at 0 drawn dark.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "omitted",
+    "unitPlacement": "In every tick label with abbreviations (20k, $40k).",
+    "frame": "none",
+    "background": "#ffffff",
+    "notes": "Under the time axis, a thin segmented bar highlights periods (ochre for 'increasing' spans, light grey otherwise) with a caption whose keyword is coloured to match ('Large trends of increasing audience size')."
+  },
+  "legend": {
+    "placement": "top-right inline above plot for line charts; below the chart in a two-column grid for pies",
+    "directLabels": null,
+    "title": "none",
+    "swatchShape": "short line segment (solid/dotted) for lines; small square for pie categories",
+    "notes": ""
+  },
+  "marks": {
+    "bars": null,
+    "lines": "Thin (~2px) unsmoothed lines, no markers; projection shown as dotted line in a contrasting light blue continuing from the last actual point, with a vertical dotted 'Today' rule.",
+    "areas": null,
+    "points": "Hover point shown as a translucent enlarged circle halo in the series colour.",
+    "pies": "Pies used for source breakdowns (4 slices), largest slice starting at 12 o'clock clockwise, no slice borders/labels; values shown on hover tooltip ('35% • 476 Subscribers').",
+    "notes": "Case study lists chart types: line charts, meter charts, scatter plot, pie charts."
+  },
+  "labels": {
+    "dataLabels": "None on chart; values surfaced through tooltips.",
+    "numberFormat": "k abbreviations (20k, $40k), $ prefix, percentages with '•' separator in tooltips.",
+    "dates": "Month abbreviations (Apr, Jul, Oct) with the year shown at year boundaries (2015, 2016); tooltip 'Aug 3, 2015'.",
+    "notes": ""
+  },
+  "furniture": {
+    "title": "Short noun-phrase title top-left ('Audience Growth', 'Revenue Projection') in regular weight.",
+    "source": null,
+    "logo": null,
+    "other": "Captions below the chart use coloured keywords matching the encoded colour."
+  },
+  "annotations": "Vertical dotted reference rule with label at the bottom ('Today'); coloured keyword captions.",
+  "layout": "Card-less, white, generous whitespace; title above plot with ~1 line gap.",
+  "interaction": "Hover tooltip: dark warm-charcoal rectangle (square corners) with bold white date/category line and regular white value line, positioned above the plot and connected to the hovered point by a thin dark vertical line; hovered point gets a translucent halo.",
+  "accessibility": "Colour combos pre-tested under colour-vision-deficiency simulation so adjacent categories stay distinguishable; differentiate by hue, saturation and value, not value alone.",
+  "chartTypes": { "preferred": ["line", "meter", "scatter", "pie"], "discouraged": [], "notes": "From the case study; original guideline text not accessible." },
+  "distinctiveRules": [
+    { "rule": "Multi-category charts pick one predefined 5-colour 'combo' and apply its colours in sequence (e.g. coral #f97f50, plum #4f135e, light blue #99c7ef, pale yellow #fad173, magenta #a3296e).", "source": "https://www.chadurbanick.com/work/data-viz", "quote": "designers and engineers could simply choose a combo and our tools would simply move through the sequence of colors" },
+    { "rule": "Categories must differ in hue, saturation AND value, never value alone.", "source": "https://www.chadurbanick.com/work/data-viz", "quote": "We most often used ONLY value to differentiate between categories rather than hue, saturation, AND value." },
+    { "rule": "Only light horizontal gridlines (2–3), y labels abbreviated with units on every tick (20k, $40k), no y-axis line.", "source": "https://www.chadurbanick.com/work/data-viz", "quote": "observed in chart-audience-growth.png / rev-projections.png" },
+    { "rule": "Dark solid x baseline with short tick marks; dates as month abbreviations with year at year boundaries.", "source": "https://www.chadurbanick.com/work/data-viz", "quote": "observed in example charts" },
+    { "rule": "Tooltips are dark warm-charcoal boxes with white text (bold first line), tied to the point by a thin vertical rule; hovered point shows a translucent halo.", "source": "https://www.chadurbanick.com/work/data-viz", "quote": "observed: 'Aug 3, 2015 / $5 spent' tooltip" },
+    { "rule": "Projections continue as a dotted light-blue line after a dotted vertical 'Today' rule; legend top-right shows solid vs dotted line samples.", "source": "https://www.chadurbanick.com/work/data-viz", "quote": "observed in rev-projections.png" },
+    { "rule": "Chart title is a short regular-weight noun phrase top-left; no axis titles.", "source": "https://www.chadurbanick.com/work/data-viz", "quote": "observed: 'Audience Growth', 'Revenue Projection'" },
+    { "rule": "Pie legends sit below the pie in a two-column grid with small square swatches; values only on hover.", "source": "https://www.chadurbanick.com/work/data-viz", "quote": "observed in pie-large.png" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/mailchimp/chart-audience-growth.png", "url": "https://images.squarespace-cdn.com/content/v1/5f260a8819aa8256c5d29b4e/1596490590267-D5NZZRP48AQMG3FFQGAC/chart-audience-growth.png", "describes": "Line chart 'Audience Growth': regular-weight dark sans title top-left; y labels 0/20k/40k small grey at left; two very light grey horizontal gridlines; solid near-black x baseline with short ticks, labels 2015, Apr, Jul, Oct, 2016, Apr. Single thin ochre (#d99536-ish) line, no markers. Hover state: translucent ochre halo on the point, thin black vertical line up to a dark warm-charcoal tooltip (bold white 'Aug 3, 2015', regular '$5 spent'). Below the axis a thin segmented band (ochre for growth periods, light grey otherwise) and caption 'Large trends of increasing audience size' with 'increasing' in ochre." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/mailchimp/rev-projections.png", "url": "https://images.squarespace-cdn.com/content/v1/5f260a8819aa8256c5d29b4e/1596489522534-OFGNE427MWYZPU9XY8CU/rev-projections.png", "describes": "'Revenue Projection' line chart: title top-left, legend top-right (solid ochre line 'Revenue', dotted light-blue line 'Projected'); y labels $0/$20k/$40k left with light gridlines; dark baseline with ticks; ochre actual line then dotted light-blue projection; vertical dotted grey 'Today' rule labelled at the bottom." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/mailchimp/cat-combos.png", "url": "https://images.squarespace-cdn.com/content/v1/5f260a8819aa8256c5d29b4e/1596488696708-SQTWJOK6YG9S0QLMNIN2/cat-combos.png", "describes": "Swatch sheet 'Categorical Combos' (serif heading) showing five-colour combos as stacked blocks: Combo One coral/plum/light blue/pale yellow/magenta; Combo Two pale yellow/light blue/burnt orange/purple/pink; Combo Four purple/coral/pale yellow/mint/blue; Combo Five dark brown/burnt orange/pale yellow/light blue/magenta; Combo Six ochre/light blue/magenta/burnt orange/dark green." }
+  ]
+}

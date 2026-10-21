@@ -31,6 +31,12 @@ export interface NormalizePropertiesResult {
     warnings: ChartWarning[];
 }
 
+function sameOptionValue(option: unknown, value: unknown): boolean {
+    if (option === value) return true;
+    return Array.isArray(option) && Array.isArray(value)
+        && option.length === value.length && option.every((entry, index) => entry === value[index]);
+}
+
 export function normalizeChartProperties(
     properties: ChartPropertyDef[] | undefined,
     chartProperties: Record<string, any> | undefined,
@@ -52,8 +58,9 @@ export function normalizeChartProperties(
         const value = chartProperties[def.key];
         if (value == null) continue;
 
-        // Already a valid accepted value — nothing to do.
-        if (def.options.some((o) => o.value === value)) continue;
+        // Already a valid accepted value — nothing to do. An array value (a map's centre) arrives
+        // as a fresh array from JSON, so it is matched by its contents.
+        if (def.options.some((o) => sameOptionValue(o.value, value))) continue;
 
         // Known label (case-insensitive) → coerce to the canonical value.
         const byLabel =

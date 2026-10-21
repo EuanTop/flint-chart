@@ -200,6 +200,30 @@ export function presenceWidth(p: Presence | undefined, base = 1): number {
     }
 }
 
+/** WCAG contrast between two colours, `1` for identical; `21` where either will not parse. */
+export function contrastRatio(a: string, b: string): number {
+    const ca = parseColor(a);
+    const cb = parseColor(b);
+    if (!ca || !cb) return 21;
+    const la = luminance(ca);
+    const lb = luminance(cb);
+    return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+/**
+ * The same hue, moved toward black (or white, on a dark surface) until text set in it reaches
+ * `min`:1 against `surface`. An ink that already reads is returned unchanged.
+ */
+export function readableTextInk(ink: string, surface: string, min = 3): string {
+    if (contrastRatio(ink, surface) >= min) return ink;
+    const away = isDarkSurface(surface) ? '#ffffff' : '#000000';
+    for (let t = 0.05; t <= 0.8 + 1e-9; t += 0.05) {
+        const candidate = mixHex(ink, away, t, ink);
+        if (contrastRatio(candidate, surface) >= min) return candidate;
+    }
+    return mixHex(ink, away, 0.8, ink);
+}
+
 /** Pick whichever of two inks reads better on `background`. */
 export function contrastingInk(background: string, light: string, dark: string): string {
     const bg = parseColor(background);
@@ -222,4 +246,38 @@ export function sampleRamp(stops: string[], n: number): string[] {
         out.push(toHex(mix(parsed[lo], parsed[hi], t - lo)));
     }
     return out;
+}
+
+/** The most of a ramp its faint end may give up to reach the surface contrast. */
+const MAX_RAMP_TRIM = 0.5;
+
+/**
+ * `n` colours from a ramp, one per bin: each the ramp's colour at the middle of its bin, so no bin
+ * takes the ramp's palest end. The faint end (the one nearer the surface) is first trimmed to
+ * where the ramp stands `minContrast`:1 off `surface`, at most half of it. N ordered values and N
+ * bins of a measure take the same colours.
+ */
+export function sampleRampBins(stops: string[], n: number, surface?: string, minContrast = 1): string[] {
+    const parsed = stops.map((s) => parseColor(s)).filter(Boolean) as RGB[];
+    if (parsed.length === 0 || n <= 0) return [];
+    if (parsed.length === 1) return new Array(n).fill(toHex(parsed[0]));
+    const at = (t: number): string => {
+        const x = Math.max(0, Math.min(1, t)) * (parsed.length - 1);
+        const lo = Math.min(parsed.length - 2, Math.floor(x));
+        return toHex(mix(parsed[lo], parsed[lo + 1], x - lo));
+    };
+    let from = 0;
+    let to = 1;
+    if (surface && parseColor(surface) && minContrast > 1) {
+        const faintAtStart = contrastRatio(at(0), surface) <= contrastRatio(at(1), surface);
+        let trim = MAX_RAMP_TRIM;
+        for (let k = 0; k <= MAX_RAMP_TRIM * 100; k++) {
+            if (contrastRatio(at(faintAtStart ? k / 100 : 1 - k / 100), surface) >= minContrast) {
+                trim = k / 100;
+                break;
+            }
+        }
+        if (faintAtStart) from = trim; else to = 1 - trim;
+    }
+    return Array.from({ length: n }, (_, i) => at(from + (to - from) * (i + 0.5) / n));
 }

@@ -1,3 +1,11 @@
+.bespoke-public-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  background-image: linear-gradient(90deg, rgba(0, 0, 0, 0.02) 1px, transparent 1px), linear-gradient(0deg, rgba(0, 0, 0, 0.02) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
 .bespoke-page {
   gap: 26px;
 }
@@ -18,6 +26,7 @@
 
 .bespoke-case {
   width: 100%;
+  min-width: 0;
   box-sizing: border-box;
   overflow: hidden;
   border: 1px solid #d8dde2;
@@ -90,6 +99,7 @@
 
 .bespoke-treatment-stack {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0;
 }
 
@@ -97,10 +107,27 @@
   border-top: 1px solid #e6eaed;
 }
 
+.bespoke-treatment-title { margin: 14px 18px 0; color: #1f2328; font-size: 14px; font-weight: 600; line-height: 1.4; }
+.bespoke-public-page .bespoke-treatment-title { margin: 14px 0 10px; }
+.bespoke-public-page .bespoke-treatment:first-child .bespoke-treatment-title { margin-top: 0; }
+
 .bespoke-treatment .ic-flint-dimpvis-shell {
   padding-top: 14px;
   padding-bottom: 14px;
 }
+
+.bespoke-code { min-width: 0; margin-top: 12px; }
+.bespoke-data-note { margin-top: 12px; color: #66707a; font-size: 12px; line-height: 1.5; }
+.bespoke-data-note p { margin: 4px 0 0; }
+.bespoke-data-note a { color: #0067b8; text-decoration: underline; }
+.bespoke-code summary { display: flex; align-items: center; gap: 6px; width: fit-content; padding: 6px 0; color: #0067b8; font-size: 12px; cursor: pointer; list-style: none; }
+.bespoke-code summary::-webkit-details-marker { display: none; }
+.bespoke-code summary:hover { color: #004578; }
+.bespoke-code summary:focus-visible { outline: 2px solid #0067b8; outline-offset: 3px; }
+.bespoke-code[open] > summary { margin-bottom: 6px; }
+.bespoke-code[open] .bespoke-code-chevron { transform: rotate(90deg); }
+.bespoke-case:not(.bespoke-public-page .bespoke-case) > .bespoke-code,
+.bespoke-case:not(.bespoke-public-page .bespoke-case) .bespoke-treatment > .bespoke-code { margin: 0 18px 18px; }
 
 .climate-phase-footer {
   justify-content: space-between;
@@ -111,5 +138,86 @@
   font-size: 10px;
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
+}
+
+.bespoke-public-page {
+  width: 100%;
+  max-width: 1008px;
+  margin: 0 auto;
+  padding: 62px 24px 72px;
+  box-sizing: border-box;
+}
+
+.bespoke-public-page > .bespoke-heading,
+.bespoke-public-page > .bespoke-grid {
+  width: 100%;
+  max-width: 832px;
+  min-width: 0;
+  margin: 0 auto;
+}
+
+/* Gallery type scale, shared with the Interaction Presets page (click-focus-lab.css). */
+.bespoke-public-page .bespoke-heading h1 {
+  margin: 0 0 20px;
+  font-size: 32px;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.bespoke-public-page .bespoke-heading p {
+  max-width: none;
+  margin: 0 0 32px;
+  color: #1f2328;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.bespoke-public-page .bespoke-grid { gap: 0; }
+
+.bespoke-public-page .bespoke-case {
+  padding: 28px 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.bespoke-public-page .bespoke-case + .bespoke-case { border-top: 1px solid #d8dee4; }
+.bespoke-public-page .bespoke-case:first-child { padding-top: 0; }
+
+.bespoke-public-page .bespoke-case-header {
+  min-height: 0;
+  padding: 0 0 18px;
+  border-bottom: 0;
+}
+
+.bespoke-public-page .bespoke-case-header h2 {
+  font-size: 20px;
+  line-height: 1.35;
+  font-weight: 700;
+}
+
+.bespoke-public-page .bespoke-case-header p {
+  max-width: none;
+  margin: 8px 0 0;
+  color: #40474e;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.bespoke-public-page .bespoke-pattern,
+.bespoke-public-page .bespoke-status { display: none; }
+
+.bespoke-public-page .bespoke-case .ic-flint-dimpvis-shell {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+@media (max-width: 640px) {
+  .bespoke-public-page { padding: 36px 24px 48px; }
 }
 

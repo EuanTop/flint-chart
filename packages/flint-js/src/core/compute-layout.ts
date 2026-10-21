@@ -44,23 +44,37 @@
  * =============================================================================
  */
 
+import { applyTextCase, type TextCase } from './text-case';
+import { chooseXLabels, EXPANSION_COST, SHRINK_COST, type LabelFitThresholds, type XLabelChoice } from './band-label-choice';
+import { DEFAULT_LABEL_OVERFLOW, DEFAULT_SEQUENCE_OVERFLOW } from './axis-labels';
+import type { SequenceKind } from './label-sequence';
 import type {
+    LayoutTrace,
+    PlanStage,
     ChannelSemantics,
+    ChartAssemblyInput,
     LayoutDeclaration,
     LayoutResult,
     AssembleOptions,
     ChannelBudgets,
+    InstantiateContext,
 } from './types';
+import { resolveThemeSpec } from './theme/presets';
+import type { LabelFitStep, ThemeCompileDefaults, ThemeLabelFit } from './theme/types';
 import {
     computeAxisStep,
+    computeBandLabelLayout,
     computeGasPressure,
     computeLabelSizing,
     computeFontSizing,
     DEFAULT_GAS_PRESSURE_PARAMS,
+    isDateField,
     type ElasticStretchParams,
     type GasPressureParams,
 } from './decisions';
+import { calendarLabels } from './calendar-labels';
 import { planBandDodge } from './band-dodge';
+import { naturalAspectRange, shapeDivergence, widenRange, FALLBACK_WIDEN, type AspectRange } from './natural-shape';
 
 // ---------------------------------------------------------------------------
 // Short discrete axis labels (align with echarts/templates/bar.ts)
@@ -86,6 +100,7 @@ export const DEFAULT_MIN_STEP = 8;
 interface DiscreteLabelStats {
     count: number;
     maxLen: number;
+    meanLen: number;
     /** True when every label parses as a finite number (e.g. years, bins, IDs). */
     allNumeric: boolean;
 }
@@ -106,6 +121,7 @@ function computeDiscreteLabelStats(
     return {
         count: labels.length,
         maxLen: Math.max(...labels.map(s => s.length)),
+        meanLen: labels.reduce((sum, s) => sum + s.length, 0) / labels.length,
         allNumeric: labels.every(s => s.trim() !== '' && isFinite(Number(s))),
     };
 }
@@ -171,6 +187,291 @@ export function resolveStretchCaps(options: AssembleOptions): { x: number; y: nu
 /** Default base (target) chart size in pixels when the spec omits `baseSize`. */
 export const DEFAULT_BASE_SIZE = { width: 400, height: 320 } as const;
 
+/** What renaming dates as a calendar names them costs a reader, over the names as written. */
+const CALENDAR_COST = 0.05;
+
+/**
+ * Calendar names set flat and whole: at each size from the stated one to the floor, in bands
+ * widened to hold the widest line where the plot has room. The cheapest, as the band-label choice
+ * costs a smaller size and wider bands; undefined where none stands.
+ */
+function flatCalendarFit(
+    lines: string[][],
+    at: { stated: number; floor: number; measure: (fontSize: number) => (text: string) => number; step: number; baseSpan: number; gapEm?: number },
+): XLabelChoice | undefined {
+    const span = Math.max(1, at.baseSpan);
+    const count = lines.length;
+    let best: XLabelChoice | undefined;
+    for (let size = at.stated; size >= at.floor - 1e-9; size -= 0.5) {
+        const widthOf = at.measure(size);
+        const gap = at.gapEm !== undefined ? at.gapEm * size : Math.max(6, size / 2);
+        const needed = Math.max(0, ...lines.flat().map(widthOf)) + gap;
+        const band = Math.max(at.step, needed);
+        // Bands widen only as far as the plot has room; bands already wider need none.
+        if (band > at.step && band * count > span + 1e-9) continue;
+        const cost = SHRINK_COST * (at.stated - size) / at.stated
+            + EXPANSION_COST * Math.max(0, band * count - at.step * count) / span;
+        if (!best || cost < best.cost) best = { step: 'fit', trimmed: false, fontSize: size, angle: 0, band, needed, cost };
+    }
+    return best;
+}
+
+/** The widest a band label runs before it is cut, as Vega draws it by default. */
+export const AXIS_LABEL_LIMIT = 180;
+
+/**
+ * Names on a banded axis. Along x, every way the theme (or the chart) allows — flat, two lines,
+ * cut, turned, or on a sequence only the round values — is weighed at every size down to the floor
+ * and the cheapest taken ({@link chooseXLabels}). Down y, names never turn: they are wrapped onto
+ * two lines, with the band widened within the stretch budget, when that reads better than cutting
+ * them. Updates the layout's step and label sizing in place; `skip` leaves a channel alone.
+ */
+export function planBandLabels(
+    context: Pick<InstantiateContext, 'layout' | 'canvasSize' | 'channelSemantics' | 'assembleOptions' | 'table'>,
+    options: {
+        fontSize?: number; textCase?: TextCase; skip?: (channel: 'x' | 'y') => boolean;
+        measure?: (fontSize: number) => (text: string) => number;
+        /** The least size the names may shrink to (the theme's `type.minSize`). */
+        minFontSize?: number;
+        /** The path x names take when they do not stand flat and whole. */
+        overflow?: readonly LabelFitStep[];
+        /** The x names step through a sequence (times, dates, years, ranks): they may be thinned to round values. */
+        sequence?: SequenceKind;
+        /** No step may trim the names (the theme never truncates, or they are codes). */
+        noLimit?: boolean;
+        /** The names along x are codes, which no cap may cut: a code cut short names nothing. */
+        codes?: boolean;
+        /** The names down y are codes. */
+        rowCodes?: boolean;
+        /** The theme's thresholds (`labels.fit`). */
+        fit?: ThemeLabelFit;
+    } = {},
+): void {
+    const { layout, canvasSize, channelSemantics } = context;
+    const assembleOptions = context.assembleOptions ?? {};
+    const caps = resolveStretchCaps(assembleOptions);
+    for (const channel of ['x', 'y'] as const) {
+        const semantics = channelSemantics[channel];
+        const discrete = channel === 'x' ? layout.xNominalCount > 0 : layout.yNominalCount > 0;
+        if (!discrete || !semantics?.field || !['nominal', 'ordinal'].includes(semantics.type)) continue;
+        if (options.skip?.(channel)) continue;
+        const labels = [...new Set(context.table.map((row) => row[semantics.field!])
+            .filter((value) => value != null).map(String))];
+        // Numbers in bands are left to the layout, unless they run as a sequence (years, ranks).
+        const numeric = labels.every((label) => label.trim() !== '' && Number.isFinite(Number(label)));
+        if (!labels.length || (numeric && !(channel === 'x' && options.sequence))) continue;
+        const sizing = channel === 'x' ? layout.xLabel : layout.yLabel;
+        const step = channel === 'x' ? layout.xStep : layout.yStep;
+        const panels = channel === 'x' ? layout.facet?.columns ?? 1 : layout.facet?.rows ?? 1;
+        const fixed = channel === 'x' ? assembleOptions.facetFixedPadding?.width ?? 0 : assembleOptions.facetFixedPadding?.height ?? 0;
+        const canvasSpan = channel === 'x' ? canvasSize.width : canvasSize.height;
+        const subplotSpan = channel === 'x' ? layout.subplotWidth : layout.subplotHeight;
+        const maxSpan = (canvasSpan * caps[channel] - fixed) / panels - layout.effectiveFacetGap;
+        const baseSpan = Math.min(subplotSpan, (canvasSpan - fixed) / panels - layout.effectiveFacetGap);
+        // Names along x are weighed from Flint's own size where no theme states one; the layout may have crowded them smaller already.
+        const stated = options.fontSize ?? (channel === 'x' ? Math.max(sizing.fontSize, BASE_TICK_FONT_SIZE) : sizing.fontSize);
+        // Measured and broken in the case they are drawn in; looked up by the value as written.
+        const shown = labels.map((label) => applyTextCase(label, options.textCase));
+        // The width a canvas fit gives the names down y, so the chart area takes the width its box leaves.
+        const givenRowWidth = channel === 'y' ? assembleOptions.canvasTreatment?.rowNames : undefined;
+        const ownGutter = rowLabelLimit(options.fit, canvasSize.width, layout.subplotWidth);
+        const fitAt = (fontSize: number, stretchToFit = false, compareBaseline = true, gutterLimit = givenRowWidth ?? ownGutter, texts = shown) => computeBandLabelLayout({
+            labels: texts, axis: channel, fontSize, step,
+            baseSpan, maxSpan, gutterLimit,
+            baselineLimit: sizing.labelLimit,
+            elasticity: assembleOptions.elasticity ?? 0.5,
+            ...(options.measure ? { measure: options.measure(fontSize) } : {}),
+            ...(stretchToFit ? { stretchToFit } : {}),
+            ...(compareBaseline ? {} : { compareBaseline }),
+        });
+
+        if (channel === 'x') {
+            const sequence = options.overflow ?? (options.sequence ? DEFAULT_SEQUENCE_OVERFLOW : DEFAULT_LABEL_OVERFLOW);
+            const floor = Math.min(stated, Math.max(options.minFontSize ?? 0, stated * 0.75));
+            const measure = options.measure ?? ((fontSize: number) => (text: string) => text.length * fontSize * APPROX_CHAR_WIDTH_RATIO);
+            const choiceInput = {
+                values: labels, shown, stated, floor, measure, step,
+                fillStep: Math.floor(baseSpan / labels.length), baseSpan,
+                wrapAt: (fontSize: number, stretch: boolean) => fitAt(fontSize, stretch, false),
+                steps: sequence,
+                ...(options.sequence ? { sequence: options.sequence } : {}),
+                noTrim: options.noLimit === true,
+                thresholds: labelFitThresholds(options.fit, layout.subplotHeight),
+            };
+            let choice = chooseXLabels(choiceInput);
+            if (!choice) continue;
+            // Dates that would shrink, turn, wrap or be cut as written take the calendar's names (`Jul`
+            // over `2025`, `Aug`, … for `2025-07`, `2025-08`, …) where every line of those stands flat
+            // and whole, and costs less.
+            let calendar: string[][] | undefined;
+            if ((choice.step !== 'fit' || choice.fontSize < stated) && isDateField(semantics.semanticAnnotation?.semanticType, labels)) {
+                const order = semantics.ordinalSortOrder?.map(String);
+                const axisOrder = order && labels.every((label) => order.includes(label))
+                    ? order.filter((value) => labels.includes(value)) : labels;
+                const named = calendarLabels(axisOrder);
+                if (named) {
+                    const byValue = new Map(axisOrder.map((value, index) => [value, named[index]]));
+                    const lines = labels.map((label) => (byValue.get(label) ?? [label]).map((line) => applyTextCase(line, options.textCase)));
+                    const alt = flatCalendarFit(lines, {
+                        stated, floor, measure, step, baseSpan,
+                        gapEm: labelFitThresholds(options.fit, layout.subplotHeight).gapEm,
+                    });
+                    if (alt && alt.cost + CALENDAR_COST < choice.cost) {
+                        choice = alt;
+                        calendar = lines;
+                    }
+                }
+            }
+            layout.xStep = choice.band;
+            const flat = choice.angle === 0;
+            Object.assign(sizing, {
+                fontSize: choice.fontSize,
+                labelAngle: choice.angle,
+                labelAlign: flat ? 'center' : 'right',
+                labelBaseline: flat ? 'top' : choice.angle === -90 ? 'middle' : 'top',
+                labelLimit: choice.limit !== undefined ? choice.limit + 2
+                    : flat ? Math.ceil(Math.max(choice.needed, Math.min(choice.needed * 1.15, choice.band - 4))) + 2
+                    // Turned names nothing may cut run whole.
+                    : options.noLimit ? 0 : sizing.labelLimit,
+                ...(choice.lines ? { labelValues: labels, labelLines: choice.lines, labelLineHeight: choice.lineHeight }
+                    : calendar ? {
+                        labelValues: labels, labelLines: calendar,
+                        labelLineHeight: calendar.some((lines) => lines.length > 1) ? Math.ceil(choice.fontSize * 1.2) : undefined,
+                    }
+                    : { labelValues: undefined, labelLines: undefined, labelLineHeight: undefined }),
+                labelForm: calendar ? 'calendar' : undefined,
+                ...(choice.fontSize < stated ? { fittedFontSize: choice.fontSize } : { fittedFontSize: undefined }),
+                ...(choice.step === 'fit' ? { overflow: undefined } : {
+                    overflow: {
+                        step: choice.step, trimmed: choice.trimmed, needed: choice.needed, band: choice.band,
+                        ...(choice.shown ? { shown: choice.shown } : {}),
+                    },
+                }),
+            });
+            continue;
+        }
+
+        // Names given a width wrap to it, rather than run whole where whole would read as well; where
+        // two lines will not stand in their rows, they step down a size first, as names along x do,
+        // never past the floor — or past the size the layout already crowds them to, which they are
+        // drawn at anyway.
+        // A width given is taken only where every name stands whole in it: a cut row name names nothing.
+        const whole = (laid: ReturnType<typeof fitAt>, size: number) => {
+            if (!laid || givenRowWidth === undefined) return laid;
+            const widthOf = options.measure?.(size) ?? ((text: string) => text.length * size * APPROX_CHAR_WIDTH_RATIO);
+            return laid.lines.every((row) => row.length <= 2 && row.every((line) => widthOf(line) <= laid.width + 1)) ? laid : null;
+        };
+        let fontSize = stated;
+        let fit = whole(fitAt(stated, false, givenRowWidth === undefined), stated);
+        if (!fit && givenRowWidth !== undefined) {
+            const floor = Math.min(stated, Math.max(options.minFontSize ?? 0, stated * 0.75), sizing.fontSize);
+            for (let size = stated - 1; !fit && size >= floor; size--) {
+                fit = whole(fitAt(size, false, false), size);
+                fontSize = size;
+            }
+            // Where they cannot, the names stand as they would have without it.
+            if (!fit) { fontSize = stated; fit = fitAt(stated, false, true, ownGutter); }
+        }
+        // Row names may run wide — wider than names along x — but not without end: past the cap they
+        // wrap there, whole on two lines where they can be, the second line cut where they cannot;
+        // where the rows hold one line, the name is cut on it. Any theme, codes apart.
+        const widthOf = options.measure?.(fontSize) ?? ((text: string) => text.length * fontSize * APPROX_CHAR_WIDTH_RATIO);
+        const cap = options.rowCodes ? undefined : adaptiveRowNameCap(shown.map(widthOf), layout.subplotWidth, fontSize);
+        const widest = fit ? Math.max(...fit.lines.flat().map(widthOf)) : Math.max(...shown.map(widthOf));
+        let cut = false;
+        if (cap !== undefined && widest > cap + 1) {
+            const capped = fitAt(fontSize, false, false, cap);
+            if (!capped) {
+                Object.assign(sizing, { fontSize, labelAngle: 0, labelAlign: 'right', labelBaseline: 'middle', labelLimit: Math.floor(cap), labelCut: true,
+                    labelValues: undefined, labelLines: undefined, labelLineHeight: undefined });
+                continue;
+            }
+            fit = capped;
+            cut = !capped.lines.every((row) => row.length <= 2 && row.every((line) => widthOf(line) <= capped.width + 1));
+        }
+        if (!fit) continue;
+        layout.yStep = fit.step;
+        Object.assign(sizing, {
+            fontSize,
+            labelAngle: 0,
+            labelAlign: 'right',
+            labelBaseline: 'middle',
+            labelLimit: cut ? Math.floor(cap!) : Math.ceil(fit.width) + 2,
+            labelValues: labels,
+            labelLines: fit.lines,
+            labelLineHeight: fit.lineHeight,
+            ...(cut ? { labelCut: true } : {}),
+        });
+    }
+}
+
+/**
+ * The widest a row name down y runs before it wraps, then is cut: tolerant — up to a little inside
+ * two-fifths of the chart, the most a reader's eye crosses to its bar — and never under twelve of its
+ * size, about twenty characters.
+ */
+export function rowNameCap(plotWidth: number, fontSize: number): number {
+    return Math.max(ROW_NAME_CAP_EM * fontSize, plotWidth * ROW_NAME_CAP_SHARE - ROW_NAME_TICK_ROOM);
+}
+const ROW_NAME_CAP_EM = 12;
+
+/**
+ * The cap the names down y are held to, from how they run: where only a few pass the tolerant cap,
+ * those few are cut there; where many do, cutting them all would gut the chart, so the cap rises
+ * toward the width the names past it run to on average — the longest of them still cut — never past
+ * the names taking half the chart. How far it rises eases in with the share of names past it, from a
+ * tenth to two-fifths, so no one name tips it.
+ */
+export function adaptiveRowNameCap(widths: number[], plotWidth: number, fontSize: number): number {
+    const soft = rowNameCap(plotWidth, fontSize);
+    if (!widths.length) return soft;
+    const ceiling = Math.max(soft, plotWidth - ROW_NAME_TICK_ROOM);
+    const long = widths.filter((width) => width > soft).map((width) => Math.min(width, ceiling));
+    if (!long.length) return soft;
+    const runTo = long.reduce((sum, width) => sum + width, 0) / long.length;
+    const lift = smoothstep((long.length / widths.length - ROW_NAME_FEW) / (ROW_NAME_MANY - ROW_NAME_FEW));
+    return Math.min(ceiling, soft + (runTo - soft) * lift);
+}
+/** The shares of names past the tolerant cap the raised cap eases in between. */
+const ROW_NAME_FEW = 0.1;
+const ROW_NAME_MANY = 0.4;
+
+/** 0 at or below 0, 1 at or above 1, an S-curve between: a rule that eases in rather than steps. */
+function smoothstep(t: number): number {
+    const x = Math.min(1, Math.max(0, t));
+    return x * x * (3 - 2 * x);
+}
+/**
+ * Names at two-fifths of the chart are two-thirds of its plot's width; the cap stands a little
+ * inside that, as the canvas fit judges it, their tick and its gap apart.
+ */
+const ROW_NAME_CAP_SHARE = 0.6;
+const ROW_NAME_TICK_ROOM = 10;
+
+/** Flint's own tick-label size, the stated size of names where no theme states one. */
+const BASE_TICK_FONT_SIZE = 10;
+
+/**
+ * The thresholds band names are set against: a theme's `labels.fit`, else the defaults — a cut
+ * keeps 4 characters, a turned name runs at most 40% of the plot's height, two straight names
+ * keep half an em between them and at least 6px.
+ */
+export function labelFitThresholds(fit: ThemeLabelFit | undefined, plotHeight: number): LabelFitThresholds {
+    const turned = fit?.turnedLimit ?? '40%';
+    const turnedLimit = typeof turned === 'number' ? turned
+        : Math.max(30, (Number.parseFloat(turned) / 100) * Math.max(1, plotHeight));
+    return { minChars: fit?.minChars ?? 4, turnedLimit, ...(fit?.gap !== undefined ? { gapEm: fit.gap } : {}) };
+}
+
+/** The widest a row name down y runs: a theme's `labels.fit.rowLimit` (px or a share of the chart's width), else a quarter of it, at least 180px. */
+export function rowLabelLimit(fit: ThemeLabelFit | undefined, canvasWidth: number, plotWidth: number): number {
+    const width = Math.min(canvasWidth, plotWidth || canvasWidth);
+    const stated = fit?.rowLimit;
+    if (typeof stated === 'number') return stated;
+    if (typeof stated === 'string') return (Number.parseFloat(stated) / 100) * canvasWidth;
+    return Math.max(AXIS_LABEL_LIMIT, width / 4);
+}
+
 /**
  * Default axis stretch cap used when the spec pins no `canvasSize` ceiling.
  *
@@ -200,6 +501,47 @@ export function resolveBaseSize(
     return {
         width: Math.min(base.width, ceiling.width),
         height: Math.min(base.height, ceiling.height),
+    };
+}
+
+/**
+ * The length of one facet panel along a dimension: the canvas, stretched by the panel count to
+ * the elasticity's power up to the cap, less the fixed room, shared by the panels, less the gap
+ * between them.
+ */
+export function facetPanelLength(
+    canvas: number, panels: number, cap: number, elasticity: number, fixed: number, gap: number,
+): number {
+    const stretch = Math.min(cap, Math.pow(panels, elasticity));
+    return (canvas * stretch - fixed) / panels - gap;
+}
+
+/**
+ * The input with the size available to the chart as its `canvasSize` ceiling. A side the
+ * host leaves open keeps the ceiling the chart had: the spec's, the house's, or the base
+ * size times `maxStretch`. The base size is untouched; the assembler clamps it to the ceiling.
+ */
+export function withCanvasSize(
+    input: ChartAssemblyInput,
+    available: { width?: number; height?: number },
+): ChartAssemblyInput {
+    let house: ThemeCompileDefaults | undefined;
+    try {
+        house = resolveThemeSpec(input.theme_spec)?.compileDefaults;
+    } catch {
+        // An unknown house is the assembler's error to report.
+        house = undefined;
+    }
+    const base = input.chart_spec.baseSize ?? house?.baseSize ?? DEFAULT_BASE_SIZE;
+    const stretch = input.options?.maxStretch ?? house?.maxStretch ?? DEFAULT_MAX_STRETCH;
+    const ceiling = input.chart_spec.canvasSize ?? house?.canvasSize
+        ?? { width: base.width * stretch, height: base.height * stretch };
+    return {
+        ...input,
+        chart_spec: {
+            ...input.chart_spec,
+            canvasSize: { width: available.width ?? ceiling.width, height: available.height ?? ceiling.height },
+        },
     };
 }
 
@@ -262,6 +604,22 @@ const CELL_BAND_SIZE = 28;
  * give way to a 20px square, but not to a 15px one.
  */
 const SQUARE_CELL_TOLERANCE = 1.5;
+/** The most a grid's cells grow past their reading target where the house lets bands grow into spare room, as a multiple of it. */
+const CELL_GROWTH_MAX = 2;
+/**
+ * The most room a category name is counted for beside or below its plot, as a share of the plot's
+ * side (not under the floor): past it a name wraps or is cut, so it no longer sets the shape.
+ */
+const LABEL_ROOM_SHARE = 0.3;
+const LABEL_ROOM_FLOOR = 40;
+/** The characters a value axis's tick labels run to, at the least and the most ("0", "1.5M"; "12,500"). */
+const VALUE_LABEL_CHARS = [3, 6] as const;
+/** A tick and its gap to its label. */
+const TICK_ROOM = 6;
+/** The most a band thickens to lean a plot of few bands back toward its shape, as a multiple of the house step. */
+const BALANCE_STEP_GROWTH = 2;
+/** The least share of its base a free side shortens to, leaning a plot back toward its shape. */
+const BALANCE_SIDE_FLOOR = 0.5;
 
 /**
  * Phase 1: Compute layout decisions.
@@ -283,6 +641,7 @@ const SQUARE_CELL_TOLERANCE = 1.5;
  *                           counts instead of counting from data — this
  *                           eliminates the circularity between wrapping and
  *                           banded axis sizing.
+ * @param pinnedPlot         A plot size that stays as given, whatever the rows would stretch it to.
  */
 export function computeLayout(
     channelSemantics: Record<string, ChannelSemantics>,
@@ -291,6 +650,7 @@ export function computeLayout(
     canvasSize: { width: number; height: number },
     options: AssembleOptions = {},
     facetGrid?: { columns: number; rows: number },
+    pinnedPlot?: { width: number; height: number },
 ): LayoutResult {
     const {
         elasticity: elasticityVal = 0.5,
@@ -315,12 +675,24 @@ export function computeLayout(
     // Facet overhead: fixed (axis labels, titles) + per-panel gap (spacing).
     const fixW = options.facetFixedPadding?.width ?? 0;
     const fixH = options.facetFixedPadding?.height ?? 0;
-    const gap = options.facetGap ?? 0;
+    const gapX = options.facetGapColumn ?? options.facetGap ?? 0;
+    const gapY = options.facetGapRow ?? options.facetGap ?? 0;
 
     const baseRefSize = 300;
     const sizeRatio = Math.max(defaultChartWidth, defaultChartHeight) / baseRefSize;
     const baseBandSize = options.defaultBandSize ?? 20;
     const defaultStepSize = Math.round(baseBandSize * Math.max(1, sizeRatio));
+
+    const r1 = (value: number) => Math.round(value * 10) / 10;
+    const trace: LayoutTrace = { width: [], height: [], xStep: [], yStep: [] };
+    const stage = (key: keyof LayoutTrace, rule: string, value: number | string, read?: PlanStage['read'], note?: string) => {
+        trace[key].push({ rule, value: typeof value === 'number' ? r1(value) : value, ...(read ? { read } : {}), ...(note ? { note } : {}) });
+    };
+    stage('width', 'canvas', defaultChartWidth, { base: canvasSize.width, stretchCap: r1(maxStretchX) }, 'the base width; the plot may stretch past it up to the cap');
+    stage('height', 'canvas', defaultChartHeight, { base: canvasSize.height, stretchCap: r1(maxStretchY) }, 'the base height; the plot may stretch past it up to the cap');
+    for (const key of ['xStep', 'yStep'] as const) {
+        stage(key, 'house band', defaultStepSize, { band: baseBandSize, sizeRatio: r1(sizeRatio) }, 'the band one category gets, scaled with the canvas past 300 px');
+    }
 
     const isDiscreteType = (t: string | undefined) => t === 'nominal' || t === 'ordinal';
 
@@ -350,6 +722,13 @@ export function computeLayout(
     const maxStepSize = options.maxBandSize == null && effectiveBandStepFit > 0
         ? Math.max(defaultStepSize, SPARSE_FIT_BAND_CEILING)
         : Math.round(maxBandSize * Math.max(1, sizeRatio));
+
+    // Names on their own line above each bar take a band of their own: the y band starts at twice
+    // the house band and never goes under twice the least step, by the same stretch.
+    const rowScale = Math.max(1, options.rowNamesAbove?.scale ?? 1);
+    const yDefaultStep = Math.round(defaultStepSize * rowScale);
+    const yMinStep = Math.max(Math.round(minStepVal * rowScale), options.rowNamesAbove?.minStep ?? 0);
+    const yMaxStep = Math.round(maxStepSize * rowScale);
 
     const nominalCount: Record<string, number> = {
         x: 0, y: 0, column: 0, row: 0, group: 0,
@@ -496,21 +875,22 @@ export function computeLayout(
 
     let subplotWidth: number;
     if (facetCols > 1) {
-        const stretch = Math.min(maxStretchX, Math.pow(facetCols, facetElasticityVal));
         subplotWidth = Math.round(Math.max(minContinuousSizeX,
-            (defaultChartWidth * stretch - fixW) / facetCols - gap));
+            facetPanelLength(defaultChartWidth, facetCols, maxStretchX, facetElasticityVal, fixW, gapX)));
     } else {
         subplotWidth = defaultChartWidth;
     }
 
     let subplotHeight: number;
     if (facetRows > 1) {
-        const stretch = Math.min(maxStretchY, Math.pow(facetRows, facetElasticityVal));
         subplotHeight = Math.round(Math.max(minContinuousSizeY,
-            (defaultChartHeight * stretch - fixH) / facetRows - gap));
+            facetPanelLength(defaultChartHeight, facetRows, maxStretchY, facetElasticityVal, fixH, gapY)));
     } else {
         subplotHeight = defaultChartHeight;
     }
+
+    if (facetCols > 1) stage('width', 'facet panel', subplotWidth, { columns: facetCols, allowance: fixW, gap: gapX, elasticity: facetElasticityVal }, 'the canvas stretched a little for its columns, less the allowance, shared between them');
+    if (facetRows > 1) stage('height', 'facet panel', subplotHeight, { rows: facetRows, allowance: fixH, gap: gapY, elasticity: facetElasticityVal }, 'the canvas stretched a little for its rows, less the allowance, shared between them');
 
     // --- Facet aspect-ratio resistance (non-gas-pressure charts) ---
     // When faceting compresses one dimension (e.g. width ÷ columns), the
@@ -644,12 +1024,12 @@ export function computeLayout(
                 const perSubplotCanvasW = facetCols > 1
                     ? Math.max(minContinuousSizeX,
                         (defaultChartWidth * Math.min(maxStretchX, Math.pow(facetCols, facetElasticityVal)) - fixW)
-                        / facetCols - gap)
+                        / facetCols - gapX)
                     : defaultChartWidth;
                 const perSubplotCanvasH = facetRows > 1
                     ? Math.max(minContinuousSizeY,
                         (defaultChartHeight * Math.min(maxStretchY, Math.pow(facetRows, facetElasticityVal)) - fixH)
-                        / facetRows - gap)
+                        / facetRows - gapY)
                     : defaultChartHeight;
 
                 // --- Gas pressure: per-axis raw stretches ---
@@ -733,10 +1113,10 @@ export function computeLayout(
                 // Hard ceiling per subplot: canvas × maxStretch shared
                 // across facet panels.
                 const availW = facetCols > 1
-                    ? Math.max(minContinuousSizeX, (defaultChartWidth * maxStretchX - fixW) / facetCols - gap)
+                    ? Math.max(minContinuousSizeX, (defaultChartWidth * maxStretchX - fixW) / facetCols - gapX)
                     : defaultChartWidth * maxStretchX;
                 const availH = facetRows > 1
-                    ? Math.max(minContinuousSizeY, (defaultChartHeight * maxStretchY - fixH) / facetRows - gap)
+                    ? Math.max(minContinuousSizeY, (defaultChartHeight * maxStretchY - fixH) / facetRows - gapY)
                     : defaultChartHeight * maxStretchY;
 
                 // Scale down to fit: if either axis exceeds its budget,
@@ -755,6 +1135,8 @@ export function computeLayout(
 
                 subplotWidth = Math.round(finalW);
                 subplotHeight = Math.round(finalH);
+                stage('width', 'crowding', subplotWidth, { points: xNumeric.length, stretchX: r1(idealResult.rawStretchX), banked: useBanking, budget: r1(availW) }, 'both axes continuous: the points press the plot wider by their crowding, the shape is banked toward readable slopes, then fitted to the stretch budget');
+                stage('height', 'crowding', subplotHeight, { points: yNumeric.length, stretchY: r1(idealResult.rawStretchY), banked: useBanking, budget: r1(availH) }, 'both axes continuous: the points press the plot taller by their crowding, the shape is banked toward readable slopes, then fitted to the stretch budget');
             }
         }
     } else if (xIsContinuousNonBanded || yIsContinuousNonBanded) {
@@ -821,6 +1203,13 @@ export function computeLayout(
         }
     }
 
+    if (!bothContinuousNonBanded && (xIsContinuousNonBanded || yIsContinuousNonBanded)) {
+        const key = xIsContinuousNonBanded ? 'width' : 'height';
+        const value = xIsContinuousNonBanded ? subplotWidth : subplotHeight;
+        const last = trace[key][trace[key].length - 1];
+        if (last.value !== r1(value)) stage(key, 'crowding', value, { rows: table.length }, 'the values along the continuous axis press it longer, by a power of their crowding');
+    }
+
     // --- Elastic stretch for discrete axes ---
     // X axis grows under its width budget (βx); Y under its height budget (βy).
     const elasticParamsX: ElasticStretchParams = {
@@ -835,11 +1224,11 @@ export function computeLayout(
     const elasticParamsY: ElasticStretchParams = {
         elasticity: elasticityVal,
         maxStretch: maxStretchY,
-        defaultStepSize,
+        defaultStepSize: yDefaultStep,
         bandStepFit: effectiveBandStepFit,
         bandStepFitCapacity: Math.max(1,
             (options.bandStepFitCapacityY ?? defaultChartHeight) / defaultChartHeight),
-        minStep: minStepVal,
+        minStep: yMinStep,
     };
 
     const xAxis = computeAxisStep(xTotalNominalCount, xContinuousAsDiscrete, subplotWidth, elasticParamsX);
@@ -855,6 +1244,8 @@ export function computeLayout(
     let yStepSize: number;
     let xStepUnit: 'item' | 'group' | undefined;
     let yStepUnit: 'item' | 'group' | undefined;
+    let xStepFitted = false;
+    let yStepFitted = false;
 
     if (xIsDiscrete && xHasGrouping) {
         const itemsPerGroup = nominalCount.group;
@@ -868,10 +1259,10 @@ export function computeLayout(
         const groupStep = Math.max(minGroupStep, Math.min(defaultGroupStep, groupAxis.step));
         xStepSize = groupStep;
         xStepUnit = 'group';
-    } else if (xIsDiscrete) {
+        xStepFitted = groupAxis.fitted;
+    } else if (xIsDiscrete || xContinuousAsDiscrete > 0) {
         xStepSize = Math.max(minStepVal, Math.min(maxStepSize, xAxis.step));
-    } else if (xContinuousAsDiscrete > 0) {
-        xStepSize = Math.max(minStepVal, Math.min(maxStepSize, xAxis.step));
+        xStepFitted = xAxis.fitted;
     } else {
         xStepSize = defaultStepSize;
     }
@@ -888,12 +1279,47 @@ export function computeLayout(
         const groupStep = Math.max(minGroupStep, Math.min(defaultGroupStep, groupAxis.step));
         yStepSize = groupStep;
         yStepUnit = 'group';
-    } else if (yIsDiscrete) {
-        yStepSize = Math.max(minStepVal, Math.min(maxStepSize, yAxis.step));
-    } else if (yContinuousAsDiscrete > 0) {
-        yStepSize = Math.max(minStepVal, Math.min(maxStepSize, yAxis.step));
+        yStepFitted = groupAxis.fitted;
+    } else if (yIsDiscrete || yContinuousAsDiscrete > 0) {
+        yStepSize = Math.max(yMinStep, Math.min(yMaxStep, yAxis.step));
+        yStepFitted = yAxis.fitted;
     } else {
         yStepSize = defaultStepSize;
+    }
+
+    for (const axis of ['x', 'y'] as const) {
+        const key = axis === 'x' ? 'xStep' : 'yStep';
+        const items = axis === 'x' ? (xTotalNominalCount || xContinuousAsDiscrete) : (yTotalNominalCount || yContinuousAsDiscrete);
+        const step = axis === 'x' ? xStepSize : yStepSize;
+        if (items <= 0) {
+            stage(key, 'no bands', step, {}, 'the axis is continuous: no step sizes it');
+            continue;
+        }
+        const grouped = axis === 'x' ? xIsDiscrete && xHasGrouping : yIsDiscrete && yHasGrouping;
+        const span = axis === 'x' ? subplotWidth : subplotHeight;
+        const decision = axis === 'x' ? xAxis : yAxis;
+        if (grouped) {
+            stage(key, 'group step', step, { groups: axis === 'x' ? nominalCount.x : nominalCount.y, lanes: nominalCount.group, span }, 'one step holds a group of lanes: a house band per lane, held within the room the groups share');
+            continue;
+        }
+        const perBand = span / items;
+        const pressed = decision.step < defaultStepSize;
+        const stretched = decision.budget > span + 0.5;
+        stage(key, 'bands in the span', decision.step, { bands: items, span, spanPerBand: r1(perBand), budget: r1(decision.budget), stretch: r1(decision.budget / span), fitted: decision.fitted },
+            pressed && stretched ? 'the house band would overrun the span: the span stretches by a power of the pressure, to its cap, and the step shrinks to share it'
+                : pressed ? 'the house band would overrun the span and the cap allows no stretch, so the step is the span per band'
+                    : decision.fitted ? 'sparse bands grow toward the room the canvas leaves' : 'the house band fits the span and keeps its size');
+        if (step !== decision.step) stage(key, 'clamped', step, axis === 'y' ? { min: yMinStep, max: yMaxStep } : { min: minStepVal, max: maxStepSize }, 'held between the smallest readable step and the widest a band may be');
+    }
+    // The step value labels need, which the plan has checked the canvas holds.
+    for (const axis of ['x', 'y'] as const) {
+        const need = options.labelStep?.[axis];
+        const banded = axis === 'x' ? xIsDiscrete || xContinuousAsDiscrete > 0 : yIsDiscrete || yContinuousAsDiscrete > 0;
+        const step = axis === 'x' ? xStepSize : yStepSize;
+        if (!need || !banded || need <= step) continue;
+        if (axis === 'x') xStepSize = need;
+        else yStepSize = need;
+        stage(axis === 'x' ? 'xStep' : 'yStep', 'widened for value labels', need, { from: step }, 'each band widens to hold its value label, into the room the canvas has');
     }
 
     // --- Banded continuous canvas size ---
@@ -913,30 +1339,33 @@ export function computeLayout(
     // Cap the per-subplot dimensions so total canvas never exceeds
     // canvasWidth × maxStretch (and canvasHeight × maxStretch).
     // Formula: effectiveW = W × maxStretch − fixedPad; each panel costs subplot + gap.
-    const maxSubplotW = (defaultChartWidth * maxStretchX - fixW) / facetCols - gap;
-    const maxSubplotH = (defaultChartHeight * maxStretchY - fixH) / facetRows - gap;
+    const maxSubplotW = (defaultChartWidth * maxStretchX - fixW) / facetCols - gapX;
+    const maxSubplotH = (defaultChartHeight * maxStretchY - fixH) / facetRows - gapY;
 
     // Clamp step sizes for discrete/banded axes so VL step-based
     // sizing respects the same budget.
     // When step unit is 'group', divide by the number of groups (nominalCount)
     // rather than the total item count (groups × items-per-group).
+    const budgetNote = 'the plot may stretch only to the cap times the base, less the allowance; the bands share that';
     if (xTotalNominalCount > 0) {
         const divisor = xStepUnit === 'group' ? nominalCount.x : xTotalNominalCount;
         const cap = Math.max(minStepVal, Math.floor(maxSubplotW / divisor));
-        if (xStepSize > cap) xStepSize = cap;
+        if (xStepSize > cap) { xStepSize = cap; stage('xStep', 'stretch budget', cap, { budget: r1(maxSubplotW), bands: divisor, stretchCap: r1(maxStretchX), allowance: fixW }, budgetNote); }
     }
     if (xContinuousAsDiscrete > 0) {
         const cap = Math.max(minStepVal, Math.floor(maxSubplotW / (xContinuousAsDiscrete + 1)));
-        if (xStepSize > cap) xStepSize = cap;
+        if (xStepSize > cap) { xStepSize = cap; stage('xStep', 'stretch budget', cap, { budget: r1(maxSubplotW), bands: xContinuousAsDiscrete + 1, stretchCap: r1(maxStretchX), allowance: fixW }, budgetNote); }
     }
+    let rowNamesAboveFit: boolean | undefined;
     if (yTotalNominalCount > 0) {
         const divisor = yStepUnit === 'group' ? nominalCount.y : yTotalNominalCount;
-        const cap = Math.max(minStepVal, Math.floor(maxSubplotH / divisor));
-        if (yStepSize > cap) yStepSize = cap;
+        if (rowScale > 1) rowNamesAboveFit = Math.floor(maxSubplotH / divisor) >= yMinStep;
+        const cap = Math.max(yStepUnit === 'group' ? minStepVal : yMinStep, Math.floor(maxSubplotH / divisor));
+        if (yStepSize > cap) { yStepSize = cap; stage('yStep', 'stretch budget', cap, { budget: r1(maxSubplotH), bands: divisor, stretchCap: r1(maxStretchY), allowance: fixH }, budgetNote); }
     }
     if (yContinuousAsDiscrete > 0) {
         const cap = Math.max(minStepVal, Math.floor(maxSubplotH / (yContinuousAsDiscrete + 1)));
-        if (yStepSize > cap) yStepSize = cap;
+        if (yStepSize > cap) { yStepSize = cap; stage('yStep', 'stretch budget', cap, { budget: r1(maxSubplotH), bands: yContinuousAsDiscrete + 1, stretchCap: r1(maxStretchY), allowance: fixH }, budgetNote); }
     }
 
     // Recompute banded subplot size after step clamping.
@@ -946,6 +1375,7 @@ export function computeLayout(
         const stepSize = axis === 'x' ? xStepSize : yStepSize;
         if (axis === 'x') subplotWidth = Math.round(stepSize * (count + 1));
         else subplotHeight = Math.round(stepSize * (count + 1));
+        stage(axis === 'x' ? 'width' : 'height', 'banded values', Math.round(stepSize * (count + 1)), { values: count, step: r1(stepSize) }, 'a continuous field drawn in bands spans one step per value, plus one');
     }
 
     // --- Square cells ---
@@ -1002,6 +1432,7 @@ export function computeLayout(
             else { yStepSize = run; xStepSize = cross; }
         }
     }
+    let squaredCells = false;
     if (xTotalNominalCount > 0 && yTotalNominalCount > 0 && !xHasGrouping && !yHasGrouping
         && !bothDiscreteConnected) {
         const capX = Math.floor(maxSubplotW / xTotalNominalCount);
@@ -1011,7 +1442,12 @@ export function computeLayout(
         // target by a house's base canvas turned McKinsey's 440px chart into
         // 41px tiles, even though the measured design uses roughly 26px cells.
         // Cardinality may still shrink cells through capX/capY below.
-        const generous = CELL_BAND_SIZE;
+        // A house that lets bands grow into spare room lets cells grow too, a little: from the reading
+        // target toward the size that fills the base, to twice the target at most, by as much as the
+        // house lets bands grow — a smooth blend, so no grid tips from small cells to large.
+        const fill = Math.min(defaultChartWidth / xTotalNominalCount, defaultChartHeight / yTotalNominalCount);
+        const growth = Math.min(1, Math.max(0, options.cellGrowth ?? 0));
+        const generous = CELL_BAND_SIZE + Math.max(0, Math.min(fill, CELL_BAND_SIZE * CELL_GROWTH_MAX) - CELL_BAND_SIZE) * growth;
         // The square is the narrower of the two steps — that one already fits —
         // grown to the generous size if there is room for it on both axes.
         const wanted = Math.max(generous, Math.min(xStepSize, yStepSize));
@@ -1020,6 +1456,8 @@ export function computeLayout(
         if (square >= minStepVal && square * SQUARE_CELL_TOLERANCE >= widest) {
             xStepSize = square;
             yStepSize = square;
+            squaredCells = true;
+            for (const key of ['xStep', 'yStep'] as const) stage(key, 'square cells', square, { wanted, capX, capY }, 'both axes banded: the marks are cells, pulled to one size so tones compare by area');
         }
     }
 
@@ -1036,8 +1474,14 @@ export function computeLayout(
     // canvasSize when faceting shrinks it, which is already handled above.
 
     // Clamp continuous subplot dimensions.
+    if (subplotWidth > Math.round(maxSubplotW)) stage('width', 'stretch budget', Math.round(maxSubplotW), { stretchCap: r1(maxStretchX), allowance: fixW, columns: facetCols, gap: gapX }, 'held to the cap times the base, less the allowance and the gaps, shared by the columns');
+    if (subplotHeight > Math.round(maxSubplotH)) stage('height', 'stretch budget', Math.round(maxSubplotH), { stretchCap: r1(maxStretchY), allowance: fixH, rows: facetRows, gap: gapY }, 'held to the cap times the base, less the allowance and the gaps, shared by the rows');
     subplotWidth = Math.min(subplotWidth, Math.round(maxSubplotW));
     subplotHeight = Math.min(subplotHeight, Math.round(maxSubplotH));
+    // A banded continuous axis spreads its values across the clamped plot, so its step is what the
+    // plot leaves each value, even below the minimum step it was asked for.
+    if (xContinuousAsDiscrete > 0) xStepSize = Math.min(xStepSize, subplotWidth / (xContinuousAsDiscrete + 1));
+    if (yContinuousAsDiscrete > 0) yStepSize = Math.min(yStepSize, subplotHeight / (yContinuousAsDiscrete + 1));
 
     // --- Band AR blending ---
     // When one axis is banded (discrete) and the other is continuous,
@@ -1059,6 +1503,7 @@ export function computeLayout(
                     0.5 * Math.log(subplotHeight) + 0.5 * Math.log(idealH));
                 subplotHeight = Math.round(
                     Math.max(minContinuousSizeY, Math.min(blendedH, subplotHeight)));
+                stage('height', 'band shape', subplotHeight, { bandRatio: r1(actualBandAR), target: targetBandAR, step: r1(xStepSize), ideal: r1(idealH) }, 'bars taller than the target ratio of their step blend halfway toward it, in log space');
             }
         } else if (yIsBanded && !xIsBanded) {
             // Y is banded, X is continuous → band AR = subplotWidth / yStepSize
@@ -1069,8 +1514,140 @@ export function computeLayout(
                     0.5 * Math.log(subplotWidth) + 0.5 * Math.log(idealW));
                 subplotWidth = Math.round(
                     Math.max(minContinuousSizeX, Math.min(blendedW, subplotWidth)));
+                stage('width', 'band shape', subplotWidth, { bandRatio: r1(actualBandAR), target: targetBandAR, step: r1(yStepSize), ideal: r1(idealW) }, 'bars longer than the target ratio of their step blend halfway toward it, in log space');
             }
         }
+    }
+
+    // --- Band balance ---
+    // A plot sized by its bands is as long as its categories make it, not as its base says: four
+    // rows leave a bar chart a strip, thirty columns a long low band. It is judged as the reader
+    // sees it — the plot with the labels it cannot drop, as a range: names beside it from their
+    // mean to their longest (capped where they would wrap or be cut), an axis title or not — and
+    // against the shapes a chart of its base takes on its own, from its base to its base stretched
+    // on either side. Anywhere in that range it is left as its bands make it. Past it, it leans
+    // back only as far as the nearer end, and only by its free sides: a continuous axis lengthens
+    // (within the stretch cap) or shortens (to half its base at most); few bands thicken first (to
+    // twice the house step). Where that cannot reach the range within those limits, it aims only
+    // for a looser one round the base's shape, so a chart it cannot set right is not bent as far
+    // as the limits go. Panels are judged as one grid, each panel's labels where they sit. The
+    // number of bands, and every step a crowd of them set, is not touched; a grid of cells answers
+    // to its square-cell rule instead. One pass, on this plot alone: it reads nothing set around it.
+    {
+        const xBands = xTotalNominalCount > 0 && xContinuousAsDiscrete === 0 ? (xStepUnit === 'group' ? nominalCount.x : xTotalNominalCount) : 0;
+        const yBands = yTotalNominalCount > 0 && yContinuousAsDiscrete === 0 ? (yStepUnit === 'group' ? nominalCount.y : yTotalNominalCount) : 0;
+        const oneBanded = (xBands > 0 && !yBands && yIsContinuousNonBanded) || (yBands > 0 && !xBands && xIsContinuousNonBanded);
+        if (options.bandBalance !== false && !pinnedPlot && oneBanded) {
+            type Sizes = { w: number; h: number; xStep: number; yStep: number };
+            const xStats = xBands ? computeDiscreteLabelStats(channelSemantics.x?.field, table) : null;
+            // Names standing above their bars take no room beside the plot.
+            const yStats = yBands && rowScale === 1 ? computeDiscreteLabelStats(channelSemantics.y?.field, table) : null;
+            const plotW = (z: Sizes) => (xBands ? z.xStep * xBands : z.w);
+            const plotH = (z: Sizes) => (yBands ? z.yStep * yBands : z.h);
+            const gridW = (z: Sizes) => facetCols * plotW(z) + (facetCols - 1) * gapX;
+            const gridH = (z: Sizes) => facetRows * plotH(z) + (facetRows - 1) * gapY;
+            const fontsOf = (z: Sizes) => computeFontSizing(Math.min(plotW(z), plotH(z)), { baseLabelFontSize: options.baseLabelFontSize, baseTitleFontSize: options.baseTitleFontSize });
+            const nameFont = (step: number, z: Sizes) => computeLabelSizing(step, true, { baseFont: fontsOf(z).tickBase, minFont: 6 });
+            const px = (chars: number, font: number) => chars * font * APPROX_CHAR_WIDTH_RATIO;
+            const titleLine = (z: Sizes) => fontsOf(z).titleFontSize * 1.25 + 4;
+            // The room the y axis takes beside the plot, and the x axis below it.
+            const beside = (z: Sizes) => {
+                const tick = fontsOf(z).tickBase;
+                let lo = px(VALUE_LABEL_CHARS[0], tick), hi = px(VALUE_LABEL_CHARS[1], tick);
+                if (yStats) {
+                    const font = nameFont(z.yStep, z).fontSize;
+                    const cap = Math.max(LABEL_ROOM_FLOOR, LABEL_ROOM_SHARE * plotW(z));
+                    lo = Math.min(cap, px(yStats.meanLen, font));
+                    hi = Math.min(cap, px(yStats.maxLen, font));
+                }
+                return { lo: lo + TICK_ROOM, hi: hi + TICK_ROOM + titleLine(z) + (facetRows > 1 ? titleLine(z) : 0) };
+            };
+            const below = (z: Sizes) => {
+                let lo = fontsOf(z).tickBase * 1.25, hi = lo;
+                if (xStats) {
+                    const sizing = nameFont(z.xStep, z);
+                    const line = sizing.fontSize * 1.25;
+                    const cap = Math.max(LABEL_ROOM_FLOOR, LABEL_ROOM_SHARE * plotH(z));
+                    const mean = px(xStats.meanLen, sizing.fontSize), longest = px(xStats.maxLen, sizing.fontSize);
+                    if (sizing.labelAngle === -90) { lo = Math.min(cap, mean); hi = Math.min(cap, longest); }
+                    else { lo = mean <= z.xStep ? line : 2 * line; hi = longest <= z.xStep ? line : Math.max(2 * line, Math.min(cap, longest)); }
+                }
+                return { lo: lo + TICK_ROOM, hi: hi + TICK_ROOM + titleLine(z) + (facetCols > 1 ? titleLine(z) : 0) };
+            };
+            const shapeOf = (z: Sizes): AspectRange => {
+                const b = beside(z), u = below(z);
+                return { lo: (gridW(z) + b.lo) / (gridH(z) + u.hi), hi: (gridW(z) + b.hi) / (gridH(z) + u.lo) };
+            };
+            const off = (z: Sizes, range: AspectRange) => Math.abs(Math.log(shapeDivergence(shapeOf(z), range))) > 0.01;
+            const panel = (total: number, n: number, gap: number) => (total - (n - 1) * gap) / n;
+            const stepCeiling = (bands: number, budget: number, rows = false) => Math.min(Math.floor(budget / bands),
+                rows ? Math.max(yMaxStep, Math.round(yDefaultStep * BALANCE_STEP_GROWTH)) : Math.max(maxStepSize, Math.round(defaultStepSize * BALANCE_STEP_GROWTH)));
+            const floorW = Math.max(Math.round(defaultChartWidth * BALANCE_SIDE_FLOOR / facetCols), minContinuousSizeX);
+            const floorH = Math.max(Math.round(defaultChartHeight * BALANCE_SIDE_FLOOR / facetRows), minContinuousSizeY);
+            // The least edit by the free sides that brings the shape to the range's nearer end.
+            const lean = (range: AspectRange, from: Sizes): Sizes => {
+                const z = { ...from };
+                const wide = shapeDivergence(shapeOf(z), range) > 1;
+                if (wide) {
+                    const wantH = () => panel((gridW(z) + beside(z).lo) / range.hi - below(z).hi, facetRows, gapY);
+                    if (yBands) z.yStep = Math.max(z.yStep, Math.min(stepCeiling(yBands, maxSubplotH, true), Math.ceil(wantH() / yBands)));
+                    else z.h = Math.max(z.h, Math.min(Math.round(maxSubplotH), Math.ceil(wantH())));
+                    if (yBands && off(z, range)) z.w = Math.min(z.w, Math.max(floorW, Math.floor(panel(range.hi * (gridH(z) + below(z).hi) - beside(z).lo, facetCols, gapX))));
+                } else {
+                    const wantW = () => panel(range.lo * (gridH(z) + below(z).lo) - beside(z).hi, facetCols, gapX);
+                    if (xBands) z.xStep = Math.max(z.xStep, Math.min(stepCeiling(xBands, maxSubplotW), Math.ceil(wantW() / xBands)));
+                    else z.w = Math.max(z.w, Math.min(Math.round(maxSubplotW), Math.ceil(wantW())));
+                    if (xBands && off(z, range)) z.h = Math.min(z.h, Math.max(floorH, Math.floor(panel((gridW(z) + beside(z).hi) / range.lo - below(z).lo, facetRows, gapY))));
+                }
+                return z;
+            };
+            const natural = naturalAspectRange({ width: defaultChartWidth, height: defaultChartHeight }, { x: maxStretchX, y: maxStretchY },
+                { centre: options.targetAspect, spread: options.aspectTolerance });
+            const start: Sizes = { w: subplotWidth, h: subplotHeight, xStep: xStepSize, yStep: yStepSize };
+            if (off(start, natural)) {
+                let range = natural;
+                let tier = 'its own range';
+                let next = lean(natural, start);
+                if (off(next, natural)) {
+                    range = widenRange(natural, FALLBACK_WIDEN);
+                    tier = 'the looser range round its base';
+                    next = lean(range, start);
+                }
+                const shape = shapeOf(start);
+                const read = { shape: `${r1(shape.lo)}–${r1(shape.hi)}`, range: `${r1(range.lo)}–${r1(range.hi)}`, columns: facetCols, rows: facetRows };
+                const note = `with the labels it cannot drop, the chart fell outside the shapes its base takes on its own; it leans back to the nearer end of ${tier}, by its free sides`;
+                if (next.xStep !== xStepSize) { xStepSize = next.xStep; stage('xStep', 'band balance', xStepSize, read, note); }
+                if (next.yStep !== yStepSize) { yStepSize = next.yStep; stage('yStep', 'band balance', yStepSize, read, note); }
+                if (next.w !== subplotWidth) { subplotWidth = next.w; stage('width', 'band balance', subplotWidth, read, note); }
+                if (next.h !== subplotHeight) { subplotHeight = next.h; stage('height', 'band balance', subplotHeight, read, note); }
+            }
+        }
+    }
+
+    // --- Given space ---
+    // The canvas fit, once it has settled what is around the chart, may lay the plot out again in
+    // the room its box leaves: a continuous side takes that room; a banded side keeps its steps.
+    const given = options.canvasTreatment?.plotSpace;
+    if (given && !pinnedPlot && facetCols === 1 && facetRows === 1) {
+        const note = 'the room the box leaves once what is around the chart is settled';
+        if (given.width && xIsContinuousNonBanded) {
+            subplotWidth = Math.max(minContinuousSizeX, Math.round(given.width));
+            stage('width', 'given space', subplotWidth, { given: r1(given.width) }, note);
+        }
+        if (given.height && yIsContinuousNonBanded) {
+            subplotHeight = Math.max(minContinuousSizeY, Math.round(given.height));
+            stage('height', 'given space', subplotHeight, { given: r1(given.height) }, note);
+        }
+    }
+
+    // --- Pinned plot ---
+    // A pinned plot keeps its size; the steps stay as the rows decide them, so planning the
+    // same rows again into the same plot gives the same layout.
+    if (pinnedPlot) {
+        subplotWidth = pinnedPlot.width;
+        subplotHeight = pinnedPlot.height;
+        stage('width', 'pinned', subplotWidth, {}, 'the plot is held at the size it was pinned to');
+        stage('height', 'pinned', subplotHeight, {}, 'the plot is held at the size it was pinned to');
     }
 
     // --- Label sizing ---
@@ -1080,8 +1657,8 @@ export function computeLayout(
     // — and rotate when bands are narrow) rather than staying at the full
     // continuous base font. Otherwise dense date/number bands render oversized
     // labels that feel too large for their band and crowd together.
-    const xHasDiscreteItems = xTotalNominalCount > 0 || xContinuousAsDiscrete > 0;
-    const yHasDiscreteItems = yTotalNominalCount > 0 || yContinuousAsDiscrete > 0;
+    const xHasDiscreteItems = !declaration.binnedAxes?.x && (xTotalNominalCount > 0 || xContinuousAsDiscrete > 0);
+    const yHasDiscreteItems = !declaration.binnedAxes?.y && (yTotalNominalCount > 0 || yContinuousAsDiscrete > 0);
     // Canvas-adaptive fonts: descend the tick ladder from the backend's native
     // base, and derive header/legend sizes. Scaled by the (sub)plot's smaller
     // dimension so small multiples shrink and large single views grow subtly.
@@ -1089,7 +1666,7 @@ export function computeLayout(
         baseLabelFontSize: options.baseLabelFontSize,
         baseTitleFontSize: options.baseTitleFontSize,
     });
-    const labelOpts = { baseFont: fontSizing.tickBase, minFont: 6 };
+    const labelOpts = { baseFont: fontSizing.tickBase, minFont: options.minLabelFontSize ?? 6 };
     let xLabel = computeLabelSizing(xStepSize, xHasDiscreteItems, labelOpts);
     let yLabel = computeLabelSizing(yStepSize, yHasDiscreteItems, labelOpts);
 
@@ -1123,6 +1700,12 @@ export function computeLayout(
                     const cap = Math.max(minStepVal, Math.floor(maxSubplotW / stats.count));
                     if (desiredStep <= cap) {
                         xStepSize = Math.max(xStepSize, desiredStep);
+                        stage('xStep', 'room for names', xStepSize, { widestName: r1(labelPx), wanted: desiredStep, cap }, 'a few short names read straight, so the band widens to hold the widest with a gap, within the stretch budget');
+                        // Square cells stay square: the rows widen with the columns, within their budget.
+                        if (squaredCells && yStepSize < xStepSize && xStepSize <= Math.floor(maxSubplotH / yTotalNominalCount)) {
+                            yStepSize = xStepSize;
+                            stage('yStep', 'square cells', yStepSize, { columns: xStepSize }, 'the columns widened for their names, so the rows widen with them and the cells stay square');
+                        }
                         xLabel = computeLabelSizing(xStepSize, xHasDiscreteItems, labelOpts);
                         labelPx = stats.maxLen * xLabel.fontSize * APPROX_CHAR_WIDTH_RATIO;
                     }
@@ -1139,24 +1722,24 @@ export function computeLayout(
                     };
                 } else {
                     // Even the stretch budget can't fit a wide-enough band →
-                    // angle the labels rather than let them run together.
+                    // stand the labels upright rather than let them run together.
                     xLabel = {
                         ...xLabel,
-                        labelAngle: -45,
+                        labelAngle: -90,
                         labelAlign: 'right',
-                        labelBaseline: 'top',
+                        labelBaseline: 'middle',
                     };
                 }
             } else if (numericLike && labelPx > xStepSize && xLabel.labelAngle === undefined) {
                 // Numeric labels that don't fit horizontally and weren't already
                 // rotated by step-based sizing (which only rotates at narrow
                 // steps). Without this, VL keeps them horizontal and the numbers
-                // overlap. Rotate to -45°.
+                // overlap. Stand them upright.
                 xLabel = {
                     ...xLabel,
-                    labelAngle: -45,
+                    labelAngle: -90,
                     labelAlign: 'right',
-                    labelBaseline: 'top',
+                    labelBaseline: 'middle',
                 };
             }
         }
@@ -1187,8 +1770,11 @@ export function computeLayout(
         subplotHeight,
         xStep: xStepSize,
         yStep: yStepSize,
+        ...(rowNamesAboveFit !== undefined ? { rowNamesAboveFit } : {}),
         xStepUnit,
         yStepUnit,
+        xStepFitted,
+        yStepFitted,
         xContinuousAsDiscrete,
         yContinuousAsDiscrete,
         xNominalCount: xTotalNominalCount,
@@ -1204,8 +1790,9 @@ export function computeLayout(
             subplotWidth,
             subplotHeight,
         } : undefined,
-        effectiveFacetGap: gap,
+        effectiveFacetGap: gapX,
         truncations: [],  // Overflow truncations are handled by filterOverflow
+        trace,
     };
 }
 

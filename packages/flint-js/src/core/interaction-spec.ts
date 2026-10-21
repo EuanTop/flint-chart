@@ -33,6 +33,9 @@ export const INTERACTION_PRESET_TYPES = [
     'inspect-index',
     'navigate',
     'drag-reorder',
+    'accessible-navigation',
+    'filter-controls',
+    'context-menu',
 ] as const;
 
 export type InteractionPresetType = (typeof INTERACTION_PRESET_TYPES)[number];
@@ -118,6 +121,11 @@ export const INTERACTION_PRESET_REQUIREMENTS: Readonly<Record<InteractionPresetT
     'inspect-index': ['index'],
     'navigate': ['navigation'],
     'drag-reorder': ['reorder'],
+    'accessible-navigation': ['elements'],
+    // Controls around the chart narrow its rows, which any chart has.
+    'filter-controls': [],
+    // A rectangle by default; a click or right-click picks marks on any chart with elements.
+    'context-menu': ['elements', 'cartesian-region'],
 };
 
 /** The capabilities a chart type declares, before the assembler confirms the data-dependent ones. */
@@ -145,6 +153,8 @@ export function declaredInteractionCapabilities(
 export function supportedInteractionPresets(
     support: ChartInteractionSupport | undefined,
 ): InteractionPresetType[] {
+    // A chart type that declares no support mounts no update runtime, so nothing applies.
+    if (!support) return [];
     const declared = new Set(declaredInteractionCapabilities(support));
     return INTERACTION_PRESET_TYPES.filter((type) =>
         INTERACTION_PRESET_REQUIREMENTS[type].every((capability) => declared.has(capability)));

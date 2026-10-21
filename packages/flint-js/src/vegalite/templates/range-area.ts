@@ -33,8 +33,9 @@ import {
 } from '../../core/interaction-semantics';
 import { annotationCandidates, presentAnnotationUpdate, rangeAnnotationText } from '../../interactive/presentation/annotation';
 import { defaultBuildEncodings, setMarkProp } from './utils';
+import { skeletonStructure, withBaseline } from '../../core/structure';
 
-const interpolateConfigProperty: ChartPropertyDef = {
+export const interpolateConfigProperty: ChartPropertyDef = {
     key: 'interpolate', label: 'Curve', type: 'discrete', options: [
         { value: undefined, label: 'Default (linear)' },
         { value: 'linear', label: 'Linear' },
@@ -90,6 +91,11 @@ export const rangeAreaChartDef: ChartTemplateDef = {
             facetAspectRatioResistance: 0.5,
         },
     }),
+    // A band spans its two bounds and is not measured from zero.
+    structure: (ctx) => {
+        const structure = withBaseline(skeletonStructure(rangeAreaChartDef.template, ctx), 'y', 'data');
+        return structure.y ? { ...structure, y: { ...structure.y, rounded: true } } : structure;
+    },
     instantiate: (spec, ctx) => {
         defaultBuildEncodings(spec, ctx.resolvedEncodings);
 

@@ -1,4 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createChangeFilter } from '../src/interactive/chart-state';
+import { selectionUpdate, viewportUpdate } from '../src/interactive/language/updates';
+import type { ChartState } from '../src/core/interaction-contracts';
+import { parse, View } from 'vega';
 import { axisHighlight, brushAngle, brushX, brushY, brushZoom, clickAnnotate, clickGroupFocus, clickHighlight, doubleActivate, dragReorder, externalInteraction, hoverGroupFocus, inspect, inspectIndex, lassoSelect, legendToggle, linkedBrush, longPress, navigate, normalizeInteractions, select } from '../src/interactive/interactions';
 import type { ClickHighlightOptions } from '../src/interactive/interactions';
 import { affordanceCursor, affordsTarget, resolveInteractionAffordance } from '../src/interactive/affordances';
@@ -86,11 +90,13 @@ import {
     domainForPlotGeometry,
     supersedeRetainedViewports,
     keyboardTargetItems,
+    nextKeyboardTarget,
     mergeRetainedPreview,
     nearestReorderHit,
     resolveAssistDistance,
     reorderProjectionBounds,
     resolveSupportedOperation,
+    inspectNumberText,
 } from '../src/vegalite/interactions/runtime';
 import {
     activeReorderAxis,
@@ -102,11 +108,10 @@ import {
 } from '../src/vegalite/interactions/presentation/drag-reorder-overlay';
 import { areaSpotlightOpacity, hoverContrastOpacity } from '../src/vegalite/interactions/presentation/focus-overlay';
 import {
-    targetFeedbackDetailsPosition,
     targetFeedbackEntries,
     targetFeedbackPoint,
 } from '../src/vegalite/interactions/presentation/target-feedback-overlay';
-import { inspectGuideLine } from '../src/vegalite/interactions/presentation/inspect-guide-overlay';
+import { inspectGuideLine, inspectGuideValueLabelPosition } from '../src/vegalite/interactions/presentation/inspect-guide-overlay';
 import {
     annotationFacingEdges,
     annotationLeaderPorts,
@@ -122,6 +127,7 @@ import {
     isAnnotationSourceItem,
     isAnnotationObstacle,
     segmentMidpointConnectionPoint,
+    segmentRowPoint,
     valueEndConnectionPoint,
     valueSideConnectionPoint,
 } from '../src/vegalite/interactions/presentation/annotation-overlay';
@@ -1121,7 +1127,7 @@ describe('interaction definitions', () => {
         expect(clickMark().eventSource).toEqual({ ...clickTrigger, defaultAssistDistance: 8 });
         expect(clickGroupFocus().eventSource).toEqual({ ...clickTrigger, defaultAssistDistance: 8 });
         expect(clickAnnotate().eventSource).toEqual({ ...clickTrigger, defaultAssistDistance: 8 });
-        expect(select().eventSource).toEqual(rectangleTrigger('intersect'));
+        expect(select().eventSource).toEqual({ ...rectangleTrigger('intersect'), mode: 'ephemeral' });
         expect(brushX().eventSource).toEqual(xBrushTrigger('intersect', 'ephemeral'));
         expect(brushY().eventSource).toEqual(yBrushTrigger('intersect', 'ephemeral'));
         expect(brushAngle().eventSource).toEqual(angularBrushTrigger('intersect'));
@@ -1309,6 +1315,7 @@ describe('interaction definitions', () => {
             id: 'select',
             eventSource: rectangleTrigger('intersect'),
         });
+        expect(select({ mode: 'stateful' }).eventSource).toEqual({ ...rectangleTrigger('intersect'), mode: 'stateful' });
         expect(brushX()).toMatchObject({ id: 'brush-x', axis: 'x', eventSource: xBrushTrigger() });
         expect(brushY()).toMatchObject({ id: 'brush-y', axis: 'y', eventSource: yBrushTrigger() });
         expect(brushX({ mode: 'stateful' }).eventSource).toEqual(xBrushTrigger('intersect', 'stateful'));
@@ -1570,6 +1577,8 @@ describe('interaction definitions', () => {
                 y: { field: 'Value', type: 'quantitative' },
                 color: { field: 'Type', type: 'nominal' },
             },
+            encodings: {},
+            channelSemantics: {},
         });
         const target = {
             visual: { kind: 'mark' as const, role: 'bar' },
@@ -1755,9 +1764,32 @@ describe('interaction definitions', () => {
             available: [...target.elements, linked, { value: {}, records: [{ Country: 'Germany', Year: 2007 }] }],
         };
 
-        expect(semanticUpdate(interaction, target, context, { phase: 'preview' })?.ops[0]).toMatchObject({
+        const highlighted = {
+            op: 'set-style',
+            targets: [{ visual: target.visual, elements: [target.elements[0], linked] }],
+            value: { state: 'highlighted' },
+        };
+        const spotlighted = {
             targets: [{ elements: [target.elements[0], linked] }],
             value: { state: 'emphasized', mutedOpacity: 0.25 },
+        };
+        // 'auto' follows how the chart says its groups stand out, and recedes the rest when it does not say.
+        expect(semanticUpdate(interaction, target, { ...context, groupHoverEmphasis: 'highlight' }, { phase: 'preview' })?.ops[0])
+            .toEqual(highlighted);
+        expect(semanticUpdate(interaction, target, { ...context, groupHoverEmphasis: 'spotlight' }, { phase: 'preview' })?.ops[0])
+            .toMatchObject(spotlighted);
+        expect(semanticUpdate(interaction, target, context, { phase: 'preview' })?.ops[0]).toMatchObject(spotlighted);
+        // An explicit emphasis overrides the chart's.
+        expect(semanticUpdate(
+            hoverGroupFocus({ groupBy: 'Country', emphasis: 'highlight' }),
+            target, { ...context, groupHoverEmphasis: 'spotlight' }, { phase: 'preview' },
+        )?.ops[0]).toEqual(highlighted);
+        expect(semanticUpdate(
+            hoverGroupFocus({ groupBy: 'Country', emphasis: 'spotlight', dimOpacity: 0.4 }),
+            target, { ...context, groupHoverEmphasis: 'highlight' }, { phase: 'preview' },
+        )?.ops[0]).toMatchObject({
+            targets: [{ elements: [target.elements[0], linked] }],
+            value: { state: 'emphasized', mutedOpacity: 0.4 },
         });
         expect(semanticUpdate(interaction, target, context, { phase: 'commit' })).toBeNull();
         expect(interaction.eventSource.targetTolerance).toBe(8);
@@ -1864,6 +1896,25 @@ describe('interaction definitions', () => {
         ).ops[0]).toMatchObject({
             op: 'set-annotation',
             value: { text: '1.4' },
+        });
+    });
+
+    it('asks the chart for its point placements when a note on a path has anchor: point', () => {
+        const element = { value: { Month: 1 }, records: [{ Month: 1 }] };
+        const presentUpdate = presentAnnotationUpdate((_element, _context, visual) => ({
+            connection: visual?.kind === 'path' ? 'segment-midpoint' : 'center',
+        }));
+        const update = (anchor?: 'segment' | 'point') => {
+            const base = annotationUpdate(element, { kind: 'path', role: 'line' }, 'note');
+            return { ...base, ops: [{ ...base.ops[0], value: { text: 'note', anchor } }] };
+        };
+        const context = { chartType: 'Line Chart', selected: [] };
+
+        expect(presentUpdate(update(), context).ops[0]).toMatchObject({
+            value: { candidates: [{ connection: 'segment-midpoint' }], subject: { kind: 'path' } },
+        });
+        expect(presentUpdate(update('point'), context).ops[0]).toMatchObject({
+            value: { candidates: [{ connection: 'center' }], subject: { kind: 'path' } },
         });
     });
 
@@ -2103,6 +2154,25 @@ describe('interaction definitions', () => {
         });
     });
 
+    it('finds the point of the row a segment annotation names, only with anchor: point', () => {
+        const item = {
+            datum: { Month: 1, Sales: 10 },
+            interactionGeometry: {
+                kind: 'segment',
+                annotationPoints: [{ x: 0, y: 60 }, { x: 40, y: 20 }],
+                endDatum: { Month: 2, Sales: 30 },
+            },
+        };
+
+        expect(segmentRowPoint(item, { Month: 1, Sales: 10 }, undefined)).toBeUndefined();
+        expect(segmentRowPoint(item, { Month: 1, Sales: 10 }, 'segment')).toBeUndefined();
+        expect(segmentRowPoint(item, { Month: 2, Sales: 30 }, undefined)).toBeUndefined();
+        expect(segmentRowPoint(item, { Month: 1, Sales: 10 }, 'point')).toEqual({ x: 0, y: 60 });
+        expect(segmentRowPoint(item, { Month: 2, Sales: 30 }, 'point')).toEqual({ x: 40, y: 20 });
+        expect(segmentRowPoint(item, { Month: 3, Sales: 50 }, 'point')).toBeUndefined();
+        expect(segmentRowPoint({ datum: { Month: 1 } }, { Month: 1 }, 'point')).toBeUndefined();
+    });
+
     it('routes an area segment annotation normal to and away from the fill', () => {
         const item = {
             interactionGeometry: {
@@ -2297,6 +2367,24 @@ describe('interaction definitions', () => {
         });
         expect(renderHit(segments[0])?.datum[INTERACTION_KEY])
             .toBe(`Class A${PATH_KEY_SUFFIX}`);
+    });
+
+    it('shares one path data list across the segments of a line, including its last point', () => {
+        const mark: any = { marktype: 'line', items: [] };
+        const points = [1, 2, 3, 4].map((value, index) => ({
+            mark, datum: { [INTERACTION_KEY]: 'Series', value },
+            x: index * 10, y: 50 - value, bounds: { x1: index * 10, x2: index * 10, y1: 50 - value, y2: 50 - value },
+        }));
+        mark.items = points;
+        const view = { scenegraph: () => ({ root: { items: points } }) };
+
+        const segments = sceneItems(view);
+        const hits = segments.map((segment) => renderHit(segment)!);
+
+        expect(segments).toHaveLength(3);
+        expect(new Set(hits.map((hit) => hit.pathData)).size).toBe(1);
+        expect(hits[0].pathData?.map((datum) => datum.value)).toEqual([1, 2, 3, 4]);
+        expect(renderHit(points[3])?.pathData?.map((datum) => datum.value)).toEqual([1, 2, 3, 4]);
     });
 
     it('excludes connective rules from reorder-owned destination geometry', () => {
@@ -2571,6 +2659,47 @@ describe('assisted, keyboard, and lasso acquisition', () => {
         });
     });
 
+    it('places a value label on the horizontal guide inside the plot', () => {
+        expect(inspectGuideValueLabelPosition('x', { x: 60, y: 80 },
+            { width: 26, height: 16 }, { width: 300, height: 180 }))
+            .toEqual({ left: 66, top: 72 });
+    });
+
+    it('places a value label on the vertical guide inside the plot', () => {
+        expect(inspectGuideValueLabelPosition('y', { x: 80, y: 150 },
+            { width: 26, height: 16 }, { width: 300, height: 180 }))
+            .toEqual({ left: 67, top: 128 });
+    });
+
+    it('keeps guide value labels within the chart container', () => {
+        expect(inspectGuideValueLabelPosition('x', { x: 0, y: 0 },
+            { width: 26, height: 16 }, { width: 300, height: 180 }))
+            .toEqual({ left: 6, top: 0 });
+        expect(inspectGuideValueLabelPosition('y', { x: 300, y: 180 },
+            { width: 26, height: 16 }, { width: 300, height: 180 }))
+            .toEqual({ left: 274, top: 158 });
+    });
+
+    it('keeps value labels inside the plot rather than over axis ticks', () => {
+        expect(inspectGuideValueLabelPosition('x', { x: 50, y: 30 },
+            { width: 26, height: 16 }, { left: 50, top: 30, width: 200, height: 120 }))
+            .toEqual({ left: 56, top: 30 });
+    });
+
+    it('staggers nearby value labels along their horizontal guides', () => {
+        expect(inspectGuideValueLabelPosition('x', { x: 60, y: 85 },
+            { width: 26, height: 16 }, { width: 300, height: 180 },
+            [{ left: 66, top: 72, width: 26, height: 16 }]))
+            .toEqual({ left: 96, top: 77 });
+    });
+
+    it('staggers nearby value labels along their vertical guides', () => {
+        expect(inspectGuideValueLabelPosition('y', { x: 85, y: 150 },
+            { width: 26, height: 16 }, { width: 300, height: 180 },
+            [{ left: 67, top: 128, width: 26, height: 16 }]))
+            .toEqual({ left: 72, top: 108 });
+    });
+
     it('derives a shared faceted plot boundary from scenegraph cells', () => {
         const cell = (x: number, width: number, height: number) => ({
             mark: { marktype: 'group', role: 'cell' }, x, y: 0, width, height, items: [],
@@ -2699,7 +2828,7 @@ describe('assisted, keyboard, and lasso acquisition', () => {
     });
 });
 
-describe('keyboard spatial navigation', () => {
+describe('keyboard target navigation', () => {
     const at = (key: string, x: number, y: number) => ({
         mark: { marktype: 'symbol' },
         datum: { [INTERACTION_KEY]: key },
@@ -2714,6 +2843,98 @@ describe('keyboard spatial navigation', () => {
     ];
     const from = { x: 50, y: 50 };
     const keyOf = (item: any) => item?.datum[INTERACTION_KEY];
+
+    it.each([
+        ['right', 'left', ['left', 'above', 'centre', 'below', 'right']],
+        ['down', 'up', ['above', 'left', 'centre', 'right', 'below']],
+    ] as const)('traverses all marks with %s and reverses with %s', (forward, backward, expected) => {
+        let active: string | undefined;
+        for (const key of expected) {
+            active = keyOf(nextKeyboardTarget(grid, active, forward));
+            expect(active).toBe(key);
+        }
+        expect(nextKeyboardTarget(grid, active, forward)).toBeUndefined();
+        for (const key of [...expected].reverse().slice(1)) {
+            active = keyOf(nextKeyboardTarget(grid, active, backward));
+            expect(active).toBe(key);
+        }
+        expect(nextKeyboardTarget(grid, active, backward)).toBeUndefined();
+        expect(keyOf(nextKeyboardTarget(grid, undefined, backward))).toBe(expected.at(-1));
+        expect(keyOf(nextKeyboardTarget(grid, 'removed', forward))).toBe(expected[0]);
+    });
+
+    it.each([
+        ['right', 'left', 'symbol'], ['down', 'up', 'symbol'],
+        ['right', 'left', 'rect'], ['down', 'up', 'rect'],
+        ['right', 'left', 'shape'], ['down', 'up', 'shape'],
+    ] as const)('keeps coincident marks reachable with %s/%s for %s through emphasis rebuilds', (direction, backward, marktype) => {
+        const items = ['first', 'second', 'third'].map((key) => ({
+            ...at(key, 50, 50), mark: { marktype }, x: 50, y: 50, width: 6, height: 6,
+            stroke: '#000', strokeWidth: 0,
+        }));
+        let active: string | undefined;
+        const rebuild = () => items.map((candidate) => ({
+            ...candidate,
+            strokeWidth: keyOf(candidate) === active ? 7 : 0,
+            bounds: keyOf(candidate) === active
+                ? { x1: 40, y1: 40, x2: 60, y2: 60 } : { ...candidate.bounds },
+        }));
+        for (const item of items) {
+            active = keyOf(nextKeyboardTarget(rebuild(), active, direction));
+            expect(active).toBe(keyOf(item));
+        }
+        expect(nextKeyboardTarget(rebuild(), active, direction)).toBeUndefined();
+        for (const item of [...items].reverse().slice(1)) {
+            active = keyOf(nextKeyboardTarget(rebuild(), active, backward));
+            expect(active).toBe(keyOf(item));
+        }
+        expect(nextKeyboardTarget(rebuild(), active, backward)).toBeUndefined();
+    });
+
+    it.each([['right', 'left'], ['down', 'up']] as const)(
+        'keeps projected shapes ordered through real Vega emphasis with %s/%s',
+        async (forward, backward) => {
+            const keys = ['first', 'second', 'third'];
+            const view = new View(parse({
+                signals: [{ name: 'active', value: null }],
+                projections: [{ name: 'projection', type: 'mercator', scale: 30, translate: [100, 100] }],
+                data: [{ name: 'regions', values: keys.map((key, index) => ({
+                    [INTERACTION_KEY]: key, type: 'Feature',
+                    geometry: { type: 'Point', coordinates: [index, -index] },
+                })) }],
+                marks: [{
+                    type: 'shape', from: { data: 'regions' },
+                    transform: [{ type: 'geoshape', projection: 'projection' }],
+                    encode: { update: {
+                        fill: { value: '#ccc' }, stroke: { value: '#000' },
+                        strokeWidth: { signal: `datum.${INTERACTION_KEY} === active ? 7 : 0.3` },
+                    } },
+                }],
+            }), { renderer: 'none' });
+            try {
+                await view.runAsync();
+                const original = sceneItems(view).map((item) => ({ ...item.bounds }));
+                let active: string | undefined;
+                for (const expected of keys) {
+                    active = keyOf(nextKeyboardTarget(sceneItems(view), active, forward));
+                    expect(active).toBe(expected);
+                    await view.signal('active', active).runAsync();
+                    const items = sceneItems(view);
+                    expect(items[keys.indexOf(expected)].bounds.y1).toBeLessThan(original[keys.indexOf(expected)].y1);
+                    expect(keyboardTargetItems(items, forward).map(keyOf)).toEqual(keys);
+                }
+                expect(nextKeyboardTarget(sceneItems(view), active, forward)).toBeUndefined();
+                for (const expected of [...keys].reverse().slice(1)) {
+                    active = keyOf(nextKeyboardTarget(sceneItems(view), active, backward));
+                    expect(active).toBe(expected);
+                    await view.signal('active', active).runAsync();
+                }
+                expect(nextKeyboardTarget(sceneItems(view), active, backward)).toBeUndefined();
+            } finally {
+                view.finalize();
+            }
+        },
+    );
 
     it('moves to the neighbour on the axis the arrow names', () => {
         expect(keyOf(nextItemInDirection(grid, from, 'right'))).toBe('right');
@@ -2873,19 +3094,6 @@ describe('legend, inspect, zoom, and touch presets', () => {
             x: 100 + 50 * Math.sin(Math.PI / 4),
             y: 100 - 50 * Math.cos(Math.PI / 4),
         });
-    });
-
-    it('places target details away from the target and flips at viewport edges', () => {
-        expect(targetFeedbackDetailsPosition(
-            { x: 100, y: 80 },
-            { width: 120, height: 50 },
-            { width: 400, height: 300 },
-        )).toEqual({ left: 114, top: 94 });
-        expect(targetFeedbackDetailsPosition(
-            { x: 390, y: 290 },
-            { width: 120, height: 50 },
-            { width: 400, height: 300 },
-        )).toEqual({ left: 256, top: 226 });
     });
 
     const context = { chartType: 'Line Chart', selected: [] };
@@ -3149,18 +3357,33 @@ describe('legend, inspect, zoom, and touch presets', () => {
     it('declares all and legend-switchable single-series index inspection policies', () => {
         expect(inspectIndex()).toMatchObject({
             id: 'inspect-index',
-            eventSource: { inspectIndex: { axis: 'x', show: 'all' } },
+            eventSource: { inspectIndex: { show: 'all' } },
         });
         expect(inspectIndex().handle).toBeUndefined();
+        expect(inspectIndex().eventSource.inspectIndex)
+            .toEqual({ show: 'all', displayValue: true });
+        expect(inspectIndex({ axis: 'x', displayValue: false }).eventSource.inspectIndex)
+            .toEqual({ axis: 'x', show: 'all' });
         const single = inspectIndex({ axis: 'y', show: 'single', seriesBy: 'Series', tolerance: 0.03 });
-        expect(single.eventSource.inspectIndex).toEqual({ axis: 'y', show: 'single', seriesBy: 'Series' });
+        expect(single.eventSource.inspectIndex).toEqual({ axis: 'y', show: 'single', seriesBy: 'Series', displayValue: true });
         expect(single.eventSource.inspectTolerance).toBe(0.03);
         expect(single.affordances).toEqual({ 'legend-item': { cursor: 'activate', hover: 'cohort' } });
         expect(inspectIndex({ show: { series: 'Forecast' }, seriesBy: 'Series' }).eventSource.inspectIndex)
-            .toEqual({ axis: 'x', show: { series: 'Forecast' }, seriesBy: 'Series' });
+            .toEqual({ show: { series: 'Forecast' }, seriesBy: 'Series', displayValue: true });
         expect(() => inspectIndex({ show: 'single' })).toThrow('requires seriesBy');
         expect(() => inspectIndex({ show: { series: 'Forecast' } }))
             .toThrow('requires seriesBy');
+    });
+
+    it('reads a value that rounds to zero as 0, never -0', () => {
+        expect(inspectNumberText(-1.1e-16)).toBe('0');
+        expect(inspectNumberText(-0)).toBe('0');
+        expect(inspectNumberText(-0.004)).toBe('0');
+        expect(inspectNumberText(-0.005)).toBe('-0.01');
+        expect(inspectNumberText(-1234.567)).toBe('-1,234.57');
+        expect(inspectNumberText(0.3)).toBe('0.3');
+        expect(inspectNumberText(Number.NaN)).toBe('');
+        expect(inspectNumberText('1')).toBe('');
     });
 
     it('starts single-series inspection from the first or preferred available series', () => {
@@ -3490,5 +3713,81 @@ describe('retained viewport precedence', () => {
         retained.set('host-reset', { id: 'host-reset', ops: [{ op: 'set-viewport', axes: 'xy', value: {} }] });
         supersedeRetainedViewports(retained, 'host-reset');
         expect(retained.get('host-reset')?.ops).toHaveLength(1);
+    });
+});
+
+describe('chart change reporting', () => {
+    const element = (value: Record<string, unknown>) => ({ value });
+    const state = (selected: Record<string, unknown>[], extra: Partial<ChartState> = {}): ChartState => ({
+        chartType: 'Bar Chart',
+        selected: selected.map(element),
+        ...extra,
+    });
+
+    it('drops a report that moves nothing and names the parts that moved', () => {
+        const filter = createChangeFilter(state([]));
+        expect(filter({ phase: 'commit', source: 'reader', interactionId: 'click', state: state([]) })).toBeNull();
+        const change = filter({ phase: 'commit', source: 'reader', interactionId: 'click', state: state([{ Country: 'Chad' }]) });
+        expect(change?.changed).toEqual(['selected']);
+        expect(change?.previous.selected).toEqual([]);
+        expect(filter({ phase: 'commit', source: 'host', state: state([{ Country: 'Chad' }]) })).toBeNull();
+    });
+
+    it('passes on a reader\'s reset gesture even when it moves nothing', () => {
+        const filter = createChangeFilter(state([]));
+        const change = filter({ phase: 'commit', source: 'reader', reset: 'click-none', state: state([]) });
+        expect(change).toMatchObject({ reset: 'click-none', changed: [] });
+        expect(filter({ phase: 'commit', source: 'reader', state: state([]) })).toBeNull();
+    });
+
+    it('counts an entry moving from preview to retained as a change', () => {
+        const chad = [element({ Country: 'Chad' })];
+        const filter = createChangeFilter(state([]));
+        const preview = new Map([['click', { layer: 'preview' as const, elements: chad }]]);
+        const retained = new Map([['click', { layer: 'retained' as const, elements: chad }]]);
+        expect(filter({ phase: 'preview', source: 'reader', state: state([{ Country: 'Chad' }], { entries: preview }) })).not.toBeNull();
+        expect(filter({ phase: 'commit', source: 'reader', state: state([{ Country: 'Chad' }], { entries: retained }) })?.changed)
+            .toEqual(['selected']);
+    });
+
+    it('treats a text-only annotation change as a change', () => {
+        const target = { select: { key: { Country: 'Chad' } } };
+        const filter = createChangeFilter(state([], { annotations: [{ id: 'note', target, text: 'Low' }] }));
+        const change = filter({ phase: 'commit', source: 'host', state: state([], { annotations: [{ id: 'note', target, text: 'Lowest' }] }) });
+        expect(change?.changed).toEqual(['annotations']);
+    });
+
+    it('keeps the previous state fixed when the reported state is live', () => {
+        let current = [element({ Country: 'Chad' })];
+        const live = { chartType: 'Bar Chart', get selected() { return current; } } as ChartState;
+        const filter = createChangeFilter(state([]));
+        const first = filter({ phase: 'commit', source: 'reader', state: live });
+        current = [];
+        const second = filter({ phase: 'commit', source: 'reader', state: live });
+        expect(first?.state.selected).toHaveLength(1);
+        expect(second?.previous.selected).toHaveLength(1);
+        expect(second?.state.selected).toHaveLength(0);
+    });
+});
+
+describe('host update helpers', () => {
+    it('builds the emphasis a selection preset writes, from a key or from elements', () => {
+        expect(selectionUpdate('click-group-focus', { Continent: 'Asia' })).toEqual({
+            id: 'click-group-focus',
+            ops: [{ op: 'set-style', targets: [{ select: { key: { Continent: 'Asia' } } }], value: { state: 'emphasized', mutedOpacity: 0.25 } }],
+        });
+        const fromElements = selectionUpdate('select', [{ value: { Country: 'Chad' } }, { value: { Country: 'Nepal' } }], { dimOpacity: 0.3 });
+        expect(fromElements.ops[0]).toMatchObject({ targets: [{ select: { key: { Country: 'Chad' } } }, { select: { key: { Country: 'Nepal' } } }], value: { mutedOpacity: 0.3 } });
+        expect(selectionUpdate('select', null).ops[0]).toEqual({ op: 'set-style', targets: [], value: { state: 'normal' } });
+        expect(selectionUpdate('select', []).ops[0]).toEqual({ op: 'set-style', targets: [], value: { state: 'normal' } });
+    });
+
+    it('builds a viewport update from ranges or from a ChartState viewport, and home from null', () => {
+        expect(viewportUpdate('navigate', { x: [0, 10] }).ops[0]).toEqual({ op: 'set-viewport', axes: 'x', value: { x: [0, 10] } });
+        expect(viewportUpdate('navigate', {
+            x: { kind: 'interval', start: 0, end: 10 },
+            y: { kind: 'interval', start: 2, end: 4 },
+        }).ops[0]).toEqual({ op: 'set-viewport', axes: 'xy', value: { x: [0, 10], y: [2, 4] } });
+        expect(viewportUpdate('navigate', null).ops[0]).toEqual({ op: 'set-viewport', axes: 'xy', value: {} });
     });
 });

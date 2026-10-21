@@ -4,6 +4,10 @@
     "mcp": "MCP 服务器",
     "themes": "主题",
     "gallery": "图表示例",
+    "chartGallery": "图表示例",
+    "interactionGallery": "交互预设",
+    "advancedInteractions": "高级交互",
+    "interactions": "交互",
     "documentation": "文档",
     "playgrounds": "实验室",
     "editor": "在线编辑器",
@@ -24,22 +28,32 @@
   },
   "themeLab": {
     "title": "主题实验室",
-    "lead": "试验并完善你的主题，将视觉设计转化为可复用的规范，与更多人分享。",
+    "lead": "Flint 中的主题是一份 ThemeSpec：一份正式的 JSON 规范，定义了 Flint 编译器如何定制该主题下所有图表的外观。你可以让智能体根据品牌规范或网站轻松创建自己的主题，然后在这里调整和预览。下方有一些示例主题可供参考。",
     "steps": {
-      "generate": "复制提示词并连同网站、幻灯片或品牌指南等参考资料交给智能体，让它生成主题。",
-      "preview": "在下方编辑并预览主题效果。",
-      "shareReady": "准备好分享了吗？",
-      "shareLink": "分享你的设计",
-      "shareSuffix": "。"
+      "shareTitle": "分享",
+      "previewTitle": "调整",
+      "generateTitle": "生成",
+      "generate": "复制提示词，连同参考资料（网站、演示文稿、品牌规范）一起发给智能体。",
+      "preview": "把 ThemeSpec 粘贴到编辑器，或从任一主题开始，所有图表都会实时更新。",
+      "shareReady": "满意了吗？",
+      "shareLink": "分享你的设计"
     },
-    "docsPointer": "请参阅<docsLink>文档：使用主题</docsLink>了解详情。",
-    "copyPrompt": "复制提示词",
+    "viewPrompt": "查看提示词",
+    "hidePrompt": "收起提示词",
+    "housesCredit": "许多风格指南主题改编自 <site>datavizstyleguide.com</site>，在此致谢！",
+    "copyPromptCta": "复制提示词",
     "copied": "已复制",
     "prompt": "帮我为 Flint Chart 创建一个自定义 ThemeSpec。\n\n开始之前，请阅读并遵循 Flint ThemeSpec 编写技能：\nhttps://raw.githubusercontent.com/microsoft/flint-chart/main/agent-skills/flint-theme-author/SKILL.md\n\n如果原始文件链接不可用，请改用 GitHub 页面：\nhttps://github.com/microsoft/flint-chart/blob/main/agent-skills/flint-theme-author/SKILL.md\n\n请使用我提供的参考资料，只询问会实质影响设计的重要缺失信息，并遵循技能中规定的架构、语义边界、无障碍指南、输出约定和验证清单。请返回一个完整的 ThemeSpec JSON 对象，让我可以直接粘贴到 Flint 主题实验室中。",
-    "demoAria": "示例主题",
-    "inspiration": "需要灵感？",
+    "housesAria": "主题预设与风格指南主题",
+    "about": {
+      "google-material": "简洁的产品界面风格：以紫色为主的 Material 配色、浅色网格线、宽松的字体和柔和的圆角图形。",
+      "microsoft-fluent": "Fluent 的沉稳企业风格：以蓝色为主的配色、Segoe 字体、安静的坐标轴和紧凑的图例，适合仪表板。",
+      "peoples-daily": "报纸编辑风格：红色报头线、衬线标题、克制的用色以及底部的数据来源。"
+    },
+    "customDraft": "你的草稿",
+    "playTitle": "试一试",
     "demos": {
-        "google-material": "Google Material",
+      "google-material": "Google Material",
       "microsoft-fluent": "Microsoft Fluent",
       "peoples-daily": "人民日报"
     },
@@ -82,11 +96,28 @@
     },
     "groups": {
       "quick-start": "快速开始",
+      "interaction": "交互",
       "introduction": "语言设计",
       "reference": "图表指南",
       "extending": "开发"
     },
     "entries": {
+      "interaction-spec": {
+        "title": "声明式规范",
+        "description": "在 interaction_spec 中配置可复用的交互预设，无需编写处理函数。"
+      },
+      "interaction-api": {
+        "title": "编程 API",
+        "description": "使用预设工厂，或通过函数式交互 API 编写自定义处理函数。"
+      },
+      "interaction-introduction": {
+        "title": "简介",
+        "description": "了解预设、语义事件和图表更新如何连接图表与应用。"
+      },
+      "interaction-components": {
+        "title": "组件",
+        "description": "监听语义事件，通过图表更新 API 连接应用状态和控件。"
+      },
       "getting-started": {
         "title": "入门指南",
         "description": "安装 Flint，并用简单的 DataSpec 与 ChartSpec 制作第一张图。"
@@ -199,25 +230,40 @@
     }
   },
   "themes": {
-    "title": "探索主题",
-    "concept": "Flint 主题通过正式规范，为整个图表库定义统一的视觉识别。",
+    "title": "视觉主题",
+    "concept": "在 Flint 中，视觉主题规范控制颜色、字体、间距，以及坐标轴、图例、标签和注释的位置。它定义了可跨图表类型复用的渲染策略，让折线图、热力图和柱状图共享一致的视觉风格，而不必采用相同的布局。编译器会根据每张图表的数据、语义结构和画布尺寸动态调整策略的应用方式，在保持主题视觉识别的同时，适应图表需要呈现的内容。",
     "principles": {
       "layout": {
-        "title": "布局",
-        "body": "控制间距、疏密，以及坐标轴、图例、标签和注释的位置。"
+        "title": "布局策略",
+        "body": "<code>layout</code>、<code>facets</code>、<code>labels</code> 和 <code>legend</code> 指定疏密、间距和位置规则，而不是固定坐标。"
       },
       "semantics": {
-        "title": "语义表现",
-        "body": "根据字段角色、顺序、分组与层级决定对比、强调和系列识别。"
+        "title": "语义规则",
+        "body": "<code>variants</code> 根据图表的角色、密度或形态等语义条件调整呈现方式。规则可以针对度量或类别，而不是固定的物理坐标轴。"
       },
       "identity": {
-        "title": "视觉系统",
-        "body": "将字体、颜色、表面、线宽、圆角和图形形状定义为一套可识别的系统。"
+        "title": "视觉识别",
+        "body": "<code>ink</code>、<code>type</code>、<code>structure</code> 和 <code>marks</code> 将颜色、字体、坐标轴、网格和图形样式定义为一致的视觉系统。"
       }
     },
+    "howItWorks": {
+      "title": "工作原理",
+      "intro": "主题指定图表的视觉识别和呈现行为，包括颜色、字体、图形样式、间距，以及坐标轴、图例、标签和注释可以出现的位置。这些规则被组织为以下规范模块：",
+      "applyTitle": "应用主题",
+      "apply": "在编译器输入中，将预设 ID 作为 <code>theme_spec</code> 与 <code>chart_spec</code> 一起传入。例如，在图表输入中添加以下内容即可选择 Economist 主题。在不同图表输入中使用相同的预设 ID，即可保持一致的视觉风格。",
+      "mcpReuse": "在 Flint-MCP 中，你可以让智能体创建一个新主题，再让它将该主题用于同一对话中的后续图表。智能体可以在每次图表请求中复用生成的 <code>theme_spec</code>，因此你只需描述一次所需的风格。",
+      "customizeTitle": "自定义主题",
+      "customize": "要自定义颜色、字体或布局，可以提供自定义主题对象，或继承预设并覆盖部分设置。有关可用字段、继承规则和示例，请参阅<docs>视觉主题文档</docs>；也可以使用<lab>主题实验室</lab>创建和预览新主题。",
+      "compiler": "编译器会结合每张图表的字段、语义角色、数据形态和可用空间解析这些策略，调整布局、标签、图例和视觉强调，而不是复制固定坐标。主题改变的是呈现方式，而不是决定图表含义的字段、聚合、筛选或排序。",
+      "availability": "主题规范目前应用于 Vega-Lite 输出。"
+    },
     "generalization": "编译器会将主题的布局行为、语义表现和视觉识别应用到不同的图表类型、数据形态和画布尺寸中。",
-    "docsPointer": "有关应用和自定义主题的方法，请参阅<docs>使用主题</docs>。",
-    "themeLabCta": "有灵感了？前往<lab>主题实验室</lab>创作主题",
+    "housesLabel": "风格指南主题",
+    "presetsLabel": "内置主题",
+    "defaultAbout": "Flint 的默认样式：不使用任何主题时图表的样子。",
+    "housesCredit": "许多风格指南主题改编自 <site>datavizstyleguide.com</site>，在此致谢！",
+    "docsPointer": "文档：视觉主题",
+    "themeLabCta": "有灵感了？在主题实验室中创建新主题！",
     "flintDefault": "Flint 默认",
     "switchAria": "主题",
     "layoutToggle": {
@@ -235,12 +281,16 @@
       "economist": "紧凑的印刷图表风格：简洁标题、解释性副标题，并沿坐标轴重复显示单位。",
       "nature": "学术期刊图表风格：紧凑面板、明确单位，并在拟合线旁标注统计信息。",
       "mckinsey": "演示文稿风格：宽阔色带、醒目数值，以及突出核心结论的标题。",
-      "datawrapper": "简洁的网页图表风格：窄幅布局、朴素排版与克制的分隔线。",
+      "datawrapper": "简洁的网页图表：Roboto 字体、粗体标题，条形直接标注数值而不画刻度轴，网格线浅而实。",
       "powerbi": "深色仪表板风格：紧凑布局、右侧图例，并突出最新数值。",
       "powerbi-light": "浅色仪表板风格：白色画布、细网格线与右侧图例。",
       "swiss": "国际主义平面设计风格：清晰网格、强烈的黑色结构与单一红色强调色。",
       "pop": "波普艺术版 Swiss：高饱和印刷色、粗重黑色结构与醒目的展示字体。",
-      "cartoon": "活泼的漫画风格：暖色纸张、圆润字体、粗描边、明亮配色与柔和虚线网格。"
+      "cartoon": "活泼的漫画风格：暖色纸张、圆润字体、粗描边、明亮配色与柔和虚线网格。",
+      "apple": "以数据为主的安静界面图表：浅色标签、稀疏网格、尾侧数值轴、每种颜色配一个符号、圆角柱形。",
+      "de-stijl": "风格派（新造型主义）：灰白底上由粗黑线分隔的红、黄、蓝色块，只有水平与垂直，标题像展签一样置于画面下方。",
+      "bbc": "BBC 新闻图表：醒目的粗体大标题，只有浅色水平网格线、没有坐标轴线，零线加粗，每张图以底部分隔线收尾。",
+      "material": "Material Design 3：以紫色为首的色调调色板、Google Sans 与 Roboto 字体配中等字重标题、浅色网格线且无坐标轴线，柱形按 M3 形状规范圆角。"
     },
     "cases": {
       "keeling": {
@@ -344,19 +394,21 @@
   },
   "landing": {
     "heroTitle": "Flint：为 AI 而生的可视化语言",
-    "attribution": "Microsoft Research 项目",
-    "installNpm": "通过 <npmLink>npm</npmLink> 安装 Flint（TypeScript / JavaScript）。",
-    "installMcp": "智能体请使用 <mcpLink>MCP 服务器</mcpLink>；独立指南见 <skillLink>Agent Skill</skillLink>。",
-    "installGallery": "前往<galleryLink>图表示例</galleryLink>，探索 {{chartTypes}} 种图表类型和 {{examples}} 个示例，或比较<themesLink>视觉主题</themesLink>。",
-    "themeLead": "Flint 的正式主题规范让设计师只需定义一次视觉识别，就能在整个图表库中统一应用。",
-    "installThemeLab": "在<themeLabLink>主题实验室</themeLabLink>中创建自定义视觉系统。",
     "ctaThemes": "视觉主题",
+    "ctaInteractions": "交互",
     "ctaGallery": "浏览图表示例",
     "ctaMcp": "使用 MCP 服务器",
     "ctaGithub": "访问 GitHub",
     "ctaDocs": "阅读文档",
     "news": {
       "title": "更新",
+      "video": "视频",
+      "watchVideo": "在 YouTube 观看 Flint 1.0 演示视频",
+      "release100": {
+        "date": "2026 年 10 月 19 日",
+        "dateTime": "2026-10-19",
+        "text": "Flint 1.0 推出 Flint Interactive：交互预设、语义事件，以及将图表与应用连接起来的交互 API。"
+      },
       "release051": {
         "date": "2026 年 8 月 12 日",
         "dateTime": "2026-08-12",
@@ -389,65 +441,86 @@
       }
     },
     "howItWorks": "Flint 如何工作？",
-    "howItWorksBody": "Flint 只需一份精简规范，其中包含数据、语义类型和图表规范。编译器会补全必要的底层细节，生成完整的后端原生规范（此处以 Vega-Lite 为例），再渲染成清晰美观的图表。",
+    "howItWorksBody": "一份 Flint 规范由数据、语义类型、图表规范，以及可选的主题和交互规范组成。无需在使用方编写复杂逻辑把它们拼接起来，编译器会完成繁重的工作：它将各部分相互解析，组合出完整的后端原生规范（此处以 Vega-Lite 为例），补全必要的底层细节，并渲染出美观、可交互的图表。",
     "overviewAlt": "Flint 工作流：智能体从原始表格推断 dataSpec，编写简短的 chartSpec，Flint 将其编译为按地区展示的折线图；随后在编辑规范时依次得到分组柱状图、瀑布图、热力图与旭日图。",
     "leadBefore": "Flint 是一种可视化中间语言，帮助",
-    "leadHighlight1": "AI 智能体从简洁、可人工编辑的图表规范出发，稳定生成表现力强、观感出色的图表",
-    "leadMiddle": "。你不必手动编写比例尺、坐标轴、间距、布局等繁琐的底层参数；Flint 编译器会结合数据、语义类型、图表类型和编码，自动推导出更合适的图表配置。",
-    "leadHighlight2": "Flint 目前通过统一接口，在 {{backends}} 种渲染后端上支持 {{chartTypes}} 种图表类型",
+    "leadHighlight1": "AI 智能体从简洁、可人工编辑的图表规范出发，稳定生成表现力强、观感出色且可交互的图表",
+    "leadStop": "。",
+    "leadAvailability": "你可以通过 <mcp>MCP 服务器</mcp>在日常工作中配合智能体使用它，也可以用 <npm>npm 库</npm>构建交互式应用。",
+    "leadHighlight2": "Flint 通过统一接口，在 {{backends}} 种渲染后端上支持 {{chartTypes}} 种图表类型，并提供 {{themes}} 套主题和 {{presets}} 种交互预设",
+    "leadAfter": "如需定制可视化，可以在<themeLab>主题实验室</themeLab>中设计自定义主题，并用 Flint API 构建<advanced>高级交互</advanced>。",
     "backendRosterLabel": "渲染后端",
     "themeRosterLabel": "主题",
+    "interactionRosterLabel": "交互",
     "themeRosterMore": "另有 {{count}} 种",
     "flintSpec": "Flint 规范",
     "compiledChart": "编译结果",
     "backendAria": "渲染后端",
     "prevExample": "上一个示例",
     "nextExample": "下一个示例",
+    "applicationCode": "查看完整代码。",
+    "applicationNote": "上方是图表的规范；其交互由 <api>Flint 交互 API</api> 编写。",
     "exampleAria": "示例",
     "seeGallery": "在图表示例中查看更多",
     "closingTitle": "开始使用 Flint",
     "closingBody": "Flint 已开源，可直接使用。前往 GitHub 获取源码，或先浏览图表示例。",
     "viewGithub": "在 GitHub 上查看",
-    "closingCollab": "Flint 由 <msr>Microsoft Research</msr> 与中国人民大学 <ideas>IDEAS Lab</ideas> 合作构建。",
+    "contributors": "贡献者",
     "wechatTitle": "加入 Flint 用户微信群",
     "wechatBody": "扫码加入 Flint 用户微信群，与其他用户交流。",
     "wechatAlt": "Flint 用户微信群二维码",
+    "discordTitle": "加入 Flint Discord 社区",
+    "discordBody": "提问、分享你的图表，并与各地的 Flint 用户一起关注版本更新。",
+    "discordCta": "加入 Discord",
     "features": {
       "semantic": {
-        "title": "用语义类型表达数据含义",
-        "body": "Flint 用语义类型描述数据字段的含义（如 Rank、YearMonth、Delta、Temperature），再据此推导数据解析、比例尺、坐标轴、格式和配色方案等底层配置。",
-        "example": "这张热力图按游戏和月份展示用户净增量。Flint 根据字段的语义类型，自动选择时间解析方式、坐标轴格式，以及发散色板和色彩中点。"
+        "title": "用<hl>语义类型</hl>描述数据",
+        "body": "Flint 中的数据字段用语义类型（如 Rank、YearMonth、Delta、Temperature）及其固有信息（如取值范围和单位）来描述。Flint 编译器据此推导数据解析、比例尺、坐标轴、格式和配色。"
       },
-      "layout": {
-        "title": "自动布局优化",
-        "body": "Flint 结合弹性布局模型与倾斜优化原则（banking）调整图表布局。编译器会动态协调尺寸、间距和排布，让图表恰当地填入画布。",
-        "example": "随着分组柱状图中的类别增多，Flint 会适度拉伸画布、缩小柱带宽度，让信息密集的图表依然清晰舒展。整个过程就像弹簧在可伸缩的容器中重新达到平衡。"
-      },
-      "adapt": {
-        "title": "易于生成，方便修改",
-        "body": "Flint 规范不依赖脆弱的底层参数，因此更容易生成和修改。要改变图表设计，通常只需切换图表类型、重新绑定视觉编码，编译器便会自动调整相关的底层配置。",
-        "example": "只需切换图表类型，就能把按性别分别展示 2000 年美国人口年龄分布的柱状图改为人口金字塔，其余细节交给编译器处理。"
-      },
-      "backends": {
-        "title": "一份规范，多种渲染后端",
-        "body": "Flint 支持通过 Vega-Lite、ECharts、Chart.js 和 Plotly 渲染 {{chartTypes}} 种图表，图表示例中收录了 {{examples}} 个后端专属示例，还可通过 Office.js 生成原生 Excel 图表。不同后端的 API 和编程模型各不相同，Flint 则以统一接口抹平差异。",
-        "example": "按需切换后端以发挥其原生优势：ECharts 适合层级旭日图，Plotly 擅长统计和分析图表，Excel 则可生成工作簿中可继续编辑的原生图表。"
+      "chart": {
+        "title": "用<hl>与绘图库无关的图表规范</hl>构建图表",
+        "body": "图表由高层的图表类型和编码定义。编译器会根据数据特征自动优化底层配置（例如数据变得更密集时）。同一份规范可通过 Vega-Lite、ECharts、Chart.js 和 Plotly 渲染，也可生成原生 Excel 图表。"
       },
       "themes": {
-        "title": "用不同主题呈现",
-        "body": "Flint 主题是一套正式规范，用于引导布局算法、根据语义角色应用表现规则，并将几何、字体和颜色组织成统一的视觉系统。",
-        "example": "将视觉主题从 Economist 切换为 Swiss 时，数据与编码保持不变，而间距、结构、标签、图形、字体和颜色会随之调整，以体现各自的视觉语言。"
+        "title": "用<hl>主题规范</hl>统一视觉风格",
+        "body": "几何、字体和颜色被定义为可复用的正式规范，适用于整个图表库，与数据和图表类型无关。可从 {{themes}} 个预设主题中选择，也可自行编写，以保持一致的品牌风格。"
+      },
+      "interactions": {
+        "title": "用<hl>交互规范</hl>添加交互",
+        "body": "Flint 提供 {{presets}} 个交互预设和一套编程 API，用于在应用中构建交互式图表。编译器会自动将用户交互事件解析为语义信息，你的应用只需用高层的图表更新来回应。",
+        "demoLabel": "实时 · 试一试"
       }
     },
     "examples": {
+      "originTable": { "label": "按产地看汽车" },
+      "companionTabs": { "label": "与谁共度时光" },
+      "countryTable": { "label": "表格联动图表" },
+      "ridgeline": {
+        "label": "山脊图",
+        "title": "每个月的气温如何分布",
+        "subtitle": "每日读数，每月一条山脊"
+      },
+      "linkedBrush": {
+        "label": "联动刷选",
+        "title": "55 年间各国走向何方",
+        "subtitle": "预期寿命与人均 GDP，1952 年与 2007 年；在任一年份中刷选"
+      },
+      "inspect": {
+        "label": "读数",
+        "title": "鸡蛋大起大落，面包缓慢上涨",
+        "subtitle": "美国平均价格（美元），一打鸡蛋与一磅白面包（BLS）"
+      },
+      "drawIt": {
+        "label": "你来画"
+      },
       "facetedLine": {
-        "label": "分地区折线图",
+        "label": "分面折线",
         "caption": "按地区拆分成多个小图，展示月活用户随时间的变化。",
         "title": "各地区月活跃用户",
         "subtitle": "2025 年逐月活跃玩家数，每个地区一幅小图，按平台着色"
       },
       "heatmap": {
-        "label": "温度热力图",
+        "label": "热力图",
         "caption": "以紧凑数值表格展示四座城市的逐月气候常值。",
         "title": "四座城市的季节差异",
         "subtitle": "月平均气温（°C）；气候常值"
@@ -464,25 +537,28 @@
         "title": "玩家分布在哪里",
         "subtitle": "月活跃用户按地区、平台、游戏逐层拆分"
       },
-      "donut": {
-        "label": "环图",
-        "caption": "以比例扇区展示影片分级，并从图表规范应用内半径。",
-        "title": "按 MPAA 分级划分的影片",
-        "subtitle": "各分级影片数量占比"
-      },
       "regression": {
-        "label": "回归散点图",
+        "label": "回归散点",
         "caption": "评论与观众评分，并拟合趋势线以揭示关系。",
         "title": "影评人与观众的评价大体一致",
         "subtitle": "IMDB 评分对烂番茄评分，每部影片一个点，并拟合趋势线"
       },
-      "sortedBar": {
-        "label": "排序柱状图",
-        "caption": "按数量从多到少排列影片类型。",
-        "title": "按类型划分的影片",
-        "subtitle": "影片数量，从多到少"
+      "penguins": {
+        "label": "套索",
+        "caption": "三种企鹅；可套索圈选一簇，或在图例中切换物种。",
+        "title": "三个物种，三个聚类",
+        "subtitle": "体重与鳍肢长度，Palmer 站 342 只企鹅"
+      },
+      "worldCup": { "label": "点击球队" },
+      "selectionChat": { "label": "刷选交给智能体" },
+      "globe": { "label": "转动地球" },
+      "usMap": { "label": "地图与概况" },
+      "climatePhase": {
+        "label": "气候相位",
+        "hint": "点击并沿轨迹拖动一个点，查看其他城市如何随之变化。"
       }
-    }
+    },
+    "exampleGroups": { "charts": "图表", "interactions": "交互", "applications": "应用" }
   },
   "mcp": {
     "heroTitle": "让智能体通过 Flint MCP 创建图表与主题",
@@ -491,10 +567,6 @@
     "leadAfter": "服务器后，智能体既能创建交互式图表，也能编写可复用的视觉主题。Flint 默认打开可交互的图表视图；也可以导出静态结果，并引导智能体通过正式的 ThemeSpec 定义视觉设计。",
     "quickStart": "让 AI 智能体帮你配置：",
     "quickStartBody": "把下面这段请求发给智能体即可。若想手动配置，请参阅",
-    "localSetupTitle": "本地服务器",
-    "localSetupBody": "推荐：客户端支持本地 MCP 时使用",
-    "remoteSetupTitle": "远程服务器",
-    "remoteSetupBody": "客户端仅支持远程 MCP 时使用",
     "installConfigure": "安装与配置",
     "orThe": "或",
     "githubReadme": "GitHub README",
@@ -521,6 +593,7 @@
       "compile_chart": "生成可供 Vega-Lite、ECharts 或 Chart.js 直接使用的 JSON 规范，并返回编译警告。",
       "validate_chart": "检查规范是否有效，报告警告或错误，并返回计算得到的图表尺寸。",
       "list_chart_types": "列出可用的图表类型和编码通道，也可按渲染后端筛选。",
+      "list_interaction_presets": "列出交互预设：各自的作用、对图表的要求以及所有可用选项，可按图表类型或单个预设筛选。",
       "list_themes": "列出 Flint 内置的视觉主题；传入主题 id 后，还可获取使用或扩展该设计语言的指南。",
       "agentSkill": "随包提供的图表编写指南，帮助智能体生成有效的 ChartAssemblyInput 规范。",
       "themeSkill": "随包提供的 ThemeSpec 编写指南，帮助智能体将视觉识别转换成可复用的正式规范。",
@@ -536,6 +609,115 @@
     },
     "chatTitle": "智能体对话",
     "copySpec": "复制规范到对话",
-    "appTag": "MCP App"
+    "appTag": "MCP App",
+    "exp": {
+      "simple": {
+        "chartHeading": "带主题的交互式图表",
+        "chartAsk": "用报纸风格展示 1880 年以来全球气温的变化，并让我可以按年份刷选。",
+        "chartReply": "这是一张报纸风格的实时图表。拖过年份即可选取一段时期。",
+        "boardHeading": "带主题的仪表板",
+        "boardAsk": "用 Gapminder 数据做一个 Economist 主题的仪表板，图表按大洲联动。",
+        "boardReply": "这是一个由四张联动图表组成的 Economist 主题仪表板。在任意一张中点击某个大洲，所有图表都会突出显示它。"
+      },
+      "chartPart": "第一部分",
+      "chartHeading": "一张图表，从头到尾",
+      "boardPart": "第二部分",
+      "boardHeading": "在对话中搭建完整看板",
+      "chatTitle": "智能体对话",
+      "chart": {
+        "create": {
+          "label": "创建",
+          "title": "提出需求，实时图表即刻出现",
+          "body": "用文字提出需求，实时图表在对话中打开。",
+          "ask": "展示 1880 年以来全球气温的变化。",
+          "reply": "这是一张实时图表，可以直接在卡片上调整。"
+        },
+        "interact": {
+          "label": "交互",
+          "title": "加入交互",
+          "body": "要求加入框选，图表随之响应。",
+          "ask": "让我能在年份上框选。",
+          "reply": "好了。在年份上拖动即可选择一段时间。"
+        },
+        "theme": {
+          "label": "主题",
+          "title": "用主题换个样子",
+          "body": "内置或自定义主题，读者也能切换。",
+          "ask": "改成报纸图表的风格。",
+          "reply": "已切换为报纸风格。"
+        },
+        "select": {
+          "label": "选择",
+          "title": "就你的选择提问",
+          "body": "框选一段时间，然后就它提问。",
+          "ask": "我想看其中的一段。",
+          "reply": "在你关心的年份上拖动，然后提问。",
+          "followAsk": "总结一下我选的部分。",
+          "followReply": "你选择了 {{from}} 到 {{to}} 年。相对 1951–1980 年平均值，气温从 {{fromValue}} °C 变为 {{toValue}} °C，变化 {{change}} °C。这段时间最暖的一年是 {{warmest}} 年，为 {{warmestValue}} °C。"
+        },
+        "edit": {
+          "label": "修改",
+          "title": "让智能体修改图表",
+          "body": "描述修改，智能体重新绘制并加上标注。",
+          "ask": "把最近两年按月改成柱状图，并标出最暖的一个月。",
+          "reply": "这是最近 24 个月的柱状图，最暖的一个月已标出。"
+        }
+      },
+      "board": {
+        "board": {
+          "label": "看板",
+          "title": "一次请求，生成联动看板",
+          "body": "三张图表，一开始就按大洲联动。",
+          "ask": "用 Gapminder 数据做一个看板，图表按大洲联动。",
+          "reply": "这是三张联动图表组成的看板。在任一图表中点击大洲，就能在所有图表中看到它。"
+        },
+        "theme": {
+          "label": "主题",
+          "title": "整个看板一个主题",
+          "body": "每张图表、标题和页脚都随之改变。",
+          "ask": "把看板换成 Cartoon 主题。",
+          "reply": "好了，整个看板已使用 Cartoon 主题。"
+        },
+        "add": {
+          "label": "添加",
+          "title": "添加一张图表",
+          "body": "再要一个视图，看板会腾出位置。",
+          "ask": "加一张按大洲的人口图表。",
+          "reply": "已添加，看板现在是两行两列。"
+        },
+        "table": {
+          "label": "表格",
+          "title": "查看图表背后的数字",
+          "body": "添加表格，或把任一图表切换为表格视图。",
+          "ask": "加一张比较各大洲的表格，并把增寿年数图表改成表格显示。",
+          "reply": "已添加大洲表格，并把增寿年数图表切换为表格视图。两者都会跟随你选择的大洲。"
+        },
+        "arrange": {
+          "label": "排列",
+          "title": "排好版，再分享",
+          "body": "拖动、调整大小，再复制为图片。",
+          "ask": "我想自己调整看板布局。",
+          "reply": "已进入布局模式。拖动图表的手柄移动它，或拖动边缘调整大小，然后把看板复制为图片。"
+        }
+      }
+    },
+    "groups": {
+      "chart": {
+        "title": "实时图表",
+        "body": "打开可交互的图表卡片，读者可以调整、选择和切换主题。"
+      },
+      "board": {
+        "title": "看板",
+        "body": "创建、修改并展示由联动图表组成的看板。"
+      },
+      "static": {
+        "title": "静态输出",
+        "body": "返回 PNG 或 SVG、后端规范或校验报告。"
+      },
+      "skills": {
+        "title": "查询与技能",
+        "body": "列出图表类型、交互和主题，并加载编写技能。"
+      }
+    }
   }
 }

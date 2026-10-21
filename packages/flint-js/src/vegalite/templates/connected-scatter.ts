@@ -29,6 +29,7 @@
 
 import { ChartTemplateDef } from '../../core/types';
 import { defaultBuildEncodings } from './utils';
+import { skeletonStructure } from '../../core/structure';
 import {
     fieldsFromEncodingChannels,
     firstDiscreteEncodingField,
@@ -71,6 +72,12 @@ export const connectedScatterDef: ChartTemplateDef = {
         encoding: {},
     },
     channels: ["x", "y", "order", "color", "detail", "column", "row"],
+    // Both axes round to clean bounds; the path reads along both.
+    structure: (ctx) => {
+        const structure = skeletonStructure(connectedScatterDef.template, ctx);
+        const round = (axis: typeof structure.x) => (axis?.type === 'quantitative' ? { ...axis, rounded: true } : axis);
+        return { ...structure, ...(structure.x ? { x: round(structure.x) } : {}), ...(structure.y ? { y: round(structure.y) } : {}) };
+    },
     interactionSupport: {
         elements: true,
         region: ['cartesian'],

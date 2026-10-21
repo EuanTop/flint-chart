@@ -1,0 +1,116 @@
+{
+  "id": "hdx",
+  "org": "Humanitarian Data Exchange (UN OCHA Centre for Humanitarian Data)",
+  "urls": [
+    "https://data.humdata.org/dataviz-guide/dataviz-elements/",
+    "https://web.archive.org/web/20240531075652/https://data.humdata.org/dataviz-guide/dataviz-elements/",
+    "https://company-200741.frontify.com/d/1GC9otcJfhPe",
+    "https://centre.humdata.org/hdx-data-visualization-guidelines/",
+    "https://github.com/OCHA-DAP/gghdx",
+    "https://github.com/OCHA-DAP/gghdx/blob/main/data-raw/hdx.yml",
+    "https://github.com/OCHA-DAP/gghdx/blob/main/R/theme_hdx.R",
+    "https://github.com/OCHA-DAP/gghdx/blob/main/R/hdx_pal.R",
+    "https://github.com/OCHA-DAP/gghdx/blob/main/R/hdx_geom_defaults.R",
+    "https://github.com/OCHA-DAP/gghdx/blob/main/R/label_number_hdx.R",
+    "https://github.com/OCHA-DAP/gghdx/blob/main/README.md",
+    "https://cran.r-project.org/web/packages/gghdx/gghdx.pdf"
+  ],
+  "access": "partial",
+  "accessNotes": "data.humdata.org/dataviz-guide/* now returns 404. The guide was a Frontify guideline; the Frontify share link (company-200741.frontify.com/d/1GC9otcJfhPe) renders only the home page (links back to the dead humdata URLs) and the portal requires login. A 2024 Wayback capture of /dataviz-elements/ contains only the Frontify sidebar (section list: Text/Key figures styles, Bar charts vertical vs horizontal, stacked, 100% stacked, Line charts single/multiple/small multiples, Area, Pie, Donut, Bubble, Sparklines, Matrix tables, Tables/date format, Icons/IcoMoon); content is JS-loaded and Wayback was intermittently offline. Primary substitute: OCHA-DAP's own gghdx R package, which explicitly implements 'the HDX visual guidelines' (colour ramps cite data.humdata.org/dataviz-guide/visual-identity/#/visual-identity/colours) and ships the two reference images 'from the original visual guide' (covid_blue.png, covid_red.png). Values below for the legacy (guide-era) design come from gghdx's legacy theme/palette; 2025-redesign values are noted separately.",
+  "summary": "HDX's data-viz style is a clean humanitarian web/report style: bold dark left-aligned headline, a one-line source/date strip directly under the title ('DATA | date | Source' with 'DATA' in HDX blue), light grey horizontal gridlines, no y-axis line, grey uppercase axis labels, and data drawn in flat HDX 'sapphire' blue. Emphasis is created by tinting all bars in an ultra-light ramp tone and colouring the key bar in the full-strength hue (tomato red). Numbers are abbreviated with uppercase K/M/B.",
+  "context": "government",
+  "colors": {
+    "categorical": ["#007CE0", "#1EBFB3", "#F2645A", "#78D9D1", "#F7A29C", "#66B0EC", "#C25048", "#0063B3", "#18998F", "#FCE0DE", "#CCE5F9", "#D2F2F0"],
+    "categoricalNotes": "Legacy (guide-era) discrete scale from gghdx hdx_pal_discrete(design='legacy'): count-specific — n=1: mint-hdx #1EBFB3; n=2: mint #1EBFB3, sapphire #007CE0; n=3: mint, sapphire, tomato #F2645A; n=4: sapphire, mint, tomato, mint-light #78D9D1; n=5 adds tomato-light #F7A29C; n=6 adds sapphire-light #66B0EC; n=7 adds tomato-dark #C25048; n=8 adds sapphire-dark #0063B3; ... max 12. 'tomato used only when necessary for odd # of colors'. Each hue is a 4-step ramp dark/hdx/light/ultra-light: sapphire #0063B3/#007CE0/#66B0EC/#CCE5F9; mint #18998F/#1EBFB3/#78D9D1/#D2F2F0; tomato #C25048/#F2645A/#F7A29C/#FCE0DE. 2025 redesign: primary-5 #1862D8, brand-5 #269777, error-5 #C44536 (n=1 brand-5; n=2 brand-5, primary-5; n=3 + error-5; n>=4 primary-5, brand-5, error-5, brand-3 #7DC1AD, error-3 #DC8F86, primary-3 #74A1E8, error-7 #762920, primary-7 #0E3B82, brand-7 #18614C ...).",
+    "sequential": ["#CCE5F9", "#66B0EC", "#007CE0", "#0063B3"],
+    "diverging": [],
+    "highlight": "#F2645A",
+    "context": "#FCE0DE",
+    "positive": null,
+    "negative": null,
+    "background": "#FFFFFF",
+    "text": "#333333",
+    "textSecondary": "#888888",
+    "gridline": "#EEEEEE",
+    "axis": "#888888",
+    "notes": "Legacy grays: black #000000, dark #888888, medium #CCCCCC, light #EEEEEE, white #FFFFFF; gghdx legacy theme uses gray-light #EEEEEE for gridlines and gray-dark #888888 for axis line/text. Sampled from the guide's reference image covid_blue.png: bars #037BE0 (≈ sapphire #007CE0), title #333333, axis labels/source #888888, gridlines #EEEEEE. In covid_red.png the context bars are tomato ultra-light #FCE0DE and the highlighted last bar tomato #F2645A. 2025 redesign neutral ramp: neutral-2 #D8E0E1 (gridlines/axis), neutral-5 #9DB1B3 (axis text), neutral-8 #3F4748 (body text), neutral-95 #101212 (titles); bars default primary-4 #4681E0, lines/points primary-5 #1862D8. Status ramps: success-5 #2F9E6F, warning-5 #D48F2A, error-5 #C44536."
+  },
+  "typography": {
+    "family": "Source Sans Pro (Source Sans 3) — guide era; 2025 redesign: Roboto body + Merriweather titles",
+    "fallback": "sans-serif",
+    "title": { "size": 15, "weight": "bold", "align": "left", "case": "sentence", "color": "#333333" },
+    "subtitle": { "size": 11, "weight": "regular (source strip); gghdx sets bold", "style": "normal", "color": "#888888" },
+    "axisLabel": { "size": 10, "color": "#888888" },
+    "axisTitle": { "size": 12.5, "weight": "regular", "placement": "usually omitted in reference charts (x = '', y = ''); when present y title rotated 90°" },
+    "dataLabel": { "size": null, "weight": null },
+    "source": { "size": 11, "style": "normal; 'DATA' keyword in HDX blue, then ' | date | Source org' in grey", "color": "#888888" },
+    "notes": "Sizes are gghdx relative sizes for base_size 10: title rel 1.5 (15), subtitle rel 1.1 (11), axis text rel 1 (10), axis title rel 1.25, legend title rel 1.25, strip text rel 1.1 bold. Month labels uppercase 3-letter ('JAN', 'FEB'). Guide section 'Key figures styles' exists (big-number key figures) but content not retrievable."
+  },
+  "structure": {
+    "gridlines": "Horizontal major gridlines only (#EEEEEE, solid, thin) for vertical bar/line charts; vertical-only for horizontal bars (gghdx horizontal=FALSE removes y grid). No minor gridlines.",
+    "axisLine": "No y-axis line (axis.line.y blank). x-axis baseline drawn thin grey.",
+    "ticks": "Legacy: no tick marks (axis.ticks blank). 2025: light neutral-2 ticks.",
+    "zeroLine": "Data starts exactly at the axis — scale_y_continuous_hdx sets expand = c(0,0) so bars sit on the baseline with no padding.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "omitted; measure stated in the title",
+    "unitPlacement": "In tick labels via abbreviations (500K, 1.0M, 2.0M) and in the title.",
+    "frame": "none (panel.border blank, white plot and panel)",
+    "background": "#FFFFFF",
+    "notes": "Plot margins 12/10/12/10 pt; title positioned relative to the whole plot (plot.title.position = 'plot'), i.e. flush left with the y-axis labels."
+  },
+  "legend": {
+    "placement": "bottom, centred (gghdx legend.position = 'bottom', justification 'center')",
+    "directLabels": null,
+    "title": "legend title allowed, centred, rel 1.25",
+    "swatchShape": "square key without border",
+    "notes": "Legend keys have no background/outline."
+  },
+  "marks": {
+    "bars": "Flat solid bars, no outline, no rounding; narrow bars with clear gaps in time series (reference ≈60% bar width). Guide sections distinguish vertical vs horizontal bars, stacked and 100% stacked.",
+    "lines": "Default line colour primary blue; guide covers single, multiple-line and small-multiple line charts.",
+    "areas": "Single, multiple and stacked area charts plus small multiples (guide sections).",
+    "points": "Default point colour primary blue, gghdx size rel 2.",
+    "pies": "Pie and donut sections exist in the guide (allowed); detailed rules not retrievable.",
+    "notes": "Bubble charts: single-colour bubbles, combination with line chart, log scale, 'let the user decide'. Sparklines and matrix tables also covered."
+  },
+  "labels": {
+    "dataLabels": null,
+    "numberFormat": "label_number_hdx: numbers ≥1,000 → X.YK; ≥10,000 → XYK; ≥100,000 → XYZK; same for M and B (and T); uppercase suffix; ticks show one decimal for M (1.0M, 1.5M, 2.0M); negatives handled; prefix e.g. -$1.1K. Not used for percentages.",
+    "dates": "Uppercase three-letter month abbreviations on axes (JAN, FEB…); source strip date as 'DD MON YYYY' uppercase (e.g. '28 SEP 2020'). Guide has a Table 'Date format' section.",
+    "notes": "Guide 'Text' section covers number formatting (referenced by gghdx label_number_hdx docs)."
+  },
+  "furniture": {
+    "title": "Bold, dark (#333333) left-aligned headline, can be a finding ('Monthly global COVID-19 number of cases surpasses two million'), wraps to two lines.",
+    "source": "Directly under the title, before the plot: 'DATA | 28 SEP 2020 | World Health Organization' — the word 'DATA' in HDX blue, separators and rest in grey #888888, regular weight.",
+    "logo": null,
+    "other": "No border, no footer in reference charts."
+  },
+  "annotations": "Highlight by colour: all bars in ultra-light tint (#FCE0DE) and the emphasised bar in full tomato (#F2645A).",
+  "layout": "Reference images are small web widgets (~367×318 px). Small multiples are recommended for multiple lines/areas.",
+  "interaction": null,
+  "accessibility": "Each colour ramp step designed for contrast; no further detail recoverable.",
+  "chartTypes": {
+    "preferred": ["vertical bar", "horizontal bar", "stacked bar", "100% stacked bar", "line", "small multiples", "area", "stacked area", "bubble", "sparklines", "matrix table", "table", "pie", "donut"],
+    "discouraged": [],
+    "notes": "Guide has Do/Don't pages for text, bars, lines and tables (not retrievable)."
+  },
+  "distinctiveRules": [
+    { "rule": "Source/date strip sits directly under the title (above the plot), formatted 'DATA | DD MON YYYY | Source' with 'DATA' in HDX blue and the rest grey.", "source": "https://github.com/OCHA-DAP/gghdx/blob/main/man/figures/covid_blue.png", "quote": "Reference image from the original visual guide: 'DATA | 28 SEP 2020 | World Health Organization'" },
+    { "rule": "Title is bold, dark grey (#333333), left-aligned flush with the y-axis labels (plot-level title position).", "source": "https://github.com/OCHA-DAP/gghdx/blob/main/R/theme_hdx.R", "quote": "plot.title: size rel(1.5), hjust = 0, face = 'bold'; plot.title.position = 'plot'" },
+    { "rule": "Only horizontal light-grey (#EEEEEE) gridlines for column/line charts; flipped to vertical-only for horizontal bars; no minor gridlines.", "source": "https://github.com/OCHA-DAP/gghdx/blob/main/R/theme_hdx.R", "quote": "panel.grid.major color gray-light; if (horizontal) panel.grid.major.x = element_blank()" },
+    { "rule": "No y-axis line and no tick marks.", "source": "https://github.com/OCHA-DAP/gghdx/blob/main/R/theme_hdx.R", "quote": "axis.line.y = element_blank(); axis.ticks = element_blank() (legacy)" },
+    { "rule": "Data starts exactly on the x-axis (no padding below zero).", "source": "https://github.com/OCHA-DAP/gghdx/blob/main/README.md", "quote": "scale_y_continuous_hdx() wraps scale_y_continuous() to plot data directly starting from the y-axis ... sets expand = c(0, 0)" },
+    { "rule": "Abbreviate numbers with uppercase K/M/B suffixes (500K, 1.5M, 2.0M).", "source": "https://github.com/OCHA-DAP/gghdx/blob/main/R/label_number_hdx.R", "quote": "numbers 1,000 and above to X.YK, 10,000 and above to XYK ... replacing the K with an M, and the same for B" },
+    { "rule": "Month axis labels are uppercase three-letter abbreviations in grey (JAN, FEB, MAR).", "source": "https://github.com/OCHA-DAP/gghdx/blob/main/README.md", "quote": "labels = function(x) toupper(strftime(x, '%b'))" },
+    { "rule": "Single-series default colour is HDX sapphire blue #007CE0 (legacy) / primary blue (2025).", "source": "https://github.com/OCHA-DAP/gghdx/blob/main/data-raw/hdx.yml", "quote": "sapphire: hdx #007CE0" },
+    { "rule": "Highlight pattern: context marks in the ultra-light tint of a ramp, emphasised mark in the full-strength hue of the same ramp.", "source": "https://github.com/OCHA-DAP/gghdx/blob/main/man/figures/covid_red.png", "quote": "Reference image: pale #FCE0DE bars with final bar in tomato #F2645A" },
+    { "rule": "Categorical palette is count-specific: 1→mint, 2→mint+sapphire, 3→mint+sapphire+tomato, then light/dark ramp steps; tomato only for odd counts; max 12.", "source": "https://github.com/OCHA-DAP/gghdx/blob/main/R/hdx_pal.R", "quote": "hdx_pal_discrete_legacy ... tomato used only when necessary for odd # of colors" },
+    { "rule": "Legend at the bottom, centred, no key background.", "source": "https://github.com/OCHA-DAP/gghdx/blob/main/R/theme_hdx.R", "quote": "legend.position = 'bottom', legend.justification = 'center'" },
+    { "rule": "No plot border/frame; white background.", "source": "https://github.com/OCHA-DAP/gghdx/blob/main/R/theme_hdx.R", "quote": "panel.border = element_blank(); plot.background fill white" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/hdx/covid_blue.png", "url": "https://raw.githubusercontent.com/OCHA-DAP/gghdx/main/man/figures/covid_blue.png", "describes": "Reference chart from the original HDX visual guide. Bold dark-grey sans-serif title top-left on two lines 'Monthly global COVID-19 confirmed cases in 2020'. Directly beneath: 'DATA | 28 SEP 2020 | World Health Organization' with 'DATA' in blue, the rest grey. Narrow solid blue (#037BE0) columns, one per week, with gaps. Light grey horizontal gridlines; y labels on the left in grey: 0.0, 500K, 1.0M, 1.5M, 2.0M; no y-axis line or ticks; x-axis uppercase month labels JAN..SEP in grey. No legend, no logo, white background." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/hdx/covid_red.png", "url": "https://raw.githubusercontent.com/OCHA-DAP/gghdx/main/man/figures/covid_red.png", "describes": "Same layout with headline-as-finding 'Monthly global COVID-19 number of cases surpasses two million'. All columns are very pale pink (#FCE0DE) except the final column in solid tomato red (#F2645A), illustrating highlight-one-bar emphasis. Same 'DATA | date | source' strip and grey axes/gridlines." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/hdx/README-covid-match-1.png", "url": "https://raw.githubusercontent.com/OCHA-DAP/gghdx/main/man/figures/README-covid-match-1.png", "describes": "gghdx (2025 design) recreation: large bold Merriweather serif title and bold serif 'DATA | JUL 2022 | World Health Organization' subtitle in near-black; blue (#007CE0-like) narrow columns; pale blue-grey horizontal gridlines; grey-teal Roboto axis labels (0, 2M, 4M...) on the left with no y-axis line; uppercase month labels with small ticks on a light baseline. Shows the redesign's typography." }
+  ]
+}

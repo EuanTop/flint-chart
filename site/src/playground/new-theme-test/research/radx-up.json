@@ -1,0 +1,112 @@
+{
+  "id": "radx-up",
+  "org": "RADx-UP (NIH Rapid Acceleration of Diagnostics – Underserved Populations; guide by American Institutes for Research for the CDCC)",
+  "urls": [
+    "https://radx-up.org/wp-content/uploads/2022/09/RADx-UP-Data-Visualization-Style-Guide.pdf",
+    "https://www.scribd.com/document/891415598/RADx-UP-Data-Visualization-Style-Guide",
+    "https://www.scribd.com/embeds/891415598/content",
+    "https://youandmehealthy.org/wp-content/uploads/2025/04/RADx-UP-Branding-Guideline-15apr2022.pdf",
+    "https://raw.githubusercontent.com/washuvis/styleguides/HEAD/src/lib/orgs.ts"
+  ],
+  "access": "full",
+  "accessNotes": "The original radx-up.org PDF URL fails: the TLS certificate does not match, and with the check bypassed the server returns 404. The site appears to have moved to youandmehealthy.org, where the PDF is not present, and the Wayback Machine has no snapshot. I found the complete document ('Data Visualization Style Guide, Version 2.0, 09/20/2022', 53 spreads / 107 pages) on Scribd, document 891415598. It was read in a headless browser: the full text layer was scrolled into view, and the pages for format specifications (p.98), colours (p.100) and examples were screenshotted. Some digits are missing from Scribd's text layer, so the exact sizes were confirmed from the page screenshots. The RADx-UP Branding Guideline (April 2022) PDF was downloaded as context for the brand colours and fonts.",
+  "summary": "A report-oriented style guide for NIH RADx-UP COVID-19 testing grantees, used in reports, posters, dashboards and infographics, built on the RADx-UP brand. The charts are clean and corporate: everything is set in Trebuchet MS in dark grey #484D57, with very pale blue (#E5EDF5) 1pt gridlines and a 1pt dark-grey baseline. The categorical palette runs Duke Blue, UNC Blue, Eggplant, CCPH Teal and Dark Gray, with Orange reserved for highlights. Each chart has a left-aligned 18pt title and a 12pt subtitle, a legend row with a 'Legend Title:' label above the plot, bold-italic ALL-CAPS axis titles, a 9pt 'Source:'/'Notes:' block bottom-left, and the RADx-UP logo bottom-right.",
+  "context": "report",
+  "colors": {
+    "categorical": ["#00539b", "#4b9cd3", "#510c5d", "#14a9a2", "#484d57"],
+    "categoricalNotes": "The main brand colours, in the order used in the format-spec example and the guide's colour table: Duke Blue #00539b, UNC Blue #4b9cd3, Eggplant #510c5d, CCPH Teal #14a9a2, Dark Gray #484d57. Apply colours consistently, so the same subcategory always gets the same colour across a set of visuals (e.g. 'CCPH Teal would always appear throughout a group of visuals as a particular subcategory'). Use distinct colours for nominal subcategories and blue gradients for ordinal ones.",
+    "sequential": ["#e5edf5", "#ccdceb", "#99bad7", "#6697c3", "#3275af", "#00539b"],
+    "diverging": [],
+    "highlight": "#f47e28",
+    "context": "#b5b7bb",
+    "positive": "#9dc858",
+    "negative": "#cd3b44",
+    "background": "#ffffff",
+    "text": "#484d57",
+    "textSecondary": "#484d57",
+    "gridline": "#e5edf5",
+    "axis": "#484d57",
+    "notes": "Every main colour has five tints (rows 2–6), for maps and gradients. Duke Blue: Tint 1 #3275af, Tint 2 #6697c3, Tint 3 #99bad7, Tint 4 #ccdceb, Tint 5 #e5edf5. UNC Blue: #6eafdb, #93c3e4, #b7d7ed, #dbebf6, #edf5fa. Eggplant: #733c7d, #966d9d, #cab6ce, #e5dde2, #f7f5f8. CCPH Teal: #42bab4, #72cbc7, #a1dcd9, #d0edec, #e7f6f5. Dark Gray: #6c7078, #91949a, #b5b7bb, #dadbdd, #ecedee. Highlight Orange #f47e28 with tints #f69752, #f8b17e, #f9be93, #fbd8be, #fce5d4 ('Need a highlight color? Use #F47E28 Orange or one of its Tints, such as #f9be93, Orange Tint 3'). Indicator colours for Good/Neutral/Bad: Spring Green #9dc858, Marigold #dec500, Red #cd3b44. Choropleths use at most five shades of one colour. 'context' is Dark Gray Tint 3, inferred as a de-emphasis tint; the guide does not name a context grey. The public website must meet WCAG 2.0 AA contrast."
+  },
+  "typography": {
+    "family": "Trebuchet MS",
+    "fallback": null,
+    "title": { "size": 18, "weight": "regular", "align": "left", "case": "sentence", "color": "#484d57" },
+    "subtitle": { "size": 12, "weight": "regular", "style": "normal", "color": "#484d57" },
+    "axisLabel": { "size": 10, "color": "#484d57" },
+    "axisTitle": { "size": 10, "weight": "bold italic", "placement": "ALL CAPS. X-axis title left-aligned below the axis; y-axis title rotated, aligned right (top of axis) or placed at top. Units in parentheses, e.g. 'X AXIS TITLE (UNIT)'." },
+    "dataLabel": { "size": 11, "weight": "regular" },
+    "source": { "size": 9, "style": "regular, 9pt on 11pt leading, left-aligned, prefixed 'Source:'; a 'Notes:' paragraph follows with 3px extra space above", "color": "#484d57" },
+    "notes": "All text is #484D57. Title 18/20pt and subtitle 12/20pt, both sentence case. Figure number is regular weight in ALL CAPS. Axis titles 10pt Bold Italic ALL CAPS. Axis labels 10pt regular, sentence case: centred on the x-axis, left-aligned on the y-axis. Direct and data-point labels 11pt regular. Legend title and legend items 10/14pt regular. Source and notes 9/11pt regular. Trebuchet MS was chosen because it is a system font on both PC and Mac (the brand fonts are Benton Sans/Merriweather). Use horizontal axis text. A waffle chart's percentage label is larger than the label text."
+  },
+  "structure": {
+    "gridlines": "Solid 1pt (1px) #E5EDF5 (Duke Blue Tint 5), very pale blue, horizontal behind columns. Remove gridlines that distract, especially in tables.",
+    "axisLine": "X-axis (baseline) line solid 1pt #484D57. No y-axis line in the example.",
+    "ticks": "None shown.",
+    "zeroLine": "Axes start at zero for continuous measures, except line charts, scatter plots and similar, where the range must still include zero for non-negative measures.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "rotated, bold-italic ALL CAPS with the unit in parentheses: 'Y-AXIS TITLE (UNIT)'",
+    "unitPlacement": "In parentheses in the axis title, e.g. 'X AXIS TITLE (UNIT)'.",
+    "frame": "none",
+    "background": "white",
+    "notes": "Spacing between columns is 1/4 to 1/3 of the column width (format spec: no more than 35% of bar width). Horizontal bars get gaps of about half the bar width. Clustered bars: gaps between clusters are 1/4 to 1/3 of the cluster width. No dual y-axes with differing scales."
+  },
+  "legend": {
+    "placement": "top, left-aligned under the subtitle, as a single horizontal row",
+    "directLabels": "Preferred: values printed outside the top of columns or the end of bars. Pie charts carry category, percentage and raw value directly on the chart.",
+    "title": "Shown: a 'Legend Title:' label in regular weight at the start of the legend row, followed by the items",
+    "swatchShape": "small square",
+    "notes": "Order legend items to match the stacking order and, where practical, stack them in the same orientation as the segments."
+  },
+  "marks": {
+    "bars": "Flat, no 3D, square corners, no outlines. Columns are separated by 25–35% of the bar width. Sort intentionally (by value for nominal data), with Unknown, Missing, N/A and Other last (right-most or bottom-most). Bars may be as thin as one line of text.",
+    "lines": "No smoothing or averaging; connect point to point. Use markers to distinguish measures (helps colour-blind readers). At most 5 lines; use small multiples beyond that. Goal and control lines are allowed.",
+    "areas": "Area charts are included. Put the largest contributor at the bottom, judged by its value at the start of the period.",
+    "points": "Scatter and bubble plots are included. If a log scale is used, state it in the title or axis titles.",
+    "pies": "Only 1–2 categories (3 at most, e.g. Yes/No/Unknown). The primary category starts at 12 o'clock and the rest follow clockwise. Label directly with category, percentage and raw value. Small multiples of pies are acceptable.",
+    "notes": "Lollipop charts may recolour dots to highlight a group of interest. Sankey links take the colour of their source node."
+  },
+  "labels": {
+    "dataLabels": "Use direct data labels where possible: outside the top of columns and outside the end of bars. 11pt regular #484D57.",
+    "numberFormat": null,
+    "dates": "Abbreviate long month labels rather than rotating them (e.g. 'Sep.' for September).",
+    "notes": "Axis label text is horizontal; switch to a bar chart if category labels are too long."
+  },
+  "furniture": {
+    "title": "18pt Trebuchet MS regular title, sentence case, left-aligned at top-left, with a 12pt regular subtitle in sentence case beneath. An optional figure number in ALL CAPS.",
+    "source": "Required for transparency. Bottom-left, 9pt on 11pt leading, #484D57, left-aligned, in the pattern 'Source: …' then 'Notes: …' (3px extra space above). Width should be more than 70% of the chart.",
+    "logo": "The RADx-UP logotype sits bottom-right, its baseline aligned with the baseline of the last Source/Notes line.",
+    "other": "Example pages label the chart type above the title in italic blue ('Example 2 – Clustered Column Chart'); that is guide furniture, not chart furniture. Dashboards use cards with oversized single values and clear titles, consistent font sizing, and colour to flag values above or below a goal. Tables use zebra striping and avoid gridlines and borders."
+  },
+  "annotations": "Use the Orange highlight (#f47e28 or its tints) or a darker colour to pick out data points of interest. Goal lines and control lines go on line charts. Indicator colours (green, marigold, red) flag good, neutral and bad status.",
+  "layout": "Small multiples are recommended for many lines or pies; order them alphabetically or group items to be compared. Keep scale and orientation consistent across charts. Dashboards and infographics use hierarchy (size, colour, spacing, proximity, alignment).",
+  "interaction": null,
+  "accessibility": "Section 508 / WCAG 2.0 AA: contrast foreground against background, and give static images alt text that lists each category's value when the data is not otherwise on the page. Markers on lines help colour-blind readers.",
+  "chartTypes": {
+    "preferred": ["column", "clustered column", "stacked column", "bar", "clustered bar", "stacked bar", "lollipop", "100% stacked bar", "100% stacked column", "pie (1–2 categories)", "treemap", "waffle", "scatter", "bubble", "table", "card", "bullet", "gantt", "progress bar", "donut", "line", "line with goal line", "line with control lines", "area", "bump", "waterfall", "histogram", "frequency polygon", "box plot", "violin", "sankey", "choropleth", "point map", "bubble map", "hex/tile map", "heat map"],
+    "discouraged": ["3D charts", "dual y-axes with differing scales", "smoothed lines", "pies with more than 3 categories", "line charts with more than 5 lines"],
+    "notes": "Charts are organised by data type: ordinal, nominal, proportions, correlation, tables and numbers, benchmarking/progress, time series, distribution, geographic."
+  },
+  "distinctiveRules": [
+    { "rule": "All chart text is Trebuchet MS in dark grey #484D57: title 18pt regular, subtitle 12pt, axis labels 10pt, direct labels 11pt, legend 10pt, source and notes 9pt.", "source": "https://www.scribd.com/document/891415598/RADx-UP-Data-Visualization-Style-Guide", "quote": "This is the Title in Trebuchet MS Regular Font, 18 pt on 20 pt, #484D57" },
+    { "rule": "Axis titles are Trebuchet MS Bold Italic 10pt ALL CAPS with the unit in parentheses ('X AXIS TITLE (UNIT)'). The x title is left-aligned under the axis; the y title is rotated and aligned right/top.", "source": "https://www.scribd.com/document/891415598/RADx-UP-Data-Visualization-Style-Guide", "quote": "Axis titles — Font: Trebuchet MS Italic; Font weight: Bold; Font size: 10 pt; X-axis align: left; Y-axis align: right or top" },
+    { "rule": "Gridlines are solid 1pt very pale blue #E5EDF5. The x-axis baseline is solid 1pt #484D57; no y-axis line.", "source": "https://www.scribd.com/document/891415598/RADx-UP-Data-Visualization-Style-Guide", "quote": "Gridlines: Solid, Weight: 1 pt, Color: #E5EDF5 ... X-axis line: Solid, Weight: 1 pt, Color: #484D57" },
+    { "rule": "The legend sits above the plot under the subtitle: one row, left-aligned, starting with the literal 'Legend Title:' then square swatches with labels.", "source": "https://www.scribd.com/document/891415598/RADx-UP-Data-Visualization-Style-Guide", "quote": "Legend Title: ■ Label ■ Label ■ Label ■ Label" },
+    { "rule": "A source/notes block bottom-left, 9pt on 11pt, beginning 'Source:' then 'Notes:', with the RADx-UP logo bottom-right on the same baseline.", "source": "https://www.scribd.com/document/891415598/RADx-UP-Data-Visualization-Style-Guide", "quote": "RADxUP logo — Baseline of logotype aligns with baseline of last line of Source/Notes" },
+    { "rule": "Categorical order is Duke Blue #00539b, UNC Blue #4b9cd3, Eggplant #510c5d, CCPH Teal #14a9a2, Dark Gray #484d57, and each subcategory keeps its colour across all visuals.", "source": "https://www.scribd.com/document/891415598/RADx-UP-Data-Visualization-Style-Guide", "quote": "Use color consistently, ordered colors ... CCPH Teal would always appear throughout a group of visuals as a particular subcategory" },
+    { "rule": "Highlight one bar or point in Orange #F47E28 (or a tint such as #f9be93).", "source": "https://www.scribd.com/document/891415598/RADx-UP-Data-Visualization-Style-Guide", "quote": "Need a highlight color? Use #F47E28 Orange or one of its Tints, such as #f9be93, Orange Tint 3." },
+    { "rule": "Good/neutral/bad indicators use Spring Green #9dc858, Marigold #dec500 and Red #cd3b44.", "source": "https://www.scribd.com/document/891415598/RADx-UP-Data-Visualization-Style-Guide", "quote": "Indicator colors in row 7 are used to indicate Good/Neutral/Bad categories." },
+    { "rule": "Bars are wide: the gap between columns is about 1/4–1/3 of the bar width and never more than 35%. Horizontal bars use gaps of about half the bar width.", "source": "https://www.scribd.com/document/891415598/RADx-UP-Data-Visualization-Style-Guide", "quote": "Adjust spacing so that the width between bars is no more than 35% of a bar's width." },
+    { "rule": "Value labels sit directly outside the top of each column or the end of each bar.", "source": "https://www.scribd.com/document/891415598/RADx-UP-Data-Visualization-Style-Guide", "quote": "Use direct data labeling when possible, placing the data labels outside the top of columns." },
+    { "rule": "Unknown, missing, N/A and Other categories always go last (right-most or bottom-most).", "source": "https://www.scribd.com/document/891415598/RADx-UP-Data-Visualization-Style-Guide", "quote": "Unknown, missing, not applicable, and other categories or subcategories are generally best positioned last" },
+    { "rule": "Pies have 1–2 categories (3 at most). The primary category starts at 12 o'clock and runs clockwise, labelled with category, percentage and raw value.", "source": "https://www.scribd.com/document/891415598/RADx-UP-Data-Visualization-Style-Guide", "quote": "Order the wedges intentionally, with the primary category of interest first starting from the 12 o'clock position" },
+    { "rule": "Lines are never smoothed, carry markers per measure, and number 5 at most. No dual y-axes.", "source": "https://www.scribd.com/document/891415598/RADx-UP-Data-Visualization-Style-Guide", "quote": "Do not apply smoothing or averaging... Use markers to distinguish the different measures... Do not use dual y-axes with differing scales" },
+    { "rule": "Ordinal subcategories use Duke Blue gradients; nominal subcategories use distinct colours.", "source": "https://www.scribd.com/document/891415598/RADx-UP-Data-Visualization-Style-Guide", "quote": "When the subcategory is nominal use distinct colors for subcategories. When the subcategory is ordinal use blue color gradients for subcategories." }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/radx-up/radx-page-49.png", "url": "https://www.scribd.com/document/891415598/RADx-UP-Data-Visualization-Style-Guide", "describes": "Format Specifications page (p.98). Annotated column chart. Title top-left in Trebuchet MS regular 18pt dark grey ('This is the Title in Trebuchet MS Regular Font, 18 pt on 20 pt, #484D57') with a 12pt subtitle below. Legend row above the plot: 'Legend Title:' then small square swatches in Duke Blue, UNC Blue, Eggplant, CCPH Teal, Dark Gray. Five wide columns in those colours with value labels ('555') above each, very pale blue horizontal gridlines, a dark grey 1pt x-axis line and no y-axis line. Rotated bold-italic caps 'Y-AXIS TITLE (UNIT)' on the left and 'X AXIS TITLE (UNIT)' left-aligned below. Small 9pt 'Source:' and 'Notes:' lines bottom-left, RADx-UP logo bottom-right on the same baseline. Callout boxes give the specs." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/radx-up/radx-page-11.png", "url": "https://www.scribd.com/document/891415598/RADx-UP-Data-Visualization-Style-Guide", "describes": "Example 2 – Clustered Column Chart. Grey title 'Clustered Column Chart' top-left. Legend row 'Legend Title: ■ Label ■ Label ■ Label ■ Label' above the plot. Monthly clusters (January–July) of four columns in Duke Blue, UNC Blue, Eggplant and CCPH Teal with small gaps between clusters. Faint horizontal gridlines, dark baseline, rotated 'Y-AXIS TITLE (UNIT)'. A pale-teal 'When to use color' note box top-right inside the plot. Source/Notes text bottom-left and the RADx-UP logo bottom-right." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/radx-up/radx-page-50.png", "url": "https://www.scribd.com/document/891415598/RADx-UP-Data-Visualization-Style-Guide", "describes": "Data Visualization Colors page (p.100). A swatch grid: main colours Duke Blue #00539b, UNC Blue #4b9cd3, Eggplant #510c5d, CCPH Teal #14a9a2, Dark Gray #484d57 and highlight Orange #f47e28, each with five lighter tints below. A bottom row of indicator colours: Spring Green #9dc858, Marigold #dec500, Red #cd3b44. Each swatch shows its RGB and HEX in bold text." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/radx-up/radx-page-14.png", "url": "https://www.scribd.com/document/891415598/RADx-UP-Data-Visualization-Style-Guide", "describes": "Example 5 – Clustered Bar Chart. Horizontal bars grouped in three clusters of four (Duke Blue, UNC Blue, Eggplant, CCPH Teal). Very faint vertical gridlines, a dark left baseline, the legend row on top-left, a rotated y-axis title and 'X AXIS TITLE (UNIT)' bold caps below. Source/Notes bottom-left and logo bottom-right. Includes an 'Alternate color scheme' thumbnail using blue tints for ordinal subcategories." }
+  ]
+}

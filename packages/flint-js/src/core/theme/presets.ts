@@ -21,6 +21,10 @@ import { powerbiLight } from './presets/powerbi-light';
 import { swiss } from './presets/swiss';
 import { pop } from './presets/pop';
 import { cartoon } from './presets/cartoon';
+import { apple } from './presets/apple';
+import { deStijl } from './presets/de-stijl';
+import { bbc } from './presets/bbc';
+import { material } from './presets/material';
 import { deepMerge } from './merge.js';
 
 export const THEME_PRESETS: Record<string, ThemePreset> = {
@@ -34,6 +38,10 @@ export const THEME_PRESETS: Record<string, ThemePreset> = {
     'powerbi-light': powerbiLight,
     pop,
     cartoon,
+    apple,
+    'de-stijl': deStijl,
+    bbc,
+    material,
 };
 
 /**

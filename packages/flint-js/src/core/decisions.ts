@@ -1,3 +1,4 @@
+import type { LabelFitStep } from './theme/types';
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
@@ -45,6 +46,101 @@ export interface EncodingTypeDecision {
     channelOverride: boolean;
     /** Whether the type was overridden by cardinality/fraction guard */
     cardinalityGuard: boolean;
+    /** A date drawn as a row of snapshots: discrete bands, one per date ({@link readsAsSnapshots}). */
+    snapshots?: boolean;
+}
+
+/** What the chart around a channel says about how its type is read. */
+export interface EncodingTypeContext {
+    /** The chart type the channel is drawn in. */
+    chartType?: string;
+}
+
+/**
+ * Charts whose position axis is a row of bands. A date on that axis is laid out as bands either
+ * way; a time scale there only places them, so where the dates read as a few snapshots the axis
+ * names each one instead.
+ */
+export const BANDED_CHART_TYPES: ReadonlySet<string> = new Set([
+    'Bar Chart', 'Stacked Bar Chart', 'Grouped Bar Chart', 'Lollipop Chart', 'Bar Table',
+    'Waterfall Chart', 'Pyramid Chart', 'Heatmap', 'Boxplot', 'Violin Plot', 'Strip Plot', 'Ranged Dot Plot',
+]);
+
+/** Up to this many dates, a banded axis names each one. */
+export const SNAPSHOT_MAX_DATES = 8;
+/** Dates filling less than this share of the periods between the first and the last are snapshots. */
+export const SNAPSHOT_MAX_COVERAGE = 0.5;
+/** Past this many dates, bands are too many to name: the axis stays a time scale. */
+export const SNAPSHOT_MAX_BANDS = 50;
+
+const DAY_MS = 86_400_000;
+
+/** A date value as UTC epoch ms, reading a bare year (2025, "2025") as its first day. */
+export function snapshotTime(value: unknown): number | undefined {
+    if (value instanceof Date) return Number.isFinite(value.getTime()) ? value.getTime() : undefined;
+    if (typeof value === 'number') {
+        if (Number.isInteger(value) && value >= 1000 && value <= 2999) return Date.UTC(value, 0, 1);
+        return Number.isFinite(value) ? value : undefined;
+    }
+    if (typeof value !== 'string') return undefined;
+    const text = value.trim();
+    if (/^\d{4}$/.test(text)) return Date.UTC(Number(text), 0, 1);
+    const time = Date.parse(text);
+    return Number.isFinite(time) ? time : undefined;
+}
+
+const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+
+/** A field of points in open time (dates, years, months of a year), not a cycle (months, weekdays). */
+export function isDateField(semanticType: string | undefined, values: readonly unknown[]): boolean {
+    if (semanticType && isRegistered(semanticType)) {
+        const entry = getRegistryEntry(semanticType);
+        return entry.t0 === 'Temporal' && entry.t1 !== 'Duration' && entry.domainShape !== 'cyclic';
+    }
+    return inferVisCategory([...values]) === 'temporal';
+}
+
+/**
+ * The distinct values of a date field in time order, as strings, where every value reads as a
+ * date; undefined where any does not (the field keeps the order its rows give).
+ */
+export function chronologicalOrder(values: readonly unknown[]): string[] | undefined {
+    const seen = new Map<string, number>();
+    for (const value of values) {
+        if (value == null || value === '') continue;
+        const key = value instanceof Date ? value.toISOString() : String(value);
+        if (seen.has(key)) continue;
+        const time = snapshotTime(value);
+        if (time === undefined) return undefined;
+        seen.set(key, time);
+    }
+    if (seen.size < 2) return undefined;
+    return [...seen.entries()].sort((a, b) => a[1] - b[1]).map(([key]) => key);
+}
+
+/**
+ * Whether dates on a banded axis read as a few snapshots rather than a run of time: few of them
+ * ({@link SNAPSHOT_MAX_DATES}), or calendar dates that fill under half the periods between the
+ * first and the last at their finest regular step (July and December fill two of six months;
+ * weekly dates fill every week). Dates off the calendar grid (times of day) count by number only.
+ */
+export function readsAsSnapshots(values: readonly unknown[]): boolean {
+    const times = [...new Set(values.map(snapshotTime).filter((time): time is number => time !== undefined))]
+        .sort((a, b) => a - b);
+    if (times.length < 2) return false;
+    if (times.length <= SNAPSHOT_MAX_DATES) return true;
+    if (times.length > SNAPSHOT_MAX_BANDS) return false;
+    const dates = times.map((time) => new Date(time));
+    const midnight = dates.every((d) => d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0);
+    if (!midnight) return false;
+    const monthly = dates.every((d) => d.getUTCDate() === 1);
+    const index = monthly
+        ? dates.map((d) => d.getUTCFullYear() * 12 + d.getUTCMonth())
+        : times.map((time) => Math.round(time / DAY_MS));
+    const step = index.slice(1).reduce((g, value, i) => gcd(g, value - index[i]), 0);
+    if (!(step > 0)) return false;
+    const periods = (index[index.length - 1] - index[0]) / step + 1;
+    return index.length / periods < SNAPSHOT_MAX_COVERAGE;
 }
 
 // ---------------------------------------------------------------------------
@@ -134,6 +230,8 @@ function resolveTemporalEncoding(
     data: any[],
     fieldName: string,
     fromRegistry: boolean,
+    context: EncodingTypeContext = {},
+    fieldValues: any[] = data.map(r => r[fieldName]),
 ): EncodingTypeDecision {
     // Temporal on facet/size channels → ordinal (VL limitation)
     if (['size', 'column', 'row'].includes(channel)) {
@@ -149,6 +247,11 @@ function resolveTemporalEncoding(
     // Validate temporal parsing
     if (!validateTemporalParsing(data, fieldName, fromRegistry)) {
         return { vlType: 'ordinal', visCategory, channelOverride: false, cardinalityGuard: false };
+    }
+    // A few dates along a row of bands are snapshots: each band is named, not placed on a time scale.
+    if ((channel === 'x' || channel === 'y') && context.chartType && BANDED_CHART_TYPES.has(context.chartType)
+        && readsAsSnapshots(fieldValues)) {
+        return { vlType: 'ordinal', visCategory, channelOverride: true, cardinalityGuard: true, snapshots: true };
     }
     return { vlType: 'temporal', visCategory, channelOverride: false, cardinalityGuard: false };
 }
@@ -224,14 +327,15 @@ function disambiguateMultiEncoding(
     data: any[],
     fieldName: string,
     fieldValues: any[],
+    context: EncodingTypeContext = {},
 ): EncodingTypeDecision {
     const has = (vc: VisCategory) => candidates.includes(vc);
 
-    // ── Temporal + Ordinal (Year, YearMonth, Decade, etc.) ────────
+    // ── Temporal + Ordinal (Year, YearMonth, Decade, …) ────────
     // Time-unit granules. Temporal for continuous time axes (x/y);
     // ordinal for grouping channels (color, facet, size).
     if (has('temporal') && has('ordinal')) {
-        return resolveTemporalEncoding('temporal', channel, data, fieldName, true);
+        return resolveTemporalEncoding('temporal', channel, data, fieldName, true, context, fieldValues);
     }
 
     // ── Quantitative + Ordinal (Score, Rating) ────────────────────
@@ -301,6 +405,7 @@ function disambiguateMultiEncoding(
  * @param channel        VL channel name (e.g. 'x', 'y', 'color')
  * @param data           Full data table (for computing unique value counts)
  * @param fieldName      Field name (for data lookups)
+ * @param context        The chart around the channel (its type)
  */
 export function resolveEncodingType(
     semanticType: string,
@@ -308,6 +413,7 @@ export function resolveEncodingType(
     channel: string,
     data: any[],
     fieldName: string,
+    context: EncodingTypeContext = {},
 ): EncodingTypeDecision {
     // ═══════════════════════════════════════════════════════════════════
     // Stage 1: Registry-driven resolution
@@ -321,7 +427,7 @@ export function resolveEncodingType(
 
         if (candidates.length > 1) {
             // Multiple encodings listed — disambiguate semantically
-            return disambiguateMultiEncoding(candidates, channel, data, fieldName, fieldValues);
+            return disambiguateMultiEncoding(candidates, channel, data, fieldName, fieldValues, context);
         }
 
         // Single encoding — use it directly with channel adjustments
@@ -348,7 +454,7 @@ export function resolveEncodingType(
         }
 
         if (baseType === 'temporal') {
-            return resolveTemporalEncoding(baseType, channel, data, fieldName, true);
+            return resolveTemporalEncoding(baseType, channel, data, fieldName, true, context, fieldValues);
         }
         if (baseType === 'ordinal') {
             return applyOrdinalGuards(baseType, channel, data, fieldName, fieldValues, true);
@@ -372,7 +478,7 @@ export function resolveEncodingType(
 
     switch (visCategory) {
         case 'temporal':
-            return resolveTemporalEncoding(visCategory, channel, data, fieldName, false);
+            return resolveTemporalEncoding(visCategory, channel, data, fieldName, false, context, fieldValues);
 
         case 'ordinal':
             return applyOrdinalGuards(visCategory, channel, data, fieldName, fieldValues, false);
@@ -609,6 +715,8 @@ export interface AxisStepDecision {
     budget: number;
     /** Number of items this step was computed for */
     itemCount: number;
+    /** Whether the step was blended toward a capacity past the base span, so it moves with that capacity. */
+    fitted: boolean;
 }
 
 /**
@@ -634,6 +742,7 @@ export function computeAxisStep(
         // Fit only addresses unused room on a sparse categorical axis. When
         // the base pitch is already under pressure, preserve it as the target
         // and let the existing elastic budget stretch/compress the canvas.
+        const fitted = fit > 0 && baseSpanStep > params.defaultStepSize && (params.bandStepFitCapacity ?? 1) > 1;
         const preferredStep = baseSpanStep > params.defaultStepSize
             ? params.defaultStepSize * (1 - fit) + capacityStep * fit
             : params.defaultStepSize;
@@ -642,7 +751,7 @@ export function computeAxisStep(
         // unused room. Under pressure, the existing elastic budget decides how
         // much the canvas may grow before the pitch is compressed.
         if (preferredStep <= baseSpanStep) {
-            return { step: Math.floor(preferredStep), budget: baseDimension, itemCount };
+            return { step: Math.floor(preferredStep), budget: baseDimension, itemCount, fitted };
         }
         const { budget } = computeElasticBudget(itemCount, baseDimension, {
             ...params,
@@ -652,9 +761,10 @@ export function computeAxisStep(
             step: Math.floor(Math.min(preferredStep, budget / itemCount)),
             budget,
             itemCount,
+            fitted,
         };
     }
-    return { step: params.defaultStepSize, budget: baseDimension, itemCount: 0 };
+    return { step: params.defaultStepSize, budget: baseDimension, itemCount: 0, fitted: false };
 }
 
 // ---------------------------------------------------------------------------
@@ -744,6 +854,153 @@ export interface LabelSizingDecision {
     labelAlign?: string;
     /** Label baseline (for rotated labels) */
     labelBaseline?: string;
+    labelValues?: string[];
+    labelLines?: string[][];
+    /** The size band labels were fitted at, where the theme's did not fit and they shrank toward its floor. */
+    fittedFontSize?: number;
+    labelLineHeight?: number;
+    /** Row names past their cap, cut at `labelLimit` with an ellipsis whatever the theme's truncation. */
+    labelCut?: boolean;
+    /** How names along x that did not stand flat and whole were set (`chooseXLabels`), for the renderers and the report. */
+    overflow?: { step: LabelFitStep; trimmed: boolean; needed: number; band: number; shown?: string[] };
+    /**
+     * `calendar`: dates along x are named as a calendar names them (`labelLines`, by `labelValues`),
+     * because as written they would not stand flat and whole and the calendar's names read shorter.
+     */
+    labelForm?: 'calendar';
+}
+
+export function fitTwoLineLabels(labels: string[], fontSize: number, maxWidth: number, ellipsis = false,
+    widthOf: (text: string) => number = (text) => text.length * fontSize * 0.62): {
+    lines: string[][];
+    width: number;
+} | null {
+    const lines: string[][] = [];
+    let width = 0;
+    for (const label of labels) {
+        if (widthOf(label) <= maxWidth) {
+            lines.push([label]);
+            width = Math.max(width, widthOf(label));
+            continue;
+        }
+        let best: string[] | undefined;
+        let bestWidth = Infinity;
+        for (const match of label.matchAll(/\s+/g)) {
+            const candidate = [label.slice(0, match.index), label.slice(match.index + match[0].length)];
+            if (candidate.some((line) => !line)) continue;
+            const candidateWidth = Math.max(...candidate.map(widthOf));
+            const avoidsWidow = /\s/.test(candidate[1].trim());
+            const bestAvoidsWidow = best && /\s/.test(best[1].trim());
+            if (candidateWidth <= maxWidth
+                ? bestWidth > maxWidth || avoidsWidow || !bestAvoidsWidow
+                : bestWidth > maxWidth && candidateWidth < bestWidth) {
+                best = candidate;
+                bestWidth = candidateWidth;
+            }
+        }
+        if (!best || bestWidth > maxWidth) {
+            if (!ellipsis) return null;
+            let split: RegExpMatchArray | undefined;
+            for (const match of label.matchAll(/\s+/g)) {
+                if (widthOf(label.slice(0, match.index)) <= maxWidth) split = match;
+            }
+            if (split) {
+                lines.push([label.slice(0, split.index), label.slice(split.index! + split[0].length)]);
+            } else {
+                lines.push(best ?? [label]);
+            }
+            width = Math.max(width, maxWidth);
+            continue;
+        }
+        lines.push(best);
+        width = Math.max(width, bestWidth);
+    }
+    return lines.some((label) => label.length > 1) ? { lines, width } : null;
+}
+
+export function computeBandLabelLayout(input: {
+    labels: string[];
+    axis: 'x' | 'y';
+    fontSize: number;
+    step: number;
+    baseSpan: number;
+    maxSpan: number;
+    gutterLimit: number;
+    baselineLimit: number;
+    elasticity: number;
+    /** How the labels are measured, in the font they are drawn in; unset, 0.62 em a character. */
+    measure?: (text: string) => number;
+    /** Widen the bands past the elastic budget, up to `maxSpan`, until every name fits flat or wrapped. */
+    stretchToFit?: boolean;
+    /** `false`: return the flat layout and its cost without weighing it against cut or turned names (the caller weighs every way). */
+    compareBaseline?: boolean;
+}): { step: number; width: number; lines: string[][]; lineHeight: number; cost: number } | null {
+    const { labels, axis, fontSize, step, baseSpan, maxSpan, gutterLimit, baselineLimit, elasticity, measure } = input;
+    if (!labels.length || baseSpan <= 0 || maxSpan <= 0) return null;
+    const widthOf = measure ?? ((text: string) => text.length * fontSize * 0.62);
+    const lineHeight = Math.ceil(fontSize * 1.2);
+    const widths = labels.map(widthOf);
+    const demands = labels.map((label, index) => {
+        let width = widths[index];
+        for (const match of label.matchAll(/\s+/g)) {
+            if (!match.index || match.index + match[0].length === label.length) continue;
+            width = Math.min(width, Math.max(widthOf(label.slice(0, match.index)), widthOf(label.slice(match.index + match[0].length))));
+        }
+        return width;
+    });
+    const count = labels.length;
+    const baseStep = baseSpan / count;
+    const preferredWidth = Math.min(Math.max(...demands), gutterLimit);
+    const wrappedLabelBandFraction = 0.75;
+    const minimumYStepForLines = (rows: number) => rows > 1
+        ? Math.ceil((fontSize + (rows - 1) * lineHeight) / wrappedLabelBandFraction)
+        : fontSize + 4;
+    const preferredDemands = axis === 'x'
+        ? demands.map((width) => width + 6)
+        : widths.map((width) => width > preferredWidth ? minimumYStepForLines(2) : lineHeight + 6);
+    const excess = preferredDemands.reduce((sum, demand) => sum + Math.min(baseStep, Math.max(0, demand - baseStep)), 0) / count;
+    const preferredStep = Math.max(step, Math.min(Math.max(...preferredDemands), baseStep) + excess);
+    const solved = computeAxisStep(count, 0, baseSpan, {
+        defaultStepSize: Math.ceil(preferredStep),
+        minStep: Math.min(step, baseStep),
+        elasticity,
+        maxStretch: Math.max(1, maxSpan / baseSpan),
+    });
+    const minimumYStep = minimumYStepForLines(widths.some(width => width > preferredWidth) ? 2 : 1);
+    const needed = input.stretchToFit && axis === 'x' ? Math.ceil(Math.max(...preferredDemands)) : 0;
+    const proposedStep = Math.min(maxSpan / count, Math.max(step, solved.step, needed, axis === 'y' ? minimumYStep : 0));
+    const width = axis === 'x' ? proposedStep - 6 : preferredWidth;
+    // Too narrow to wrap into: measured, a band narrower than the widest single word; estimated, 4 em.
+    const widestWord = Math.max(0, ...labels.flatMap((label) => label.split(/\s+/)).map(widthOf));
+    if ((measure ? width < widestWord : width < fontSize * 4) && widths.some((labelWidth) => labelWidth > width)) return null;
+    const fit = fitTwoLineLabels(labels, fontSize, width, true, widthOf);
+    const lines = fit?.lines ?? labels.map((label) => [label]);
+    const rows = Math.max(...lines.map((parts) => parts.length));
+    if (axis === 'y' && minimumYStepForLines(rows) > proposedStep) return null;
+    const retainedWidth = (text: string, limit: number) => widthOf(text) <= limit
+        ? widthOf(text) : Math.max(0, limit - fontSize);
+    const loss = (parts: string[][], limit: number) => parts.reduce((sum, row, index) => {
+        const retained = row.reduce((total, line) => total + retainedWidth(line, limit), 0)
+            + (row.length - 1) * widthOf(' ');
+        return sum + Math.max(0, 1 - retained / Math.max(1, widths[index]));
+    }, 0) / count;
+    const imbalance = (parts: string[][], limit: number) => {
+        const extents = parts.map((row) => Math.min(limit, Math.max(...row.map(widthOf))));
+        return (Math.max(...extents) - extents.reduce((sum, value) => sum + value, 0) / count) / Math.max(1, gutterLimit);
+    };
+    const baseline = labels.map((label) => [label]);
+    const expansion = Math.max(0, (Math.min(proposedStep * count, baseSpan) - Math.min(step * count, baseSpan)) / baseSpan);
+    const stretch = Math.max(0, proposedStep * count / baseSpan - 1);
+    const baselineStretch = Math.max(0, step * count / baseSpan - 1);
+    const wrappedShare = lines.filter((row) => row.length > 1).length / count;
+    const horizontalCost = loss(lines, width) + 0.18 * expansion + Math.max(0, stretch * stretch - baselineStretch * baselineStretch)
+        + 0.04 * wrappedShare + (axis === 'y' ? 0.15 * imbalance(lines, width) : 0);
+    const baselineCost = loss(baseline, baselineLimit)
+        + (axis === 'x' ? 0.3 : 0.15 * imbalance(baseline, baselineLimit));
+    if (input.compareBaseline !== false && horizontalCost > baselineCost) return null;
+    if (axis === 'x' && !fit && widths.some((labelWidth) => labelWidth > width)) return null;
+    if (axis === 'y' && !fit) return null;
+    return { step: proposedStep, width, lines, lineHeight, cost: horizontalCost };
 }
 
 /**
@@ -753,8 +1010,10 @@ export interface LabelSizingDecision {
  * The font descends the **shrink → rotate → cap** ladder from a backend-native
  * base font (`baseFont`), never exceeding it and never dropping below `minFont`:
  *   1. Wide band  → horizontal label at (up to) `baseFont`.
- *   2. Medium band → shrink a little and rotate -45°.
- *   3. Narrow band → shrink more and rotate -90°.
+ *   2. Medium band → shrink a little and stand upright (-90°).
+ *   3. Narrow band → shrink more and stand upright (-90°).
+ * Labels never turn -45° here: a turn, when needed, is upright. Category names are then set by
+ * the band-label choice (`chooseXLabels`), which weighs every way the theme allows.
  * `labelLimit` caps the label width so long text is truncated (…) rather than
  * overflowing arbitrarily.
  *
@@ -775,8 +1034,9 @@ export function computeLabelSizing(
         return { fontSize: baseFont, labelLimit: defaultLimit };
     }
 
-    // Shrink lever: font tracks the band step but is bounded by [minFont, baseFont].
-    let fontSize = Math.max(minFont, Math.min(baseFont, effectiveStep - 1));
+    // Shrink lever: font tracks the band step, in whole pixels, bounded by [minFont, baseFont].
+    const fontStep = Math.floor(effectiveStep);
+    let fontSize = Math.max(minFont, Math.min(baseFont, fontStep - 1));
     let labelLimit = Math.max(30, Math.min(100, effectiveStep * 8));
     let labelAngle: number | undefined;
     let labelAlign: string | undefined;
@@ -786,17 +1046,17 @@ export function computeLabelSizing(
         // Narrow band → rotate vertical, shrink harder (but keep the ceiling
         // one notch below base so a 12-native backend still reads ~10 here).
         labelAngle = -90;
-        fontSize = Math.max(minFont, Math.min(baseFont - 2, effectiveStep));
+        fontSize = Math.max(minFont, Math.min(baseFont - 2, fontStep));
         labelLimit = 40;
         labelAlign = 'right';
         labelBaseline = 'middle';
     } else if (effectiveStep < 16) {
-        // Medium band → rotate 45°, shrink slightly.
-        labelAngle = -45;
-        fontSize = Math.max(minFont, Math.min(baseFont - 1, effectiveStep));
+        // Medium band → upright, shrink slightly.
+        labelAngle = -90;
+        fontSize = Math.max(minFont, Math.min(baseFont - 1, fontStep));
         labelLimit = 60;
         labelAlign = 'right';
-        labelBaseline = 'top';
+        labelBaseline = 'middle';
     }
 
     return { fontSize, labelLimit, labelAngle, labelAlign, labelBaseline };

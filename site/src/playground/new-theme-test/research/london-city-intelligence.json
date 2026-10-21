@@ -1,0 +1,111 @@
+{
+  "id": "london-city-intelligence",
+  "org": "Greater London Authority – City Intelligence Unit",
+  "urls": [
+    "https://data.london.gov.uk/blog/city-intelligence-data-design-guidelines/",
+    "https://data.london.gov.uk/dataset/city-intelligence-data-design-guidelines",
+    "https://data.london.gov.uk/download/e6wyz/00556d0a-9a1f-414f-8f04-ce050133ee96/Intelligence-Data-Styleguide_v2_0.pdf",
+    "https://github.com/Greater-London-Authority/gglaplot",
+    "https://raw.githubusercontent.com/Greater-London-Authority/gglaplot/master/R/theme_gla.R",
+    "https://raw.githubusercontent.com/Greater-London-Authority/gglaplot/master/data-raw/gla_theme_colours.csv"
+  ],
+  "access": "full",
+  "accessNotes": "Blog post read; full 40-page 'City Intelligence Data Design' PDF v2.0 (May 2019) downloaded and text-extracted with pypdf, pages 10, 29 and 31 rasterised for viewing. gglaplot R package source (theme_gla.R, theme colour CSV) read from GitHub for exact implementation details. Sizes in the guide are in pt (px values below = pt x 1.333). The typeface is not named in the guide (gglaplot uses generic 'sans').",
+  "summary": "The GLA City Intelligence guide is a Tufte/Andy Kirk-inspired, 'less but better' style for London government reports, presentations and Datastore apps. Charts have bold descriptive headline titles, a body-copy subtitle, light horizontal gridlines with y labels sitting left-aligned on top of the gridlines, a strong baseline at zero, one thematic highlight colour (default blue #6da7de) against grey/white context data, direct labels with dotted leader lines, and a 'Source:' line bottom-left. Both a light (white) and an inverse dark-grey (#353d42 / #121516) theme are first-class.",
+  "context": "government",
+  "colors": {
+    "categorical": ["#6da7de", "#9e0059", "#dee000", "#d82222", "#5ea15d", "#943fa6", "#63c5b5", "#ff38ba", "#eb861e", "#ee266d"],
+    "categoricalNotes": "Core categorical colours in default use order: A Blue #6da7de, B LDN Dk Pink #9e0059, C Yellow #dee000, D Red #d82222, E Green #5ea15d, F Purple #943fa6, G Turquoise #63c5b5, H Pink #ff38ba, I Orange #eb861e, J LDN Pink #ee266d (avoid Green with LDN Pink together). Reduced core set for mid LDN-grey backgrounds: #6da7de #dee000 #5ea15d #63c5b5 #eb861e #ee266d. Darker/lower-contrast set: #3681bf #89105d #d3c913 #af2828 #73a072 #56b2a1 #884299 #b76325 (for sensitive subjects). Lighter/lower-contrast set: #7ab5e5 #964a92 #ddd82c #d84545 #65aa63 #49bf9a #d6793a. Brand subset that works categorically: #ee266d #00aeef #9e0059 #dca000 #e0001b. Favour direct labelling over many colours; don't rely on colour alone beyond ~5 colours.",
+    "sequential": ["#dbe5f1", "#6da7de", "#252c35"],
+    "diverging": ["#8e2724", "#af2828", "#eeeeee", "#3681bf", "#2e5174"],
+    "highlight": "#6da7de",
+    "context": "#cccccc",
+    "positive": null,
+    "negative": null,
+    "background": "#ffffff",
+    "text": "#666666",
+    "textSecondary": "#666666",
+    "gridline": "#d8d8d8",
+    "axis": "#666666",
+    "notes": "Light theme: background #ffffff (web apps #f5f5f5), body/axis text #666666, headlines and highlighted labels #353d42, light grid #d8d8d8, strong grid/baseline #666666, context data #cccccc, highlight area 4% #000000, diverging midpoint #eeeeee. Inverse/dark theme (gglaplot 'inverse'): background #121516 (Dark App) or #353d42 (LDN Grey panels), text/headlines/strong grid #ffffff, light grid #4e5254, context data #ffffff, highlight area 4% #ffffff, diverging midpoint #333333. Sequential ramps per colour given as dark/mid/light end points (e.g. blue 252c35→6da7de→dbe5f1; red 5d221a→d82222→f9d0c7). Diverging (light bg): Blue–Green 2e5174,3681bf,eeeeee,73a072,4a6349; Red–Blue 8e2724,af2828,eeeeee,3681bf,2e5174; Red–Yellow 8e2724,af2828,eeeeee,dee000,59541e; Red–Green with caution. Dark bg versions use #333333 midpoint. Choropleths: darker = higher on light bg, brighter = higher on dark bg. Mayor of London brand hero colour Pink #ee266d (prints red – beware)."
+  },
+  "typography": {
+    "family": null,
+    "fallback": "sans (gglaplot)",
+    "title": { "size": 24, "weight": "bold", "align": "left", "case": "sentence", "color": "#353d42" },
+    "subtitle": { "size": 18.7, "weight": "regular", "style": "normal", "color": "#353d42" },
+    "axisLabel": { "size": 16, "color": "#666666" },
+    "axisTitle": { "size": 16, "weight": "regular", "placement": "omitted by default (gglaplot x_axis_title/y_axis_title = FALSE); units carried in tick labels e.g. '80 (Years)', '12m'" },
+    "dataLabel": { "size": 16, "weight": "regular; key labels #353d42 at 12pt with a secondary 10pt line" },
+    "source": { "size": 16, "style": "regular, prefixed 'Source:'", "color": "#666666" },
+    "notes": "Spec (pt): title 18pt Bold #353d42; subtitle 14pt matching document body copy; all general chart text 12pt #666666; secondary label lines/minor ticks 10pt; 'Projected' label 12pt #666666. gglaplot: base_size 14, title = base×18/14, labels/axis = base×12/14, all text left-justified (hjust 0). Chart text sizes should match the parent document's hierarchy. Typeface in examples is a neutral grotesque sans (not named)."
+  },
+  "structure": {
+    "gridlines": "Horizontal only, light #d8d8d8 1pt (dark: #4e5254), about 5 gridlines; vertical gridlines off by default (gglaplot xgridlines = FALSE), sometimes 1pt for key dates.",
+    "axisLine": "No y-axis line; strong #666666 baseline (2pt) at zero on the x-axis (white on dark). If the y-axis does not start at zero, omit the strong baseline.",
+    "ticks": "No x ticks; y 'ticks' are drawn as gridline extensions running under the y labels (gglaplot axis.ticks.length.y = y_label_length) so labels sit on the gridline.",
+    "zeroLine": "Yes – 'placing a stronger gridline when your y-axis DOES start at zero'.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "omitted; units in top tick label or in subtitle",
+    "unitPlacement": "In tick labels (12m, 60%, £1,000) or top label e.g. '80 (Years)'.",
+    "frame": "none – 'Remove borders around the chart'",
+    "background": "#ffffff (light) or #353d42 / #121516 (dark)",
+    "notes": "Highlighted/projected ranges shaded with 4% black (light) or 4% white (dark) background band. gglaplot plot margin = base×5/14 pt (top doubled)."
+  },
+  "legend": {
+    "placement": "top, left-aligned, between subtitle and plot",
+    "directLabels": "Strongly preferred – 'A legend is no longer needed as data is labelled directly'; labels connected by 1pt dotted leader lines when crowded.",
+    "title": "none (legend.title blank)",
+    "swatchShape": "square",
+    "notes": "Legend text 12pt body-text colour."
+  },
+  "marks": {
+    "bars": "Bars start at zero with strong baseline; single highlight colour for key data, white/grey for comparison; value labels at the end inside bars or above columns; group via labelling (dotted brackets below axis) rather than more colours; stacked segments separated by a thin keyline; single-variable proportion bars on a lightly shaded 100% background track.",
+    "lines": "Highlight line 4pt in thematic colour, context lines 2pt #cccccc (white on dark); projections 4pt/2pt dashed; reduce to 2pt for granular data; hollow circle markers (white fill, coloured stroke) only on first/last/key points.",
+    "areas": "Highlight areas at 4% opacity black/white.",
+    "points": "Hollow circles for key points only.",
+    "pies": "Pies discouraged ('Pies aren't as elegant as donuts'); donuts with ideally 2, max 3–4 segments, medium ring thickness, segments directly labelled, centre text stating what the whole represents.",
+    "notes": "Small multiples instead of overloaded charts; compared charts use the same layout and scales."
+  },
+  "labels": {
+    "dataLabels": "Direct labels for key points: bold-ish #353d42 12pt series name + 10pt 'date: value' line; dotted vertical leader lines from points to x-axis key dates; bar values 16pt at bar end.",
+    "numberFormat": "Abbreviations 2m, 8.9m; percent 56%; currency £1,000 with comma thousands separator.",
+    "dates": "Only key dates on axis (1801, 1939, 2018, 2041); month ranges 'Mar-May 2018'.",
+    "notes": "Show key points on the axis rather than regular ticks."
+  },
+  "furniture": {
+    "title": "'Say what you see' – headline describes the finding (e.g. 'London's population is bigger than ever and still growing'), 18pt bold #353d42, left-aligned; subtitle in 14pt body copy explaining measure/context.",
+    "source": "Required, bottom-left: 'Source: London Measured Report (Sep 2018)' in 12pt #666666.",
+    "logo": "'CITY INTELLIGENCE' wordmark (CITY bold) bottom-right on presentation slides.",
+    "other": "Colour in charts should connect to highlighted body text; consistent colour meaning across a document (e.g. pink = London)."
+  },
+  "annotations": "Plain text labels near key points with 1pt dotted #666666 leader/drop lines; projected period shaded with a 4% tint and labelled 'Projected' at top-left of the band.",
+  "layout": "Charts belong to the document – text sizes from document hierarchy; compared charts share layout and axes; small multiples over complexity; gglaplot facets use blank strips with centred labels.",
+  "interaction": "Encourages 'digital first' interactive Datastore apps with dark app bases (#121516 app, #1b2021 panels); no tooltip spec.",
+  "accessibility": "Palettes tested with Viz Palette for CVD; avoid Green+Red, Blue vs Purple/Dark Pink, Purple vs Dark Pink, Orange vs Red, yellow on white; avoid fine lines with similar colours; don't rely on colour beyond ~5 categories.",
+  "chartTypes": {
+    "preferred": ["line", "bar/column", "stacked bar (cumulative and 100%)", "donut", "choropleth / hex map", "small multiples", "custom (D3/Datawrapper + Illustrator)"],
+    "discouraged": ["pie", "rainbow colour scales", "choropleths where area misleads"],
+    "notes": ""
+  },
+  "distinctiveRules": [
+    { "rule": "Y-axis labels sit left-aligned on top of the horizontal gridlines (gridline extends under the label), with no y-axis line or ticks.", "source": "https://raw.githubusercontent.com/Greater-London-Authority/gglaplot/master/R/theme_gla.R", "quote": "axis.ticks.length.y = y_label_length … axis.text.y hjust = 0, vjust = -0.5" },
+    { "rule": "Horizontal gridlines only, light #d8d8d8 1pt, about 5 of them; strong #666666 baseline at zero.", "source": "https://data.london.gov.uk/download/e6wyz/00556d0a-9a1f-414f-8f04-ce050133ee96/Intelligence-Data-Styleguide_v2_0.pdf", "quote": "Aiming for around 5 gridlines … placing a stronger gridline when your y-axis DOES start at zero" },
+    { "rule": "When the y-axis does not start at zero, drop the strong baseline.", "source": "https://data.london.gov.uk/download/e6wyz/00556d0a-9a1f-414f-8f04-ce050133ee96/Intelligence-Data-Styleguide_v2_0.pdf", "quote": "we have NOT started the Y-Axis at zero. To highlight this, we have removed the strong baseline." },
+    { "rule": "Title 18pt bold #353d42 states the finding; subtitle 14pt; all other chart text 12pt #666666; everything left-aligned to the plot edge.", "source": "https://data.london.gov.uk/download/e6wyz/00556d0a-9a1f-414f-8f04-ce050133ee96/Intelligence-Data-Styleguide_v2_0.pdf", "quote": "A descriptive chart title in 18pt Bold #353d42 … Source: General chart text in 12pt #666666" },
+    { "rule": "Source line bottom-left, 'Source: …' 12pt #666666.", "source": "https://data.london.gov.uk/download/e6wyz/00556d0a-9a1f-414f-8f04-ce050133ee96/Intelligence-Data-Styleguide_v2_0.pdf", "quote": "Source: London Measured Report (Sep 2018)" },
+    { "rule": "One thematic highlight colour (4pt line) against #cccccc 2pt context lines (white on dark).", "source": "https://data.london.gov.uk/download/e6wyz/00556d0a-9a1f-414f-8f04-ce050133ee96/Intelligence-Data-Styleguide_v2_0.pdf", "quote": "Try and use a single colour to highlight your data, and grey/white for contextual / comparison data." },
+    { "rule": "Legend (if any) at top-left with no title; prefer direct labels with dotted leader lines.", "source": "https://raw.githubusercontent.com/Greater-London-Authority/gglaplot/master/R/theme_gla.R", "quote": "legend.position = \"top\", legend.justification = \"left\", legend.title = element_blank()" },
+    { "rule": "Projections: same colour dashed line plus a 4%-opacity shaded band labelled 'Projected'.", "source": "https://data.london.gov.uk/download/e6wyz/00556d0a-9a1f-414f-8f04-ce050133ee96/Intelligence-Data-Styleguide_v2_0.pdf", "quote": "Projections differentiated through line style and a highlighted future date range." },
+    { "rule": "Markers only on key points (first/last/events), drawn as hollow circles; key dates only on the x-axis with dotted drop lines.", "source": "https://data.london.gov.uk/download/e6wyz/00556d0a-9a1f-414f-8f04-ce050133ee96/Intelligence-Data-Styleguide_v2_0.pdf", "quote": "Only use dots & marks on important data points • First & last values • Interesting events" },
+    { "rule": "No chart border, no axis titles by default.", "source": "https://raw.githubusercontent.com/Greater-London-Authority/gglaplot/master/R/theme_gla.R", "quote": "panel.border = element_blank(); x_axis_title = FALSE, y_axis_title = FALSE" },
+    { "rule": "Dark/inverse theme: #353d42 or #121516 background, white text, #4e5254 grid, white context data.", "source": "https://raw.githubusercontent.com/Greater-London-Authority/gglaplot/master/data-raw/gla_theme_colours.csv", "quote": "background,inverse,#121516 … light grid,inverse,#4e5254" },
+    { "rule": "Donuts not pies: 2 (max 3–4) segments, directly labelled, centre text names the whole.", "source": "https://data.london.gov.uk/download/e6wyz/00556d0a-9a1f-414f-8f04-ce050133ee96/Intelligence-Data-Styleguide_v2_0.pdf", "quote": "Use as few variables as possible (ideally 2, but no more than 3 or 4)." },
+    { "rule": "Categorical order blue, dark pink, yellow, red, green, purple, turquoise, pink, orange, LDN pink.", "source": "https://data.london.gov.uk/download/e6wyz/00556d0a-9a1f-414f-8f04-ce050133ee96/Intelligence-Data-Styleguide_v2_0.pdf", "quote": "Core categorical colours by default use order A: Blue B: LDN Dk Pink C: Yellow …" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/london-city-intelligence/page10.png", "url": "https://data.london.gov.uk/download/e6wyz/00556d0a-9a1f-414f-8f04-ce050133ee96/Intelligence-Data-Styleguide_v2_0.pdf#page=10", "describes": "Styling & layout spec, light (white) and dark (#353d42) versions side by side. Bold left-aligned title (18pt #353d42 / white), regular subtitle (14pt). Y labels left-aligned sitting above light horizontal gridlines (1pt #d8d8d8 / #4e5254), light vertical gridlines, strong 2pt baseline (#666666 / white). Highlight series 4pt blue #6da7de solid then 4pt dashed for projection; context series 2pt #cccccc (white on dark) then 2pt dashed; hollow circle markers at start/end; 1pt dotted drop line; projected region shaded 4% black/white with 'Projected:' label top-left. End labels 12pt with 10pt second line. 'Source:' line bottom-left 12pt #666666. 'CITY INTELLIGENCE' wordmark bottom-right." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/london-city-intelligence/page29.png", "url": "https://data.london.gov.uk/download/e6wyz/00556d0a-9a1f-414f-8f04-ce050133ee96/Intelligence-Data-Styleguide_v2_0.pdf#page=29", "describes": "Dark-background (#353d42) line chart 'London's population is bigger than ever and still growing' in bold white sans, two-line white subtitle. Y labels (0, 2m … 12m) left-aligned above faint dark-grey gridlines; strong white baseline; single 4pt blue line ending in a dotted projection; hollow white-ringed markers at 1801, 1939, 2018, 2041/2050 with direct two-line labels ('Previous Peak / 1939: 8.6m'); dotted white drop lines to key-date x labels only; projection band slightly lighter. 'Source:' bottom-left; CITY INTELLIGENCE wordmark bottom-right." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/london-city-intelligence/page31.png", "url": "https://data.london.gov.uk/download/e6wyz/00556d0a-9a1f-414f-8f04-ce050133ee96/Intelligence-Data-Styleguide_v2_0.pdf#page=31", "describes": "Left (white bg): horizontal bar chart, all bars blue #6da7de with white value labels right-aligned inside bar ends and annotation text ('Lowest Borough') inside the bar start; x labels on top '0 20 40 60 80 (Years)', faint vertical gridlines, thin left baseline. Right (dark bg): grouped columns London (blue) vs Rest of UK (white), legend top-left with square swatches, y labels above faint gridlines, small value labels above columns, white baseline, category groups 'High/Mid/Low' marked by dotted brackets beneath the axis labels, 'Source:' bottom-left." }
+  ]
+}

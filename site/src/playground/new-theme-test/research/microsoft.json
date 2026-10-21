@@ -1,0 +1,193 @@
+{
+  "id": "microsoft",
+  "org": "Microsoft – Office Add-ins data visualization style guidelines",
+  "urls": [
+    "https://learn.microsoft.com/en-us/office/dev/add-ins/design/data-visualization-guidelines",
+    "https://github.com/OfficeDev/office-js-docs-pr/blob/live/docs/design/data-visualization-guidelines.md",
+    "https://learn.microsoft.com/en-us/office/dev/add-ins/images/excel-charts-visualization.png",
+    "https://learn.microsoft.com/en-us/office/dev/add-ins/images/data-visualization.png",
+    "https://raw.githubusercontent.com/microsoft/fluentui/master/packages/charts/react-charting/src/utilities/colors.ts",
+    "https://raw.githubusercontent.com/microsoft/fluentui/master/packages/theme/src/colors/DefaultPalette.ts"
+  ],
+  "access": "full",
+  "accessNotes": "The guideline page (~1,100 words, updated 2025-12) was read in full. It contains no hex codes; it defers to Fluent UI type ramp and neutral palettes. Neutral greys are taken from Fluent UI DefaultPalette.ts and the categorical palette from Fluent UI react-charting colors.ts (secondary sources: the Fluent UI library the guide recommends).",
+  "summary": "Short principle-based guide for charts inside Office (Excel, etc.) task panes, aligned with the Fluent UI / Segoe look. Emphasis on data ink: no shadows, outlines or 3D; light grey axis labels and thin light gridlines; legend flush-left above the plot; sentence-case titles with an optional all-caps subtitle. It also covers motion (stage axes before data) and accessibility.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": [
+      "#637cef",
+      "#e3008c",
+      "#2aa0a4",
+      "#9373c0",
+      "#13a10e",
+      "#3a96dd",
+      "#ca5010",
+      "#57811b",
+      "#b146c2",
+      "#ae8c00"
+    ],
+    "categoricalNotes": "Guide itself gives no palette: 'Choose colors that follow operating system or application themes rather than hardcoded colors'; points to ColorBrewer and I Want Hue, warns against rainbow. The listed values are Fluent UI react-charting DataVizPalette qualitative 1–10 (cornflower, hotPink, teal, orchid, lightGreen, lightBlue, pumpkin, lime, lilac, gold); colours 11–40 are shades/tints with separate dark-theme variants.",
+    "sequential": [],
+    "diverging": [],
+    "highlight": null,
+    "context": "#a19f9d",
+    "positive": "#107c10",
+    "negative": "#c50f1f",
+    "background": "#ffffff",
+    "text": "#323130",
+    "textSecondary": "#605e5c",
+    "gridline": "#edebe9",
+    "axis": "#605e5c",
+    "notes": "Neutral values are Fluent DefaultPalette (neutralPrimary #323130, neutralSecondary #605e5c, neutralTertiary #a19f9d, neutralQuaternaryAlt #e1dfdd, neutralLight #edebe9); guide only says 'Light grays are most effective for axis labels' and 'for gridlines', dark enough for contrast but not competing with data ink. Fluent semantic dataviz colours: info #015cda, error #c50f1f, warning #f7630c, success #107c10, disabled #dbdbdb. Gradients only when values are bound to colour. Reference images use a blue (#0078d4-like) highlighted series and an orange-red/grey set on light grey background."
+  },
+  "typography": {
+    "family": "Segoe UI",
+    "fallback": "Fluent UI type ramp; any sans-serif with large counters",
+    "title": {
+      "size": null,
+      "weight": "semibold/regular (Fluent type ramp)",
+      "align": "left",
+      "case": "sentence",
+      "color": null
+    },
+    "subtitle": {
+      "size": null,
+      "weight": "regular",
+      "style": "normal",
+      "color": null
+    },
+    "axisLabel": {
+      "size": null,
+      "color": "light grey (Fluent neutral)"
+    },
+    "axisTitle": {
+      "size": null,
+      "weight": null,
+      "placement": "omitted in examples (unit in subtitle/tick e.g. '50%')"
+    },
+    "dataLabel": {
+      "size": null,
+      "weight": null
+    },
+    "source": {
+      "size": null,
+      "style": null,
+      "color": null
+    },
+    "notes": "'In general, use sentence capitalization ... you can use all caps, but all caps should be used sparingly' (example subtitle 'AUGUST - SEPTEMBER 2019' in caps). Use the Fluent UI type ramp (Segoe), or a different typeface to differentiate chart content from UI. 'Use sans-serif typefaces with large counters.'"
+  },
+  "structure": {
+    "gridlines": "Thin and light grey, secondary to data ink; optionally dynamic just-in-time gridlines on interaction. Example shows faint grid in both directions.",
+    "axisLine": "Example shows a thin dark x-axis baseline only.",
+    "ticks": "Small ticks on x axis in example.",
+    "zeroLine": "Emphasised dark zero line in the % change example.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "omitted; measure stated in subtitle",
+    "unitPlacement": "% shown on the top tick only ('50%') in example",
+    "frame": "none",
+    "background": "Office/Fluent theme background (light grey in examples)",
+    "notes": "No drop shadows, heavy outlines, 3D, or unnecessary elements."
+  },
+  "legend": {
+    "placement": "top, flush left above the plot; if items don't fit, upper right of plot area, scrollable",
+    "directLabels": "End-of-line labels with value used in example image",
+    "title": "no",
+    "swatchShape": "matches mark: circle for scatter/bubble, line segment for line charts",
+    "notes": "Only add legends to distinguish series or present scale/value changes."
+  },
+  "marks": {
+    "bars": null,
+    "lines": "Thin straight segments (no smoothing) in examples; highlighted series thicker",
+    "areas": null,
+    "points": "circles",
+    "pies": null,
+    "notes": "Avoid 3D unless a value is bound to the third dimension; gradients only when bound to data."
+  },
+  "labels": {
+    "dataLabels": "Adequate white space and type variation; algorithms to avoid occlusion/collision.",
+    "numberFormat": "Thousands separator comma (3,254); signed percentages (+20%, -22%)",
+    "dates": "Full month names / years on x axis",
+    "notes": null
+  },
+  "furniture": {
+    "title": "Title top-left creating clear hierarchy; sentence case; subtitle states measure/time span.",
+    "source": null,
+    "logo": null,
+    "other": "Chrome for visualizations built with Fluent UI components."
+  },
+  "annotations": "Callout box tooltip pointing to a data point (e.g. 'New 3,254') with thin blue border.",
+  "layout": "Task-pane sized charts (~520px wide examples).",
+  "interaction": "Tooltips surface right of the data point by default, flip left near edges; rich visual feedback; direct manipulation (drag to sort); keyboard-accessible controls; screen reader focus/tooltip announcements. Motion: stage one thing at a time, axes before data ink, groups of ≤4–5 objects, motion in the visualization's coordinate space, no gratuitous animation.",
+  "accessibility": "Don't use colour as the only channel; add shape, size and texture. Keyboard access to all interactive elements. Adequate text/background contrast for axis labels. Gridlines may be heavier for high-contrast mode.",
+  "chartTypes": {
+    "preferred": [
+      "line",
+      "scatter",
+      "bubble"
+    ],
+    "discouraged": [
+      "3D charts",
+      "rainbow colour scales"
+    ],
+    "notes": "No chart-type catalogue in the guide."
+  },
+  "distinctiveRules": [
+    {
+      "rule": "Legend sits flush-left above the plot area by default; move it to the upper-right of the plot (scrollable) only if items don't fit.",
+      "source": "https://learn.microsoft.com/en-us/office/dev/add-ins/design/data-visualization-guidelines",
+      "quote": "Flush left above the plot area by default, if all legend items fit above the chart."
+    },
+    {
+      "rule": "Legend markers match the mark: line segments for line charts, circles for scatter/bubble.",
+      "source": "https://learn.microsoft.com/en-us/office/dev/add-ins/design/data-visualization-guidelines",
+      "quote": "Use line segment legend markers for line charts."
+    },
+    {
+      "rule": "Axis labels and gridlines are light grey from the Fluent neutral palette; gridlines thin and light.",
+      "source": "https://learn.microsoft.com/en-us/office/dev/add-ins/design/data-visualization-guidelines",
+      "quote": "Light grays are most effective for gridlines."
+    },
+    {
+      "rule": "Titles in sentence case using the Segoe/Fluent type ramp; all caps used sparingly (e.g. a caps date-range subtitle).",
+      "source": "https://learn.microsoft.com/en-us/office/dev/add-ins/design/data-visualization-guidelines",
+      "quote": "use sentence capitalization ... all caps should be used sparingly"
+    },
+    {
+      "rule": "No drop shadows, heavy outlines, 3D or decorative gradients on data marks.",
+      "source": "https://learn.microsoft.com/en-us/office/dev/add-ins/design/data-visualization-guidelines",
+      "quote": "Avoid the use of drop shadows, heavy outlines, or unnecessary design elements"
+    },
+    {
+      "rule": "Colours follow the OS/app theme rather than hard-coded values (theme-aware light/dark).",
+      "source": "https://learn.microsoft.com/en-us/office/dev/add-ins/design/data-visualization-guidelines",
+      "quote": "Choose colors that follow operating system or application themes rather than hardcoded colors."
+    },
+    {
+      "rule": "Tooltips appear to the right of the point and flip left at edges; collision-avoiding labels.",
+      "source": "https://learn.microsoft.com/en-us/office/dev/add-ins/design/data-visualization-guidelines",
+      "quote": "a tooltip might surface to the right of a data point by default, but surface to the left if right edges are detected"
+    },
+    {
+      "rule": "Animate axes before data ink; stage one change at a time, ≤4–5 objects per group.",
+      "source": "https://learn.microsoft.com/en-us/office/dev/add-ins/design/data-visualization-guidelines",
+      "quote": "Stage changes to axes before changes to data ink."
+    },
+    {
+      "rule": "Default categorical order (Fluent charting): cornflower #637cef, hot pink #e3008c, teal #2aa0a4, orchid #9373c0, green #13a10e, light blue #3a96dd, pumpkin #ca5010.",
+      "source": "https://raw.githubusercontent.com/microsoft/fluentui/master/packages/charts/react-charting/src/utilities/colors.ts",
+      "quote": "'1': ['#637cef'] ... '7': ['#ca5010']"
+    }
+  ],
+  "referenceImages": [
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/microsoft/excel-charts-visualization.png",
+      "url": "https://learn.microsoft.com/en-us/office/dev/add-ins/images/excel-charts-visualization.png",
+      "describes": "Anatomy line chart on light grey (#e6e6e6) background. Title 'Current Users' top-left in regular-weight Segoe ~20px, dark grey; all-caps subtitle 'AUGUST - SEPTEMBER 2019' ~11px below. Legend row flush-left above plot with short line-segment markers: yellow, dark navy, orange-red, bright blue (thick), yellow-green. Five straight-segment lines; 'Label Four' bright Office blue (~#0078d4) drawn ~3px thick as the highlighted series, others ~1px. Y axis 0–60 left, no gridlines, thin dark x baseline; x labels 2015–2019. A white callout tooltip with thin blue border reads 'New 3,254' pointing at a point."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/microsoft/data-visualization.png",
+      "url": "https://learn.microsoft.com/en-us/office/dev/add-ins/images/data-visualization.png",
+      "describes": "'Product review' bold large black Segoe title top-left, regular subtitle '% change in product price, quality and popularity since January'. Light grey background with faint light gridlines both directions (fine grid). Y axis left with ticks -30..50, '%' only on top label '50%'; emphasised dark grey zero line. Three straight lines: grey 'Price', orange-red 'Quality', blue 'Popularity', each direct-labelled at the right end in its colour with signed values (+20%, -20%, -22%); no legend. Month names on x axis, small ticks."
+    }
+  ]
+}

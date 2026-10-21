@@ -2,7 +2,9 @@
 // Licensed under the MIT License.
 
 import { ChartTemplateDef, ChartPropertyDef } from '../../core/types';
+import { skeletonStructure, statedStacking } from '../../core/structure';
 import { makeCartesianPivot } from '../../core/pivot';
+import { setMarkProp } from './utils';
 import {
     firstDiscreteEncodingField,
     resolveSeriesTarget,
@@ -21,7 +23,7 @@ import {
  * of an absolute width in data units (a 0.05 absolute bandwidth is invisible
  * smoothing on a 0–100 score scale but enormous on a 0–1 ratio).
  */
-function estimateBandwidth(values: number[]): number {
+export function estimateBandwidth(values: number[]): number {
     const n = values.length;
     if (n < 2) return 1;
     const sorted = [...values].sort((a, b) => a - b);
@@ -61,17 +63,35 @@ function maxGroupBandwidth(table: any[], field: string, groupby: string[]): numb
     return mx;
 }
 
+/** The opacity layered series are drawn at unless the author sets one. */
+const LAYERED_OPACITY = 0.7;
+
 export const densityPlotDef: ChartTemplateDef = {
     chart: "Density Plot",
     template: {
         mark: "area",
         transform: [{ density: "__field__" }],
         encoding: {
-            x: { field: "value", type: "quantitative" },
+            x: { field: "value", type: "quantitative", scale: { zero: false } },
             y: { field: "density", type: "quantitative" },
         },
     },
     channels: ["x", "color", "column", "row"],
+    structure: (ctx) => {
+        // The curve runs along the field's values, fitted to them; its height is the estimated density.
+        const structure = skeletonStructure(densityPlotDef.template, ctx);
+        const measure = ctx.channelSemantics.x?.field;
+        if (!measure) return structure;
+        // Series stack by default; `layered` draws each on the baseline, as the Area Chart does.
+        const mode = ctx.chartProperties?.stackMode;
+        return {
+            ...structure,
+            x: { type: 'quantitative', fields: [measure], baseline: 'data', rounded: true },
+            y: { type: 'quantitative', fields: [], derived: 'density' },
+            ...(mode ? { stacking: statedStacking(mode === 'layered' ? null : mode) ?? structure.stacking } : {}),
+            axisTitles: { y: 'density' },
+        };
+    },
     interactionSupport: {
         elements: true,
         region: ['cartesian'],
@@ -142,9 +162,29 @@ export const densityPlotDef: ChartTemplateDef = {
             const base = maxGroupBandwidth(ctx.table, x.field, groupby);
             if (base > 0) spec.transform[0].bandwidth = base * config.bandwidth;
         }
+        // Mirrors the Area Chart: a stated stack mode goes on the measure, and layered
+        // series are drawn translucent so each distribution shows through the others.
+        if (config?.stackMode) {
+            spec.encoding.y.stack = config.stackMode === 'layered' ? null : config.stackMode;
+        }
+        if (config?.stackMode === 'layered') {
+            const opacity = config.opacity !== undefined && config.opacity > 0 ? config.opacity : LAYERED_OPACITY;
+            if (opacity < 1) spec.mark = setMarkProp(spec.mark, 'opacity', opacity);
+        }
     },
     properties: [
         { key: "bandwidth", label: "Bandwidth", type: "continuous", min: 0.05, max: 2, step: 0.05, defaultValue: 0 },
+        { key: "opacity", label: "Opacity", type: "continuous", min: 0.1, max: 1, step: 0.1, defaultValue: 0.7,
+          check: (ctx) => ({
+              applicable: !!ctx.encodings.color?.field && ctx.chartProperties?.stackMode === 'layered',
+          }) },
+        { key: "stackMode", label: "Stack", type: "discrete",
+          check: (ctx) => ({ applicable: !!ctx.encodings.color?.field }),
+          options: [
+            { value: undefined, label: "Stacked (default)" },
+            { value: "normalize", label: "Normalize (100%)" },
+            { value: "layered", label: "Layered (overlap)" },
+        ] },
     ] as ChartPropertyDef[],
     // Mirrors the histogram: a single bound field (x) with a computed density, so
     // only `shift` (series → legend/facets) applies, plus the reciprocal θ edge

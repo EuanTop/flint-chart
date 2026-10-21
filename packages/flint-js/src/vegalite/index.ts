@@ -11,10 +11,10 @@
  */
 
 // VL assembly function
-export { assembleVegaLite, getChartOptions, getChartPivot, getChartTransform } from './assemble';
+export { assembleVegaLite, getChartOptions, getChartPivot, getChartTransform, vegaLiteTable } from './assemble';
 
 // VL spec instantiation (Phase 2)
-export { vlApplyLayoutToSpec, vlApplyTooltips } from './instantiate-spec';
+export { enableGuideLabelTooltips, vlApplyLayoutToSpec, vlApplyTooltips } from './instantiate-spec';
 
 // Canvas-anchored furniture (branding marks drawn onto the rendered SVG)
 export {
@@ -22,7 +22,15 @@ export {
     CANVAS_FURNITURE_KEY,
     readCanvasFurniture,
     canvasFurnitureMarkup,
+    headerFurnitureItems,
+    appendCanvasFurniture,
+    placeCanvasFurniture,
+    svgDataUri,
     injectCanvasFurnitureSVG,
+    type CanvasPattern,
+    CANVAS_PATTERNS_KEY,
+    readCanvasPatterns,
+    canvasPatternDefs,
 } from './canvas-furniture';
 
 // VL template registry
@@ -30,6 +38,7 @@ export {
     vlTemplateDefs,
     vlAllTemplateDefs,
     vlGetTemplateDef,
+    drawsAsTable,
     vlGetTemplateChannels,
 } from './templates';
 

@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 
 import { ChartTemplateDef } from '../../core/types';
+import { skeletonStructure } from '../../core/structure';
 import {
     fieldsFromEncodingChannels,
     firstDiscreteEncodingField,
@@ -78,6 +79,20 @@ export const ganttChartDef: ChartTemplateDef = {
     declareLayoutMode: () => ({
         axisFlags: { y: { banded: true } },
     }),
+    structure: (ctx) => {
+        // Each task's bar spans its start to its end; neither axis carries a title.
+        const structure = skeletonStructure(ganttChartDef.template, ctx);
+        const x = structure.x;
+        // Tasks stand in the order they start.
+        const start = ctx.channelSemantics.x?.field;
+        const y = structure.y && start ? { ...structure.y, order: { order: { by: 'field' as const, field: start, descending: false }, fixed: true } } : structure.y;
+        return {
+            ...structure,
+            ...(x ? { x: x.type === 'quantitative' ? { ...x, baseline: 'data' as const } : x } : {}),
+            ...(y ? { y } : {}),
+            axisTitles: { x: null, y: null },
+        };
+    },
     instantiate: (spec, ctx) => {
         const { x, x2, y, color, detail, column, row } = ctx.resolvedEncodings;
         const taskHeight = (ctx.chartProperties?.taskHeight ?? 70) / 100;
@@ -92,9 +107,6 @@ export const ganttChartDef: ChartTemplateDef = {
         if (y) {
             spec.encoding.y = { ...y };
             spec.encoding.y.axis = { ...(spec.encoding.y.axis ?? {}), title: null };
-            if (x?.field) {
-                spec.encoding.y.sort = { field: x.field, op: 'min', order: 'ascending' };
-            }
         }
 
         if (x) {

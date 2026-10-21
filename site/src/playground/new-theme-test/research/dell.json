@@ -1,0 +1,113 @@
+{
+  "id": "dell",
+  "org": "Dell Technologies (Dell Design System, DDS data visualization)",
+  "urls": [
+    "https://www.delldesignsystem.com/patterns/chart-customization/",
+    "https://www.delldesignsystem.com/_next/data/L7IapFwuLwKiw1UTF01xf/patterns/chart-customization.json",
+    "https://www.delldesignsystem.com/_next/data/L7IapFwuLwKiw1UTF01xf/data-visualization/ddv-overview.json",
+    "https://www.delldesignsystem.com/_next/data/L7IapFwuLwKiw1UTF01xf/data-visualization/bar-chart.json",
+    "https://www.delldesignsystem.com/_next/data/L7IapFwuLwKiw1UTF01xf/data-visualization/bar-chart/simple-bar-chart.json",
+    "https://www.delldesignsystem.com/_next/data/L7IapFwuLwKiw1UTF01xf/data-visualization/line-chart.json",
+    "https://www.delldesignsystem.com/_next/data/L7IapFwuLwKiw1UTF01xf/foundations/color.json",
+    "https://vanilla-dv.delldesignsystem.com/2.16.3/iframe.html"
+  ],
+  "access": "partial",
+  "accessNotes": "Site is a Next.js app; text was read from its _next/data JSON (chart customization, overview, bar chart, simple bar chart, line chart, color foundations). The linked 'categorical color palette' tab (/foundations/color/?tab=Data-visualization) no longer exists on the colour page, so exact palette hex values were taken from the DDS data-visualization Storybook bundle (vanilla-dv 2.16.3, module src/design-tokens/_dv-colors.js: categorical04/12/20 and semanticconditionoroutcome, resolved against the DDS base colour tokens). Gridline/axis colours were sampled from the official 'Building a chart - Do' PNG and match DDS gray-300 (#e1e1e1) and gray-800 (#636363). Figma library not accessible. Font (Roboto) inferred from the Storybook bundle and example images.",
+  "summary": "Dell's DDS data-visualization library is an enterprise product-UI chart kit: charts sit inside white card containers with fixed 24/32px padding, a left-aligned title and grey subtitle, full light-grey gridlines, a dark-grey L-shaped axis frame, and a legend to the right (moving below on small viewports). Colour comes from an ordered, contrast-tested categorical palette cycling blue, orange, teal and berry; stoplight colours are reserved for semantic status.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#1282d6", "#a64600", "#0ea0a9", "#a8396f", "#002a58", "#c96100", "#044e52", "#cb548d", "#0063b8", "#7d2e00", "#0b7c84", "#7f234f"],
+    "categoricalNotes": "categorical12 shown (blue-500, orange-700, teal-500, berry-700, blue-900, orange-500, teal-900, berry-500, blue-700, orange-800, teal-700, berry-800). Separate count-specific palettes: categorical04 = #002a58 (blue-900), #a64600 (orange-700), #0ea0a9 (teal-500), #7f234f (berry-800); categorical20 = #1282d6, #a64600, #0ea0a9, #a8396f, #002a58, #b85200, #044e52, #ba467d, #00468b, #c96100, #076369, #cb548d, #0063b8, #7d2e00, #0b7c84, #511230, #0672cb, #4f1a00, #0d8e97, #7f234f. 'Categorical colors are provided in sequence to optimize contrast for accessibility and should not be reordered at implementation.' Simple bar charts: 'Use the same color for all bars'. Example 2-series chart uses blue-900 #002a58 and orange-700 #a64600 (the categorical04 start).",
+    "sequential": [],
+    "diverging": [],
+    "highlight": "#0672cb",
+    "context": "#b6b6b6",
+    "positive": "#5d8c00",
+    "negative": "#bb2a33",
+    "background": "#ffffff",
+    "text": "#0e0e0e",
+    "textSecondary": "#636363",
+    "gridline": "#e1e1e1",
+    "axis": "#636363",
+    "notes": "Semantic condition/outcome palette: green-500 #5d8c00 (stroke #436f00), yellow-300 #e6ac28 (stroke #b36f00), red-700 #bb2a33 (stroke #8c161f). 'Avoid using stoplight colors (red, yellow, green)' for non-semantic bars. Page background around cards is light grey (#f5f6f7 gray-100 / slate-10 #ebf1f6 secondary surface). Highlight value #0672cb is DDS blue-600 (Dell brand blue) - not stated as a chart highlight; context grey #b6b6b6 is DDS gray-500, used here as a reasonable muted tone (legend hover mutes other series, colour not specified). Dark mode exists in DDS foundations but no chart-specific dark spec found."
+  },
+  "typography": {
+    "family": "Roboto",
+    "fallback": null,
+    "title": { "size": null, "weight": "regular", "align": "left", "case": "sentence", "color": "#0e0e0e" },
+    "subtitle": { "size": null, "weight": "regular", "style": "normal", "color": "#636363" },
+    "axisLabel": { "size": null, "color": "#636363" },
+    "axisTitle": { "size": null, "weight": "regular", "placement": "y-axis title rotated vertically, left of tick labels; x-axis title horizontal, centred below tick labels; both in near-black" },
+    "dataLabel": { "size": null, "weight": "regular; bold on hover/focus of a bar" },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "Sentence case for titles, labels and legend ('Use sentence case unless providing an explanation for an acronym or initialism'). Title is regular weight and noticeably larger than body; tick labels grey; axis titles darker than tick labels. All data labels horizontal regardless of bar orientation."
+  },
+  "structure": {
+    "gridlines": "Shown by default in both directions (horizontal and vertical) as thin solid light-grey lines (#e1e1e1); 'Gridlines should reflect the scale determined by your x- and y-axes.'",
+    "axisLine": "Both x and y axis lines drawn, thin dark grey (#636363), forming an L.",
+    "ticks": "No separate tick marks visible beyond gridlines.",
+    "zeroLine": "Numeric baseline must be zero; negative bars below/left of the baseline.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "rotated vertical text left of the y tick labels",
+    "unitPlacement": "In axis titles (e.g. 'Total sales'); x-axis title can name the period (e.g. '2022').",
+    "frame": "Every chart sits in a container (white card, thin light-grey border, small corner radius) with fixed padding: 24px around, 32px between header and plot, 24px gap between plot and legend.",
+    "background": "white card on light grey page",
+    "notes": "Axis maximum should exceed the highest data value; choose consistent easy increments (e.g. 10s for 0-100)."
+  },
+  "legend": {
+    "placement": "right of the plot by default (line chart); automatically moves below the x-axis label on small viewports (3/4-column tablet and all mobile); example charts also show it bottom-left.",
+    "directLabels": "Not used; legend markers required.",
+    "title": "no",
+    "swatchShape": "rounded square",
+    "notes": "All charts include a legend by default; may omit for single-series. Overflowing legends get a vertical scrollbar. Interactive legend (line charts): click to isolate a series (others hidden, their legend markers unfilled); hovering a marker highlights its series and mutes the others."
+  },
+  "marks": {
+    "bars": "Vertical alignment by default; horizontal for long labels and responsive designs. 'Spacing between bars in the plot area should be half of the bar width.' Min 4px between plot edge and nearest bar; min bar target 8px; value labels 8px from the bar. Simple bars all one colour. Zero-value categories keep their label.",
+    "lines": "Medium-weight (~2px) straight segments with filled circular point markers at each data point; distinct categorical colour per series.",
+    "areas": "Area charts documented (connected points with fill showing volume); details not read.",
+    "points": "Filled circles same colour as line; bubble chart available.",
+    "pies": "Pie and donut charts allowed for parts of a whole (budget breakdowns; donut for storage/percent usage).",
+    "notes": "Also gauge chart, utilization chart (storage), metrics card, dashboard template."
+  },
+  "labels": {
+    "dataLabels": "Bar value labels in the plot area recommended so values show on small viewports; horizontal text, 8px from bar, bold when bar is hovered/focused.",
+    "numberFormat": null,
+    "dates": "Full month names on category axis in examples (January, February ...).",
+    "notes": "Chart labels concise; tooltip text replicates x and y labels."
+  },
+  "furniture": {
+    "title": "'Every chart should include a chart title' - brief and descriptive; optional subtitle for context; a group title can replace individual titles when several charts share a container.",
+    "source": "none",
+    "logo": "none",
+    "other": "Header block at top of the card containing title and subtitle (and optional actions)."
+  },
+  "annotations": null,
+  "layout": "Container padding: 24px left/right/top/bottom; 32px between header and plot area; 24px between plot area and right-hand legend. Simple bar spec: 24px left of plot, 32px right; 24px above title; 24px below plot; 32px between plot and title; 24px between legend and x-axis label. Responsive: smallest desktop chart spans a 4-grid column; legend repositions below the x-axis on tablet 3-column and mobile.",
+  "interaction": "DV tooltip on hover or keyboard focus (desktop) and press (mobile). Multi-series tooltip groups all series values along a vertical cursor line, ordered as in the legend. Bar tooltips appear at the middle of the bar (top if bar too short). Tooltips must be dismissible and never time out (WCAG 1.4.13). Interactive legend isolate/highlight with muted other series. Focused bar label turns bold.",
+  "accessibility": "Categorical sequence tested for contrast; don't reorder. Minimum 8px bar target. Tooltips accessible via pointer, keyboard and touch. Avoid too many lines.",
+  "chartTypes": {
+    "preferred": ["Line", "Area", "Simple/stacked/grouped bar", "Bubble", "Donut", "Pie", "Gauge", "Utilization chart", "Metrics card"],
+    "discouraged": ["Stoplight colours for non-semantic categories", "Truncated bars / non-zero baselines"],
+    "notes": "Vertical bars default; horizontal for long labels or responsive layouts. Simple bars ordered ascending left-to-right, or ranked high-low."
+  },
+  "distinctiveRules": [
+    { "rule": "Charts always sit in a white card container with 24px padding on all sides and a 32px gap between the header (title/subtitle) and the plot.", "source": "https://www.delldesignsystem.com/patterns/chart-customization/", "quote": "All charts in the data visualization library sit within a container and follow the same template for padding in pixels." },
+    { "rule": "Title left-aligned at top of card in regular-weight Roboto, with an optional grey subtitle directly below.", "source": "https://www.delldesignsystem.com/patterns/chart-customization/", "quote": "Each story begins with a title ... Optionally include a subtitle to provide more context" },
+    { "rule": "Legend sits to the right of the plot by default, 24px from it, and moves below the x-axis title on tablet/mobile widths.", "source": "https://www.delldesignsystem.com/data-visualization/line-chart", "quote": "The component has its legend set to the right of the chart by default ... The legend will automatically reposition below the chart's x-axis for smaller viewports." },
+    { "rule": "Full gridlines in both directions in light grey #e1e1e1, with dark-grey (#636363) x and y axis lines.", "source": "https://www.delldesignsystem.com/patterns/chart-customization/", "quote": "By default, the plot area is shown with gridlines to help map data points to their x and y values." },
+    { "rule": "Y-axis title rotated vertically on the left; x-axis title horizontal and centred under the tick labels.", "source": "https://www.delldesignsystem.com/data-visualization/bar-chart/simple-bar-chart", "quote": "show the x-axis label horizontally and the y-axis label vertically." },
+    { "rule": "Categorical colours follow a fixed sequence cycling blue, orange, teal, berry (12-colour: #1282d6, #a64600, #0ea0a9, #a8396f, ...) and must not be reordered; count-specific 4/12/20 palettes.", "source": "https://www.delldesignsystem.com/data-visualization/line-chart", "quote": "categorical colors are provided in sequence to optimize contrast for accessibility and should not be reordered at implementation." },
+    { "rule": "Simple bar charts use one colour for all bars; never stoplight red/yellow/green for categories.", "source": "https://www.delldesignsystem.com/data-visualization/bar-chart/simple-bar-chart", "quote": "Use the same color for all bars in a simple bar chart ... Avoid using stoplight colors (red, yellow, green)" },
+    { "rule": "Gap between bars equals half the bar width; at least 4px from plot edge to nearest bar; value labels 8px from bar.", "source": "https://www.delldesignsystem.com/data-visualization/bar-chart/simple-bar-chart", "quote": "Spacing between bars in the plot area should be half of the bar width." },
+    { "rule": "Simple bars ordered ascending from left (lowest) to right, or ranked high-to-low; zero baseline required.", "source": "https://www.delldesignsystem.com/data-visualization/bar-chart/simple-bar-chart", "quote": "start with the lowest value on the left and list in ascending order to the right." },
+    { "rule": "Lines carry filled circular markers at every data point.", "source": "https://www.delldesignsystem.com/patterns/chart-customization/", "quote": "Observed in 'Building a chart - Do' example image" },
+    { "rule": "Legend swatches are small rounded squares; legend interactive (click to isolate series, hover to mute others).", "source": "https://www.delldesignsystem.com/patterns/chart-customization/", "quote": "hovering over a data series marker in the legend will isolate its related series in the plot area. All other plotted series will show as muted." },
+    { "rule": "Multi-series tooltip lists every series at the cursor line in legend order; tooltips open on hover/keyboard focus and never time out.", "source": "https://www.delldesignsystem.com/patterns/chart-customization/", "quote": "Content in the tooltip displays the order of the series in the legend, regardless of the order of points within the plot area" },
+    { "rule": "Hovered/focused bar's value label becomes bold.", "source": "https://www.delldesignsystem.com/data-visualization/bar-chart/simple-bar-chart", "quote": "During hover or focus states, bar label text is bolded" },
+    { "rule": "Sentence case everywhere (titles, axis labels, legend).", "source": "https://www.delldesignsystem.com/data-visualization/line-chart", "quote": "Use sentence case unless providing an explanation for an acronym or initialism." }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/dell/Building_A_Chart_Do_d28a8ea886.png", "url": "https://dds.dell.com/site/v2/production/94/dc/Building_A_Chart_Do_d28a8ea886.png", "describes": "'Do' example: white card with thin light-grey border and slight rounding on a light grey page. Title 'Total laptop sales' top-left, large regular-weight Roboto, near-black; subtitle 'Comparing Latitude and XPS' below in grey. Line chart with two series: dark navy #002a58 (Latitude) and burnt orange #a64600 (XPS), ~2px straight segments with filled circle markers. Light grey #e1e1e1 gridlines both horizontal and vertical; dark grey #636363 y- and x-axis lines. Grey tick labels 0-40 left and January-April below; rotated near-black y title 'Total sales'; centred x title '2022'. Legend below, left-aligned, rounded-square swatches with grey labels." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/dell/Layout_Specifications_Full_Chart_4984141743.png", "url": "https://dds.dell.com/site/v2/production/99/a0/Layout_Specifications_Full_Chart_4984141743.png", "describes": "Spec diagram of the chart container: 24px padding top, left, bottom and right; 'header' band at top spanning full width; 32px gap between header and plot area; rotated 'Y axis label' at left, tick 'Value' labels, plot area with thin dark L-shaped axes; 'legends' column at right separated from plot by 24px; centred 'X axis label' beneath the x tick labels." }
+  ]
+}

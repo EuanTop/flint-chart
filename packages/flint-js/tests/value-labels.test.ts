@@ -2,7 +2,10 @@
 // Licensed under the MIT License.
 
 import { describe, it, expect } from 'vitest';
-import { assembleVegaLite, getChartOptions } from '../src';
+import { assembleVegaLite as assembleWithoutDecisions, getChartOptions } from '../src';
+
+/** Compiles with the theme's full decisions attached, which these tests read. */
+const assembleVegaLite = (input: any): any => assembleWithoutDecisions({ ...input, options: { ...input.options, themeDecisions: true } });
 
 /**
  * The `showValueLabels` toggle — "print the numbers on the marks?".

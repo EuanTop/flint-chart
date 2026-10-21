@@ -135,6 +135,11 @@ export {
 export { resolveChannelSemantics, convertTemporalData } from './resolve-semantics';
 export { filterOverflow, resolveCategoryViewport, applyCategoryViewports } from './filter-overflow';
 export { computeLayout, computeChannelBudgets } from './compute-layout';
+export { setTextMeasurer } from './text-width';
+export { planFrameFurniture, type FrameFurniture } from './frame-furniture';
+export type { HeaderPlan, HeaderPiece } from './header-plan';
+export type { ClosingRule } from './rule-plan';
+export type { TextMeasurer } from './legend-layout';
 export {
     normalizeStaticSeries,
     normalizeEncodingShorthand,
@@ -180,6 +185,7 @@ export {
     getRegistryEntry,
     toTypeString,
     resolveFormat,
+    fullValueFormat,
     resolveDefaultVisType,
     resolveAggregationDefault,
     resolveZeroClassFromAnnotation,
@@ -215,6 +221,9 @@ export {
     type TargetDetailsOptions,
     type TargetFeedbackOptions,
 } from './interaction-spec';
+export { CHART_UPDATE_OPS, type ChartUpdate, type ChartUpdateOp } from './interaction-contracts';
+export { comparableValue, selectorConditions, selectorPredicate, selectorRowTest, selectorText, type RowComparison } from './target-selector';
+export { chartTable, chartTableRowTest, chartTableStyle, type ChartTable, type ChartTableCell, type ChartTableHeading, type ChartTableColumn, type ChartTableStyle, type ChartTableText } from './chart-table';
 
 // ThemeSpec: public visual-system vocabulary and chart-specific grounding
 export {
@@ -229,8 +238,11 @@ export {
     type GroundingContext,
     groundTheme,
     resolveGeometry,
+    tokenToPx,
     THEME_PRESETS,
     DEFAULT_THEME_ICON,
     listThemePresets,
     resolveThemeSpec,
+    withChrome,
+    type ChartChrome,
 } from './theme';

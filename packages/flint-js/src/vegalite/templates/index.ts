@@ -11,6 +11,7 @@
 
 import { ChartTemplateDef } from '../../core/types';
 import type { ChartPropertyDef, OptionEvalContext } from '../../core/types';
+import { BANDED_CHART_TYPES, readsAsSnapshots } from '../../core/decisions';
 
 // --- Individual chart imports ---
 import { scatterPlotDef, regressionDef, rangedDotPlotDef, boxplotDef } from './scatter';
@@ -25,6 +26,8 @@ import { rangeAreaChartDef } from './range-area';
 import { donutChartDef, pieChartDef } from './pie';
 import { lollipopChartDef } from './lollipop';
 import { densityPlotDef } from './density';
+import { ridgelinePlotDef } from './ridgeline';
+import { marginalPlotDef } from './marginal';
 import { violinPlotDef } from './violin';
 import { ecdfPlotDef } from './ecdf';
 import { stripPlotDef } from './jitter';
@@ -37,6 +40,7 @@ import { radarChartDef } from './radar';
 import { roseChartDef } from './rose';
 import { mapDef, choroplethDef } from './map';
 import { kpiCardDef } from './kpi-card';
+import { tableDef } from './table';
 import { vlCalendarHeatmapDef } from './calendar';
 
 /**
@@ -172,14 +176,19 @@ const AXIS_DTYPE_CHARTS = new Set([
  *  continuous time scale makes sense, so the toggle is not offered. */
 const AXIS_DTYPE_MAX_CATEGORIES = 50;
 
-function makeAxisDtypeCheck(axis: 'x' | 'y') {
+function makeAxisDtypeCheck(axis: 'x' | 'y', banded: boolean) {
     return (ctx: OptionEvalContext): { applicable: boolean; recommendedValue?: any } => {
         const cs = ctx.channelSemantics?.[axis];
         if (!cs?.field) return { applicable: false };
+        // Dates read as snapshots along a banded chart are drawn discrete by default; a time
+        // scale stays one choice away.
+        const snapshots = Boolean(cs.snapshots) || (banded && cs.type === 'temporal'
+            && readsAsSnapshots((ctx.data ?? []).map(r => r[cs.field])));
+        const recommendedValue = snapshots ? 'nominal' : 'temporal';
         // Once the user picks a value the override flips cs.type, so keep
         // the control visible on any explicit choice.
         const choice = ctx.chartProperties?.[`${axis}AxisType`];
-        if (choice != null) return { applicable: true, recommendedValue: 'temporal' };
+        if (choice != null || cs.snapshots) return { applicable: true, recommendedValue };
         // Otherwise offer only the genuine dual-interpretation case: a
         // date-like axis the resolver made temporal, with a modest number of
         // distinct values so discrete bands stay readable.
@@ -188,28 +197,20 @@ function makeAxisDtypeCheck(axis: 'x' | 'y') {
             (ctx.data ?? []).map(r => r[cs.field]).filter(v => v != null && v !== ''),
         );
         const dual = distinct.size >= 2 && distinct.size <= AXIS_DTYPE_MAX_CATEGORIES;
-        return { applicable: dual, recommendedValue: 'temporal' };
+        return { applicable: dual, recommendedValue };
     };
 }
 
-const AXIS_DTYPE_PROPERTIES: ChartPropertyDef[] = [
-    {
-        key: 'xAxisType', label: 'X as', type: 'discrete',
+function axisDtypeProperties(banded: boolean): ChartPropertyDef[] {
+    return (['x', 'y'] as const).map((axis) => ({
+        key: `${axis}AxisType`, label: `${axis.toUpperCase()} as`, type: 'discrete' as const,
         options: [
             { value: 'temporal', label: 'Temporal' },
             { value: 'nominal', label: 'Discrete' },
         ],
-        check: makeAxisDtypeCheck('x'),
-    },
-    {
-        key: 'yAxisType', label: 'Y as', type: 'discrete',
-        options: [
-            { value: 'temporal', label: 'Temporal' },
-            { value: 'nominal', label: 'Discrete' },
-        ],
-        check: makeAxisDtypeCheck('y'),
-    },
-];
+        check: makeAxisDtypeCheck(axis, banded),
+    }));
+}
 
 /**
  * The reader's answer to "print the numbers on the marks?".
@@ -257,13 +258,13 @@ const VALUE_LABEL_CHARTS = new Set([
 function withInjectedProperties(def: ChartTemplateDef): ChartTemplateDef {
     const hasFacetChannels = def.channels?.some(ch => ch === 'column' || ch === 'row');
     const supportsFacetAxisControl = hasFacetChannels && def.chart !== 'Sparkline';
-    const isPosition = def.markCognitiveChannel === 'position';
+    const isPosition = def.markCognitiveChannel === 'position' && def.channels.some((channel) => channel === 'x' || channel === 'y');
     const wantsAxisDtype = AXIS_DTYPE_CHARTS.has(def.chart);
     const extra: ChartPropertyDef[] = [
         ...(supportsFacetAxisControl ? FACET_AXIS_PROPERTIES : []),
         ...(isPosition ? LOG_SCALE_PROPERTIES : []),
         ...(isPosition ? ZERO_BASELINE_PROPERTIES : []),
-        ...(wantsAxisDtype ? AXIS_DTYPE_PROPERTIES : []),
+        ...(wantsAxisDtype ? axisDtypeProperties(BANDED_CHART_TYPES.has(def.chart)) : []),
         ...(VALUE_LABEL_CHARTS.has(def.chart) ? VALUE_LABEL_PROPERTIES : []),
     ];
     if (extra.length === 0) return def;
@@ -284,12 +285,12 @@ function withInjectedProperties(def: ChartTemplateDef): ChartTemplateDef {
  */
 export const vlTemplateDefs: { [key: string]: ChartTemplateDef[] } = Object.fromEntries(
     Object.entries({
-        "Points":          [scatterPlotDef, regressionDef, connectedScatterDef, rangedDotPlotDef, stripPlotDef],
+        "Points":          [scatterPlotDef, marginalPlotDef, regressionDef, connectedScatterDef, rangedDotPlotDef, stripPlotDef],
         "Bars":            [barChartDef, groupedBarChartDef, stackedBarChartDef, lollipopChartDef, waterfallChartDef, ganttChartDef, bulletChartDef],
-        "Distributions":   [histogramDef, densityPlotDef, ecdfPlotDef, violinPlotDef, boxplotDef, pyramidChartDef, candlestickChartDef],
+        "Distributions":   [histogramDef, densityPlotDef, ridgelinePlotDef, ecdfPlotDef, violinPlotDef, boxplotDef, pyramidChartDef, candlestickChartDef],
         "Lines & Areas":   [lineChartDef, sparklineDef, bumpChartDef, slopeChartDef, areaChartDef, streamgraphDef, rangeAreaChartDef],
         "Circular":        [pieChartDef, donutChartDef, roseChartDef, radarChartDef],
-        "Tables & Maps":   [heatmapDef, vlCalendarHeatmapDef, barTableDef, kpiCardDef, mapDef, choroplethDef],
+        "Tables & Maps":   [heatmapDef, vlCalendarHeatmapDef, barTableDef, kpiCardDef, tableDef, mapDef, choroplethDef],
     }).map(([category, defs]) => [category, defs.map(withInjectedProperties)]),
 );
 
@@ -303,6 +304,11 @@ export const vlAllTemplateDefs: ChartTemplateDef[] = Object.values(vlTemplateDef
  */
 export function vlGetTemplateDef(chartType: string): ChartTemplateDef | undefined {
     return vlAllTemplateDefs.find(t => t.chart === chartType);
+}
+
+/** Whether a host with a page draws the chart type as a table rather than its compiled spec. */
+export function drawsAsTable(chartType: string): boolean {
+    return vlGetTemplateDef(chartType)?.drawnAs === 'table';
 }
 
 /**

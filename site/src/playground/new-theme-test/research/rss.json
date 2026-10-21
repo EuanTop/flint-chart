@@ -1,0 +1,115 @@
+{
+  "id": "rss",
+  "org": "Royal Statistical Society (Best Practices for Data Visualisation)",
+  "urls": [
+    "https://rss.org.uk/datavisguide",
+    "https://royal-statistical-society.github.io/datavisguide/",
+    "https://github.com/royal-statistical-society/datavisguide",
+    "https://raw.githubusercontent.com/royal-statistical-society/datavisguide/main/docs/styling.qmd",
+    "https://raw.githubusercontent.com/royal-statistical-society/datavisguide/main/docs/principles.qmd",
+    "https://raw.githubusercontent.com/royal-statistical-society/datavisguide/main/docs/tools.qmd",
+    "https://github.com/nrennie/RSSthemes/blob/main/R/theme_significance.R",
+    "https://github.com/nrennie/RSSthemes/blob/main/R/RSSPalettes.R",
+    "https://github.com/nrennie/RSSthemes/blob/main/R/zzz.R"
+  ],
+  "access": "full",
+  "accessNotes": "The guide is a Quarto site published from the GitHub repo royal-statistical-society/datavisguide. I read the source .qmd files for styling, principles and tools (which includes the publication specifications) in full, and downloaded the figure PNGs from the repo. The house theme and palettes come from the companion R package RSSthemes (nrennie/RSSthemes): theme_significance() and RSSPalettes. That source code was read directly.",
+  "summary": "The RSS guide is an academic, accessibility-led best-practice guide for statisticians, with a house theme for Significance magazine and RSS journals. Charts are minimal (theme_minimal style). The title is bold, left-aligned to the whole plot, and followed by a plain-sentence subtitle. Source Sans Pro is the typeface. Gridlines are very light grey or removed entirely, and the legend sits below the plot or is replaced by direct labels or coloured words in the subtitle. The palette uses the four Significance section colours: green #3fa535, yellow #f4c100, blue #009cc4 and orange #f07d00, with red #e41b12 for diverging scales. The guide strongly prefers highlighting one element over colouring everything.",
+  "context": "academic",
+  "colors": {
+    "categorical": ["#3fa535", "#f4c100", "#009cc4", "#f07d00"],
+    "categoricalNotes": "signif_qual (RSSthemes), currently only four colours. signif_qual2 extends it to 8: #3fa535, #20551B, #F9DE7A, #f4c100, #009cc4, #003E4E, #F7BB7A, #f07d00. Single-colour options are signif_red #e41b12, signif_blue #009cc4, signif_green #3fa535, signif_orange #f07d00 and signif_yellow #f4c100. Guidance: minimise the number of colours, and ask 'do I really need to use colour here?' Colour must survive colour blindness and monochrome printing. Avoid stereotypes (pink/blue for gender) and flipped associations (red for good). Do not rely on colour alone; add shapes. The styling demo uses #9B1D20 (dark red) and #3D5A80 (slate blue) as a two-group pair.",
+    "sequential": ["#163B13", "#20551B", "#2A7024", "#348A2C", "#3FA535", "#5DB355", "#7CC175", "#9BD095", "#B9DEB6"],
+    "diverging": ["#E41B12", "#EB5751", "#F29490", "#F9D1CF", "#FFFFFF", "#CCEBF3", "#88D0E3", "#43B6D3", "#009CC4"],
+    "highlight": "#7a9d7a",
+    "context": "#AFE1AF",
+    "positive": null,
+    "negative": null,
+    "background": "#ffffff",
+    "text": "#000000",
+    "textSecondary": null,
+    "gridline": "#d3d3d3",
+    "axis": null,
+    "notes": "Single-hue sequential ramps are also defined: signif_seq_red #520906…#F5ACA9, signif_seq_yellow #574500…#FBE8A3, signif_seq_blue. Diverging runs red to blue through white (signif_div). Highlight example: all bars light green #AFE1AF with the focus bar (Maserati Bora) in darker #7a9d7a. Background should be white or transparent, never ggplot's default grey. Tufte is quoted approvingly: shades of grey show quantities better than colour. The gridline value is matplotlib 'lightgrey' (#d3d3d3) from the guide's Python example; ggplot theme_minimal gridlines are similarly pale."
+  },
+  "typography": {
+    "family": "Source Sans Pro",
+    "fallback": "'Source Sans 3', sans-serif",
+    "title": { "size": null, "weight": "bold", "align": "left", "case": "title", "color": "#000000" },
+    "subtitle": { "size": 13, "weight": "normal", "style": "normal", "color": "#000000" },
+    "axisLabel": { "size": null, "color": "#000000" },
+    "axisTitle": { "size": 13, "weight": "normal", "placement": "x title centred below the axis; y title rotated on the left (theme_significance margins t=10 / r=10)" },
+    "dataLabel": { "size": null, "weight": "bold" },
+    "source": { "size": null, "style": "plain, left-aligned to the whole plot", "color": "#000000" },
+    "notes": "theme_significance(family = 'Source Sans Pro', base_size = 13, hjust = 0, text_col = 'black'): title bold, left-aligned (plot.title.position = 'plot'); subtitle plain with a 10pt bottom margin; caption left-aligned at plot level. The title size is not set explicitly: it inherits ggplot2's default plot.title rel(1.2), about 15.6pt at base 13, and tick text is rel(0.8). This is ggplot2 behaviour, not a stated RSS rule. Guide rules: at least 12pt for print and web (36pt for presentations); no more than two font families; sans serif for anything online; capital I, lowercase l and 1 must be distinguishable (Source Sans Pro and Verdana pass); avoid italics and capitals for emphasis — use bold, sparingly. Journal and magazine body fonts: Significance Notebook and Profiles use Meta Serif OT Book 8.5pt, Features uses Source Sans Pro 9pt, JRSS A uses Sabon LT Std Roman 9.25pt."
+  },
+  "structure": {
+    "gridlines": "Very light grey major gridlines on both axes (theme_minimal; matplotlib example 'lightgrey'). Styled examples often remove the grid entirely (panel.grid = element_blank()) when bars carry direct labels.",
+    "axisLine": "None (theme_minimal draws no axis lines).",
+    "ticks": "None.",
+    "zeroLine": "Axes start at 0 unless there is a good reason. Never extend an axis into negative values (or put ticks there) when the data have none. Add an auxiliary line at the point of no change (y=0 or ratio 1) and make the axis symmetric around it.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "rotated, left of the tick labels",
+    "unitPlacement": "In the axis title, e.g. 'Dosage (mg/day)'.",
+    "frame": "none",
+    "background": "white or transparent (not ggplot's default grey panel)",
+    "notes": "Plot margin 10pt all round (theme_significance). For relative changes use a log axis symmetric around 1, with ratio tick labels ('1/4' not 0.25). When x and y are comparable, use identical limits and a square 1:1 aspect ratio."
+  },
+  "legend": {
+    "placement": "bottom (theme_significance legend.position = 'bottom'), centred below the plot in a single row with the legend title inline to the left. Alternatively no legend, with the group names coloured inside the subtitle text.",
+    "directLabels": "Preferred for lines: label each line at its end. Labels must not overlap.",
+    "title": "Shown inline at the left of the bottom legend row (e.g. 'x').",
+    "swatchShape": "square",
+    "notes": "'Legends should not attract too much attention and certainly not cover up data. They should be placed in the margins of the figure or can be captured in a small text below the figure.' The legend background and keys are transparent."
+  },
+  "marks": {
+    "bars": "Flat bars, no outline, about 0.7–0.9 of the band (styling example width 0.7, dodge 0.7). Prefer horizontal bars sorted top-to-bottom from highest to lowest unless the categories are time. No 3D.",
+    "lines": "Lines only where there is an order or sequence; never connect unordered data. Ordered groups should get ordered line styles (thickness, dash density or darkness increasing with value).",
+    "areas": null,
+    "points": "For thousands of points use open circles or small filled symbols. Jitter overlapping discrete data gently. Use different shapes as well as colours for groups (circles and triangles).",
+    "pies": null,
+    "notes": "Remove chart junk; data should get the most space. Facets aligned in one row share a single y-axis. Loess smoothers are fine; show confidence bands only if relevant."
+  },
+  "labels": {
+    "dataLabels": "Label bar values at or near the end of each bar: bold white text inside the bar end in the styled example. Label line values at the line end. In scatter plots, label only one or two points of interest such as outliers.",
+    "numberFormat": "Round the displayed values (the example rounds to integers). Ratio axes use fraction labels like '1/4'.",
+    "dates": null,
+    "notes": "At most 3–4 annotations per chart (citing the ONS). Keep annotations brief and next to the relevant data."
+  },
+  "furniture": {
+    "title": "A bold title left-aligned to the full plot area (not the panel), followed by a plain explanatory subtitle sentence, often colour-coding the group names in bold (e.g. '**orange juice**' in the series colour) in place of a legend.",
+    "source": "Bottom-left caption in plain text, for example 'Source: name of data source' (theme_significance example), left-aligned to the plot.",
+    "logo": null,
+    "other": "Publication sizes: Significance text area 188 mm wide. Notebook columns 45/93/140/188 mm; Features and Profiles columns 60/124/188 mm. JRSS A text area 136 mm. 300 dpi, jpeg or png. Every chart needs alt text."
+  },
+  "annotations": "Use brief text placed near the relevant data (e.g. next to 2008 when explaining a 2008 dip), at most 3–4 per chart, with good contrast against the background. Auxiliary lines at x=0, y=0 or y=x help reading.",
+  "layout": "Panels to be compared on y go side by side in one row with a shared y-axis; panels compared on x are stacked. Avoid matrix layouts unless necessary. Use a square aspect ratio when the axes share units. Plot margin 10–15pt.",
+  "interaction": null,
+  "accessibility": "This is the core purpose of the guide. Colour-blind-safe palettes, checked with a CVD simulator and in monochrome. Text at least 12pt. A sans-serif font with distinguishable I/l/1. Minimal italics and capitals. Sufficient text contrast. Alt text for every chart. Shapes as well as colour to distinguish groups.",
+  "chartTypes": {
+    "preferred": ["horizontal bar (sorted)", "bar", "line", "scatter", "boxplot (horizontal)", "small multiples/facets", "histogram"],
+    "discouraged": ["3D charts", "lines connecting unordered data", "colour used purely for decoration", "matrix layouts of unrelated panels"],
+    "notes": "Refers readers to the FT Visual Vocabulary and data-to-viz for chart choice."
+  },
+  "distinctiveRules": [
+    { "rule": "The title is bold, left-aligned to the whole plot (not the panel), and followed by a plain one-sentence subtitle explaining the chart.", "source": "https://github.com/nrennie/RSSthemes/blob/main/R/theme_significance.R", "quote": "plot.title = element_text(face = \"bold\", hjust = hjust); plot.title.position = \"plot\"" },
+    { "rule": "The house font is Source Sans Pro (Source Sans 3), base size 13, black text on a white background.", "source": "https://github.com/nrennie/RSSthemes/blob/main/R/theme_significance.R", "quote": "theme_significance <- function(family = \"Source Sans Pro\", base_size = 13, hjust = 0, text_col = \"black\", bg_col = \"white\")" },
+    { "rule": "The qualitative palette is the four Significance section colours in order: green #3fa535, yellow #f4c100, blue #009cc4, orange #f07d00.", "source": "https://github.com/nrennie/RSSthemes/blob/main/R/RSSPalettes.R", "quote": "signif_qual = c(\"#3fa535\", \"#f4c100\", \"#009cc4\", \"#f07d00\")" },
+    { "rule": "Diverging scales run Significance red #E41B12 → white → blue #009CC4. Sequential scales are single-hue green ramps.", "source": "https://github.com/nrennie/RSSthemes/blob/main/R/RSSPalettes.R", "quote": "signif_div = c(\"#E41B12\", ..., \"#FFFFFF\", ..., \"#009CC4\")" },
+    { "rule": "Highlight, don't rainbow: colour one bar in a darker shade (#7a9d7a) and keep the rest pale (#AFE1AF), instead of giving each bar its own hue.", "source": "https://royal-statistical-society.github.io/datavisguide/docs/styling.html", "quote": "a better approach is to use colour to highlight a specific element of the data... which focuses the reader's attention straight to the point" },
+    { "rule": "The legend sits at the bottom in a single centred row with a transparent background, or is dropped in favour of coloured key words in the subtitle and direct labels.", "source": "https://github.com/nrennie/RSSthemes/blob/main/R/theme_significance.R", "quote": "legend.position = \"bottom\"; legend.background = element_rect(fill = \"transparent\")" },
+    { "rule": "Direct-label lines at their ends. Print bar values in bold white inside the bar end and remove the gridlines when you do.", "source": "https://royal-statistical-society.github.io/datavisguide/docs/styling.html", "quote": "In line graphs, it's common to label the value at the end of the line... In bar charts, adding the values for each bar at, or near, the end of each bar" },
+    { "rule": "Minimal frame: no axis lines and no ticks, with light grey gridlines (theme_minimal) or none at all.", "source": "https://royal-statistical-society.github.io/datavisguide/docs/tools.html", "quote": "We recommend using a white or transparent background, such as those created with theme_minimal() or theme_bw()." },
+    { "rule": "The source line is a left-aligned caption at the bottom-left of the plot, e.g. 'Source: name of data source'.", "source": "https://royal-statistical-society.github.io/datavisguide/docs/tools.html", "quote": "plot.caption = element_text(hjust = hjust); plot.caption.position = \"plot\" (example caption 'Source: name of data source')" },
+    { "rule": "Horizontal bars sorted top-to-bottom from highest to lowest are preferred over vertical bars, except for time.", "source": "https://royal-statistical-society.github.io/datavisguide/docs/principles.html", "quote": "showing the data as horizontal bars and sorting values from top to bottom (highest value to lowest) is more intuitive" },
+    { "rule": "Axes start at 0 and never extend into negative territory when the data have no negatives. Relative changes use a log axis symmetric around 1, with a reference line.", "source": "https://royal-statistical-society.github.io/datavisguide/docs/principles.html", "quote": "If the data do not contain negative values, the axis should not stretch into negative values and in particular not have tick marks at negative values." },
+    { "rule": "Text is at least 12pt, in at most two font families. Emphasis is bold, never italics or capitals.", "source": "https://royal-statistical-society.github.io/datavisguide/docs/styling.html", "quote": "Ensure the font size is at least 12 pt... Minimise the use of italics and uppercase text, and instead use (sparingly) bold text for emphasis." },
+    { "rule": "At most 3–4 annotations per chart, placed next to the data they explain.", "source": "https://royal-statistical-society.github.io/datavisguide/docs/styling.html", "quote": "a maximum of 3 or 4 annotations per chart" },
+    { "rule": "Facets compared on y sit in one row and share a single y-axis.", "source": "https://royal-statistical-society.github.io/datavisguide/docs/principles.html", "quote": "If data on the y-axis are to be compared, a single y-axis with all panels aligned horizontally facilitates comparison" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/rss/rss-tools-theme.png", "url": "https://github.com/royal-statistical-society/datavisguide/blob/main/docs/images/tools-theme.png", "describes": "theme_significance() demo. Bold black 'My Significance Plot' title top-left, aligned to the plot edge, with a plain subtitle 'Some longer sentence explaining what is happening in the chart.' in Source Sans Pro. Four wide flat columns in green #3fa535, yellow #f4c100, blue #009cc4 and orange #f07d00. Very light grey major and minor gridlines, no axis lines, no ticks. Rotated 'y' title on the left and 'x' title below. Legend centred in one row at the bottom: inline title 'x' then square swatches A–D. Plain 'Source: name of data source' caption bottom-left. White background." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/rss/rss-styling-intro.png", "url": "https://github.com/royal-statistical-society/datavisguide/blob/main/docs/images/styling-intro.png", "describes": "Before/after. Left: ggplot default with grey panel, white grid, salmon/teal bars, a side legend and tiny labels. Right (house style): bold 'Tooth Growth' title top-left and a three-line subtitle in which 'orange juice' (dark red #9B1D20) and 'ascorbic acid' (slate blue #3D5A80) are bold coloured words acting as the legend. Paired horizontal bars in those two colours, bold white value labels inside the bar ends (26, 17, 23, 8, 13). No gridlines, no x tick labels, rotated y-axis title 'Dosage (mg/day)', x title 'Tooth length', no legend box." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/rss/rss-styling-highlight.png", "url": "https://github.com/royal-statistical-society/datavisguide/blob/main/docs/images/styling-highlight.png", "describes": "Before/after highlight. Left: 32 sorted horizontal bars (car models), each a different rainbow hue. Right: the same sorted bars all pale green #AFE1AF, with one focus bar (Maserati Bora) in darker grey-green #7a9d7a. Light grey vertical gridlines, no axis lines, category names right-aligned on the left, 'Variable 1' x-axis title, white background." }
+  ]
+}

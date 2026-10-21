@@ -195,7 +195,7 @@ export function assembleImageCharts(input: ChartAssemblyInput): ImageChartsArtif
 
     // ── Phase 0 (reused core): resolve per-channel semantics ────────────────
     let table = convertTemporalData(rawData, semanticTypes);
-    const sem: SemanticResult = resolveChannelSemantics(encodings, rawData, semanticTypes, table);
+    const sem: SemanticResult = resolveChannelSemantics(encodings, rawData, semanticTypes, table, { chartType: flintType });
     const typeOf = (ch: string) => sem[ch]?.type;
     const isMeasure = (ch: string) => typeOf(ch) === 'quantitative';
     const fieldOf = (ch: string) => encodings[ch]?.field;

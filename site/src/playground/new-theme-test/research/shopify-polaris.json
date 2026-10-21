@@ -1,0 +1,111 @@
+{
+  "id": "shopify-polaris",
+  "org": "Shopify Polaris — Data visualizations (and Polaris Viz library)",
+  "urls": [
+    "https://polaris.shopify.com/design/data-visualization",
+    "https://github.com/Shopify/polaris/blob/main/polaris.shopify.com/content/design/data-visualizations.mdx",
+    "https://github.com/Shopify/polaris/tree/main/polaris.shopify.com/public/images/design/data-visualizations",
+    "https://github.com/Shopify/polaris-viz/blob/main/packages/polaris-viz-core/src/constants.ts",
+    "https://github.com/Shopify/polaris-viz/blob/main/packages/polaris-viz-core/src/styles/shared/_variables.scss"
+  ],
+  "access": "full",
+  "accessNotes": "polaris.shopify.com/design/data-visualization now redirects to shopify.dev Polaris references (web components) with no data-viz page. The original guideline page source (data-visualizations.mdx, flagged 'being reworked for Polaris v12') and its illustrations were read from the Shopify/polaris GitHub repo. Exact colours, sizes and defaults come from the polaris-viz library's LIGHT_THEME / DARK_THEME constants (polaris-viz-core). The guideline prose references a purple single-series colour and grey comparison that differ from current polaris-viz defaults (light blue #13ACF0 single, #0A97D5 comparison).",
+  "summary": "Merchant-admin product UI charts: minimal white (light) or near-black (dark) cards, light grey horizontal gridlines only, left-aligned y labels sitting just above gridlines, single-colour bars with 3px rounded ends, smooth spline lines with soft area gradients, and tight abbreviation rules ($1.0k, Mon, 10 Apr, 12am). Answer one question per chart, prefer tables beyond small counts.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#13ACF0", "#6A42E9", "#597EED", "#D147AC", "#23BABA", "#9B3CDD", "#9E84F2", "#128AC0", "#D75EB7", "#305EE8", "#AF63E4", "#33DBDB"],
+    "categoricalNotes": "polaris-viz LIGHT_THEME seriesColors.all in order (light blue, indigo, blue, magenta, teal, purple, light indigo, dark light-blue, magenta, blue, purple, teal). Guide: 'Go down the list as the number of datasets increase'; use no more than 4 lines, try to stick to 2. Single series colour: #13ACF0 (library) — guideline illustrations use purple. Comparison to past: current series coloured, past value grey (guide) / #0A97D5 (library 'comparison'). Empty series #EEEEEF.",
+    "sequential": [],
+    "diverging": [],
+    "highlight": "#13ACF0",
+    "context": "#EEEEEF",
+    "positive": "#078D4E",
+    "negative": "#616161",
+    "background": "#FFFFFF",
+    "text": "#1F1F25",
+    "textSecondary": "#70707B",
+    "gridline": "#EEEEEF",
+    "axis": "#70707B",
+    "notes": "Library trend indicators: positive #078d4e, negative #616161, neutral #8a8a8a (note negative is grey, not red, in the library), while the guide says use green for positive and red for negative movement in display metrics. Negative bars: same colour at 60% opacity. Dark theme: chart container #1F1F25 (gray-160), tooltip #2E2E36, axis labels #DADADD. Bar zero-value colour #9D9DA5; crosshair #CBCBCF; missing-data line #CBCBCF. Print theme uses a different 14-colour palette. Colour-vision hover fades non-active series to 0.3 opacity."
+  },
+  "typography": {
+    "family": "Inter",
+    "fallback": "-apple-system, \"system-ui\", \"San Francisco\", \"Segoe UI\", Roboto, \"Helvetica Neue\", sans-serif",
+    "title": { "size": null, "weight": null, "align": "left", "case": "sentence", "color": null },
+    "subtitle": { "size": null, "weight": null, "style": null, "color": null },
+    "axisLabel": { "size": 11, "color": "#70707B" },
+    "axisTitle": { "size": null, "weight": null, "placement": "omitted; labels outside data area" },
+    "dataLabel": { "size": 11, "weight": "normal" },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "polaris-viz FONT_SIZE 11 (12 on touch), LINE_HEIGHT 14. Tooltip text #1F1F25 with title #70707B. Labels must not be slanted; skip labels at regular intervals instead. No decimals on x labels; y labels ≤3 numeric characters, 1 decimal, 1 letter."
+  },
+  "structure": {
+    "gridlines": "Horizontal only (showHorizontalLines true), solid #EEEEEF, 16px horizontal margin; for horizontal bar charts, vertical lines. Axis/grid lines only where data appears — never bleed to the screen edge.",
+    "axisLine": "No separate axis lines; zero line is just a gridline.",
+    "ticks": "Small tick marks centred under each column in column-chart illustrations; labels centred on bar and tick.",
+    "zeroLine": "Not emphasised; negative bars extend below shared baseline.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "omitted",
+    "unitPlacement": "On each y tick with currency symbol and k/b abbreviation ($1.0k)",
+    "frame": "Chart container card (white, borderRadius 0px, padding 0 by default in library; illustrations show rounded white card on light grey page).",
+    "background": "#FFFFFF (light) / #1F1F25 (dark)",
+    "notes": "Y-axis labels left-aligned and sit slightly above their gridline. Chart margin bottom 24px; min chart height 200px; spark charts min 40px."
+  },
+  "legend": {
+    "placement": "below/near the chart (library); include a legend for multi-line charts",
+    "directLabels": "Horizontal bars carry their category label above each bar and value inside the bar end (outside if too small).",
+    "title": "not shown",
+    "swatchShape": null,
+    "notes": "Legend label colour #70707B, value colour #1F1F25; legend can include trend indicators."
+  },
+  "marks": {
+    "bars": "One colour for all bars; bar width ≈ 2× the gap between bars (BAR_SPACING 0.5); 3px rounded outer corners; min bar height 2px; stacked bar gap 2px; negative bars at 60% opacity. Horizontal bars for ≤6 categories (else table); columns for <30 points (else line).",
+    "lines": "2px, smooth spline (hasSpline true), with area fill beneath by default; points stroked white. Use for >30 data points.",
+    "areas": "Lines have gradient area fill by default (hasArea true).",
+    "points": "Point stroke white (#FFFFFF).",
+    "pies": "Donut arcs: corner radius 2, thickness 36px (thin variant 12px).",
+    "notes": "Missing data line #CBCBCF."
+  },
+  "labels": {
+    "dataLabels": "Horizontal bars: label each bar with name (above) and value (inside end, white; outside if bar too small).",
+    "numberFormat": "Monetary y-axis: 'k' thousand, 'b' billion with unit ($1.0k); max 3 numeric characters, 1 decimal, 1 letter.",
+    "dates": "Time 12-hour lowercase (12am, 6pm); weekdays first three letters (Sun, Mon); months three letters (Feb); specific days 'day month' (10 Apr); specific months 'month year' (Apr 2011).",
+    "notes": "Tooltip top line follows x-axis abbreviation rules; bottom line follows y-axis rules."
+  },
+  "furniture": {
+    "title": "Each visualization answers one specific question (e.g. 'What are my sales over time?'). Display metrics scoped with a time dimension ('Sales this week').",
+    "source": null,
+    "logo": null,
+    "other": "Tables: left-align text, right-align numbers, light row dividers (no zebra), bold totals as first row under headers."
+  },
+  "annotations": "Library annotation pills: background rgb(227,227,227), text rgb(97,97,97), line #CBCBCF.",
+  "layout": "Test with 1–2 and 100+ points; scale for sparse/spiky data. Min height 200px.",
+  "interaction": "Hover tooltips on columns (dark grey box with date on top and bold value below in illustration; library light tooltip white with #1F1F25 text). 1px crosshair #CBCBCF. Legend hover fades other series to 30%.",
+  "accessibility": "Always provide data in multiple formats (e.g. a data table); sufficient contrast; distinguishable for colour blindness; don't rely on colour alone; hide SVG with aria-hidden and provide a text equivalent.",
+  "chartTypes": {
+    "preferred": ["horizontal bar", "vertical column", "line", "multiline", "display metric", "table"],
+    "discouraged": ["horizontal bars with >6 categories", "columns with >31 points", ">4 lines", "multi-coloured single-series bars", "slanted labels"],
+    "notes": "Five traits: accuracy, intuitiveness, engagement, focus, granularity."
+  },
+  "distinctiveRules": [
+    { "rule": "All bars in a single-series bar/column chart use one colour; never multi-colour bars.", "source": "https://github.com/Shopify/polaris/blob/main/polaris.shopify.com/content/design/data-visualizations.mdx", "quote": "Use one color for all bars." },
+    { "rule": "Negative bars use the same colour at 60% opacity.", "source": "https://github.com/Shopify/polaris/blob/main/polaris.shopify.com/content/design/data-visualizations.mdx", "quote": "Give negative bars 60% opacity." },
+    { "rule": "Bar width ≈ twice the gap between bars.", "source": "https://github.com/Shopify/polaris/blob/main/polaris.shopify.com/content/design/data-visualizations.mdx", "quote": "Make the width of each bar about twice as wide as the space between them." },
+    { "rule": "Y-axis labels left-aligned and placed slightly above their gridline.", "source": "https://github.com/Shopify/polaris/blob/main/polaris.shopify.com/content/design/data-visualizations.mdx", "quote": "Left align labels and keep them above y-axis lines." },
+    { "rule": "Gridlines only span the data area; never bleed to the edge of the screen.", "source": "https://github.com/Shopify/polaris/blob/main/polaris.shopify.com/content/design/data-visualizations.mdx", "quote": "Ensure axis lines only appear where the data appears." },
+    { "rule": "Never slant x labels; skip labels at regular intervals instead.", "source": "https://github.com/Shopify/polaris/blob/main/polaris.shopify.com/content/design/data-visualizations.mdx", "quote": "Slant labels to make them fit. (Don't)" },
+    { "rule": "Date/time abbreviations: 12am/6pm, Sun/Mon, Feb/Mar, '10 Apr', 'Apr 2011'.", "source": "https://github.com/Shopify/polaris/blob/main/polaris.shopify.com/content/design/data-visualizations.mdx", "quote": "Use 12 hour format for time, with lowercase letters (12am, 6pm)" },
+    { "rule": "Y money labels abbreviated with k/b and unit, max 3 numerals + 1 decimal + 1 letter ($1.0k).", "source": "https://github.com/Shopify/polaris/blob/main/polaris.shopify.com/content/design/data-visualizations.mdx", "quote": "Abbreviate using 'k' for thousand, 'b' for billion." },
+    { "rule": "Comparison to past period: current series in colour, previous period in grey.", "source": "https://github.com/Shopify/polaris/blob/main/polaris.shopify.com/content/design/data-visualizations.mdx", "quote": "the current value will be purple and the past value will be grey" },
+    { "rule": "At most 4 lines in a multiline chart (aim for 2), with contrasting colours and a legend.", "source": "https://github.com/Shopify/polaris/blob/main/polaris.shopify.com/content/design/data-visualizations.mdx", "quote": "Use more than 4 lines. (Don't)" },
+    { "rule": "Horizontal bars show a category label above each bar and the value inside the bar end (outside when too small); use a table if >6 bars.", "source": "https://github.com/Shopify/polaris/blob/main/polaris.shopify.com/content/design/data-visualizations.mdx", "quote": "Include a label on each bar. If the bar is too small, include it outside of the bar." },
+    { "rule": "Library defaults: 2px spline lines with area fill, 3px bar corner radius, 11px Inter labels in #70707B, gridlines #EEEEEF.", "source": "https://github.com/Shopify/polaris-viz/blob/main/packages/polaris-viz-core/src/constants.ts", "quote": "DEFAULT_LINE_HAS_SPLINE = true; DEFAULT_LINE_WIDTH = 2; DEFAULT_BORDER_RADIUS = 3; FONT_SIZE = 11" },
+    { "rule": "Default series order starts light blue #13ACF0, indigo #6A42E9, blue #597EED, magenta #D147AC, teal #23BABA.", "source": "https://github.com/Shopify/polaris-viz/blob/main/packages/polaris-viz-core/src/constants.ts", "quote": "LIGHT_BLUE_10_SOLID = '#13ACF0'; INDIGO_10_SOLID = '#6A42E9' ..." },
+    { "rule": "Tables: left-align text, right-align numbers, light dividers (no zebra striping), bold totals as first row.", "source": "https://github.com/Shopify/polaris/blob/main/polaris.shopify.com/content/design/data-visualizations.mdx", "quote": "Place totals as the first row beneath the headers, and bold the text." }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/shopify-polaris/multiseries.png", "url": "https://raw.githubusercontent.com/Shopify/polaris/main/polaris.shopify.com/public/images/design/data-visualizations/multiseries-data@2x.png", "describes": "Schematic multiseries line chart in a white rounded card on a pale grey page. Four ~3px straight lines in dark navy, orange, teal and purple. Four light grey horizontal gridlines spanning only the plot area; y labels are grey placeholder pills left-aligned at the far left sitting just above each gridline; x labels grey pills below. No axis lines, no legend, no title." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/shopify-polaris/single_comparison_to_past.png", "url": "https://raw.githubusercontent.com/Shopify/polaris/main/polaris.shopify.com/public/images/design/data-visualizations/single-comparison-to-past@2x.png", "describes": "Same card layout: purple current-period line over a dark slate-grey past-period line; light grey horizontal gridlines; pill placeholders for left-aligned y labels above gridlines and x labels below." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/shopify-polaris/negative_bars_60_opacity.png", "url": "https://raw.githubusercontent.com/Shopify/polaris/main/polaris.shopify.com/public/images/design/data-visualizations/do/give-negative-bars-60-opacity@2x.png", "describes": "Horizontal bar chart: value-axis label pills along the top, thin light grey vertical gridlines, zero line in the middle. Two positive bars solid purple with small rounded ends extending right; one negative bar extends left in the same purple at 60% opacity (lavender). Each bar has a grey category-label pill above its start and a white value pill inside the bar end." }
+  ]
+}

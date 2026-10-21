@@ -1,20 +1,34 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { type ThemeSpec } from 'flint-chart';
+import { useSearchParams } from 'react-router-dom';
+import { THEME_PRESETS, type ThemeSpec } from 'flint-chart';
 import { JsonCodeMirror } from '../components/JsonCodeMirror';
 import { ScaleToFit } from '../components/ScaleToFit';
-import { GitHubIcon, LabIcon, SiteShell } from '../components/SiteShell';
+import { Check, Copy } from 'lucide-react';
+import { SiteShell } from '../components/SiteShell';
 import { ThemeChartModal } from '../components/ThemeChartModal';
-import { VegaLiteView } from '../components/VegaLiteView';
+import { FlintView } from '../components/FlintView';
 import { LocaleLink } from '../i18n/LocaleLink';
 import { PREVIEW_CASES, type PreviewCase } from '../shared/preview-cases';
+import { compactJson } from '../shared/compact-json';
+import { revealInScroller } from '../shared/reveal-in-scroller';
+import { loadHouses, type HouseChoice } from '../shared/house-themes';
+import { ThemeSwatches } from '../components/ThemeSwatches';
 import { BACKENDS } from '../shared/supported-backends';
-import { GITHUB_REPO, siteTheme } from '../shared/theme';
+import { CONTENT_MAX_WIDTH, GITHUB_REPO, siteTheme } from '../shared/theme';
 
+/**
+ * The preview wall, in rows of four charts of a like height — measured as the mean drawn height
+ * across Flint's defaults and a dozen houses, so a row stays even whichever theme is in view: the
+ * tall waterfall, pie, bubbles and bump chart first; then the time series and bars; the
+ * multi-series and radar; the banded and diverging bars; the heat map and lollipop last.
+ */
 const IDS = [
-  'keeling', 'driving', 'seattle-range', 'temp-heatmap', 'browser-pie', 'co2-lollipop',
-  'life-expectancy', 'lifeexp-dumbbell', 'electricity-mix-area', 'big-mac', 'olympic-bump', 'nutrition-radar',
-  'faithful-hist', 'trust-likert', 'population-waterfall', 'us-pyramid', 'gapminder-bubble', 'earnings-education',
+  'population-waterfall', 'browser-pie', 'gapminder-bubble', 'olympic-bump',
+  'faithful-hist', 'keeling', 'driving', 'big-mac',
+  'electricity-mix-area', 'seattle-range', 'life-expectancy', 'nutrition-radar',
+  'earnings-education', 'us-pyramid', 'trust-likert', 'lifeexp-dumbbell',
+  'temp-heatmap', 'co2-lollipop',
 ];
 
 const CASE_BY_ID = new Map(PREVIEW_CASES.map((previewCase) => [previewCase.id, previewCase]));
@@ -130,7 +144,7 @@ export const GOOGLE_MATERIAL_THEME: ThemeSpec = {
     arc: { cornerRadius: 0, gap: 2, gapStyle: 'pad' },
     cell: { gap: 2, cornerRadius: 2 },
   },
-  labels: { truncation: 'ellipsis', flush: true, angle: 'horizontal' },
+  labels: { truncation: 'ellipsis', flush: true },
   legend: {
     show: 'always', placement: ['bottom'], direction: 'horizontal',
     title: 'omit', suppressWhenAxisNames: true,
@@ -286,7 +300,7 @@ const PEOPLES_DAILY_THEME: ThemeSpec = {
     separator: { presence: 'hairline', width: 1, source: 'surface' },
     slice: { gap: 1, gapStyle: 'rule' },
   },
-  labels: { truncation: 'wrap', flush: true, angle: 'auto' },
+  labels: { truncation: 'wrap', flush: true },
   legend: {
     show: 'always', placement: ['top', 'right', 'bottom'], direction: 'horizontal',
     title: 'whenAmbiguous', maxSwatches: 8, suppressWhenAxisNames: true,
@@ -313,11 +327,18 @@ const PEOPLES_DAILY_THEME: ThemeSpec = {
   },
 };
 
+/** The houses Flint ships, as the Visual Themes page lists them. */
+const PRESETS = Object.values(THEME_PRESETS);
+
 const DEMO_THEMES = [
-  { theme: GOOGLE_MATERIAL_THEME, colors: ['#7e57c2', '#26a69a', '#ffa726', '#42a5f5'] },
-  { theme: MICROSOFT_FLUENT_THEME, colors: ['#0078d4', '#c43e1c', '#4f7b00'] },
-  { theme: PEOPLES_DAILY_THEME, colors: ['#9e1b16', '#1f4e79', '#6b5b2a'] },
+  { theme: GOOGLE_MATERIAL_THEME },
+  { theme: MICROSOFT_FLUENT_THEME },
+  { theme: PEOPLES_DAILY_THEME },
 ] as const;
+
+
+/** Characters a line of the editor holds before it scrolls: the JSON is laid out to fit. */
+const EDITOR_WIDTH = 56;
 
 const SHARE_URL = `${GITHUB_REPO}/issues/new?title=${encodeURIComponent('[Theme] Share a custom ThemeSpec')}&body=${encodeURIComponent('Paste your ThemeSpec JSON below and include a screenshot or short description of the visual direction.\n\n```json\n\n```')}`;
 
@@ -353,13 +374,7 @@ function PreviewTile({
   const { t } = useTranslation();
   const title = t(`themes.cases.${previewCase.id}.title`, previewCase.title);
   const blurb = t(`themes.cases.${previewCase.id}.blurb`, previewCase.blurb);
-  const compiled = useMemo(() => {
-    try {
-      return { ok: true as const, value: BACKENDS.vegalite.assemble(buildInput(previewCase, title, theme)) };
-    } catch (error) {
-      return { ok: false as const, error };
-    }
-  }, [previewCase, theme, title]);
+  const input = useMemo(() => buildInput(previewCase, title, theme), [previewCase, theme, title]);
 
   return (
     <article
@@ -376,11 +391,7 @@ function PreviewTile({
       }}
     >
       <ScaleToFit height={CHART_HEIGHT} minHeight={110} adaptiveHeight padding={2}>
-        {compiled.ok ? (
-          <VegaLiteView spec={compiled.value} renderer="svg" />
-        ) : (
-          <pre className="theme-lab-error">{String((compiled.error as Error)?.message ?? compiled.error)}</pre>
-        )}
+        <FlintView spec={input} renderer="svg" compact />
       </ScaleToFit>
       <div className="theme-lab-tile-caption">{blurb}</div>
     </article>
@@ -399,17 +410,42 @@ export function ThemeLab() {
   const { t } = useTranslation();
   const [openCase, setOpenCase] = useState<PreviewCase | null>(null);
   const [customTheme, setCustomTheme] = useState<ThemeSpec>(GOOGLE_MATERIAL_THEME);
-  const [themeDraft, setThemeDraft] = useState(() => JSON.stringify(GOOGLE_MATERIAL_THEME, null, 2));
-  const [activeDemoId, setActiveDemoId] = useState(GOOGLE_MATERIAL_THEME.id);
+  const [themeDraft, setThemeDraft] = useState(() => compactJson(GOOGLE_MATERIAL_THEME, EDITOR_WIDTH));
+  // The choice in view, by group: `preset:economist`, `custom:google-material`, `custom:economist` (a house).
+  const [activeDemoId, setActiveDemoId] = useState<string | undefined>(`custom:${GOOGLE_MATERIAL_THEME.id}`);
+  const starterTrayRef = useRef<HTMLDivElement>(null);
   const [themeError, setThemeError] = useState<string | null>(null);
   const [promptCopied, setPromptCopied] = useState(false);
+  const [promptOpen, setPromptOpen] = useState(false);
+  // A style-guide house opened from the Visual Themes page (`?house=datadog`); it joins the Custom list.
+  const [searchParams] = useSearchParams();
+  const [houses, setHouses] = useState<HouseChoice[]>([]);
+  // A deep-linked house may sit below the tray's fold.
+  useEffect(() => {
+    revealInScroller(starterTrayRef.current, starterTrayRef.current?.querySelector('[aria-pressed="true"]') ?? null);
+  }, [activeDemoId, houses.length]);
+  useEffect(() => {
+    let live = true;
+    void loadHouses().then((list) => { if (live) setHouses(list); });
+    return () => { live = false; };
+  }, []);
   const cases = useMemo(
     () => IDS.map((id) => CASE_BY_ID.get(id)).filter((previewCase): previewCase is PreviewCase => Boolean(previewCase)),
     [],
   );
+  // What the theme in view is about: a built-in's line, or the house's research summary.
+  const activeAbout = useMemo(() => {
+    const preset = PRESETS.find((p) => `preset:${p.id}` === activeDemoId);
+    if (preset) return { name: preset.label, text: preset.description };
+    const demo = DEMO_THEMES.find(({ theme }) => `custom:${theme.id}` === activeDemoId);
+    if (demo) return { name: t(`themeLab.demos.${demo.theme.id}`, demo.theme.label ?? ''), text: t(`themeLab.about.${demo.theme.id}`) };
+    const house = houses.find((h) => `house:${h.id}` === activeDemoId);
+    return house ? { name: house.name, text: house.about } : null;
+  }, [activeDemoId, houses, t]);
+
   const formattedThemeDraft = useMemo(() => {
     try {
-      return JSON.stringify(JSON.parse(themeDraft), null, 2);
+      return compactJson(JSON.parse(themeDraft), EDITOR_WIDTH);
     } catch {
       return null;
     }
@@ -430,13 +466,34 @@ export function ThemeLab() {
     }
   };
 
-  const applyDemoTheme = (theme: ThemeSpec) => {
-    const nextDraft = JSON.stringify(theme, null, 2);
+  const applyDemoTheme = (theme: ThemeSpec, key: string) => {
+    const nextDraft = compactJson(theme, EDITOR_WIDTH);
     setCustomTheme(theme);
     setThemeDraft(nextDraft);
     setThemeError(null);
-    setActiveDemoId(theme.id);
+    setActiveDemoId(key);
   };
+
+  // Opened from Visual Themes: `?preset=economist` or `?house=datadog` starts the editor from that theme.
+  const linkedPreset = searchParams.get('preset');
+  const linkedHouseId = searchParams.get('house');
+  useEffect(() => {
+    const preset = linkedPreset ? THEME_PRESETS[linkedPreset] : undefined;
+    if (preset) {
+      applyDemoTheme(preset.spec, `preset:${preset.id}`);
+      return;
+    }
+    if (!linkedHouseId) return;
+    let live = true;
+    void loadHouses().then((list) => {
+      const house = list.find((h) => h.id === linkedHouseId);
+      if (!live || !house) return;
+      applyDemoTheme(house.theme, `house:${house.id}`);
+    });
+    return () => { live = false; };
+    // Applied once per link, not on every edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkedPreset, linkedHouseId]);
 
   const copyStarterPrompt = async () => {
     try {
@@ -454,65 +511,68 @@ export function ThemeLab() {
       <div className="theme-lab-page">
         <div className="theme-lab-inner">
           <header className="theme-lab-intro">
-            <div className="theme-lab-title-row">
-              <h1>
-                <span className="theme-lab-title-icon"><LabIcon size={25} /></span>
-                {t('themeLab.title')}
-              </h1>
-            </div>
-            <div>
-              <p className="theme-lab-lead">{t('themeLab.lead')}</p>
-              <ol className="theme-lab-steps">
-                <li>{t('themeLab.steps.generate')}</li>
-                <li>{t('themeLab.steps.preview')}</li>
-                <li>
-                  {t('themeLab.steps.shareReady')}{' '}
-                  <a className="theme-lab-share-link" href={SHARE_URL} target="_blank" rel="noreferrer">
-                    <GitHubIcon size={15} />
-                    {t('themeLab.steps.shareLink')}
-                  </a>{t('themeLab.steps.shareSuffix')}
-                </li>
-              </ol>
-              <p className="theme-lab-docs-pointer">
-                <Trans
-                  i18nKey="themeLab.docsPointer"
-                  components={{
-                    docsLink: <LocaleLink className="site-text-link" to="/documentation/theme-spec" />,
-                  }}
-                />
-              </p>
-            </div>
-            <div className="theme-lab-prompt-column">
-              <div className="theme-lab-prompt-block">
-                <button type="button" onClick={copyStarterPrompt}>
-                  <span aria-hidden="true">{promptCopied ? '✓' : '⧉'}</span>
-                  {promptCopied ? t('themeLab.copied') : t('themeLab.copyPrompt')}
-                </button>
-                <pre>{t('themeLab.prompt')}</pre>
-              </div>
-            </div>
+            <h1>{t('themeLab.title')}</h1>
+            <p className="theme-lab-lead">{t('themeLab.lead')}</p>
+            <ol className="theme-lab-steps">
+              <li>
+                <strong><span>1</span>{t('themeLab.steps.generateTitle')}</strong>
+                {t('themeLab.steps.generate')}
+                <span className="theme-lab-step-actions">
+                  <button type="button" className="theme-lab-copy" onClick={copyStarterPrompt}>
+                    {promptCopied ? <Check size={13} aria-hidden="true" /> : <Copy size={13} aria-hidden="true" />}
+                    {promptCopied ? t('themeLab.copied') : t('themeLab.copyPromptCta')}
+                  </button>
+                  <button type="button" className="theme-lab-view" aria-expanded={promptOpen} onClick={() => setPromptOpen((open) => !open)}>
+                    {promptOpen ? t('themeLab.hidePrompt') : t('themeLab.viewPrompt')}
+                  </button>
+                </span>
+              </li>
+              <li>
+                <strong><span>2</span>{t('themeLab.steps.previewTitle')}</strong>
+                {t('themeLab.steps.preview')}
+              </li>
+              <li>
+                <strong><span>3</span>{t('themeLab.steps.shareTitle')}</strong>
+                {t('themeLab.steps.shareReady')}{' '}
+                <a href={SHARE_URL} target="_blank" rel="noreferrer">{t('themeLab.steps.shareLink')}</a>.
+              </li>
+            </ol>
+            {promptOpen && <pre className="theme-lab-prompt">{t('themeLab.prompt')}</pre>}
           </header>
 
-          <div className="theme-lab-demo-bar" aria-label={t('themeLab.demoAria')}>
-            <span>{t('themeLab.inspiration')}</span>
-            <div className="theme-lab-demo-options">
-              {DEMO_THEMES.map(({ theme, colors }) => (
+          <h2 className="theme-lab-h2">{t('themeLab.playTitle')}</h2>
+          <section className="theme-lab-starters" aria-label={t('themeLab.housesAria')}>
+            <div ref={starterTrayRef} className="theme-lab-starter-tray">
+              {DEMO_THEMES.map(({ theme }) => (
+                <button key={`custom:${theme.id}`} type="button" aria-pressed={activeDemoId === `custom:${theme.id}`} onClick={() => applyDemoTheme(theme, `custom:${theme.id}`)}>
+                  <ThemeSwatches theme={theme} />
+                  <span>{t(`themeLab.demos.${theme.id}`, theme.label ?? theme.id ?? '')}</span>
+                </button>
+              ))}
+              {houses.map((house) => (
                 <button
-                  key={theme.id}
+                  key={`house:${house.id}`}
                   type="button"
-                  aria-pressed={activeDemoId === theme.id}
-                  onClick={() => applyDemoTheme(theme)}
+                  title={house.org}
+                  aria-pressed={activeDemoId === `house:${house.id}`}
+                  onClick={() => applyDemoTheme(house.theme, `house:${house.id}`)}
                 >
-                  <span className="theme-lab-demo-swatches" aria-hidden="true">
-                    {colors.map((color) => <i key={color} style={{ background: color }} />)}
-                  </span>
-                  {t(`themeLab.demos.${theme.id}`, theme.label ?? theme.id ?? '')}
+                  <ThemeSwatches theme={house.theme} />
+                  <span>{house.name}</span>
                 </button>
               ))}
             </div>
-          </div>
+            <p className="theme-lab-credit">
+              <Trans i18nKey="themeLab.housesCredit" components={{ site: <a href="https://www.datavizstyleguide.com/" target="_blank" rel="noreferrer" /> }} />
+            </p>
+          </section>
 
+          <div className="theme-lab-about" aria-live="polite">
+            <strong>{activeAbout?.name ?? t('themeLab.customDraft')}</strong>
+            {activeAbout && <span>{activeAbout.text}</span>}
+          </div>
           <div className="theme-lab-workspace">
+            <div className="theme-lab-panel-cell">
             <aside className="theme-lab-panel" aria-label={t('themeLab.editorAria')}>
               <button
                 className="theme-lab-format-button"
@@ -531,15 +591,18 @@ export function ThemeLab() {
                 {themeError ?? t('themeLab.validSpec')}
               </div>
             </aside>
-            <div className="theme-lab-wall">
-              {cases.map((previewCase) => (
-                <PreviewTile
-                  key={previewCase.id}
-                  previewCase={previewCase}
-                  theme={customTheme}
-                  onOpen={() => setOpenCase(previewCase)}
-                />
-              ))}
+            </div>
+            <div className="theme-lab-preview">
+              <div className="theme-lab-wall">
+                {cases.map((previewCase) => (
+                  <PreviewTile
+                    key={previewCase.id}
+                    previewCase={previewCase}
+                    theme={customTheme}
+                    onOpen={() => setOpenCase(previewCase)}
+                  />
+                ))}
+              </div>
             </div>
           </div>
 
@@ -551,35 +614,38 @@ export function ThemeLab() {
 }
 
 const styles = `
-  .theme-lab-page { flex: 1; min-height: 0; overflow-y: auto; background-color: ${siteTheme.surface}; background-image: linear-gradient(90deg, ${siteTheme.grid} 1px, transparent 1px), linear-gradient(0deg, ${siteTheme.grid} 1px, transparent 1px); background-size: 24px 24px; }
-  .theme-lab-inner { max-width: 1500px; margin: 0 auto; padding: 36px 40px 96px; }
-  .theme-lab-intro { display: grid; grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.45fr); column-gap: 72px; row-gap: 16px; max-width: 1180px; margin: 0 auto 28px; align-items: start; }
-  .theme-lab-title-row { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
-  .theme-lab-title-row h1 { display: flex; align-items: center; gap: 9px; margin: 0; font-size: 28px; line-height: 1.2; font-weight: 700; letter-spacing: -0.02em; }
-  .theme-lab-title-icon { display: inline-flex; color: ${siteTheme.textMuted}; }
-  .theme-lab-lead { margin: 0; color: ${siteTheme.text}; font-size: 15px; line-height: 1.65; }
-  .theme-lab-steps { margin: 12px 0 0; padding: 0 0 0 24px; color: ${siteTheme.text}; font-size: 15px; line-height: 1.65; }
-  .theme-lab-steps li { margin-bottom: 4px; }
-  .theme-lab-steps a { color: ${siteTheme.accent}; text-decoration: none; }
-  .theme-lab-steps a:hover { text-decoration: underline; }
-  .theme-lab-share-link { display: inline-flex; align-items: center; gap: 5px; }
-  .theme-lab-docs-pointer { margin: 8px 0 0; color: ${siteTheme.text}; font-size: 15px; line-height: 1.65; }
-  .theme-lab-prompt-block { position: relative; overflow: hidden; margin: 0 0 8px; border: 1px solid ${siteTheme.border}; border-radius: 8px; background: ${siteTheme.surface}; }
-  .theme-lab-prompt-block button { position: absolute; top: 8px; right: 8px; display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 0; border-radius: 6px; background: rgba(0, 0, 0, 0.06); color: ${siteTheme.text}; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
-  .theme-lab-prompt-block button:hover { background: ${siteTheme.text}; color: ${siteTheme.surface}; }
-  .theme-lab-prompt-block button span { font-size: 13px; line-height: 1; }
-  .theme-lab-prompt-block pre { max-height: 220px; margin: 0; padding: 14px 16px; padding-right: 128px; overflow: auto; color: ${siteTheme.text}; font-family: ${siteTheme.fontMono}; font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
-  .theme-lab-demo-bar { display: flex; align-items: center; gap: 10px; min-height: 34px; max-width: 1180px; margin: 0 auto 20px; }
-  .theme-lab-demo-bar > span { flex: 0 0 auto; color: ${siteTheme.textMuted}; font-size: 12.5px; }
-  .theme-lab-demo-options { display: flex; align-items: center; gap: 4px; min-width: 0; overflow-x: auto; padding: 4px; border-radius: 8px; background: rgba(0, 0, 0, 0.05); }
-  .theme-lab-demo-options button { height: 28px; display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; padding: 0 9px; border: 0; border-radius: 6px; background: transparent; color: ${siteTheme.textMuted}; font: inherit; font-size: 12.5px; cursor: pointer; }
-  .theme-lab-demo-options button:hover { color: ${siteTheme.text}; }
-  .theme-lab-demo-options button[aria-pressed="true"] { background: ${siteTheme.surface}; box-shadow: 0 1px 2px rgba(31, 35, 40, 0.16); color: ${siteTheme.text}; font-weight: 600; }
-  .theme-lab-demo-options button:focus-visible { outline: 2px solid ${siteTheme.accent}; outline-offset: 1px; }
-  .theme-lab-demo-swatches { display: inline-flex; overflow: hidden; width: 21px; height: 9px; border-radius: 1px; }
-  .theme-lab-demo-swatches i { flex: 1; min-width: 0; }
-  .theme-lab-workspace { display: grid; grid-template-columns: minmax(390px, 0.42fr) minmax(0, 0.58fr); gap: 24px; max-width: 1180px; margin: 0 auto; align-items: start; }
-  .theme-lab-panel { position: sticky; top: 0; height: min(740px, calc(100vh - 48px)); min-height: 600px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid ${siteTheme.border}; border-radius: 6px; background: ${siteTheme.surface}; box-shadow: 0 1px 2px rgba(31, 35, 40, 0.06); }
+  .theme-lab-page { flex: 1; min-height: 0; overflow-y: auto; background: ${siteTheme.surface}; }
+  .theme-lab-inner { width: 100%; max-width: ${CONTENT_MAX_WIDTH}px; margin: 0 auto; padding: 28px 32px 72px; box-sizing: border-box; }
+  .theme-lab-intro { font-size: 15px; line-height: 1.65; color: ${siteTheme.text}; }
+  .theme-lab-intro h1 { margin: 0 0 16px; font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+  .theme-lab-lead { margin: 0 0 18px; }
+  .theme-lab-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0 0 14px; padding: 0; list-style: none; }
+  .theme-lab-steps li { padding: 12px 14px; border: 1px solid ${siteTheme.border}; border-radius: ${siteTheme.radius}px; color: ${siteTheme.textMuted}; font-size: 13.5px; line-height: 1.55; }
+  .theme-lab-steps strong { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; color: ${siteTheme.text}; font-size: 14px; }
+  .theme-lab-steps strong span { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: ${siteTheme.text}; color: ${siteTheme.surface}; font-size: 11.5px; font-weight: 700; }
+  .theme-lab-intro a { color: ${siteTheme.accent}; text-decoration: none; }
+  .theme-lab-intro a:hover { text-decoration: underline; }
+  .theme-lab-prompt { margin: 0 0 14px; padding: 12px 14px; max-height: 220px; overflow: auto; border-radius: ${siteTheme.radius}px; background: ${siteTheme.hover}; font-family: ${siteTheme.fontMono}; font-size: 12px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; color: ${siteTheme.text}; }
+  .theme-lab-step-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 10px; }
+  .theme-lab-copy { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 0; border-radius: 6px; background: ${siteTheme.text}; color: ${siteTheme.surface}; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+  .theme-lab-copy:hover { opacity: 0.88; }
+  .theme-lab-view { padding: 0; border: 0; background: none; color: ${siteTheme.accent}; font: inherit; font-size: 12.5px; cursor: pointer; }
+  .theme-lab-view:hover { text-decoration: underline; }
+  .theme-lab-copy:focus-visible, .theme-lab-view:focus-visible { outline: 2px solid ${siteTheme.accent}; outline-offset: 2px; }
+  .theme-lab-h2 { margin: 32px 0 12px; padding-bottom: 6px; border-bottom: 1px solid ${siteTheme.border}; font-size: 20px; font-weight: 600; }
+  .theme-lab-starters { margin-bottom: 16px; }
+  .theme-lab-credit { margin: 6px 4px 0; color: ${siteTheme.textMuted}; font-size: 12px; line-height: 1.5; text-align: right; }
+  .theme-lab-credit a { color: inherit; text-decoration: underline; text-decoration-color: rgba(0, 0, 0, 0.3); text-underline-offset: 2px; }
+  .theme-lab-credit a:hover { color: ${siteTheme.text}; }
+  .theme-lab-starter-tray { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; max-height: 140px; overflow-y: auto; overscroll-behavior: contain; padding: 4px; border-radius: 8px; background: rgba(0, 0, 0, 0.05); }
+  .theme-lab-starter-tray button { height: 30px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: ${siteTheme.textMuted}; font: inherit; font-size: 12.5px; white-space: nowrap; cursor: pointer; }
+  .theme-lab-starter-tray button:hover { color: ${siteTheme.text}; }
+  .theme-lab-starter-tray button[aria-pressed="true"] { background: ${siteTheme.surface}; box-shadow: 0 1px 2px rgba(31, 35, 40, 0.16); color: ${siteTheme.text}; font-weight: 600; }
+  .theme-lab-starter-tray button:focus-visible { outline: 2px solid ${siteTheme.accent}; outline-offset: 1px; }
+  .theme-lab-workspace { display: grid; grid-template-columns: minmax(380px, 0.42fr) minmax(0, 0.58fr); gap: 20px; align-items: stretch; }
+  .theme-lab-panel { position: relative; min-height: 560px; height: 100%; max-height: 100%; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; border: 1px solid ${siteTheme.border}; border-radius: ${siteTheme.radius}px; background: ${siteTheme.surface}; }
+  .theme-lab-panel-cell { position: relative; min-height: 560px; }
+  .theme-lab-panel-cell > .theme-lab-panel { position: absolute; inset: 0; }
   .theme-lab-editor { flex: 1; min-height: 0; overflow: hidden; }
   .theme-lab-editor > div, .theme-lab-editor .cm-editor { height: 100%; min-height: 0; }
   .theme-lab-editor .cm-scroller { overflow: auto; }
@@ -589,21 +655,17 @@ const styles = `
   .theme-lab-format-button:disabled:hover { background: rgba(0, 0, 0, 0.06); color: ${siteTheme.text}; }
   .theme-lab-status { min-height: 32px; display: flex; align-items: center; padding: 7px 12px; border-top: 1px solid ${siteTheme.border}; color: #0b6a0b; font-size: 11.5px; line-height: 1.35; }
   .theme-lab-status--error { color: ${siteTheme.error}; }
-  .theme-lab-wall { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); justify-content: start; gap: 5px; align-self: start; padding: 4px 8px 38px; overflow: visible; }
-  .theme-lab-tile { --scatter-x: 0px; --scatter-y: 0px; --scatter-r: 0deg; position: relative; align-self: start; z-index: 1; min-width: 0; margin: -3px -4px -28px; padding: 10px 10px 15px; border: 1px solid rgba(0, 0, 0, 0.14); border-radius: 2px; background: #fff; box-shadow: 0 3px 9px rgba(31, 35, 40, 0.15), 0 12px 24px rgba(31, 35, 40, 0.07); transform: translate3d(var(--scatter-x), var(--scatter-y), 0) rotate(var(--scatter-r)); transform-origin: 50% 50%; cursor: zoom-in; }
-  .theme-lab-tile:hover, .theme-lab-tile:focus-visible { z-index: 20; box-shadow: 0 8px 18px rgba(31, 35, 40, 0.2), 0 18px 34px rgba(31, 35, 40, 0.1); transform: translate3d(var(--scatter-x), calc(var(--scatter-y) - 7px), 0) rotate(0deg); }
+  .theme-lab-preview { min-width: 0; }
+  .theme-lab-about { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin: 0 0 12px; color: ${siteTheme.textMuted}; font-size: 13px; line-height: 1.55; }
+  .theme-lab-about strong { color: ${siteTheme.text}; font-size: 14px; }
+  .theme-lab-wall { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .theme-lab-tile { min-width: 0; padding: 8px; border-radius: 4px; cursor: zoom-in; transition: background 120ms ease; }
+  .theme-lab-tile:hover { background: ${siteTheme.hover}; }
   .theme-lab-tile:focus-visible { outline: 2px solid ${siteTheme.accent}; outline-offset: 2px; }
-  .theme-lab-tile:nth-child(6n + 1) { --scatter-x: 7px; --scatter-y: 5px; --scatter-r: -2.1deg; }
-  .theme-lab-tile:nth-child(6n + 2) { --scatter-x: -4px; --scatter-y: -7px; --scatter-r: 1.4deg; }
-  .theme-lab-tile:nth-child(6n + 3) { --scatter-x: 5px; --scatter-y: 9px; --scatter-r: -0.8deg; }
-  .theme-lab-tile:nth-child(6n + 4) { --scatter-x: -8px; --scatter-y: 1px; --scatter-r: 2.3deg; }
-  .theme-lab-tile:nth-child(6n + 5) { --scatter-x: 3px; --scatter-y: -5px; --scatter-r: -1.5deg; }
-  .theme-lab-tile:nth-child(6n) { --scatter-x: -6px; --scatter-y: 8px; --scatter-r: 1deg; }
-  .theme-lab-tile-caption { margin-top: 2px; min-height: 28px; overflow: hidden; color: ${siteTheme.textMuted}; display: -webkit-box; font-size: 11.5px; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .theme-lab-tile-caption { margin-top: 2px; min-height: 28px; overflow: hidden; color: ${siteTheme.navInactive}; display: -webkit-box; font-size: 10.5px; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
   .theme-lab-error { margin: 0; color: ${siteTheme.error}; font-size: 11px; white-space: pre-wrap; }
-  @media (max-width: 1120px) { .theme-lab-workspace { grid-template-columns: minmax(0, 1fr); } .theme-lab-panel { position: relative; top: auto; height: 620px; } .theme-lab-wall { grid-template-columns: repeat(4, minmax(0, 220px)); } }
-  @media (max-width: 840px) { .theme-lab-intro { grid-template-columns: minmax(0, 1fr); gap: 26px; } .theme-lab-title-row { align-items: flex-start; } }
-  @media (max-width: 940px) { .theme-lab-wall { grid-template-columns: repeat(3, minmax(0, 220px)); } }
-  @media (max-width: 700px) { .theme-lab-inner { padding: 28px 20px 72px; } .theme-lab-demo-bar { align-items: flex-start; flex-direction: column; gap: 4px; } .theme-lab-demo-options { width: 100%; } .theme-lab-wall { grid-template-columns: repeat(2, minmax(0, 220px)); padding: 22px 8px 30px; } .theme-lab-tile { margin: -1px -2px -16px; } }
-  @media (max-width: 420px) { .theme-lab-wall { grid-template-columns: minmax(0, 220px); } }
+  @media (max-width: 1100px) { .theme-lab-wall { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 760px) { .theme-lab-steps { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 900px) { .theme-lab-workspace { grid-template-columns: minmax(0, 1fr); } .theme-lab-panel-cell { height: 520px; min-height: 0; } }
+  @media (max-width: 600px) { .theme-lab-inner { padding: 24px 16px 56px; } .theme-lab-wall { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 `;

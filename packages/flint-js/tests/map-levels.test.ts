@@ -525,3 +525,72 @@ describe('a fly home keeps its level until the last frame', () => {
         view.finalize();
     });
 });
+
+describe('choropleth over the caller\u2019s own geography', () => {
+    // Clockwise, as d3's spherical geometry reads an outer ring: wound the other way, a ring is the
+    // whole globe but itself. (The US blocks above go through an identity projection, which is planar.)
+    const block = (id: string, [west, south, east, north]: number[]) => ({
+        ...feature(0, [[west, south], [west, north], [east, north], [east, south], [west, south]]), id,
+    });
+    const PROVINCE = block('province:61', [100, 30, 120, 40]);
+    const COUNTIES = [block('county:6101', [102, 32, 110, 38]), block('county:6102', [110, 32, 118, 38])];
+    const LAND = [block('land', [95, 25, 125, 45])];
+    const CHANGE = [
+        { Key: 'province:61', Place: 'Shaanxi', Change: 0.056 },
+        { Key: 'county:6101', Place: 'County A', Change: -0.2 },
+        { Key: 'county:6102', Place: 'County B', Change: 0.3 },
+    ];
+    const custom = (chartProperties: Record<string, unknown>): any => assembleVegaLite({
+        data: { values: CHANGE },
+        semantic_types: { Key: 'Category', Place: 'Category', Change: 'PercentageChange' },
+        chart_spec: { chartType: 'Choropleth', encodings: { id: 'Key', color: 'Change', detail: 'Place' }, chartProperties },
+    } as any);
+    const LEVELS = [
+        { value: 'province', url: 'map.topojson', feature: 'provinces' },
+        { value: 'county', url: 'map.topojson', feature: 'counties', enter: 12, exit: 15 },
+    ];
+
+    it('draws a gated layer per level over the land without data, joined on the feature id as given', () => {
+        const spec = custom({ levels: LEVELS, baseMapUrl: 'land.geojson' });
+        expect(spec.projection.type).toBe('mercator');
+        expect(spec.layer).toHaveLength(3);
+        expect(spec.layer[0].data.url).toBe('land.geojson');
+        expect(spec.layer[0].encoding.color).toEqual({ value: expect.any(String) });
+        expect(spec.layer[1].data).toEqual({ url: 'map.topojson', format: { type: 'topojson', feature: 'provinces' } });
+        expect(spec.layer[2].transform[0].filter).toContain('"county"');
+        const lookup = spec.layer[2].transform.find((t: any) => t.lookup);
+        expect(lookup.lookup).toBe('id');
+        expect(spec.datasets[JOIN].map((row: any) => row.__geo_id)).toEqual(['province:61', 'county:6101', 'county:6102']);
+        expect(spec._interactionSemantics.geoLevels.levels.map((level: any) => level.name)).toEqual(['province', 'county']);
+    });
+
+    it('joins on a feature property when told, and draws one level as a plain choropleth', () => {
+        const spec = custom({ levels: [{ value: 'only', url: 'regions.geojson' }], featureKey: 'properties.code' });
+        expect(spec.layer).toHaveLength(1);
+        expect(spec.layer[0].transform.find((t: any) => t.lookup).lookup).toBe('properties.code');
+        expect(spec.layer[0].data.format).toEqual({ type: 'json', property: 'features' });
+        expect(spec.params).toBeUndefined();
+    });
+
+    it('flips to counties with the zoom and keeps naming the province under the centre', async () => {
+        const spec = custom({ levels: LEVELS, baseMapUrl: 'land.geojson' });
+        spec.layer[0].data = { values: LAND };
+        spec.layer[1].data = { values: [PROVINCE] };
+        spec.layer[2].data = { values: COUNTIES };
+        const plan = addVegaLiteInteractions(spec, [navigate()])!;
+        const compiled = compile(spec).spec as any;
+        const axes = injectVegaGeoNavigationSignals(compiled, plan.navigationChannels);
+        injectVegaGeoLevelFit(compiled, plan.geoLevels!);
+        const view = new View(parse(compiled), { renderer: 'none' });
+        await view.runAsync();
+        const controller = createVegaGeoNavigationController(view, axes, plan.geoLevels);
+        expect(shapeCounts(view)).toEqual([1, 1, 0]);
+        expect(controller.focus!()).toMatchObject({ Key: 'province:61', Place: 'Shaanxi', Change: 0.056 });
+        expect(controller.apply({ op: 'set-viewport', axes: 'xy', value: { x: [104, 114], y: [33, 37] } })).toBe(true);
+        await view.runAsync();
+        expect(view.signal(GEO_LEVEL_SIGNAL)).toBe('county');
+        expect(shapeCounts(view)).toEqual([1, 0, 2]);
+        expect(controller.focus!()).toMatchObject({ Key: 'province:61' });
+        view.finalize();
+    });
+});

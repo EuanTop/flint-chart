@@ -5,21 +5,15 @@ import { SiteNavBar, MicrosoftDisclosures } from '../components/SiteShell';
 import { LocaleLink } from '../i18n/LocaleLink';
 import { GITHUB_REPO, siteTheme } from '../shared/theme';
 import chartPreview from '../assets/mcp-chart-preview.svg';
+import { McpExperience } from './McpExperience';
 
 const HOSTED_MCP_URL = 'https://flint.data-formulator.ai/mcp';
 
-const SURFACE_ITEMS = [
-  { tagKey: 'toolPreferred', name: 'create_chart_view', descKey: 'create_chart_view', highlight: true },
-  { tagKey: 'tool', name: 'render_chart', descKey: 'render_chart' },
-  { tagKey: 'tool', name: 'compile_chart', descKey: 'compile_chart' },
-  { tagKey: 'tool', name: 'validate_chart', descKey: 'validate_chart' },
-  { tagKey: 'tool', name: 'list_chart_types', descKey: 'list_chart_types' },
-  { tagKey: 'tool', name: 'list_themes', descKey: 'list_themes' },
-  { tagKey: 'resource', name: 'flint://agent-skill', descKey: 'agentSkill' },
-  { tagKey: 'resource', name: 'flint://theme-skill', descKey: 'themeSkill' },
-  { tagKey: 'resource', name: 'flint://chart-types', descKey: 'chartTypes' },
-  { tagKey: 'prompt', name: 'author_flint_chart', descKey: 'authorPrompt' },
-  { tagKey: 'prompt', name: 'author_flint_theme', descKey: 'themeAuthorPrompt' },
+const SURFACE_GROUPS = [
+  { key: 'chart', tools: ['create_chart', 'show'] },
+  { key: 'board', tools: ['create_board', 'add_chart', 'update_chart', 'remove_chart', 'update_board'] },
+  { key: 'static', tools: ['render_chart', 'compile_chart', 'validate_chart'] },
+  { key: 'skills', tools: ['list_chart_types', 'list_interaction_presets', 'list_themes', 'get_flint_skill'] },
 ] as const;
 
 /** Dedicated page for the Flint MCP server, matching the landing page canvas. */
@@ -63,24 +57,8 @@ export function McpServer() {
             .
           </p>
 
-          <div className="mcp-setup-grid" style={setupGridStyle}>
-            <div style={setupOptionStyle}>
-              <div className="mcp-setup-option-header" style={setupOptionHeaderStyle}>
-                <strong style={setupOptionTitleStyle}>{t('mcp.localSetupTitle')}</strong>
-                <span className="mcp-setup-option-desc" style={setupOptionDescStyle}>
-                  <span aria-hidden="true" style={recommendedStarStyle}>★</span>{' '}
-                  {t('mcp.localSetupBody')}
-                </span>
-              </div>
-              <CodeBlock copyable>{setupPrompt}</CodeBlock>
-            </div>
-            <div style={setupOptionStyle}>
-              <div className="mcp-setup-option-header" style={setupOptionHeaderStyle}>
-                <strong style={setupOptionTitleStyle}>{t('mcp.remoteSetupTitle')}</strong>
-                <span className="mcp-setup-option-desc" style={setupOptionDescStyle}>{t('mcp.remoteSetupBody')}</span>
-              </div>
-              <CodeBlock copyable>{remoteSetupPrompt}</CodeBlock>
-            </div>
+          <div className="mcp-setup-grid">
+            <CodeBlock copyable>{setupPrompt}</CodeBlock>
           </div>
 
           <p style={skillNoteStyle}>
@@ -112,27 +90,12 @@ export function McpServer() {
 
         {/* ---- Article body ----------------------------------------- */}
         <article style={articleStyle}>
-          {/* ---- The experience --------------------------------------- */}
           <Prose>
             <h2 style={firstH2Style}>{t('mcp.experience')}</h2>
             <p style={pStyle}>{t('mcp.experienceBody')}</p>
           </Prose>
 
-          <ChatMockup />
-
-          <Prose>
-            <ol style={stepListStyle}>
-              <li style={stepItemStyle}>
-                <strong>{t('mcp.step1Title')}</strong> {t('mcp.step1Body')}
-              </li>
-              <li style={stepItemStyle}>
-                <strong>{t('mcp.step2Title')}</strong> {t('mcp.step2Body')}
-              </li>
-              <li style={stepItemStyle}>
-                <strong>{t('mcp.step3Title')}</strong> {t('mcp.step3Body')}
-              </li>
-            </ol>
-          </Prose>
+          <McpExperience />
 
           {/* ---- What it provides ------------------------------------- */}
           <Prose>
@@ -141,13 +104,12 @@ export function McpServer() {
           </Prose>
 
           <div style={cardGridStyle}>
-            {SURFACE_ITEMS.map((item) => (
+            {SURFACE_GROUPS.map((group) => (
               <SurfaceCard
-                key={item.name}
-                tag={t(`mcp.tags.${item.tagKey}`)}
-                name={item.name}
-                desc={t(`mcp.tools.${item.descKey}`)}
-                highlight={'highlight' in item ? item.highlight : undefined}
+                key={group.key}
+                title={t(`mcp.groups.${group.key}.title`)}
+                desc={t(`mcp.groups.${group.key}.body`)}
+                tools={group.tools}
               />
             ))}
           </div>
@@ -234,7 +196,7 @@ export function ChatMockup() {
 
             <div style={toolPillStyle}>
               <span style={toolDotStyle} /> called{' '}
-              <code style={toolPillCodeStyle}>create_chart_view</code>
+              <code style={toolPillCodeStyle}>show</code>
             </div>
 
             {/* embedded MCP App card */}
@@ -309,13 +271,17 @@ function Prose({ children }: { children: ReactNode }) {
   return <div style={proseStyle}>{children}</div>;
 }
 
-function SurfaceCard(props: { tag: string; name: string; desc: string; highlight?: boolean }) {
-  const { tag, name, desc, highlight } = props;
+function SurfaceCard(props: { title: string; desc: string; tools: readonly string[] }) {
+  const { title, desc, tools } = props;
   return (
-    <div style={{ ...cardStyle, ...(highlight ? cardHighlightStyle : null) }}>
-      <div style={{ ...cardTagStyle, ...(highlight ? cardTagHighlightStyle : null) }}>{tag}</div>
-      <code style={cardNameStyle}>{name}</code>
+    <div style={cardStyle}>
+      <strong style={cardTitleStyle}>{title}</strong>
       <p style={cardDescStyle}>{desc}</p>
+      <div style={cardToolsStyle}>
+        {tools.map((tool) => (
+          <code key={tool} style={cardToolStyle}>{tool}</code>
+        ))}
+      </div>
     </div>
   );
 }
@@ -342,17 +308,13 @@ function CodeBlock({ children, copyable = false }: { children: string; copyable?
   );
 }
 
-const setupPrompt = `Help me set up Flint as an MCP server!
+const setupPrompt = `Help me set up Flint as an MCP server named "flint"!
 
-1. Add a stdio MCP server named "flint" to my client config that runs:
-     npx -y flint-chart-mcp
-2. Verify the setup by asking the server to list the available Flint chart types.`;
-
-const remoteSetupPrompt = `Help me connect to the hosted Flint MCP server!
-
-1. Add a remote HTTP MCP server named "flint" with this URL:
-  ${HOSTED_MCP_URL}
-2. Verify the connection by asking the server to list the available Flint chart types.`;
+1. Add it to my client config, using whichever option my client supports:
+   - a local (stdio) server: npx -y flint-chart-mcp
+   - the hosted server over HTTP: ${HOSTED_MCP_URL}
+2. Verify the setup by listing the available Flint chart types.
+3. Show me a fun first chart: how many moons each planet has, in a Flint theme you like.`;
 
 const clientConfig = `{
   "mcpServers": {
@@ -380,52 +342,26 @@ const PAPER = '#ffffff';
 const HAIRLINE = 'rgba(0, 0, 0, 0.10)';
 const GRID_LINE = 'rgba(0, 0, 0, 0.02)';
 
-const setupGridStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'minmax(0, 1fr)',
-  gap: 22,
-};
 
-const setupOptionStyle: CSSProperties = {
-  minWidth: 0,
-};
 
-const setupOptionHeaderStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'baseline',
-  justifyContent: 'space-between',
-  gap: 12,
-  marginBottom: 8,
-};
 
-const setupOptionTitleStyle: CSSProperties = {
-  color: siteTheme.text,
-  fontSize: 14,
-  fontWeight: 650,
-};
 
-const setupOptionDescStyle: CSSProperties = {
-  color: siteTheme.textMuted,
-  fontSize: 12,
-  textAlign: 'right',
-};
 
-const recommendedStarStyle: CSSProperties = {
-  color: '#b26a00',
-  fontSize: 10,
-};
 const READING_WIDTH = 880;
 
 const interactiveStyles = `
-  @media (max-width: 520px) {
-    .mcp-setup-option-header {
-      flex-direction: column;
-      align-items: flex-start !important;
-      gap: 2px !important;
-    }
+  /* The copy button floats over the block's top-right corner, beside the short first line. */
+  .mcp-setup-grid pre {
+    padding: 14px 14px 12px !important;
+    font-size: 12px !important;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
 
-    .mcp-setup-option-desc {
-      text-align: left !important;
+  @media (max-width: 520px) {
+    /* Too narrow for the button beside the first line: it keeps a row of its own. */
+    .mcp-setup-grid pre {
+      padding-top: 42px !important;
     }
   }
 `;
@@ -549,20 +485,6 @@ const captionStyle: CSSProperties = {
   lineHeight: 1.6,
   color: siteTheme.textMuted,
   margin: '14px 0 0',
-};
-
-const stepListStyle: CSSProperties = {
-  margin: '32px 0 0',
-  padding: '0 0 0 22px',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 16,
-};
-
-const stepItemStyle: CSSProperties = {
-  fontSize: 16,
-  lineHeight: 1.65,
-  color: siteTheme.text,
 };
 
 const codeInlineStyle: CSSProperties = {
@@ -889,7 +811,7 @@ const copyBtnStyle: CSSProperties = {
 
 const cardGridStyle: CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
   gap: 12,
   margin: '20px 0 0',
 };
@@ -904,28 +826,27 @@ const cardStyle: CSSProperties = {
   gap: 6,
 };
 
-const cardHighlightStyle: CSSProperties = {
-  borderColor: 'rgba(0, 120, 212, 0.40)',
-  background: 'rgba(0, 120, 212, 0.04)',
-};
-
-const cardTagStyle: CSSProperties = {
-  fontSize: 10,
-  fontWeight: 600,
-  letterSpacing: '0.06em',
-  textTransform: 'uppercase',
-  color: siteTheme.textMuted,
-};
-
-const cardTagHighlightStyle: CSSProperties = {
-  color: siteTheme.accent,
-};
-
-const cardNameStyle: CSSProperties = {
-  fontFamily: siteTheme.fontMono,
-  fontSize: 13.5,
-  fontWeight: 600,
+const cardTitleStyle: CSSProperties = {
+  fontSize: 15,
+  fontWeight: 700,
   color: siteTheme.text,
+};
+
+const cardToolsStyle: CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 4,
+  marginTop: 'auto',
+  paddingTop: 4,
+};
+
+const cardToolStyle: CSSProperties = {
+  fontFamily: siteTheme.fontMono,
+  fontSize: 11,
+  padding: '1px 5px',
+  borderRadius: 4,
+  background: 'rgba(0, 0, 0, 0.04)',
+  color: siteTheme.textMuted,
 };
 
 const cardDescStyle: CSSProperties = {

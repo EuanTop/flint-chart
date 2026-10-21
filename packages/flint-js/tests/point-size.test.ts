@@ -40,8 +40,11 @@ const drawnSize = (spec: { mark?: unknown; config?: Record<string, { size?: numb
     return mark.size ?? (mark.type ? spec.config?.[mark.type]?.size : undefined);
 };
 
-const declaredSize = (house: string) =>
-    (THEME_PRESETS[house].spec as { marks?: { point?: { size?: number } } }).marks?.point?.size;
+// `marks.point` and `geometry.point` both state it; a house writes one or the other.
+const declaredSize = (house: string) => {
+    const spec = THEME_PRESETS[house].spec as { marks?: { point?: { size?: number } }; geometry?: { point?: { size?: number } } };
+    return spec.geometry?.point?.size ?? spec.marks?.point?.size;
+};
 
 const radarInput = (house: string) => ({
     data: {

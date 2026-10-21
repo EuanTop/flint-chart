@@ -1,7 +1,10 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-import { ChartTemplateDef, ChartPropertyDef, EncodingActionDef } from '../../core/types';
+import { schemeName as namedScheme } from '../../core/color-controls';
+import { ChartTemplateDef, ChartPropertyDef, EncodingActionDef, type ViewPlanContext } from '../../core/types';
+import type { ViewNode } from '../../core/views';
+import { skeletonStructure, statedStacking } from '../../core/structure';
 import { makeSortAction } from '../../core/encoding-actions';
 import { makeCartesianPivot } from '../../core/pivot';
 import { planBandDodge, resolveDodge } from '../../core/band-dodge';
@@ -238,8 +241,38 @@ export const barChartDef: ChartTemplateDef = {
 
 // ─── Pyramid Chart ──────────────────────────────────────────────────────────
 
+/**
+ * A pyramid's two halves, side by side with no gap: each half takes the base width stretched as
+ * two facet columns would, and the base height, stretched up to twice where the categories need
+ * more than a 20 px step (scaled with the base size) each.
+ */
+function pyramidViews(ctx: ViewPlanContext): ViewNode | undefined {
+    const { table, channelSemantics } = ctx;
+    if (!table) return undefined;
+    const discrete = (channel: 'x' | 'y') => channelSemantics[channel]?.type === 'nominal' || channelSemantics[channel]?.type === 'ordinal';
+    const quantitative = (channel: 'x' | 'y') => channelSemantics[channel]?.type === 'quantitative' || channelSemantics[channel]?.type === 'temporal';
+    const yField = discrete('x') && quantitative('y') ? channelSemantics.x?.field : channelSemantics.y?.field;
+    const baseWidth = ctx.canvasSize?.width ?? 400;
+    const baseHeight = ctx.canvasSize?.height ?? 320;
+    const facetCols = 2;
+    const facetStretch = Math.min(1.5, Math.pow(facetCols, 0.3));
+    const width = Math.round(Math.max(40, baseWidth * facetStretch / facetCols));
+    let height = baseHeight;
+    if (yField) {
+        const yCardinality = new Set(table.map((row: any) => row[yField])).size;
+        const sizeRatio = Math.max(baseWidth, baseHeight) / 300;
+        const defaultStep = Math.round(20 * Math.max(1, sizeRatio));
+        const pressure = (yCardinality * defaultStep) / baseHeight;
+        if (yCardinality > 0 && pressure > 1) height = Math.round(baseHeight * Math.min(2, Math.pow(pressure, 0.5)));
+    }
+    const half: ViewNode = { kind: 'view', role: 'plot', width, height };
+    return { kind: 'concat', direction: 'row', gap: 0, children: [half, half] };
+}
+
 export const pyramidChartDef: ChartTemplateDef = {
     chart: "Pyramid Chart",
+    composite: true,
+    planViews: pyramidViews,
     template: {
         spacing: 0,
         resolve: { scale: { y: "shared" } },
@@ -299,6 +332,16 @@ export const pyramidChartDef: ChartTemplateDef = {
     declareLayoutMode: () => ({
         axisFlags: { y: { banded: true } },
     }),
+    structure: (ctx) => {
+        // The colour field splits the two panels; neither panel encodes it.
+        // Both panels share one domain from zero to the largest value, so the two halves compare.
+        const { series: _series, ...structure } = skeletonStructure(pyramidChartDef.template, ctx);
+        const xField = ctx.channelSemantics.x?.field;
+        const shared = Boolean(ctx.channelSemantics.color?.field && xField && ctx.table?.some((row: any) => typeof row?.[xField] === 'number'));
+        // The left panel mirrors the right, so its measure runs backwards.
+        const x = structure.x ? { ...structure.x, reversed: true, ...(shared ? { ownScale: true } : {}) } : undefined;
+        return { ...structure, ...(x ? { x } : {}), stacking: 'none' };
+    },
     instantiate: (spec, ctx) => {
         let { y, x } = ctx.resolvedEncodings;
         const { color } = ctx.resolvedEncodings;
@@ -326,7 +369,6 @@ export const pyramidChartDef: ChartTemplateDef = {
         // --- Pyramid-specific configuration ---
         const colorField = color?.field;
         const table = ctx.table;
-        const canvasSize = ctx.canvasSize;
 
         try {
             if (table && colorField) {
@@ -372,33 +414,14 @@ export const pyramidChartDef: ChartTemplateDef = {
                     }
                 }
 
-                const baseWidth = canvasSize?.width ?? 400;
-                const baseHeight = canvasSize?.height ?? 320;
-
-                const facetCols = 2;
-                const facetStretch = Math.min(1.5, Math.pow(facetCols, 0.3));
-                const panelWidth = Math.round(Math.max(40, baseWidth * facetStretch / facetCols));
-
-                const yField = spec.hconcat[0].encoding.y?.field;
-                let panelHeight = baseHeight;
-                if (yField) {
-                    const yCardinality = new Set(table.map(r => r[yField])).size;
-                    const baseRefSize = 300;
-                    const sizeRatio = Math.max(baseWidth, baseHeight) / baseRefSize;
-                    const defaultStep = Math.round(20 * Math.max(1, sizeRatio));
-                    if (yCardinality > 0) {
-                        const pressure = (yCardinality * defaultStep) / baseHeight;
-                        if (pressure > 1) {
-                            const stretch = Math.min(2, Math.pow(pressure, 0.5));
-                            panelHeight = Math.round(baseHeight * stretch);
-                        }
-                    }
-                }
-
-                for (const panel of spec.hconcat) {
-                    panel.width = panelWidth;
-                    panel.height = panelHeight;
-                }
+                const planned = ctx.views?.kind === 'concat' ? ctx.views.children : [];
+                if (ctx.views?.kind === 'concat') spec.spacing = ctx.views.gap;
+                spec.hconcat.forEach((panel: any, index: number) => {
+                    const view = planned[index];
+                    if (view?.kind !== 'view') return;
+                    panel.width = view.width;
+                    panel.height = view.height;
+                });
             }
         } catch {
             // ignore errors
@@ -472,8 +495,9 @@ export const groupedBarChartDef: ChartTemplateDef = {
         // rather than the full global grid. Native x labels stay centered.
         const offsetCh = spec.encoding?.xOffset ? 'xOffset' : spec.encoding?.yOffset ? 'yOffset' : undefined;
         const groupField = ctx.channelSemantics?.group?.field;
-        const xDisc = ctx.channelSemantics?.x?.type === 'nominal' || ctx.channelSemantics?.x?.type === 'ordinal';
-        const axisField = xDisc ? ctx.channelSemantics?.x?.field : ctx.channelSemantics?.y?.field;
+        // The offset sits on the banded axis, which may be a temporal axis the
+        // layout forced discrete, so its semantic type can't pick the axis.
+        const axisField = offsetCh === 'xOffset' ? ctx.channelSemantics?.x?.field : ctx.channelSemantics?.y?.field;
         if (offsetCh && groupField && axisField) {
             const plan = planBandDodge(ctx.fullTable ?? ctx.table, axisField, groupField);
             const { mode } = resolveDodge(plan, ctx.chartProperties?.dodge);
@@ -515,13 +539,14 @@ export const groupedBarChartDef: ChartTemplateDef = {
             defaultValue: 'auto',
             // The `group` field is what subdivides each category band.
             check: (ctx) => {
-                const isDisc = (t: string | undefined) => t === 'nominal' || t === 'ordinal';
-                const groupField = ctx.channelSemantics?.group?.field ?? ctx.encodings?.group?.field;
-                const axisField = isDisc(ctx.channelSemantics?.x?.type)
-                    ? ctx.channelSemantics?.x?.field
-                    : ctx.channelSemantics?.y?.field;
+                const cs = ctx.channelSemantics;
+                const groupField = cs?.group?.field ?? ctx.encodings?.group?.field;
                 const rows = ctx.data;
-                if (!groupField || !axisField || !rows) return { applicable: false };
+                if (!cs || !rows) return { applicable: false };
+                // The same band axis `declareLayoutMode` picks.
+                const axis = detectBandedAxisForceDiscrete(cs, rows, { preferAxis: 'x' })?.axis || 'x';
+                const axisField = cs[axis]?.field;
+                if (!groupField || !axisField) return { applicable: false };
                 const plan = planBandDodge(rows, axisField, groupField);
                 return { applicable: plan.ambiguous, recommendedValue: plan.mode === 'none' ? 'auto' : plan.mode };
             },
@@ -544,6 +569,13 @@ export const stackedBarChartDef: ChartTemplateDef = {
     chart: "Stacked Bar Chart",
     template: { mark: "bar", encoding: {} },
     channels: ["x", "y", "color", "column", "row"],
+    structure: (ctx) => {
+        // The stack mode the author picks stacks the series, side by side when layered.
+        const structure = skeletonStructure(stackedBarChartDef.template, ctx);
+        const mode = ctx.chartProperties?.stackMode;
+        const stated = mode && ctx.channelSemantics.color?.field ? statedStacking(mode === 'layered' ? null : mode) : undefined;
+        return stated ? { ...structure, stacking: stated } : structure;
+    },
     interactionSupport: {
         elements: true,
         region: ['cartesian'],
@@ -627,6 +659,13 @@ export const stackedBarChartDef: ChartTemplateDef = {
 
 // ─── Histogram ──────────────────────────────────────────────────────────────
 
+/** The field a histogram's bars start at, computed by its bin transform. */
+const BIN_START = '__bin_start';
+/** The rows in each bin, computed by its aggregate. */
+const HISTOGRAM_COUNT = '__count';
+/** The count's axis title, as Vega-Lite names a count of rows. */
+const HISTOGRAM_COUNT_TITLE = 'Count of Records';
+
 export const histogramDef: ChartTemplateDef = {
     chart: "Histogram",
     template: {
@@ -637,6 +676,8 @@ export const histogramDef: ChartTemplateDef = {
         },
     },
     channels: ["x", "color", "column", "row"],
+    // The count has no source field to take its title from; it is named as the bars draw it.
+    structure: (ctx) => ({ ...skeletonStructure(histogramDef.template, ctx), axisTitles: { y: HISTOGRAM_COUNT_TITLE } }),
     interactionSupport: {
         elements: true,
         region: ['cartesian'],
@@ -687,15 +728,28 @@ export const histogramDef: ChartTemplateDef = {
             const sourceField = x.field;
             spec.transform = [
                 ...(spec.transform ?? []),
-                { bin: x.bin ?? true, field: sourceField, as: ['__bin_start', '__bin_end'] },
+                { bin: x.bin ?? true, field: sourceField, as: [BIN_START, '__bin_end'] },
             ];
             spec.encoding.x = {
                 ...x,
-                field: '__bin_start',
+                field: BIN_START,
                 bin: 'binned',
                 title: x.title ?? sourceField,
             };
             spec.encoding.x2 = { field: '__bin_end' };
+            // The count is stated as a field, as every other bar's measure is: an encoding that
+            // only aggregates names no field, and the passes that read a chart's measure off its
+            // field — the theme's baseline and grid, value labels, tick rounding — would pass
+            // the histogram by. `__count` is the name Vega-Lite gives the count itself.
+            const groups = ['color', 'column', 'row']
+                .map((channel) => spec.encoding?.[channel]?.field)
+                .filter((field): field is string => typeof field === 'string');
+            spec.transform.push({
+                aggregate: [{ op: 'count', as: HISTOGRAM_COUNT }],
+                groupby: [...new Set([BIN_START, '__bin_end', ...groups])],
+            });
+            const { aggregate: _aggregate, ...y } = spec.encoding.y ?? {};
+            spec.encoding.y = { ...y, field: HISTOGRAM_COUNT, type: 'quantitative', title: y.title ?? HISTOGRAM_COUNT_TITLE };
         }
         adjustBarMarks(spec, ctx);
     },
@@ -719,6 +773,12 @@ export const heatmapDef: ChartTemplateDef = {
     chart: "Heatmap",
     template: { mark: "rect", encoding: {} },
     channels: ["x", "y", "color", "column", "row"],
+    structure: (ctx) => {
+        // Cells print their own values when asked.
+        const structure = skeletonStructure(heatmapDef.template, ctx);
+        return ctx.chartProperties?.showTextLabels && ctx.channelSemantics.color?.field
+            ? { ...structure, marks: [...structure.marks, 'text'] } : structure;
+    },
     interactionSupport: {
         elements: true,
         region: ['cartesian'],
@@ -778,6 +838,14 @@ export const heatmapDef: ChartTemplateDef = {
     },
     instantiate: (spec, ctx) => {
         defaultBuildEncodings(spec, ctx.resolvedEncodings);
+        // Cells tile the plot, so a continuous axis's grid would run through the middle
+        // of each banded cell; discrete axes draw no grid already.
+        for (const channel of ['x', 'y'] as const) {
+            const encoding = spec.encoding?.[channel];
+            if (encoding && encoding.axis !== null && (encoding.type === 'temporal' || encoding.type === 'quantitative')) {
+                encoding.axis = { ...encoding.axis, grid: false };
+            }
+        }
         // Apply color scheme from chart properties
         const config = ctx.chartProperties;
         const showTextLabels = !!config?.showTextLabels;
@@ -803,7 +871,7 @@ export const heatmapDef: ChartTemplateDef = {
         // assembly (see applyEncodingOverrides), so we just read it here. This
         // also transparently covers charts saved before the migration, whose
         // value lived in chartProperties.colorScheme.
-        const encScheme = ctx.encodings?.color?.scheme;
+        const encScheme = namedScheme(ctx.encodings?.color?.scheme);
         const userScheme = (encScheme && encScheme !== 'default') ? encScheme : undefined;
         const semanticScheme = ctx.channelSemantics?.color?.colorScheme;
         const semanticIsDiverging = semanticScheme?.type === 'diverging';
@@ -1002,7 +1070,7 @@ export const heatmapDef: ChartTemplateDef = {
                     { value: "redblue", label: "Red-Blue (diverging)" },
                 ],
             },
-            get: (encodings) => encodings.color?.scheme,
+            get: (encodings) => namedScheme(encodings.color?.scheme),
             set: (encodings, value) => ({ ...encodings, color: { ...encodings.color, scheme: value } }),
         },
     ] as EncodingActionDef[],

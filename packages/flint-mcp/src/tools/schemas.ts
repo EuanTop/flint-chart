@@ -2,7 +2,12 @@
 // Licensed under the MIT License.
 
 import { z } from 'zod';
-import { INTERACTION_PRESET_TYPES, type ChartAssemblyInput, type InteractionPresetType } from 'flint-chart';
+import {
+  CHART_UPDATE_OPS,
+  INTERACTION_PRESET_TYPES,
+  type ChartAssemblyInput,
+  type InteractionPresetType,
+} from 'flint-chart';
 
 /** The three backends this server can compile, validate, and render. */
 export const SUPPORTED_BACKENDS = ['vegalite', 'echarts', 'chartjs'] as const;
@@ -64,6 +69,22 @@ export const chartSpecSchema = z
       .string()
       .optional()
       .describe('Deck: what is measured, of whom, when, and in what units. E.g. "US population by age and sex, 2020, millions".'),
+    label: z
+      .string()
+      .optional()
+      .describe('A short line above the headline: a figure label ("Figure 2") or a kicker. Only when the chart sits in a numbered sequence or under a section name.'),
+    source: z
+      .union([z.string(), z.object({ text: z.string(), href: z.string().optional() })])
+      .optional()
+      .describe(
+        'Optional. Where the data comes from, drawn as the chart\'s source line in the theme\'s style ("Source: …"). Give it only when the user names the source or asks for one, or the data states it; never invent one. A string, or { text, href } to link it.',
+      ),
+    chrome: z
+      .union([z.literal(false), z.object({ header: z.boolean().optional(), footer: z.boolean().optional(), logos: z.boolean().optional() })])
+      .optional()
+      .describe(
+        'Optional. Chrome is the house decoration the theme draws around the chart (header rules, tabs, wordmarks, logos, the footer rule and house credit), not the data or the chart\'s own title, label and source. Omit to follow the theme. false drops it all; or turn off parts: { logos: false } (every house logo), { header: false } (rules, tabs, wordmarks and logos above or beside the title), { footer: false } (the closing rule and the house credit; a given source still prints). Use only when the user asks to remove them.',
+      ),
     encodings: z
       .record(z.string(), z.any())
       .describe(
@@ -99,7 +120,7 @@ export function buildAssemblyInputShape(disableFileReference = false) {
       .record(z.string(), z.any())
       .optional()
       .describe(
-        'Field name → semantic type, e.g. { revenue: "Quantity", country: "Country" }. A value may instead be an annotation object when the type alone understates what you know, e.g. { rating: { semanticType: "Score", intrinsicDomain: [1, 5] } } — see the flint://agent-skill resource.',
+        'Field name → semantic type, e.g. { revenue: "Quantity", country: "Country" }. A value may instead be an annotation object when the type alone understates what you know, e.g. { rating: { semanticType: "Score", intrinsicDomain: [1, 5] } } — see get_flint_skill with skill "chart", section "Step 3 — annotate with semantic types".',
       ),
     chart_spec: chartSpecSchema,
     theme_spec: z
@@ -123,13 +144,13 @@ export function buildAssemblyInputShape(disableFileReference = false) {
                 .describe('The preset\'s own options, including its `reset` gesture list ("click-none", "double-click", "escape").'),
             }),
           )
-          .describe('One entry per interaction. Take the preset names from list_chart_types → chartTypes[].interactions for the chosen chart type.'),
+          .describe('One entry per behaviour: a gesture the user named, or a question their goal asks of the chart. Take the presets and their options from list_interaction_presets with the chosen chartType.'),
         assistedTargeting: z.union([z.boolean(), z.record(z.string(), z.any())]).optional(),
         keyboardTargeting: z.boolean().optional(),
       })
       .optional()
       .describe(
-        'How the chart behaves, for create_chart_view (Vega-Lite only). Lists interaction presets by type with their options nested under `options`. An entry the chart type cannot honour is dropped with a warning and the chart still renders; validate_chart reports the same warnings. Guide: https://microsoft.github.io/flint-chart/#/documentation/interaction-spec',
+        'How the chart behaves on screen (Vega-Lite only). Lists interaction presets by type with their options nested under `options`. An entry the chart type cannot honour is dropped with a warning and the chart still renders; validate_chart reports the same warnings. Call get_flint_skill with skill "interaction", section "Add interactions to the chart", before you write one.',
       ),
     options: z
       .record(z.string(), z.any())
@@ -145,6 +166,49 @@ export function buildAssemblyInputShape(disableFileReference = false) {
 /** Default flat tool parameter shape (local file references allowed). */
 export const assemblyInputShape = buildAssemblyInputShape(false);
 
+/** The `updates` argument: ChartUpdate layers the view applies at open, beside the chart input. */
+/** The view a chart opens in: the chart, or the table of what it draws. */
+export type ChartView = 'chart' | 'table';
+
+/** The view a chart opens in: the chart, or the table of what it draws. A table chart type is a table either way. */
+export const viewShape = {
+  view: z
+    .enum(['chart', 'table'])
+    .optional()
+    .describe('Open the chart as its table of the rows it draws ("table"), or as the chart ("chart", the default). The reader can switch between the two; to draw a table without a chart, use chartType "Table" instead.'),
+};
+
+export const updatesShape = {
+  updates: z
+    .array(
+      z.object({
+        id: z.string().describe('The layer this update holds. A later call with the same id replaces it.'),
+        ops: z
+          .array(
+            z
+              .object({ op: z.enum(CHART_UPDATE_OPS) })
+              .passthrough()
+              .describe(
+                'One ChartUpdate op, by op: ' +
+                  'set-style { targets: UpdateTarget[], value: { state?, opacity?, visible?, fill?, stroke? } }; ' +
+                  "set-annotation { target: UpdateTarget, value: { text, anchor?: 'segment' | 'point' } | null }; " +
+                  "set-viewport { axes: 'x' | 'y' | 'xy', value: { x?: [lo, hi], y?: [lo, hi] } }; " +
+                  "set-order { scope: 'category', field, values }; " +
+                  'set-overlay { name, value: { mark, data: { values }, encodings: { x?, y?, x2?, y2? }, role, style? } | null }; ' +
+                  "set-freeform-overlay { name, value: { coordinateSpace: 'plot' | 'renderer', body } | null }; " +
+                  "set-data { source: 'main', value: { rows } }. " +
+                  'UpdateTarget is { select: { key: { field: value } } } for marks with those values, or, in set-style only, { select: { where: { field: { in: [...] } | { range: [low, high] } } } } for a set: a period, a band, several categories.',
+              ),
+          )
+          .describe('The ops of this layer, applied in order.'),
+      }),
+    )
+    .optional()
+    .describe(
+      'ChartUpdate layers the chart shows at open: state, where interaction_spec is behaviour. Call get_flint_skill with skill "interaction", section "Update the chart", before you write one. To change them, call update_chart with new layers, then show.',
+    ),
+};
+
 export type AssemblyInputArgs = {
   data: { values?: unknown[]; url?: string };
   semantic_types?: Record<string, unknown>;
@@ -153,6 +217,9 @@ export type AssemblyInputArgs = {
     encodings: Record<string, unknown>;
     title?: string;
     subtitle?: string;
+    label?: string;
+    source?: string | { text: string; href?: string };
+    chrome?: false | { header?: boolean; footer?: boolean; logos?: boolean };
     baseSize?: { width: number; height: number };
     canvasSize?: { width: number; height: number };
     chartProperties?: Record<string, unknown>;

@@ -3,7 +3,15 @@ import { INTERACTION_PRESET_TYPES, type InteractionSpec } from '../src/core/inte
 import { INTERACTION_PRESETS, listInteractionPresets } from '../src/interactive/spec/registry';
 import type { InteractionPresetSpec } from '../src/interactive/spec/types';
 import { resolveInteractionSpec } from '../src/interactive/spec/resolve';
-import { brushX, navigate } from '../src/interactive/interactions';
+import { brushX, isCanvasInteraction, navigate } from '../src/interactive/interactions';
+import type { CanvasInteractionDef, InteractionDef } from '../src/interactive/interactions';
+import { contextMenu, isContextMenu, menuSelection } from '../src/interactive/context-menu';
+
+/** Narrows a resolved definition to a canvas one; every preset but `filter-controls` makes one. */
+const asCanvas = (definition: InteractionDef): CanvasInteractionDef => {
+    if (!isCanvasInteraction(definition)) throw new Error(`"${definition.id}" is an external interaction`);
+    return definition;
+};
 
 /** The comparable half of a definition: everything but the handler and the origin tag. */
 const dataOnly = (definition: object): Record<string, unknown> => Object.fromEntries(
@@ -14,6 +22,7 @@ const dataOnly = (definition: object): Record<string, unknown> => Object.fromEnt
 const REQUIRED: Partial<Record<string, Record<string, unknown>>> = {
     'hover-group-focus': { groupBy: 'Country' },
     'linked-brush': { groupBy: 'Country' },
+    'context-menu': { items: [{ id: 'chat', label: 'Send to chat' }] },
 };
 
 describe('interaction preset registry', () => {
@@ -35,6 +44,10 @@ describe('interaction preset registry', () => {
             expect(summary).not.toHaveProperty('create');
             expect(summary.label.length).toBeGreaterThan(0);
             expect(summary.description.length).toBeGreaterThan(0);
+            expect(Array.isArray(summary.options)).toBe(true);
+            for (const required of summary.requiredOptions ?? []) {
+                expect(summary.options.find((option) => option.name === required)?.required).toBe(true);
+            }
         }
     });
 });
@@ -51,9 +64,18 @@ describe('resolveInteractionSpec', () => {
             interactions: [{ type: 'brush-x', options: { mode: 'stateful', dimOpacity: 0.3 } }],
         });
         expect(interactions).toHaveLength(1);
-        expect(interactions[0].origin).toBe('spec');
+        expect(asCanvas(interactions[0]).origin).toBe('spec');
         expect(typeof interactions[0].handle).toBe('function');
         expect(dataOnly(interactions[0])).toEqual(dataOnly(brushX({ mode: 'stateful', dimOpacity: 0.3 })));
+    });
+
+    it('keeps a linked brush rectangle on screen when stated stateful, and a lasso never', () => {
+        const source = (options: Record<string, unknown>) =>
+            asCanvas(resolveInteractionSpec({ interactions: [{ type: 'linked-brush', options: { groupBy: 'Country', ...options } }] })
+                .interactions[0]).eventSource;
+        expect(source({})).toMatchObject({ type: 'region', mode: 'ephemeral' });
+        expect(source({ mode: 'stateful' })).toMatchObject({ type: 'region', mode: 'stateful' });
+        expect(source({ mode: 'stateful', brush: 'lasso' })).toMatchObject({ regionGeometry: 'lasso', mode: 'ephemeral' });
     });
 
     it('resolves every preset type with default options and the type as its id', () => {
@@ -64,7 +86,9 @@ describe('resolveInteractionSpec', () => {
             });
             expect(interactions).toHaveLength(1);
             expect(interactions[0].id).toBe(type);
-            expect(interactions[0].eventSource.type).toBeTruthy();
+            const created = interactions[0];
+            if ('external' in created) expect(type).toBe('filter-controls');
+            else expect(created.eventSource.type).toBeTruthy();
         }
     });
 
@@ -74,7 +98,7 @@ describe('resolveInteractionSpec', () => {
             options: { axes: 'x', pan: false, reset: ['click-none'] },
         };
         const { interactions } = resolveInteractionSpec({ interactions: [entry] });
-        expect(interactions[0].eventSource).toMatchObject({
+        expect(asCanvas(interactions[0]).eventSource).toMatchObject({
             type: 'navigation', axes: 'x', pan: false, reset: ['click-none'],
         });
         expect(dataOnly(interactions[0])).toEqual(dataOnly(navigate({ axes: 'x', pan: false, reset: ['click-none'] })));
@@ -154,5 +178,47 @@ describe('resolveInteractionSpec', () => {
     it('has no place for retained state', () => {
         // Updates are a host signal (applyUpdate, setUpdates, dispatch), not behaviour.
         expect('updates' in resolveInteractionSpec({ interactions: [] })).toBe(false);
+    });
+});
+
+describe('context menu', () => {
+    const items = [{ id: 'chat', label: 'Send to chat' }, { id: 'tag', label: 'Tag' }];
+    const detail = (action: string, interactionId: string, extra: Record<string, unknown> = {}) => ({
+        chartId: 'c', interactionId, timestamp: 0,
+        event: { action, phase: 'commit', geometry: {}, target: { visual: { kind: 'mark', role: 'mark' }, elements: [{ value: { A: 1 } }] }, ...extra },
+    }) as never;
+
+    it('resolves from a spec as one preset that brings its own selection gesture', () => {
+        const { interactions: [menu] } = resolveInteractionSpec({ interactions: [{ type: 'context-menu', options: { items } }] });
+        expect(isContextMenu(menu)).toBe(true);
+        expect(menu).toMatchObject({ id: 'context-menu', preset: 'context-menu', eventSource: { type: 'region', mode: 'stateful' } });
+        const gesture = (value: string) => contextMenu({ items, gesture: value as never }).eventSource;
+        expect(gesture('brush-x')).toMatchObject({ type: 'region', axis: 'x', mode: 'stateful' });
+        expect(gesture('lasso')).toMatchObject({ regionGeometry: 'lasso' });
+        expect(gesture('click')).toMatchObject({ type: 'element', gesture: 'click' });
+        expect(gesture('right-click')).toMatchObject({ gesture: 'context' });
+        expect(gesture('long-press')).toMatchObject({ gesture: 'long-press' });
+        // Every mark gesture shows the mark it would act on before the reader commits.
+        for (const value of ['click', 'right-click', 'long-press'] as const) {
+            expect(contextMenu({ items, gesture: value }).affordances.mark?.hover, value).toBeTruthy();
+        }
+    });
+
+    it('refuses a menu without items, an item without a label, and a repeated id', () => {
+        expect(() => contextMenu({ items: [] })).toThrow('items must list at least one');
+        expect(() => contextMenu({ items: [{ id: 'a' } as never] })).toThrow('string id and label');
+        expect(() => contextMenu({ items: [items[0], items[0]] })).toThrow('appears twice');
+    });
+
+    it('opens on its own committed selection, closes when it clears, and ignores the rest', () => {
+        expect(menuSelection(detail('select-region', 'menu'), 'menu')?.elements).toHaveLength(1);
+        expect(menuSelection(detail('brush-x', 'menu'), 'menu')).toBeTruthy();
+        expect(menuSelection(detail('click-element', 'menu'), 'menu')).toBeTruthy();
+        expect(menuSelection(detail('context-element', 'menu'), 'menu')).toBeTruthy();
+        expect(menuSelection(detail('select-region', 'menu', { operation: 'clear' }), 'menu')).toBeNull();
+        expect(menuSelection(detail('select-region', 'menu', { target: { elements: [] } }), 'menu')).toBeNull();
+        expect(menuSelection(detail('select-region', 'menu', { phase: 'preview' }), 'menu')).toBeUndefined();
+        expect(menuSelection(detail('menu-select', 'menu'), 'menu')).toBeUndefined();
+        expect(menuSelection(detail('select-region', 'select'), 'menu')).toBeUndefined();
     });
 });

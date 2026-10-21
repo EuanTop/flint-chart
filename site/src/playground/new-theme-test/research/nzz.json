@@ -1,0 +1,245 @@
+{
+  "id": "nzz",
+  "org": "Neue Zürcher Zeitung (NZZ Visuals) – Storytelling Styleguide",
+  "urls": [
+    "https://nzzdev.github.io/Storytelling-Styleguide/#/",
+    "https://github.com/nzzdev/Storytelling-Styleguide",
+    "https://github.com/nzzdev/Storytelling-Styleguide/blob/master/pages/charts/guidelines.md",
+    "https://github.com/nzzdev/Storytelling-Styleguide/blob/master/pages/charts/basic-charts.md",
+    "https://github.com/nzzdev/Storytelling-Styleguide/blob/master/pages/style/colors.md",
+    "https://github.com/nzzdev/Storytelling-Styleguide/blob/master/pages/style/colors-scales.md",
+    "https://github.com/nzzdev/Storytelling-Styleguide/blob/master/pages/style/typography.md",
+    "https://github.com/nzzdev/Storytelling-Styleguide/blob/master/pages/style/layout.md",
+    "https://github.com/nzzdev/sophie-font",
+    "https://github.com/nzzdev/sophie-font/blob/HEAD/scss/vars.scss",
+    "https://github.com/nzzdev/sophie-font/blob/HEAD/scss/fonts.scss"
+  ],
+  "access": "full",
+  "accessNotes": "The styleguide site is JS-rendered; the markdown sources in nzzdev/Storytelling-Styleguide (master, pushed 2026-04) were read directly (charts/guidelines, charts/basic-charts, style/colors, colors-scales, typography). Font sizes come from the Sophie font module (nzzdev/sophie-font scss/vars.scss). Note: the example PNGs in basic-charts predate the current palette — they use a bright blue/yellow/green scheme rather than the current 'Nacht'-led Q palette.",
+  "summary": "Editorial newsroom guide for charts produced mainly with NZZ's Q toolbox (online) and Illustrator templates (print). The look: card with a bold serif headline that states the finding, a sans subtitle giving measure and unit, a left-aligned legend directly above the plot using circles (areas) or 45° line strokes (lines), horizontal light gridlines with right-aligned y labels, and a 'Quelle: … – Grafik: nzz.' source line bottom-left. Highlighting uses the full colour for the focus data and its predefined light tint for the rest.",
+  "context": "editorial",
+  "colors": {
+    "categorical": [
+      "#374e8e",
+      "#4fbbae",
+      "#df7c18",
+      "#ac004f",
+      "#1b87aa",
+      "#e3b13e",
+      "#ce4631"
+    ],
+    "categoricalNotes": "Q 'Level 3 generic' colours used in fixed order (s-viz-color-one-5 … seven-5), optimised for colour-vision deficiency; followed by 5 warm greys (#4d313c, #8d7a81, #d1ccce, #6d545d, #aea2a6) kept only for backwards compatibility — 'no grey should appear as a category colour in a published Q chart'. Charts with more than 7 categories should be rethought. Light tints (-1) for highlighting context: #a1aecc, #abd1cb, #e5ba9b, #de9dab, #9ec1d0, #e0cba3, #e6aa9e. Level 1 named colours: Nacht #374e8e, Lagune #1b87aa, Aquamarin #4fbbae, Moos #006d64, Pesto #478c5b, Guacamole #93a345, Nachos #e3b13e, Mandarine #df7c18, Sugo #ce4631, Chianti #ac004f, Amethyst #ae49a2, Flieder #a07bde, Himmel #8aabfd, Schokolade #704600, Sand #a08962, Latte Macchiato #d5cdb9, Aubergine #383751, Regen #7e7e8f, Nebel #cdcdd1. Predefined category colours: male #24B39C / female #6C43C0; Covid infections #e66e4a, hospitalisations #24b39c, vaccinations #0ba9d9, fatalities #05032d; energy carriers (coal #383751, oil #704600, gas #D5CDB9, nuclear #DF7C18, solar #E3B13E, wind #4FBBAE, hydro #374E8E). Prefer semantically resonant colours, except for ethnicities.",
+    "sequential": [
+      "#374d8e",
+      "#3f6998",
+      "#5082a1",
+      "#6899ab",
+      "#84b0b6",
+      "#a7c5c3",
+      "#cad8d4"
+    ],
+    "diverging": [
+      "#8e2a1b",
+      "#ce4732",
+      "#cc8e82",
+      "#c7c7c7",
+      "#949eb5",
+      "#6276a6",
+      "#374e8d"
+    ],
+    "highlight": "#374e8e",
+    "context": "#a1aecc",
+    "positive": null,
+    "negative": null,
+    "background": "#ffffff",
+    "text": "#000000",
+    "textSecondary": "#707070",
+    "gridline": null,
+    "axis": "#707070",
+    "notes": "Sequential-one (default, based on 'Nacht') 7 steps listed dark→light; also 2–6-step versions; Sequential-two (green #478c5b→#ded4b8), Sequential-three for negatively connoted data, male/female scales. Max 7 steps sequential, 14 diverging. Diverging-one (default, red Sugo ↔ blue Nacht via grey #c7c7c7) for positively/negatively connoted opposites such as referendum results; Diverging-two avoids connotation. Rule: the higher the absolute value, the darker the colour. Neutral greys for chart furniture (text, axes, labels): --black #000000, --graydark #333333, --graymedium #707070, --grayultralight/--colorbackground #f5f5f5, --white #ffffff. Missing data: light grey area labelled 'n/a'/'keine Daten'. NZZ am Sonntag print uses its own brighter palette (#f40040, #00afca, #ff8c4c, #8f33ff …)."
+  },
+  "typography": {
+    "family": "NZZ Sans (online labels; formerly GT America)",
+    "fallback": "system-ui, -apple-system, BlinkMacSystemFont, \"avenir next\", avenir, \"segoe ui\", \"helvetica neue\", helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif",
+    "title": {
+      "size": 16,
+      "weight": "500 (bold); online example titles set in NZZ Serif",
+      "align": "left",
+      "case": "sentence",
+      "color": "#000000"
+    },
+    "subtitle": {
+      "size": 14,
+      "weight": "400",
+      "style": "normal",
+      "color": "#333333"
+    },
+    "axisLabel": {
+      "size": 14,
+      "color": "#707070"
+    },
+    "axisTitle": {
+      "size": 14,
+      "weight": "400",
+      "placement": "usually omitted — unit in subtitle; direct axis label (e.g. 'Monat') at the end of the axis when needed"
+    },
+    "dataLabel": {
+      "size": 14,
+      "weight": "400"
+    },
+    "source": {
+      "size": 12,
+      "style": "normal; online 'Quelle: X – Grafik: nzz.', print caps 'QUELLE: X' left and 'NZZ Visuals/nzz.' right",
+      "color": "#707070"
+    },
+    "notes": "Static graphics should use only the 'note' style (14px/20px); note-s 12px/16px sparingly. Title classes: title-s 14px/22px, title 16px/22px (sans bold 500). Online text font Pensum Pro / NZZ Serif for longer copy; print graphics exclusively Univers Next Pro Condensed. All numbers use tabular lining figures; no slashed zero; avoid GT America Mono."
+  },
+  "structure": {
+    "gridlines": "Horizontal only, thin light grey solid lines (examples); vertical gridlines only on horizontal-bar value axes.",
+    "axisLine": "Darker grey baseline (x axis) only; no y-axis line.",
+    "ticks": "None; y labels right-aligned and equally spaced from the gridlines — online the gridline is vertically centred on the label, in print aligned to the label baseline. Gridlines must not extend under/over the labels.",
+    "zeroLine": "Baseline drawn darker. Never cut the y-axis for bars/columns/areas; lines may be cut sensibly (use upper and lower half of the plot) when changes would otherwise be invisible.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "omitted; unit stated in subtitle ('in Tausend'); reduce long numbers (3,000 → 3 with 'in Tausend')",
+    "unitPlacement": "in subtitle",
+    "frame": "Online Q charts sit in a white card; no plot border.",
+    "background": "white",
+    "notes": "X-axis years: when the focus is the trend show only first/last year; otherwise abbreviate intermediate years to two digits ('78, '86)."
+  },
+  "legend": {
+    "placement": "top, left-aligned with title and subtitle, just above the data (never below a chart or map)",
+    "directLabels": "Preferred; remove the axis when values can be directly annotated (don't show both)",
+    "title": "no",
+    "swatchShape": "filled circle for filled areas/bars; short line at 45° (solid or dotted) for line charts",
+    "notes": "Dotted lines for prognosis in line charts, hatched areas for prognosis in bar charts (hatching only for prognosis); light grey area for missing data."
+  },
+  "marks": {
+    "bars": "Flat columns/bars, no outlines; highlighted bar in full colour, others in the predefined light tint (not transparency).",
+    "lines": "~2px lines, no markers; endpoint dots with value labels for highlighted start/end values; dotted for forecast.",
+    "areas": "Opaque fills; hatched for prognosis.",
+    "points": "Dots used to mark annotated data points.",
+    "pies": "Rarely; only to show how large/small one part of a whole is; never more than 5 segments (combine into 'others'); start at the top and go clockwise. Rule of thumb: if lumping everything except the key segment into 'others' breaks the chart, don't use a pie.",
+    "notes": null
+  },
+  "labels": {
+    "dataLabels": "Directly annotate when space allows; start/end values labelled in series colour for line charts.",
+    "numberFormat": "Tabular lining figures; reduce large numbers with unit in subtitle ('in Tausend'). German formatting (decimal comma).",
+    "dates": "Years; two-digit abbreviations for intermediate years ('78) when needed",
+    "notes": "Simple and concise title, subtitle and axis labels."
+  },
+  "furniture": {
+    "title": "Headline states the finding (e.g. 'Wasserentnahme der Schweizer sinkt'), sentence case, bold, left-aligned; subtitle gives measure, place, unit.",
+    "source": "Bottom-left: online 'Quelle: <linked source> – Grafik: nzz.' (initials) in small grey; print 'QUELLE: …' in caps left and 'NZZ Visuals/nzz.' right. Use 'NZZ Visuals' when several team members contributed. Archived charts add note 'archivierte Version vom [Datum]'.",
+    "logo": "none",
+    "other": "Q item footer holds sources, acronym and notes."
+  },
+  "annotations": "Short text aligned consistently to its leader line (top/bottom/centre); thin grey leader with a rounded (curved) corner when space allows, straight otherwise; a dot marks the specific data point; for dense series use a line without a point; don't overload.",
+  "layout": "Online: Q card, responsive; static online graphics use 14px note text so they stay readable on mobile. Print: millimetre baseline grid of the NZZ newspaper; print templates in assets.",
+  "interaction": "Q tools (charts, maps, tables) with responsive behaviour; story blocks/scrollytelling documented separately.",
+  "accessibility": "Q default colours are optimised for colour-blind readers; avoid semantic colours for ethnicities.",
+  "chartTypes": {
+    "preferred": [
+      "column/bar",
+      "line",
+      "stacked bar",
+      "dot plot/arrow",
+      "scatter/slope",
+      "election charts",
+      "choropleth/locator maps"
+    ],
+    "discouraged": [
+      "pie charts (only for one part vs whole, ≤5 segments)",
+      "dual axis"
+    ],
+    "notes": "Only charts based on raw data are produced ('No data, no chart')."
+  },
+  "distinctiveRules": [
+    {
+      "rule": "Legend sits directly above the plot, left-aligned with the title and subtitle; never below the chart.",
+      "source": "https://github.com/nzzdev/Storytelling-Styleguide/blob/master/pages/charts/basic-charts.md",
+      "quote": "align legends to the left of the chart, even with titles and subtitles ... Do not put legend information below a chart"
+    },
+    {
+      "rule": "Legend keys are filled circles for bars/areas and short lines drawn at 45° for line series.",
+      "source": "https://github.com/nzzdev/Storytelling-Styleguide/blob/master/pages/charts/basic-charts.md",
+      "quote": "Legends for basic charts are constructed with circles and lines at a 45 degree angle."
+    },
+    {
+      "rule": "Y labels right-aligned, equally spaced from gridlines; online gridline centred on the label, no gridline under/over the label; no y-axis line.",
+      "source": "https://github.com/nzzdev/Storytelling-Styleguide/blob/master/pages/charts/basic-charts.md",
+      "quote": "right-align and equally space labels from y-axis lines ... for online, center the axis line to the label ... Do not extend lines underneath/above labels"
+    },
+    {
+      "rule": "Units go in the subtitle and large numbers are reduced ('in Tausend'), not in an axis title.",
+      "source": "https://github.com/nzzdev/Storytelling-Styleguide/blob/master/pages/charts/basic-charts.md",
+      "quote": "reduce long numbers when possible (3,000 to 3 with \"in Tausend\" in subtitle)"
+    },
+    {
+      "rule": "Highlight: focus bar/line in the full colour, other data in the predefined light tint of that colour (no transparency).",
+      "source": "https://github.com/nzzdev/Storytelling-Styleguide/blob/master/pages/charts/basic-charts.md",
+      "quote": "give the secondary data points a lighter shade ... Do not use a lesser transparent shade of a color and allow grid lines to show through"
+    },
+    {
+      "rule": "Q categorical order: Nacht #374e8e, Aquamarin #4fbbae, Mandarine #df7c18, Chianti #ac004f, Lagune #1b87aa, Nachos #e3b13e, Sugo #ce4631; max 7 categories; no greys as categories.",
+      "source": "https://github.com/nzzdev/Storytelling-Styleguide/blob/master/pages/style/colors.md",
+      "quote": "s-viz-color-one-5 #374e8e ... seven-5 #ce4631 ... Charts mit mehr als 7 verschiedenen Kategorien sollten überdacht werden"
+    },
+    {
+      "rule": "Pie charts: at most 5 segments, first segment starting at 12 o'clock and running clockwise.",
+      "source": "https://github.com/nzzdev/Storytelling-Styleguide/blob/master/pages/charts/guidelines.md",
+      "quote": "We never show more than 5 segments ... The segment starts at the top and goes clockwise."
+    },
+    {
+      "rule": "Never cut the y-axis for bars/columns/areas; when cutting a line chart's axis, leave headroom and use both halves of the plot.",
+      "source": "https://github.com/nzzdev/Storytelling-Styleguide/blob/master/pages/charts/guidelines.md",
+      "quote": "Cut the y-axis ... Do not ... if the chart uses areas ... make sure the chart line uses the upper and lower half of the chart"
+    },
+    {
+      "rule": "Forecasts: dotted lines in line charts, hatched fills in bar charts (hatching reserved for prognosis).",
+      "source": "https://github.com/nzzdev/Storytelling-Styleguide/blob/master/pages/charts/basic-charts.md",
+      "quote": "use dotted lines for prognosis ... use hatched areas for prognosis or prediction in bar charts"
+    },
+    {
+      "rule": "Annotations use thin leader lines with rounded corners, a dot on the data point, and text aligned consistently.",
+      "source": "https://github.com/nzzdev/Storytelling-Styleguide/blob/master/pages/charts/basic-charts.md",
+      "quote": "use a curved corner (not straight) when space allows"
+    },
+    {
+      "rule": "Source line bottom-left: 'Quelle: X – Grafik: nzz.' (online); print 'QUELLE: X' left with 'NZZ Visuals/nzz.' right.",
+      "source": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/nzz/bar-charts_highlighting@1x.png",
+      "quote": "Quelle: BFS – Grafik: nzz. / QUELLE: BFS … NZZ Visuals/nzz."
+    },
+    {
+      "rule": "Static chart text uses the 14px 'note' style; titles 16px sans bold (500); all numerals tabular lining.",
+      "source": "https://github.com/nzzdev/Storytelling-Styleguide/blob/master/pages/style/typography.md",
+      "quote": "Nach Möglichkeit in statischen Grafiken nur note (14px) verwenden ... Versalziffern für Tabellen"
+    },
+    {
+      "rule": "Long time axes show only first and last year when the trend is the point; otherwise two-digit intermediate years.",
+      "source": "https://github.com/nzzdev/Storytelling-Styleguide/blob/master/pages/charts/basic-charts.md",
+      "quote": "remove year labels when several years are displayed and the focus of the graphic is the trend"
+    },
+    {
+      "rule": "Missing data shown as a light grey area, directly labelled 'n/a'/'no data'.",
+      "source": "https://github.com/nzzdev/Storytelling-Styleguide/blob/master/pages/charts/basic-charts.md",
+      "quote": "use a light gray area for missing data and directly label it"
+    }
+  ],
+  "referenceImages": [
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/nzz/bar-charts_highlighting@1x.png",
+      "url": "https://raw.githubusercontent.com/nzzdev/Storytelling-Styleguide/master/assets/basic-charts/bar-charts_highlighting@1x.png",
+      "describes": "Four example cards (online 'O' top, print 'P' bottom). Online: bold dark-navy serif headline 'Wasserentnahme der Schweizer sinkt' left-aligned, sans subtitle with measure/unit; column chart with three pale lavender columns and the latest (2012) in full bright blue; thin light-grey horizontal gridlines, grey right-aligned y labels, darker grey baseline, no y-axis line. Line chart: legend above plot left-aligned with 45° line-stroke keys (blue, yellow, teal), context lines in pale tints and one line in full yellow; x axis shows only first/last year 2008 and 2018. Source bottom-left 'Quelle: BFS – Grafik: nzz.' in small grey with underlined link. Print versions: sans condensed title (Univers), 'QUELLE: BFS' caps bottom-left and 'NZZ Visuals/nzz.' bottom-right."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/nzz/bar-charts_legend@1x.png",
+      "url": "https://raw.githubusercontent.com/nzzdev/Storytelling-Styleguide/master/assets/basic-charts/bar-charts_legend@1x.png",
+      "describes": "Three online cards: grouped columns (blue/yellow) with circle legend keys above the plot ('in Tausend' subtitle); multi-line chart with 45° line keys and light grid in both directions plus 'Monat' axis label at end of x axis; stacked horizontal bars (blue, yellow, teal, light grey 'unbekannt') with value axis on top (0–20) and vertical gridlines, category labels right-aligned left of bars. Bold serif headlines, sans 14px labels, source bottom-left."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/nzz/annotation_1@1x.png",
+      "url": "https://raw.githubusercontent.com/nzzdev/Storytelling-Styleguide/master/assets/basic-charts/annotation_1@1x.png",
+      "describes": "Annotation examples: column chart with callout '2017 anteilig die meisten Asylgesuche' joined by a thin dark leader line with a rounded corner to a small hollow dot on the bar top; line chart 'Stetig mehr Strassen' with endpoint dots and start/end values (651, 1855) labelled in the line colour; x labels 1970, '78, '86, '94, 2002, '10, 2017 (online) vs only 1970/2017 (print). Light horizontal gridlines, right-aligned grey y labels."
+    }
+  ]
+}

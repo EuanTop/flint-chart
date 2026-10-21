@@ -3,6 +3,7 @@ import {
     associateSemanticElementRenderKeys,
     type AxisTargetValue,
     semanticElementRenderKeys,
+    semanticElementSourceRows,
     sourceRecordsForRenderedRecords,
     type ChartInteractionResolver,
     type LegendTargetValue,
@@ -35,6 +36,7 @@ import type {
     UpdateTarget,
 } from '../../interactive/language/updates';
 import { matchesSemanticTargetSelector } from '../../interactive/language/updates';
+import { isWhereSelector, selectorPredicate } from '../../core/target-selector';
 import type { VegaInteractionPlan, VegaReorderAxis } from './contracts';
 import { toCanvasInteractionEvent } from '../../interactive/canvas-interaction';
 import { interactionsToReset, type InteractionResetGesture } from '../../interactive/reset';
@@ -42,7 +44,8 @@ import { keyboardTrigger } from '../../interactive/triggers';
 import { normalizeInspectGuideOptions } from '../../interactive/guides';
 import { wheelZoomFactor } from '../../interactive/gestures/navigation';
 import type { CanvasInteractionEvent, DomainGeometry } from '../../interactive/language/events';
-import type { ChartUpdateApplyOptions } from '../../interactive/types';
+import type { ChartAnnotation, ChartHiddenValue, ChartStateEntry, DomainValue } from '../../core/interaction-contracts';
+import type { ChartChangeReport, ChartUpdateApplyOptions } from '../../interactive/types';
 import {
     INTERACTION_KEY,
     PATH_KEY_SUFFIX,
@@ -52,11 +55,13 @@ import {
     clientToPlotPoint,
     clientToRendererPoint,
     interactionModifiers,
+    isPickable,
     normalizeVegaElementEvent,
     nearestInteractiveSceneItem,
+    sceneItemsUnder,
     nearestSceneItem,
-    nextItemInDirection,
     pathHoverPresentationKey,
+    pickBounds,
     polarFrameFromItems,
     polarGuideSegment,
     polarInspectHits,
@@ -64,8 +69,11 @@ import {
     indexInspectAcquisition,
     legendSemanticTarget,
     renderHit,
+    rendererElement,
     rendererPlotOrigin,
     sceneItems,
+    shapeReadingBounds,
+    vegaRendererOrigin,
     type RendererCoordinateSpace,
     type LegendHitIdentity,
     type SpatialDirection,
@@ -87,7 +95,9 @@ import { createLegendRangeOverlay } from './presentation/legend-range-overlay';
 import { createReorderResetControls } from './presentation/reorder-reset-controls';
 import { createViewportResetControl } from './presentation/viewport-reset-control';
 import { createInspectGuideOverlay } from './presentation/inspect-guide-overlay';
-import { createDataOverlay } from './presentation/data-overlay';
+import { createDataOverlay, overlayChannels } from './presentation/data-overlay';
+import { buildAccessibleTree, type AccessibleNode } from './accessible-navigation/model';
+import { mountAccessibleNavigation } from './accessible-navigation/controller';
 import {
     HIDDEN_STORE,
     LEGEND_HIDDEN_STORE,
@@ -102,6 +112,15 @@ import {
 const EMPTY_SEMANTIC_SELECTION_KEY = '__flint_empty_semantic_selection';
 
 export { mergeContiguousSelectionBounds } from './presentation/focus-overlay';
+
+// Readouts speak the chart's language: Vega labels axes in en-US whatever the browser's locale.
+const inspectValueFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
+
+/** A numeric inspect readout. A value inverted from a pixel lands a hair off zero; one that rounds to zero reads "0", not "-0". */
+export function inspectNumberText(value: unknown): string {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return '';
+    return inspectValueFormatter.format(Math.abs(value) < 0.005 ? 0 : value);
+}
 
 export function resolveLegendPresentationTarget(
     legend: LegendTargetValue,
@@ -213,12 +232,13 @@ export function domainForPlotGeometry(
     if (!plot) return undefined;
     // Navigation axes name the authoritative scales; the overlay scales cover
     // charts that project overlays but do not navigate.
-    const inverter = (axis: 'x' | 'y'): ((pixel: number) => unknown) | undefined => {
+    const inverter = (axis: 'x' | 'y'): ((pixel: number) => DomainValue | undefined) | undefined => {
         const name = axes?.[axis]?.scale ?? fallbackScales?.[axis];
         if (!name) return undefined;
         const scale = scaleFor(name);
         if (typeof scale?.invert !== 'function') return undefined;
-        return (pixel: number) => scale.invert!(pixel);
+        // Vega's scales invert to a number, a Date on a time scale, or the category on a band.
+        return (pixel: number) => scale.invert!(pixel) as DomainValue | undefined;
     };
     if (plot.kind === 'rect') {
         const domain: DomainGeometry = {};
@@ -273,7 +293,7 @@ export function nearestReorderHit(
     for (const item of items) {
         const hit = renderHit(item);
         const value = hit?.datum[field];
-        if (!hit || value === undefined || !item.bounds || slots.has(value)) continue;
+        if (!hit || value === undefined || !item.bounds || !isPickable(item, axis) || slots.has(value)) continue;
         slots.set(value, { hit, center: (item.bounds[start] + item.bounds[end]) / 2 });
     }
     let nearest: { hit: RenderHit; distance: number } | undefined;
@@ -337,10 +357,16 @@ export function mergeRetainedPreview(
 
 export interface VegaInteractionController {
     getInteractionContext(): import('../../interactive/interactions').InteractionContext;
+    /** Hears every change to what the chart shows, with the state after it. */
+    onChange(listener: (change: ChartChangeReport) => void): () => void;
+    /** Reports a change the renderer made outside the controller, such as a rail scroll. */
+    reportChange(change: Omit<ChartChangeReport, 'state'>): void;
     applyUpdate(update: ChartUpdate, options?: ChartUpdateApplyOptions): Promise<ChartUpdateResult>;
     setUpdates(updates: readonly ChartUpdate[]): Promise<readonly ChartUpdateResult[]>;
     clearUpdate(id: string): Promise<void>;
     refresh(): void;
+    /** Draws the retained updates again, as after a rail scroll moves the category window. */
+    rerender(): Promise<void>;
     destroy(): void;
 }
 
@@ -415,6 +441,14 @@ export interface EffectiveAnnotationEntry {
     value: NonNullable<AnnotationUpdate['value']>;
 }
 
+function annotationEntryKey(id: string, element: SemanticTarget['elements'][number]): string {
+    const renderKeys = semanticElementRenderKeys(element);
+    const targetIdentity = renderKeys.length > 0
+        ? renderKeys.join('\u001f')
+        : JSON.stringify([element.value, element.records ?? []]);
+    return `${id}\u001e${targetIdentity}`;
+}
+
 export function effectiveAnnotationEntries(updates: readonly ChartUpdate[]): EffectiveAnnotationEntry[] {
     const entries = new Map<string, EffectiveAnnotationEntry>();
     for (const update of updates) {
@@ -422,11 +456,7 @@ export function effectiveAnnotationEntries(updates: readonly ChartUpdate[]): Eff
             if (op.op !== 'set-annotation' || 'select' in op.target) continue;
             const element = op.target.elements[0];
             if (!element) continue;
-            const renderKeys = semanticElementRenderKeys(element);
-            const targetIdentity = renderKeys.length > 0
-                ? renderKeys.join('\u001f')
-                : JSON.stringify([element.value, element.records ?? []]);
-            const key = `${update.id}\u001e${targetIdentity}`;
+            const key = annotationEntryKey(update.id, element);
             if (op.value === null) entries.delete(key);
             else entries.set(key, { key, element, value: op.value });
         }
@@ -442,11 +472,11 @@ function keyboardRepresentativeRank(item: any): [number, number] {
     return [markRank, width * height];
 }
 
-export function keyboardTargetItems(scene: readonly any[]): any[] {
+export function keyboardTargetItems(scene: readonly any[], direction: SpatialDirection = 'right'): any[] {
     const itemsByKey = new Map<string, any>();
     for (const item of scene) {
         const key = renderHit(item)?.datum[INTERACTION_KEY];
-        if (typeof key !== 'string' || !item.bounds) continue;
+        if (typeof key !== 'string' || !item.bounds || !isPickable(item)) continue;
         const existing = itemsByKey.get(key);
         if (!existing) {
             itemsByKey.set(key, item);
@@ -458,25 +488,54 @@ export function keyboardTargetItems(scene: readonly any[]): any[] {
             itemsByKey.set(key, item);
         }
     }
-    return [...itemsByKey.values()].sort((left, right) =>
-        (left.bounds.x1 - right.bounds.x1) || (left.bounds.y1 - right.bounds.y1));
+    const position = (item: any): { x: number; y: number } => {
+        if (item.mark?.marktype === 'symbol' && Number.isFinite(item.x) && Number.isFinite(item.y)) {
+            return { x: item.x, y: item.y };
+        }
+        if ((item.mark?.marktype === 'rect' || item.mark?.marktype === 'bar')
+            && Number.isFinite(item.x) && Number.isFinite(item.y)
+            && Number.isFinite(item.width) && Number.isFinite(item.height)) {
+            return { x: item.x + Math.min(0, item.width), y: item.y + Math.min(0, item.height) };
+        }
+        const bounds = shapeReadingBounds(item, item.bounds);
+        return { x: bounds.x1, y: bounds.y1 };
+    };
+    const vertical = direction === 'up' || direction === 'down';
+    return [...itemsByKey.values()].sort((left, right) => {
+        const leftPosition = position(left);
+        const rightPosition = position(right);
+        return vertical
+            ? leftPosition.y - rightPosition.y || leftPosition.x - rightPosition.x
+            : leftPosition.x - rightPosition.x || leftPosition.y - rightPosition.y;
+    });
+}
+
+export function nextKeyboardTarget(scene: readonly any[], activeKey: string | undefined, direction: SpatialDirection): any | undefined {
+    const items = keyboardTargetItems(scene, direction);
+    const forward = direction === 'right' || direction === 'down';
+    const index = activeKey === undefined ? -1
+        : items.findIndex((item) => renderHit(item)?.datum[INTERACTION_KEY] === activeKey);
+    return index < 0 ? items[forward ? 0 : items.length - 1] : items[index + (forward ? 1 : -1)];
 }
 
 export function enrichTargetWithSourceProvenance(
     target: SemanticTarget | null,
     plan: Pick<VegaInteractionPlan,
-        'sourceRecords' | 'provenanceFields' | 'temporalProvenanceFields' | 'rangeProvenance'>,
+        'sourceRecords' | 'provenanceFields' | 'temporalProvenanceFields' | 'rangeProvenance' | 'rowIndexed'>,
 ): SemanticTarget | null {
     if (!target) return null;
     const elements = target.elements.map((element) => {
         const renderedRecords = element.records?.length ? element.records : [element.value];
-        const records = sourceRecordsForRenderedRecords(
-            renderedRecords,
-            plan.sourceRecords,
-            plan.provenanceFields,
-            plan.temporalProvenanceFields,
-            plan.rangeProvenance,
-        );
+        const rows = plan.rowIndexed ? semanticElementSourceRows(element) : undefined;
+        const records = rows
+            ? rows.flatMap((row) => (row <= plan.sourceRecords.length ? [plan.sourceRecords[row - 1]] : []))
+            : sourceRecordsForRenderedRecords(
+                renderedRecords,
+                plan.sourceRecords,
+                plan.provenanceFields,
+                plan.temporalProvenanceFields,
+                plan.rangeProvenance,
+            );
         const value = plan.rangeProvenance.length > 0
             ? { ...element.value, count: records.length }
             : element.value;
@@ -585,7 +644,7 @@ export function mountVegaInteractions(
             && interaction.eventSource.gesture === 'drag')
         : [];
     const hoverPresentationInteractions = interactionsForHoverPresentation(
-        [...markClickInteractions, ...legendClickInteractions, ...longPressInteractions, ...doubleInteractions],
+        [...markClickInteractions, ...legendClickInteractions, ...longPressInteractions, ...doubleInteractions, ...contextInteractions],
         markHoverInteractions,
         elementDragInteractions,
         inspectInteractions,
@@ -605,12 +664,41 @@ export function mountVegaInteractions(
         resolveAssistDistance(eligible, assistDistance);
     const retainedUpdates = new Map<string, ChartUpdate>();
     const previewUpdates = new Map<string, ChartUpdate>();
+    const hiddenLegendDomains = new Map<string, { legend: LegendTargetValue; opacity: number }>();
+    const changeListeners = new Set<(change: ChartChangeReport) => void>();
+    let lastPreviewKey: string | undefined;
+    let hoverCueActive = false;
+    // A pointer move on the same mark is not a change. Two previews with one
+    // interaction, one target and one domain report once.
+    const notifyChange = (change: Omit<ChartChangeReport, 'state'>): void => {
+        if (change.phase === 'preview') {
+            const key = JSON.stringify([
+                change.interactionId,
+                change.action,
+                change.target?.elements.map((element) => [semanticElementRenderKeys(element), element.value]) ?? null,
+                change.geometry?.domain ?? null,
+            ]);
+            if (key === lastPreviewKey) return;
+            lastPreviewKey = key;
+        } else {
+            lastPreviewKey = undefined;
+        }
+        if (changeListeners.size === 0) return;
+        const state = context();
+        for (const listener of changeListeners) listener({ ...change, state });
+    };
+    const changePhase = (phase: 'start' | 'preview' | 'commit' | 'cancel'): ChartChangeReport['phase'] =>
+        phase === 'start' ? 'preview' : phase;
     const selectedElements = new Map<string, import('../../core/interaction-semantics').SemanticElement>();
+    // The selected marks the chart emphasizes, receding the rest; a highlighted mark is reported
+    // as selected but leaves the rest as drawn.
+    const emphasizedRenderKeys = new Set<string>();
     const hiddenKeys = new Set<string>();
     const retainedLegendTargets = new Map<string, SemanticTarget>();
     let selectedLegend: LegendHitIdentity | null = null;
     let hoveredLegend: LegendHitIdentity | null = null;
     let hoveredPathKeys = new Set<string>();
+    let hoveredMarkKeys = new Set<string>();
     let suppressClick = false;
     let regionDragging = false;
     const inspectSeriesLocks = new Map<string, unknown>();
@@ -625,17 +713,19 @@ export function mountVegaInteractions(
     };
 
     const coordinateSpace = (): RendererCoordinateSpace => {
-        const renderer = container.querySelector('canvas, svg') as HTMLElement | null;
+        const renderer = rendererElement(container);
         const rect = (renderer ?? container).getBoundingClientRect();
-        const [viewOriginX, viewOriginY] = view.origin();
-        const svg = renderer instanceof SVGSVGElement ? renderer : undefined;
+        const viewOrigin = vegaRendererOrigin(view);
+        const svgConstructor = container.ownerDocument.defaultView?.SVGSVGElement;
+        const svg = svgConstructor && renderer instanceof svgConstructor ? renderer : undefined;
         // SVG autosize/padding can make View#origin differ from the renderer's
         // final plot translation. The rendered root-frame CTM is authoritative.
         const rootFrame = svg?.querySelector<SVGGraphicsElement>('.mark-group.role-frame.root');
         const rootMatrix = rootFrame?.getCTM();
-        const logicalWidth = svg?.viewBox.baseVal.width || rect.width;
-        const logicalHeight = svg?.viewBox.baseVal.height || rect.height;
-        const origin = rendererPlotOrigin(rootMatrix, { x: viewOriginX, y: viewOriginY });
+        // A canvas's layout size is its renderer size; its client rect also carries any ancestor CSS scale.
+        const logicalWidth = svg?.viewBox.baseVal.width || renderer?.offsetWidth || rect.width;
+        const logicalHeight = svg?.viewBox.baseVal.height || renderer?.offsetHeight || rect.height;
+        const origin = rendererPlotOrigin(rootMatrix, viewOrigin);
         const originX = origin.x;
         const originY = origin.y;
         const viewWidth = view.width();
@@ -697,8 +787,20 @@ export function mountVegaInteractions(
     };
     const dataOverlay = createDataOverlay({
         view, container, scales: plan.overlayScales ?? {}, coordinateSpace, containerLayoutSize,
+        clipToPlot: Object.keys(plan.navigationAxes ?? {}).length > 0,
     });
     const initialDataRows = plan.initialDataRows ?? plan.sourceRecords;
+    // Cached by identity: a retained update re-rendered must not swap in a fresh copy of the same rows.
+    const preparedDataRows = new WeakMap<readonly Record<string, unknown>[], readonly Record<string, unknown>[]>();
+    const preparedRows = (rows: readonly Record<string, unknown>[]): readonly Record<string, unknown>[] => {
+        if (!plan.prepareDataRows) return rows;
+        let prepared = preparedDataRows.get(rows);
+        if (!prepared) {
+            prepared = plan.prepareDataRows(rows);
+            preparedDataRows.set(rows, prepared);
+        }
+        return prepared;
+    };
     let renderedDataRows: readonly Record<string, unknown>[] = initialDataRows;
     const reorderResetControls = createReorderResetControls({
         container,
@@ -738,10 +840,12 @@ export function mountVegaInteractions(
         reset: resetViewportRegion,
     });
     const navigationController = plan.geoNavigation
-        ? createVegaGeoNavigationController(view, plan.navigationAxes ?? {}, plan.geoLevels, plan.geoPreProjection)
+        ? createVegaGeoNavigationController(
+            view, plan.navigationAxes ?? {}, plan.geoLevels, plan.geoPreProjection, { focusSource: plan.geoFocusSource },
+        )
         : createVegaNavigationController(view, plan.navigationAxes ?? {});
-    const selectedKeys = (): Set<string> => new Set(selectedElements.keys());
-    const renderPathFocus = (): void => focusOverlay.render(selectedKeys(), hoveredPathKeys);
+    const selectedKeys = (): Set<string> => new Set(emphasizedRenderKeys);
+    const renderPathFocus = (): void => focusOverlay.render(selectedKeys(), hoveredPathKeys, hoveredMarkKeys);
     const renderLegendRange = (): void => legendRangeOverlay.render(selectedLegend, hoveredLegend);
     renderPathFocus();
 
@@ -756,43 +860,79 @@ export function mountVegaInteractions(
     });
     const withSourceProvenance = (target: SemanticTarget | null): SemanticTarget | null =>
         enrichTargetWithSourceProvenance(target, plan);
-    const selectedForInteraction = (interaction: CanvasInteractionDef): SemanticElement[] => {
-        if (!interaction.retainedStateGroup) return [...selectedElements.values()];
+    /** The render keys an update emphasizes, focuses or highlights. */
+    const emphasizedKeys = (update: ChartUpdate | undefined): Set<string> => {
         const keys = new Set<string>();
-        const update = mergeRetainedPreview(
-            retainedUpdates.get(interaction.id),
-            previewUpdates.get(interaction.id),
-        );
-        if (update) {
-            for (const op of update.ops) {
-                if (op.op !== 'set-style'
-                    || (op.value.state !== 'emphasized' && op.value.state !== 'focused')) continue;
-                for (const target of op.targets) {
-                    if ('select' in target) continue;
-                    for (const element of target.elements) {
-                        for (const key of semanticElementRenderKeys(element)) keys.add(key);
-                    }
+        for (const op of update?.ops ?? []) {
+            if (op.op !== 'set-style'
+                || (op.value.state !== 'emphasized' && op.value.state !== 'focused' && op.value.state !== 'highlighted')) continue;
+            for (const target of op.targets) {
+                if ('select' in target) continue;
+                for (const element of target.elements) {
+                    for (const key of semanticElementRenderKeys(element)) keys.add(key);
                 }
             }
         }
-        return [...selectedElements].flatMap(([key, element]) => keys.has(key) ? [element] : []);
+        return keys;
+    };
+    const selectedByKeys = (keys: ReadonlySet<string>): SemanticElement[] =>
+        [...selectedElements].flatMap(([key, element]) => keys.has(key) ? [element] : []);
+    const selectedForInteraction = (interaction: CanvasInteractionDef): SemanticElement[] => {
+        if (!interaction.retainedStateGroup) return [...selectedElements.values()];
+        return selectedByKeys(emphasizedKeys(mergeRetainedPreview(
+            retainedUpdates.get(interaction.id),
+            previewUpdates.get(interaction.id),
+        )));
+    };
+    const stateEntries = (): ReadonlyMap<string, ChartStateEntry> => {
+        const entries = new Map<string, ChartStateEntry>();
+        for (const id of new Set([...retainedUpdates.keys(), ...previewUpdates.keys()])) {
+            const preview = previewUpdates.get(id);
+            entries.set(id, {
+                layer: preview ? 'preview' : 'retained',
+                elements: selectedByKeys(emphasizedKeys(mergeRetainedPreview(retainedUpdates.get(id), preview))),
+            });
+        }
+        return entries;
+    };
+    const hiddenValues = (): ChartHiddenValue[] => [...hiddenLegendDomains.values()]
+        .filter(({ legend }) => legend.domain.kind === 'value')
+        .map(({ legend }) => ({
+            channel: legend.channel ?? legend.field ?? '',
+            value: legend.domain.kind === 'value' ? legend.domain.value : undefined,
+        }));
+    const annotationEntries = (): ChartAnnotation[] => {
+        const annotations: ChartAnnotation[] = [];
+        for (const id of new Set([...retainedUpdates.keys(), ...previewUpdates.keys()])) {
+            const update = mergeRetainedPreview(retainedUpdates.get(id), previewUpdates.get(id));
+            for (const op of update?.ops ?? []) {
+                if (op.op !== 'set-annotation' || !op.value) continue;
+                const element = 'select' in op.target ? undefined : op.target.elements[0];
+                const inView = element ? annotationOverlays.get(annotationEntryKey(id, element))?.inView() : undefined;
+                annotations.push({
+                    id,
+                    target: op.target,
+                    ...(op.value.text !== undefined ? { text: op.value.text } : {}),
+                    ...(inView !== undefined ? { inView } : {}),
+                });
+            }
+        }
+        return annotations;
     };
     const context = (includeAvailable = true, interaction?: CanvasInteractionDef) => {
         // The scan behind `available` walks the whole scene and resolves
         // provenance for every mark, which a county map turns into hundreds of
         // milliseconds. Most handlers never read it, and navigation never may
         // (the flag), so it runs on first access only.
-        let availableScanned = false;
         let available: readonly SemanticElement[] | undefined;
         const scanAvailable = (): readonly SemanticElement[] | undefined => {
             if (!includeAvailable) return undefined;
-            if (!availableScanned) {
-                availableScanned = true;
+            if (!available) {
                 const hits = allHits();
                 available = withSourceProvenance(resolve?.(
                     { gesture: 'rectangle', role: 'region', hits },
                     resolveContext(hits),
-                ) ?? null)?.elements;
+                ) ?? null)?.elements ?? [];
             }
             return available;
         };
@@ -818,17 +958,43 @@ export function mountVegaInteractions(
         return {
             chartType,
             selected: interaction ? selectedForInteraction(interaction) : [...selectedElements.values()],
+            get entries() { return stateEntries(); },
+            get hidden() { return hiddenValues(); },
+            get viewport() { return currentViewport(); },
+            get annotations() { return annotationEntries(); },
             get available() { return scanAvailable(); },
             resolveGroupValue: plan.resolveGroupValue,
             resolveNavigation: navigationController.resolve,
             categoryField: plan.categoryField,
             seriesField: plan.seriesField,
+            groupHoverEmphasis: plan.groupHoverEmphasis,
             legendDomains,
             categoryAxis: reorderAxis?.axis,
             categoryOrder,
             reorderAxes: currentReorderAxes,
         };
     };
+    const temporalValue = (field: string, value: unknown): unknown =>
+        plan.temporalValue && plan.temporalProvenanceFields.includes(field) ? plan.temporalValue(field, value) : value;
+    const axisValue = (axis: 'x' | 'y', value: unknown): unknown => {
+        const field = plan.axisFields?.[axis];
+        return field?.type === 'temporal' ? temporalValue(field.field, value) : value;
+    };
+    const withTemporalOverlayRows = (spec: ChartOverlaySpec | null): ChartOverlaySpec | null => spec && {
+        ...spec,
+        data: {
+            values: spec.data.values.map((row) => {
+                const next = { ...row };
+                for (const channel of ['x', 'x2', 'y', 'y2'] as const) {
+                    const field = spec.encodings[channel]?.field;
+                    if (field !== undefined && field in row) next[field] = axisValue(channel[0] as 'x' | 'y', row[field]);
+                }
+                return next;
+            }),
+        },
+    };
+    /** Targets resolved through a line's last point, which a note marks at its point. */
+    const lastPointTargets = new WeakSet<SemanticTargetRef>();
     const resolveUpdateTarget = (target: UpdateTarget): SemanticTargetRef | null => {
         if (!('select' in target)) {
             if (target.visual.kind === 'axis') {
@@ -870,9 +1036,22 @@ export function mountVegaInteractions(
             return elements.length > 0 ? { ...target, elements } : null;
         }
 
-        const entries = Object.entries(target.select.key);
-        if (entries.length === 0) return null;
-        const hits = allHits().filter((hit) => matchesSemanticTargetSelector(target, plan.fields, hit.datum));
+        const matches = selectorPredicate(target, plan.fields, temporalValue);
+        if (!matches) return null;
+        const all = allHits();
+        let hits = all.filter((hit) => matches(hit.datum));
+        // The final point of a line or area starts no segment, so it is found as the end of the segment before it.
+        const startKeys = new Set(all.map((hit) => hit.datum[INTERACTION_KEY]));
+        const lastPoints = (): RenderHit[] => all.flatMap((hit): RenderHit[] => {
+            const end = hit.endDatum;
+            if (!end || startKeys.has(`${String(end[INTERACTION_KEY])}${PATH_KEY_SUFFIX}`)) return [];
+            if (!matches(end)) return [];
+            return [{ ...hit, datum: { ...end, [INTERACTION_KEY]: hit.datum[INTERACTION_KEY] }, endDatum: undefined }];
+        });
+        const lastPoint = hits.length === 0;
+        if (lastPoint) hits = lastPoints();
+        // A set holds the last points it covers beside the segments it starts.
+        else if (isWhereSelector(target)) hits = [...hits, ...lastPoints()];
         if (hits.length === 0 || !resolve) return null;
         const resolved = withSourceProvenance(resolve({
             gesture: 'rectangle',
@@ -882,7 +1061,22 @@ export function mountVegaInteractions(
         if (!resolved) return null;
         if (target.select.visual?.kind && target.select.visual.kind !== resolved.visual.kind) return null;
         if (target.select.visual?.role && target.select.visual.role !== resolved.visual.role) return null;
+        if (lastPoint) lastPointTargets.add(resolved);
         return resolved;
+    };
+
+    const overlayProjects = (spec: ChartOverlaySpec | null): boolean => {
+        if (spec === null) return true;
+        const channels = overlayChannels(spec);
+        if (!channels) return false;
+        const xScale = view.scale(plan.overlayScales?.x ?? '');
+        const yScale = view.scale(plan.overlayScales?.y ?? '');
+        if (typeof xScale !== 'function' || typeof yScale !== 'function') return false;
+        return channels.every((channel) => {
+            const encoding = spec.encodings[channel];
+            const scale = channel.startsWith('x') ? xScale : yScale;
+            return !!encoding && spec.data.values.every((row) => Number.isFinite(scale(row[encoding.field])));
+        });
     };
 
     const resolveUpdate = (
@@ -905,14 +1099,19 @@ export function mountVegaInteractions(
                 });
                 if (targets.length > 0 || op.targets.length === 0) ops.push({ ...op, targets });
             } else if (op.op === 'set-annotation' && op.value !== null) {
-                const target = resolveUpdateTarget(op.target);
+                // A note anchors to one mark, which a set does not name.
+                const target = 'select' in op.target && isWhereSelector(op.target) ? null : resolveUpdateTarget(op.target);
                 if (!target || target.elements.length !== 1) unresolvedTargets.push(op.target);
                 else {
                     resolvedTargets += 1;
-                    ops.push({ ...op, target });
+                    ops.push({ ...op, target, value: lastPointTargets.has(target) ? { ...op.value, anchor: 'point' } : op.value });
                 }
             } else if (op.op === 'set-viewport') {
-                const supported = resolveSupportedOperation(op, plan);
+                const bound = (axis: 'x' | 'y') => {
+                    const domain = op.value[axis];
+                    return domain ? { [axis]: [axisValue(axis, domain[0]), axisValue(axis, domain[1])] as const } : {};
+                };
+                const supported = resolveSupportedOperation({ ...op, value: { ...op.value, ...bound('x'), ...bound('y') } }, plan);
                 if (supported.unsupported) unsupportedOps.push(op.op);
                 if (supported.op) ops.push(supported.op);
             } else if (op.op === 'set-order') {
@@ -920,8 +1119,9 @@ export function mountVegaInteractions(
                 if (supported.unsupported) unsupportedOps.push(op.op);
                 if (supported.op) ops.push(supported.op);
             } else if (op.op === 'set-overlay') {
-                if (!plan.overlayScales?.x || !plan.overlayScales?.y) unsupportedOps.push(op.op);
-                else ops.push(op);
+                const overlay = { ...op, value: withTemporalOverlayRows(op.value) };
+                if (!plan.overlayScales?.x || !plan.overlayScales?.y || !overlayProjects(overlay.value)) unsupportedOps.push(op.op);
+                else ops.push(overlay);
             } else if (op.op === 'set-freeform-overlay' && op.value !== null) {
                 const body: (typeof op.value.body)[number][] = [];
                 for (const component of op.value.body) {
@@ -968,6 +1168,11 @@ export function mountVegaInteractions(
         };
     };
 
+    // A retained region survives a pan or zoom; new rows or a new category order clear it.
+    let shownLayout: { rows: unknown; order: string } | undefined;
+    // Assigned once the surface is built, below; `renderUpdates` may run before then, so it cannot be a const.
+    // eslint-disable-next-line prefer-const
+    let onLayoutChange: (() => void) | undefined;
     const renderUpdates = async (): Promise<void> => {
         // A preview overlays the same interaction's retained state. It replaces
         // only operation identities that it supplies, so a transient drag ghost
@@ -979,16 +1184,18 @@ export function mountVegaInteractions(
                 .filter(([id]) => !retainedUpdates.has(id))
                 .map(([, update]) => update),
         ];
-        const hiddenLegendDomains = new Map<string, { legend: LegendTargetValue; opacity: number }>();
+        hiddenLegendDomains.clear();
         const activeHiddenLegendDomains = new Set<string>();
         const stylesByKey: Record<string, Pick<import('../../core/interaction-contracts').StyleSpec,
             'opacity' | 'fill' | 'stroke' | 'strokeWidth'>> = {};
         const overlays = new Map<string, ChartOverlaySpec>();
         const axisStyles: { value: AxisTargetValue; style: import('../../core/interaction-contracts').StyleSpec }[] = [];
         let dataRows = initialDataRows;
+        let hostRows: readonly Record<string, unknown>[] | undefined;
         let emptyEmphasisActive = false;
         const freeformOverlays = new Map<string, import('../../core/interaction-contracts').FreeformOverlaySpec>();
         selectedElements.clear();
+        emphasizedRenderKeys.clear();
         hiddenKeys.clear();
         const reorderAxes = plan.reorderAxes ?? (plan.reorderAxis ? [plan.reorderAxis] : []);
         for (const axis of reorderAxes) view.signal(axis.signal, null);
@@ -1008,7 +1215,8 @@ export function mountVegaInteractions(
                     continue;
                 }
                 if (op.op === 'set-data') {
-                    dataRows = op.value.rows;
+                    hostRows = op.value.rows;
+                    dataRows = preparedRows(op.value.rows);
                     continue;
                 }
                 if (op.op === 'set-style' && op.value.visible === false) {
@@ -1056,6 +1264,9 @@ export function mountVegaInteractions(
                         for (const element of target.elements) {
                             for (const key of semanticElementRenderKeys(element)) {
                                 if (op.value.state === 'emphasized' || op.value.state === 'focused') {
+                                    selectedElements.set(key, element);
+                                    emphasizedRenderKeys.add(key);
+                                } else if (op.value.state === 'highlighted' && !selectedElements.has(key)) {
                                     selectedElements.set(key, element);
                                 }
                                 const style = Object.fromEntries(
@@ -1109,7 +1320,17 @@ export function mountVegaInteractions(
         }
         else dragPreviewOverlay.clear();
         const keys = [...selectedKeys()];
+        const layout = {
+            rows: hostRows,
+            order: JSON.stringify(displayUpdates.flatMap((update) => update.ops).filter((op) => op.op === 'set-order')),
+        };
+        const layoutChanged = shownLayout !== undefined
+            && (shownLayout.rows !== layout.rows || shownLayout.order !== layout.order);
+        shownLayout = layout;
+        // A windowed chart shows only the rows inside its category window, cut from whatever rows are current.
+        if (plan.windowDataRows) dataRows = preparedRows(plan.windowDataRows(hostRows));
         if (plan.mutableDataSource && dataRows !== renderedDataRows) {
+            for (const [name, value] of Object.entries(plan.dataSignals?.(hostRows) ?? {})) view.signal(name, value);
             view.change(
                 plan.mutableDataSource,
                 changeset().remove(() => true).insert([...dataRows]),
@@ -1148,8 +1369,10 @@ export function mountVegaInteractions(
         // following pointer-down, even while unrelated Vega work is pending.
         dataOverlay.render(overlays);
         await view.runAsync();
+        if (layoutChanged) onLayoutChange?.();
         restoreAxisStyles();
-        const rendererSvg = container.querySelector('svg') as SVGSVGElement | null;
+        const renderer = rendererElement(container);
+        const rendererSvg = renderer?.tagName.toLowerCase() === 'svg' ? renderer : null;
         if (rendererSvg) {
             for (const item of axisItems(view, plan.axisTargets)) {
                 const identity = axisTargetIdentity(item, plan.axisTargets);
@@ -1272,6 +1495,7 @@ export function mountVegaInteractions(
             if (!landed?.ops.every((op) => op.op === 'set-viewport' && Object.keys(op.value).length === 0)) return;
             retainedUpdates.delete(interaction.id);
             await renderUpdates();
+            notifyChange({ phase: 'commit', source: 'reader', interactionId: interaction.id, geometry: { domain: currentViewport() } });
         });
         return true;
     };
@@ -1349,7 +1573,9 @@ export function mountVegaInteractions(
      * The viewport a change resulted in: the visible data domain of the plot
      * rectangle, and on a multi-level map the level and the focus region.
      */
-    const withViewportState = (base: CanvasInteractionEvent): CanvasInteractionEvent => {
+    const currentViewport = (): DomainGeometry | undefined => {
+        // A chart that cannot navigate always shows its whole domain, so it has no viewport to report.
+        if (!plan.geoNavigation && Object.keys(plan.navigationAxes ?? {}).length === 0) return undefined;
         const space = coordinateSpace();
         const domain = domainForGeometry({
             kind: 'rect',
@@ -1358,19 +1584,27 @@ export function mountVegaInteractions(
         });
         const level = navigationController.level?.();
         const focus = navigationController.focus?.();
-        const resolvedDomain = domain || level !== undefined
+        return domain || level !== undefined
             ? { ...domain, ...(level !== undefined ? { level } : {}), ...(focus ? { focus } : {}) }
             : undefined;
-        return resolvedDomain ? { ...base, geometry: { ...base.geometry, domain: resolvedDomain } } : base;
+    };
+    const withViewportState = (base: CanvasInteractionEvent): CanvasInteractionEvent => {
+        const domain = currentViewport();
+        return domain ? { ...base, geometry: { ...base.geometry, domain } } : base;
     };
     /** A frame of a host-requested viewport tween reports like a zoom or reset gesture. */
     const emitTransitionFrame = (phase: 'preview' | 'commit', operation: 'zoom' | 'reset'): void => {
+        // A tween moves the scales without a render pass, so overlays re-project on each frame.
+        if (phase === 'commit') syncOverlays();
+        else projectOverlays();
         if (!navigationInteraction) return;
         const base = toCanvasInteractionEvent(
             { type: 'navigation', phase, operation, axes: 'xy' },
             navigationInteraction.eventSource,
         );
-        emitCanvasInteractionEvent(navigationInteraction, withViewportState(base));
+        const frame = withViewportState(base);
+        emitCanvasInteractionEvent(navigationInteraction, frame);
+        notifyChange({ phase, source: 'reader', interactionId: navigationInteraction.id, action: frame.action, geometry: frame.geometry });
     };
     const dispatch = async (
         interaction: CanvasInteractionDef,
@@ -1394,6 +1628,14 @@ export function mountVegaInteractions(
             ? interaction.navigationTransition
             : undefined;
         await applyInteractionUpdate(interaction, event.phase, request, legendSelection, transition ? { transition } : undefined);
+        notifyChange({
+            phase: changePhase(event.phase),
+            source: 'reader',
+            interactionId: interaction.id,
+            action: canvasEvent.action,
+            target: canvasEvent.target,
+            geometry: canvasEvent.geometry,
+        });
     };
     let navigationDispatch = Promise.resolve();
     // Navigation frames queue behind the render they trigger. While one is in
@@ -1429,7 +1671,15 @@ export function mountVegaInteractions(
             await applyInteractionUpdate(interaction, event.phase, request, null, transition ? { transition } : undefined);
             if (transition) return;
             // The event reports the viewport that resulted from the gesture.
-            emitCanvasInteractionEvent(interaction, withViewportState(base));
+            const moved = withViewportState(base);
+            emitCanvasInteractionEvent(interaction, moved);
+            notifyChange({
+                phase: changePhase(event.phase),
+                source: 'reader',
+                interactionId: interaction.id,
+                action: moved.action,
+                geometry: moved.geometry,
+            });
         };
         const drain = async (): Promise<void> => {
             if (navigationDraining) return;
@@ -1487,6 +1737,10 @@ export function mountVegaInteractions(
     let hoverActive = false;
     let lastHoverTarget: SemanticTarget | null = null;
     let lastHoverPoint: import('../../interactive/interactions').PlotPoint | null = null;
+    // What the hover last showed, and the target that showed it: a pointer still on one of those
+    // marks keeps it, so crossing another series's mark drawn over it does not flip the hover.
+    let shownKeys = new Set<string>();
+    let shownTarget: SemanticTarget | null = null;
     let hoverClearTimer: ReturnType<typeof setTimeout> | undefined;
     const setHover = async (
         keys: readonly string[],
@@ -1500,6 +1754,7 @@ export function mountVegaInteractions(
         if (signature === hoveredKeys) return;
         hoveredKeys = signature;
         hoveredPathKeys = new Set(next.filter((key) => key.endsWith(PATH_KEY_SUFFIX)));
+        hoveredMarkKeys = new Set(next.filter((key) => !key.endsWith(PATH_KEY_SUFFIX)));
         hoveredLegend = legend;
         const renderedItems = hoveredPathKeys.size > 0 ? sceneItems(view) : [];
         const presentationKeys = [...new Set(next.map(
@@ -1554,7 +1809,13 @@ export function mountVegaInteractions(
         targetFeedbackOverlay.clear();
         lastHoverTarget = null;
         lastHoverPoint = null;
+        shownKeys = new Set();
+        shownTarget = null;
         void setHover([]);
+        if (hoverCueActive) {
+            hoverCueActive = false;
+            notifyChange({ phase: 'cancel', source: 'reader', action: 'hover-element', target: null });
+        }
         if (hoverInteractions.length > 0 && hoverActive) {
             hoverActive = false;
             for (const interaction of hoverInteractions) {
@@ -1654,7 +1915,23 @@ export function mountVegaInteractions(
         const reorderAxes = plan.reorderAxes ?? (plan.reorderAxis ? [plan.reorderAxis] : []);
         const reorderEligible = !!hovered && !!elementDragInteraction
             && eligibleReorderAxesForHit(reorderAxes, hovered).length > 0;
-        const directResolved = resolveTarget('hover', normalized.role, normalized.event.hits);
+        let directResolved = resolveTarget('hover', normalized.role, normalized.event.hits);
+        // Hysteresis: the topmost mark is not always the one the reader is following. While a mark
+        // of what is shown is still under the pointer, the hover stays on it; it moves only once
+        // the pointer has left those marks.
+        if (directResolved && shownTarget && shownKeys.size > 0
+            && !directResolved.elements.flatMap(semanticElementRenderKeys).some((key) => shownKeys.has(key))) {
+            const space = coordinateSpace();
+            const plotPoint = { x: rootPoint.x - space.originX, y: rootPoint.y - space.originY };
+            const stillOn = sceneItemsUnder(view, plotPoint).some((under) => {
+                const at = normalizeVegaElementEvent(
+                    view, under, point, 'preview', interactionModifiers(event), plan.legendFields, plan.rangeLegendChannels, rootPoint,
+                );
+                return (resolveTarget('hover', at.role, at.event.hits)?.elements ?? [])
+                    .flatMap(semanticElementRenderKeys).some((key) => shownKeys.has(key));
+            });
+            if (stillOn) directResolved = shownTarget;
+        }
         let resolved = directResolved;
         if (!resolved && hoverTolerance > 0 && lastHoverTarget && lastHoverPoint
             && Math.hypot(rootPoint.x - lastHoverPoint.x, rootPoint.y - lastHoverPoint.y) <= hoverTolerance) {
@@ -1685,15 +1962,30 @@ export function mountVegaInteractions(
                 modifiers: normalized.event.modifiers,
             }, interaction.eventSource), interactionContext);
             return preview?.ops.flatMap((op) => op.op === 'set-style'
-                && (op.value.state === 'emphasized' || op.value.state === 'focused')
+                && (op.value.state === 'emphasized' || op.value.state === 'focused' || op.value.state === 'highlighted')
                 ? op.targets.flatMap((target) => 'select' in target ? [] : target.elements)
                 : []) ?? [];
         });
-        for (const interaction of markHoverInteractions.filter((candidate) =>
-            markHoverPresentationInteractions.includes(candidate))) {
+        shownKeys = new Set(presentationElements.flatMap(semanticElementRenderKeys));
+        shownTarget = resolved;
+        const hoverDispatched = markHoverInteractions.filter((candidate) =>
+            markHoverPresentationInteractions.includes(candidate));
+        for (const interaction of hoverDispatched) {
             void dispatch(interaction, {
                 type: 'semantic', source: 'element', phase: 'preview', target: resolved, point,
                 modifiers: normalized.event.modifiers,
+            });
+        }
+        // A click preset's hover cue is a visible reaction with no handler, so it reports as a preview too.
+        if (hoverDispatched.length === 0 && presentationElements.length > 0) {
+            hoverCueActive = true;
+            notifyChange({
+                phase: 'preview',
+                source: 'reader',
+                interactionId: markHoverPresentationInteractions[0]?.id,
+                action: 'hover-element',
+                target: resolved,
+                geometry: { plot: { kind: 'point', point } },
             });
         }
         void setHover(presentationElements
@@ -1776,6 +2068,57 @@ export function mountVegaInteractions(
         const modes = inspectModes(interaction);
         return modes[inspectModeIndices.get(interaction.id) ?? 0] ?? modes[0];
     };
+    const inspectValueText = (value: unknown): string => value instanceof Date
+        ? inspectDateFormatter('day').format(value)
+        : inspectNumberText(value);
+    // A snapped reading names the observation at the data's own grain; one between observations names the day.
+    const inspectIndexText = (
+        scale: any, coordinate: number, continuous: boolean, snapped: boolean, field: string,
+    ): string | undefined => {
+        if (!scale) return undefined;
+        if (!continuous) {
+            const half = (Number(scale.bandwidth?.()) || 0) / 2;
+            const value = scale.domain().find((candidate: unknown) => Math.abs(Number(scale(candidate)) + half - coordinate) < 1);
+            return value === undefined ? undefined : String(value);
+        }
+        const value = scale.invert?.(coordinate);
+        if (!(value instanceof Date)) return inspectValueText(value);
+        const grain = indexGrain(field);
+        return inspectDateFormatter(snapped || grain === 'time' ? grain : 'day').format(value);
+    };
+    const inspectDateFormatters = new Map<string, Intl.DateTimeFormat>();
+    type DateGrain = 'year' | 'month' | 'day' | 'time';
+    // The finest grain any observation needs: monthly data reads as months, January included.
+    const indexGrains = new Map<string, DateGrain>();
+    const indexGrain = (field: string): DateGrain => {
+        const cached = indexGrains.get(field);
+        if (cached) return cached;
+        let grain: DateGrain = 'year';
+        for (const record of plan.sourceRecords) {
+            const raw = record[field];
+            const value = raw instanceof Date ? raw : typeof raw === 'string' || typeof raw === 'number' ? new Date(raw) : null;
+            if (!value || Number.isNaN(value.getTime())) continue;
+            if (value.getUTCHours() || value.getUTCMinutes() || value.getUTCSeconds()) { grain = 'time'; break; }
+            if (value.getUTCDate() !== 1) grain = 'day';
+            else if (value.getUTCMonth() !== 0 && grain === 'year') grain = 'month';
+        }
+        indexGrains.set(field, grain);
+        return grain;
+    };
+    const inspectDateFormatter = (grain: 'year' | 'month' | 'day' | 'time'): Intl.DateTimeFormat => {
+        let formatter = inspectDateFormatters.get(grain);
+        if (!formatter) {
+            formatter = new Intl.DateTimeFormat('en-US', {
+                timeZone: 'UTC',
+                year: 'numeric',
+                ...(grain !== 'year' ? { month: 'short' as const } : {}),
+                ...(grain === 'day' || grain === 'time' ? { day: 'numeric' as const } : {}),
+                ...(grain === 'time' ? { hour: 'numeric' as const, minute: '2-digit' as const } : {}),
+            });
+            inspectDateFormatters.set(grain, formatter);
+        }
+        return formatter;
+    };
     const inspectHandler = (event: MouseEvent): void => {
         if (inspectInteractions.length === 0) return;
         const point = localPoint(event as unknown as PointerEvent);
@@ -1807,11 +2150,13 @@ export function mountVegaInteractions(
             const effectiveShow = singleSeries
                 ? { series: inspectSeriesLocks.get(interaction.id) }
                 : indexPolicy?.show;
-            const indexField = indexPolicy ? plan.axisFields?.[indexPolicy.axis] : undefined;
+            const indexAxis = indexPolicy?.axis ?? plan.indexAxis ?? 'x';
+            const indexField = indexPolicy ? plan.axisFields?.[indexAxis] : undefined;
             const continuousIndex = indexField?.type === 'temporal' || indexField?.type === 'quantitative';
             const indexScaleName = indexPolicy && indexField
                 ? Object.entries(plan.axisTargets ?? {}).find(([, target]) =>
-                    target.axis === indexPolicy.axis && target.field === indexField.field)?.[0]
+                    target.axis === indexAxis && target.field === indexField.field)?.[0]
+                    ?? plan.overlayScales?.[indexAxis]
                 : undefined;
             const indexScale = indexScaleName ? view.scale(indexScaleName) : undefined;
             const discreteCoordinates = !continuousIndex && indexScale?.domain
@@ -1822,11 +2167,11 @@ export function mountVegaInteractions(
                 ? indexInspectAcquisition(
                     eligibleItems,
                     point,
-                    indexPolicy.axis,
+                    indexAxis,
                     { show: effectiveShow as 'all' | { series: unknown }, seriesBy: indexPolicy.seriesBy },
                     continuousIndex,
                     discreteCoordinates,
-                    (indexPolicy.axis === 'x' ? space.plotWidth : space.plotHeight) * tolerance,
+                    (indexAxis === 'x' ? space.plotWidth : space.plotHeight) * tolerance,
                 )
                 : undefined;
             const hits = indexAcquisition
@@ -1841,14 +2186,44 @@ export function mountVegaInteractions(
                     { x: space.plotWidth * tolerance, y: space.plotHeight * tolerance },
                 );
             if (guide.visible && indexAcquisition) {
-                const guidePoint = indexPolicy!.axis === 'x'
+                const guidePoint = indexAxis === 'x'
                     ? { x: indexAcquisition.coordinate, y: point.y }
                     : { x: point.x, y: indexAcquisition.coordinate };
-                inspectGuideOverlay.renderAxes(guidePoint, indexPolicy!.axis, guide.style);
+                const valueAxis = indexAxis === 'x' ? 'y' : 'x';
+                const valueField = plan.axisFields?.[valueAxis];
+                const valueScaleName = indexPolicy!.displayValue && valueField
+                    ? Object.entries(plan.axisTargets ?? {}).find(([, target]) =>
+                        target.axis === valueAxis && target.field === valueField.field)?.[0]
+                        ?? plan.overlayScales?.[valueAxis]
+                    : undefined;
+                const valueScale = valueScaleName ? view.scale(valueScaleName) : undefined;
+                const valueRange = (valueScale?.range?.() as number[] | undefined)?.map(Number);
+                // A value the zoom cuts off keeps its readout; the label says where it lies.
+                const outOfView = (coordinate: number): string => {
+                    if (!plan.navigationAxes?.[valueAxis] || !valueRange?.every(Number.isFinite)) return '';
+                    const low = Math.min(...valueRange) - 0.5;
+                    const high = Math.max(...valueRange) + 0.5;
+                    if (coordinate < low) return valueAxis === 'y' ? ' (above view)' : ' (left of view)';
+                    if (coordinate > high) return valueAxis === 'y' ? ' (below view)' : ' (right of view)';
+                    return '';
+                };
+                const valueLabels = indexPolicy!.displayValue && valueScale?.invert
+                    ? indexAcquisition.valueCoordinates.map((coordinate, index) => ({
+                        text: `${inspectValueText(valueScale.invert(coordinate))}${outOfView(coordinate)}`,
+                        color: indexAcquisition.valueColors?.[index],
+                    }))
+                    : undefined;
+                const indexLabel = indexPolicy!.displayValue && indexField && indexAcquisition.valueCoordinates.length > 0
+                    ? inspectIndexText(
+                        indexScale, indexAcquisition.coordinate, continuousIndex, indexAcquisition.snapped, indexField.field,
+                    )
+                    : undefined;
+                inspectGuideOverlay.renderAxes(guidePoint, indexAxis, guide.style, indexLabel);
                 inspectGuideOverlay.renderValueRules(
                     indexAcquisition.valueCoordinates,
-                    indexPolicy!.axis,
+                    indexAxis,
                     guide.style,
+                    valueLabels,
                 );
                 guideRendered = true;
             } else if (guide.visible && polarFrame) {
@@ -1996,9 +2371,17 @@ export function mountVegaInteractions(
         for (const interaction of interactionsToReset(canvasInteractions, gesture)) {
             changed = resetInteraction(interaction) || changed;
         }
-        if (!changed) return;
+        if (!changed) {
+            notifyChange({ phase: 'commit', source: 'reader', reset: gesture });
+            return;
+        }
         selectedLegend = null;
-        void renderUpdates();
+        void renderUpdates().then(() => notifyChange({ phase: 'commit', source: 'reader', reset: gesture }));
+    };
+    onLayoutChange = () => {
+        if (!regionInteraction || !retainedUpdates.has(regionInteraction.id)) return;
+        resetInteraction(regionInteraction);
+        void renderUpdates().then(() => notifyChange({ phase: 'commit', source: 'reader', interactionId: regionInteraction.id }));
     };
     const resetOnClick = (event: MouseEvent, item: any): void => {
         if (suppressClick || isInteractiveControlTarget(event.target)) return;
@@ -2154,6 +2537,11 @@ export function mountVegaInteractions(
             setAffordanceCursor('legend-item', false);
             return;
         }
+        const editingCursor = regionGesture?.cursorAt(point);
+        if (editingCursor) {
+            container.style.cursor = editingCursor;
+            return;
+        }
         const hit = normalized.event.hits[0];
         const reorderEligible = !!hit && !!elementDragInteraction
             && eligibleReorderAxesForHit(
@@ -2177,8 +2565,9 @@ export function mountVegaInteractions(
         if (renderHit(eventItem)) return eventItem;
         const point = localPoint(event);
         return sceneItems(view).find((item) => {
-            const bounds = item.bounds;
-            return renderHit(item) && bounds
+            if (!item.bounds || !isPickable(item)) return false;
+            const bounds = pickBounds(item);
+            return renderHit(item)
                 && point.x >= bounds.x1 && point.x <= bounds.x2
                 && point.y >= bounds.y1 && point.y <= bounds.y2;
         });
@@ -2431,7 +2820,28 @@ export function mountVegaInteractions(
         sync: renderUpdates,
         setSuppressClick: (suppress) => { suppressClick = suppress; },
         setDragging: (dragging) => { regionDragging = dragging; },
+        navigableScale: (axis) => {
+            const navigable = plan.navigationAxes?.[axis];
+            return navigable && navigable.type !== 'geo' ? view.scale(navigable.scale) : undefined;
+        },
     }) : undefined;
+    // A pan or zoom moves the domain under a retained brush; it follows on every viewport frame.
+    const viewportSignals = regionGesture
+        ? Object.values(plan.navigationAxes ?? {}).filter((axis) => axis.type !== 'geo').map((axis) => axis.signal)
+        : [];
+    // Every render re-sets the viewport signals; only a domain that moved re-projects the brush.
+    let followedDomains = '';
+    const projectRegion = (): void => {
+        const domains = JSON.stringify(Object.values(plan.navigationAxes ?? {})
+            .filter((axis) => axis.type !== 'geo')
+            .map((axis) => view.scale(axis.scale)?.domain()));
+        if (domains === followedDomains) return;
+        followedDomains = domains;
+        regionGesture?.sync();
+    };
+    // A signal listener runs mid-evaluation, before the scale takes the new domain; project once the run ends.
+    const followViewport = (): void => { view.runAfter(projectRegion); };
+    for (const signal of viewportSignals) view.addSignalListener(signal, followViewport);
     const navigationGesture = navigationInteraction ? mountVegaNavigationGesture({
         container,
         interaction: navigationInteraction,
@@ -2448,16 +2858,31 @@ export function mountVegaInteractions(
         if (event.key !== 'Escape') return;
         runReset('escape');
     };
+    let pointerFocusOutline: string | undefined;
     const focusOnPointer = (): void => {
-        if (!container.contains(document.activeElement)) container.focus({ preventScroll: true });
+        if (container.contains(document.activeElement)) return;
+        // Focus taken by a press draws no ring, as a clicked button draws none; Tab still shows it.
+        pointerFocusOutline ??= container.style.outline;
+        container.style.outline = 'none';
+        container.focus({ preventScroll: true });
     };
+    const restoreFocusOutline = (): void => {
+        if (pointerFocusOutline === undefined) return;
+        container.style.outline = pointerFocusOutline;
+        pointerFocusOutline = undefined;
+    };
+    // Accessible navigation brings its own tab stop into the chart, and owns the arrow keys there.
+    const accessibleNavigationRequested = !!resolve
+        && canvasInteractions.some((interaction) => interaction.eventSource.accessibleNavigation);
     if (escapeResets) {
-        if (container.tabIndex < 0) container.tabIndex = 0;
+        // With accessible navigation the container stays focusable for a pointer press, but out of
+        // the tab order, so the chart is one tab stop rather than an unlabeled one and then the walk.
+        if (container.tabIndex < 0) container.tabIndex = accessibleNavigationRequested ? -1 : 0;
         container.addEventListener('pointerdown', focusOnPointer, true);
+        container.addEventListener('blur', restoreFocusOutline);
         container.addEventListener('keydown', resetKeyDown);
     }
 
-    // One tab stop enters the chart; arrows move to the nearest target in that direction.
     let activeKeyboardKey: string | undefined;
     const keyboardTargets = (): any[] => keyboardTargetItems(sceneItems(view));
     const keyboardFocus = (item: any) => {
@@ -2478,22 +2903,7 @@ export function mountVegaInteractions(
         affordances: { mark: {} },
     };
     const moveKeyboardTarget = (direction: SpatialDirection): void => {
-        const items = keyboardTargets();
-        if (items.length === 0) return;
-        const movementAxis = direction === 'left' || direction === 'right' ? 'x' : 'y';
-        const movementType = plan.axisFields?.[movementAxis]?.type;
-        const discreteAxis = movementType === 'nominal' || movementType === 'ordinal'
-            ? movementAxis
-            : undefined;
-        const current = activeKeyboardKey === undefined
-            ? undefined
-            : items.find((item) => renderHit(item)?.datum[INTERACTION_KEY] === activeKeyboardKey);
-        const next = current
-            ? nextItemInDirection(items, {
-                x: (current.bounds.x1 + current.bounds.x2) / 2,
-                y: (current.bounds.y1 + current.bounds.y2) / 2,
-            }, direction, discreteAxis)
-            : direction === 'right' || direction === 'down' ? items[0] : items[items.length - 1];
+        const next = nextKeyboardTarget(sceneItems(view), activeKeyboardKey, direction);
         if (!next) return;
         const active = keyboardFocus(next);
         if (!active) return;
@@ -2549,7 +2959,7 @@ export function mountVegaInteractions(
             default:
         }
     };
-    const keyboardEnabled = keyboardTargeting && !!resolve;
+    const keyboardEnabled = keyboardTargeting && !!resolve && !accessibleNavigationRequested;
     const keyboardFocusOut = (event: FocusEvent): void => {
         if (event.relatedTarget instanceof Node && container.contains(event.relatedTarget)) return;
         activeKeyboardKey = undefined;
@@ -2562,15 +2972,150 @@ export function mountVegaInteractions(
         container.addEventListener('focusout', keyboardFocusOut);
     }
 
+    // Accessible navigation: a semantic keyboard walk of titles, axes, legends, headers, and marks.
+    const accessibleInteraction = resolve
+        ? canvasInteractions.find((interaction) => interaction.eventSource.accessibleNavigation)
+        : undefined;
+    const accessibleTarget = (node: AccessibleNode): SemanticTarget => {
+        const hits = node.members.map((member) => member.hit);
+        const regionTarget = (visual: SemanticTarget['visual']): SemanticTarget => {
+            const resolved = hits.length > 0 ? resolveTarget('rectangle', 'region', hits) : null;
+            return { visual, elements: resolved?.elements ?? [] };
+        };
+        const itemText = (value: Record<string, unknown>): SemanticTarget['elements'] => [{ value }];
+        switch (node.kind) {
+            case 'mark': {
+                const member = node.members[0];
+                const resolved = member ? resolveTarget('click', 'mark', [member.hit]) : null;
+                return resolved ?? {
+                    visual: { kind: 'mark', role: 'mark' },
+                    elements: member
+                        ? [associateSemanticElementRenderKeys({ value: member.hit.datum }, [member.hit.datum[INTERACTION_KEY] as string])]
+                        : [],
+                };
+            }
+            case 'legend-item': {
+                if (!node.legend) return regionTarget({ kind: 'legend', role: 'legend-item' });
+                const value: LegendTargetValue = {
+                    ...(node.legend.channel ? { channel: node.legend.channel } : {}),
+                    ...(node.legend.field ? { field: node.legend.field } : {}),
+                    domain: node.legend.domain,
+                };
+                return resolvedLegendInteractionTarget(value, resolveTarget('click', 'legend-item', [], value));
+            }
+            case 'axis-label': {
+                const axisTarget = node.axis?.discrete && node.item ? resolveAxisTarget(node.item) : null;
+                if (axisTarget) return axisTarget;
+                if (node.members.length > 0) return regionTarget({ kind: 'axis', role: 'axis-label' });
+                return {
+                    visual: { kind: 'axis', role: 'axis-label' },
+                    elements: itemText({ axis: node.axis?.channel, field: node.axis?.field, value: node.axis?.value, label: node.content }),
+                };
+            }
+            case 'series': return regionTarget({ kind: 'path', role: 'series' });
+            case 'panel': return regionTarget({ kind: 'region', role: 'panel' });
+            case 'header':
+                return node.members.length > 0
+                    ? regionTarget({ kind: 'header', role: 'facet-header' })
+                    : { visual: { kind: 'header', role: 'view-title' }, elements: itemText({ text: node.content }) };
+            case 'axis':
+            case 'axis-title':
+                return {
+                    visual: { kind: 'axis', role: node.kind },
+                    elements: itemText({ axis: node.axis?.channel, field: node.axis?.field, text: node.content }),
+                };
+            case 'legend':
+            case 'legend-title':
+                return { visual: { kind: 'legend', role: node.kind }, elements: itemText({ text: node.content }) };
+            case 'title':
+            case 'subtitle':
+                return { visual: { kind: 'title', role: node.kind }, elements: itemText({ text: node.content }) };
+            case 'headers':
+                return { visual: { kind: 'header', role: 'headers' }, elements: itemText({ text: node.content }) };
+            case 'chart':
+                return { visual: { kind: 'chart', role: 'chart' }, elements: itemText({ chartType, text: node.content }) };
+            default:
+                return { visual: { kind: 'region', role: node.kind }, elements: itemText({ text: node.content }) };
+        }
+    };
+    const accessiblePoint = (node: AccessibleNode) => node.bounds
+        ? { x: (node.bounds.x1 + node.bounds.x2) / 2, y: (node.bounds.y1 + node.bounds.y2) / 2 }
+        : undefined;
+    const accessibleNavigation = accessibleInteraction?.eventSource.accessibleNavigation
+        ? mountAccessibleNavigation({
+            container,
+            settings: accessibleInteraction.eventSource.accessibleNavigation,
+            buildTree: () => buildAccessibleTree({
+                root: view.scenegraph()?.root,
+                chartType,
+                axisFields: plan.axisFields,
+                legendFields: plan.legendFields,
+                rangeLegendChannels: plan.rangeLegendChannels,
+                seriesField: plan.seriesField,
+                fields: plan.fields,
+                temporalFields: plan.temporalProvenanceFields,
+                scaleType: (name) => {
+                    try {
+                        return view.scale(name)?.type;
+                    } catch {
+                        return undefined;
+                    }
+                },
+                settings: accessibleInteraction.eventSource.accessibleNavigation,
+            }),
+            coordinateSpace,
+            containerLayoutSize,
+            present(node, description) {
+                const target = accessibleTarget(node);
+                void dispatch(accessibleInteraction, {
+                    type: 'semantic', source: 'element', phase: 'preview', target,
+                    point: accessiblePoint(node), description,
+                });
+                const keys = target.elements.flatMap(semanticElementRenderKeys);
+                if (node.kind === 'legend-item' && node.legend) void setHover(keys, node.legend);
+                else if (node.kind === 'axis-label' && node.axis?.discrete) {
+                    void setHover(keys, null, { scale: node.axis.scale, value: node.axis.value });
+                } else if (node.kind === 'mark' && (node.item?.mark?.marktype === 'line' || node.item?.mark?.marktype === 'area')) {
+                    // A point on a line shows the whole line it belongs to, not just the segment it starts.
+                    const pathKeys = (node.item.mark.items ?? [])
+                        .map((item: any) => item?.datum?.[INTERACTION_KEY])
+                        .filter((key: unknown): key is string => typeof key === 'string')
+                        .map((key: string) => `${key}${PATH_KEY_SUFFIX}`);
+                    void setHover([...keys, ...pathKeys]);
+                } else void setHover(keys);
+            },
+            clear() {
+                void dispatch(accessibleInteraction, { type: 'semantic', source: 'element', phase: 'cancel', target: null });
+                void setHover([]);
+            },
+            activate(node) {
+                const target = accessibleTarget(node);
+                const point = accessiblePoint(node);
+                const event = { type: 'semantic', source: 'element', phase: 'commit', target, point } as const;
+                const legend = node.kind === 'legend-item' ? node.legend ?? null : null;
+                const receivers = legend ? legendClickInteractions
+                    : node.kind === 'axis-label' ? node.axis?.discrete ? axisClickInteractions : []
+                    : markClickInteractions;
+                if (receivers.length === 0) return false;
+                return Promise.all(receivers.map((interaction) => dispatch(interaction, event, legend, 'activate-element')))
+                    .then(() => true);
+            },
+        })
+        : undefined;
+
     // Overlays project scenegraph geometry into screen pixels, so every one of
     // them is re-projected whenever the rendered size changes.
-    const syncOverlays = (): void => {
+    const projectOverlays = (): void => {
         renderPathFocus();
         renderLegendRange();
         for (const overlay of annotationOverlays.values()) overlay.sync();
         dataOverlay.sync();
         regionGesture?.sync();
         reorderResetControls.layout();
+    };
+    const syncOverlays = (): void => {
+        projectOverlays();
+        accessibleNavigation?.refresh();
     };
     let observedRenderer: Element | undefined;
     // A drag-resize fires per frame, so repeated observations collapse into one pass.
@@ -2593,7 +3138,7 @@ export function mountVegaInteractions(
     // itself being sized independently of it.
     resizeObserver?.observe(container);
     const observeRenderer = (): void => {
-        const renderer = container.querySelector('canvas, svg');
+        const renderer = rendererElement(container);
         if (!renderer || renderer === observedRenderer) return;
         if (observedRenderer) resizeObserver?.unobserve(observedRenderer);
         resizeObserver?.observe(renderer);
@@ -2613,6 +3158,8 @@ export function mountVegaInteractions(
         if (hoverClearTimer !== undefined) clearTimeout(hoverClearTimer);
         if (escapeResets) {
             container.removeEventListener('pointerdown', focusOnPointer, true);
+            container.removeEventListener('blur', restoreFocusOutline);
+            restoreFocusOutline();
             container.removeEventListener('keydown', resetKeyDown);
         }
         if (keyboardEnabled) {
@@ -2637,6 +3184,7 @@ export function mountVegaInteractions(
             container.removeEventListener('wheel', inspectWheel);
             container.removeEventListener('contextmenu', inspectContext);
         }
+        for (const signal of viewportSignals) view.removeSignalListener(signal, followViewport);
         regionGesture?.destroy();
         navigationGesture?.destroy();
         if (elementDragInteraction) {
@@ -2647,6 +3195,7 @@ export function mountVegaInteractions(
         }
         focusOverlay.destroy();
         targetFeedbackOverlay.destroy();
+        accessibleNavigation?.destroy();
         legendRangeOverlay.destroy();
         for (const overlay of annotationOverlays.values()) overlay.destroy();
         annotationOverlays.clear();
@@ -2668,7 +3217,10 @@ export function mountVegaInteractions(
         if (!regionInteraction && !navigationInteraction) container.style.cursor = previousCursor;
     };
     const clearUpdate = async (id: string): Promise<void> => {
-        if (retainedUpdates.delete(id)) await renderUpdates();
+        if (id === regionInteraction?.id) regionGesture?.reset();
+        if (!retainedUpdates.delete(id)) return;
+        await renderUpdates();
+        notifyChange({ phase: 'commit', source: 'host' });
     };
     const replaceUpdates = async (
         nextUpdates: readonly ChartUpdate[],
@@ -2681,13 +3233,24 @@ export function mountVegaInteractions(
             results.push(resolved.result);
         }
         await renderUpdates();
+        notifyChange({ phase: 'commit', source: 'host' });
         return results;
     };
     return {
         getInteractionContext: context,
-        applyUpdate: (update, options) => storeUpdate(update, retainedUpdates, null, options),
+        onChange: (listener) => {
+            changeListeners.add(listener);
+            return () => changeListeners.delete(listener);
+        },
+        reportChange: notifyChange,
+        applyUpdate: async (update, options) => {
+            const result = await storeUpdate(update, retainedUpdates, null, options);
+            notifyChange({ phase: 'commit', source: options?.source ?? 'host', interactionId: options?.interactionId });
+            return result;
+        },
         setUpdates: replaceUpdates,
         clearUpdate,
+        rerender: renderUpdates,
         refresh: () => {
             observeRenderer();
             syncOverlays();

@@ -114,6 +114,44 @@ treats it as a box the chart fills and shrinks to fit, never overflowing:
 }
 ```
 
+## When the box is tight
+
+A chart's title, deck, keys and house chrome all live inside its box. In a small box they can take
+the room the chart needs — two keys stacked under a long headline over a wide, short card squash the
+plot into a strip. Flint's last layout pass catches this before the chart is drawn. A title and a row
+of keys above a plot are the theme's design and are left alone; only a header much larger than that,
+keys that take the width, or a drawing the host would shrink past legibility call for a fix.
+
+The fix is the **least edit a reader would notice**, made to the part that causes the problem — a
+title is not set smaller for keys that take the width — one at a time, gentlest first:
+
+1. **Keys stand in one row** on their edge rather than a stack.
+2. **Names wrap** onto lines, before they are ever cut: a key's names, the keys staying where they
+   are; or, where the chart area itself is too wide for its box, the names down the y axis — at the
+   size they are drawn, the plot untouched.
+3. **The title is set a size down**, never below 13 px for the headline and 11 px for the deck.
+4. **One key moves** to another edge, where several share one: a second key beside the plot to a row
+   below it, or one of several stacked keys beside the plot. The others stay.
+5. **Keys move** to another edge — beside the plot, or in a row above or below it.
+6. **The title is set two sizes down.**
+
+Every edit that answers the problem is tried, and of those that clear it the gentlest is kept; where
+two are alike — keys above or below — the one whose result reads better wins.
+
+Where the box still cannot hold the chart legibly, **the plot comes down**, keeping its shape.
+With the title and keys settled, **the plot is laid out once more** in the room the box leaves it —
+the bars of a chart under a tall header lengthen into the width its box has to spare — and kept only
+where the text is no smaller and the drawing reads better; it runs once, never again. The fit
+never lays a chart out larger for the host to shrink: a chart nothing mends is drawn at its own size,
+and whether to scroll or scale it is the reader's or the host's choice.
+
+A chart that reads well but is drawn a little larger than its box gets only the gentlest edits — keys
+in a row on their edge, or names wrapped — and only where they bring it nearer its box with nothing
+going wrong. A chart that reads well as planned is otherwise never changed, nothing is dropped, and the chart's own shape
+is never changed. A title spans the whole drawing, keys beside the plot included, and so does a row of keys above or below it. Each stands where the theme sets it — a centred title over the plot, keys from its start — and, where it would run past the drawing's edge there, moves the least that keeps it within. A partial edit that trades one problem for another — a drawing too wide made too tall — is not kept, nor one that makes text already too small smaller still. A headline that must break is broken at its own size, each line filled to the
+width (a lone last word evened out), unless a size down saves a line. Set `options.canvasFit` to
+`'off'` to lay a chart out exactly as planned.
+
 ## Font size
 
 Text (axis tick labels, axis titles, legend, chart title) adapts to the canvas

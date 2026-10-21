@@ -1,0 +1,104 @@
+{
+  "id": "metlife",
+  "org": "MetLife Global Design System",
+  "urls": [
+    "https://design.metlife.com/foundations/core-guidance/data-visualization/",
+    "https://xd.adobe.com/view/e1b2b54f-8dbb-41f0-8bbc-a48fb6033e29-b4e1/screen/187167a7-2029-4490-b49f-3425e239532c/specs/"
+  ],
+  "access": "partial",
+  "accessNotes": "The Data Visualization page (Overview/Guidance, Color & Typography, Types & Usage, Infographics, Accessibility) was read in full via curl (server-rendered AEM page) and example images downloaded. The per-chart 'DESIGN SPECS' (donut, pie, bar, horizontal bar, stacked bar, line, area, plot) are hosted as Adobe XD share links that are JS-only and could not be read, so exact px specs for axes, gridlines and type sizes are unavailable; structural details below come from the example images. The site now carries a banner that MetLife is evolving its brand and Brand Central (brand.metlife.com) is the new source of truth.",
+  "summary": "MetLife's product/marketing design system treats charts as bold, simple, brand-coloured graphics inside white dashboard cards: MetLife Circular for headers and key numbers, Noto Sans for labels/legends/source, a primary palette of MetLife blue #0090DA, green #A4CE4E, purple #5F259F, teal #00ACA0 and yellow #FFC600 anchored by black, dotted light-grey gridlines and small square-swatch legends. Guidance favours big standalone numbers, focus on one takeaway, and simple chart types sized to the screen.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#0090da", "#333333", "#00aca0", "#db0a5b", "#f2f2f2", "#007abc", "#a4ce4e", "#6e6e6e", "#ffc600", "#5f259f", "#a7a8aa", "#0061a0", "#baddf5", "#528320", "#d42123"],
+    "categoricalNotes": "Palette 2 (Extended) in the prescribed datapoint order 1–15 – 'use colors from the pallet in provided order as they have enough contrast ratio between them'. Don't use all colours; ensure contrast between adjacent colours; black/white (and #333333/#f2f2f2) swap depending on light/dark background. Palette 1 (Basic, base palette with accents): Green #A4CE4E, Blue 1 #0090DA, White #FFFFFF, Black #000000, Purple #5F259F, Teal #00ACA0, Yellow #FFC600. Examples use blue then green for two-series lines, and blue/purple/grey for three groups.",
+    "sequential": [],
+    "diverging": [],
+    "highlight": "#0090da",
+    "context": "#a7a8aa",
+    "positive": null,
+    "negative": null,
+    "background": "#ffffff",
+    "text": "#000000",
+    "textSecondary": null,
+    "gridline": null,
+    "axis": null,
+    "notes": "'Use black as an anchoring color to convey expertise.' Never place charts on busy backgrounds/photos (shown as a Don't). Must meet WCAG 2.1 AA contrast."
+  },
+  "typography": {
+    "family": "MetLife Circular (headers, sub-headers, highlighted key data points); Noto Sans (labels, legends, descriptions, source)",
+    "fallback": null,
+    "title": { "size": null, "weight": "regular/medium (MetLife Circular)", "align": "left", "case": "title", "color": null },
+    "subtitle": { "size": null, "weight": null, "style": "normal", "color": null },
+    "axisLabel": { "size": null, "color": null },
+    "axisTitle": { "size": null, "weight": null, "placement": "omitted in examples" },
+    "dataLabel": { "size": null, "weight": "large MetLife Circular numerals for key values" },
+    "source": { "size": null, "style": "Noto Sans", "color": null },
+    "notes": "Follow the page's typography hierarchy; use font weight and body-copy sizes to build hierarchy; label text must not be too small. 'Enlarging numbers by themselves can be an interesting way to represent data.' Card headings in examples are preceded by a short blue-to-green gradient rule."
+  },
+  "structure": {
+    "gridlines": "Horizontal only, dotted light grey (line-chart example); horizontal bars sit on thin grey full-length track lines instead of gridlines.",
+    "axisLine": "Thin dark x- and y-axis lines in the line-chart example.",
+    "ticks": "Small ticks at labelled dates on the x-axis.",
+    "zeroLine": null,
+    "yAxisPlacement": "left",
+    "yAxisTitle": "omitted; units in tick labels ($10,000)",
+    "unitPlacement": "Every tick ($ prefix, comma thousands).",
+    "frame": "White card container with subtle shadow on a light-grey page; card title top-left.",
+    "background": "#ffffff card",
+    "notes": "Time-range toggles (1 yr / 3 yr / 5 yr) as underlined tabs above the chart, with a green-ringed help '?' icon."
+  },
+  "legend": {
+    "placement": "below the chart, centred (line chart); above the chart, left-aligned in a row (bar list)",
+    "directLabels": "Values printed at bar ends; donut centre shows 'Total 100%'.",
+    "title": "none",
+    "swatchShape": "small square",
+    "notes": "Legend text in small Noto Sans."
+  },
+  "marks": {
+    "bars": "Thin horizontal bars on a light grey full-width track line, category label above each bar, large percentage value to the right of the track; bar charts best with ≤6 points on small screens and 15–20 on wide screens.",
+    "lines": "~2px straight-segment lines without markers.",
+    "areas": null,
+    "points": null,
+    "pies": "Pie/donut for single-series part-to-whole in small spaces (dashboard cards, mobile); donut with total in the centre; slices start at 12 o'clock clockwise, no gaps; empty donut state is a light grey ring.",
+    "notes": "Guide: pie when the single series is all positive; donut when it includes negative values."
+  },
+  "labels": {
+    "dataLabels": "Key values large at bar ends; tooltips, symbols and annotations used so colour isn't the only carrier.",
+    "numberFormat": "$ with comma thousands ($38,752.11, $10,000); percentages (54%, -1.25%).",
+    "dates": "Abbreviated month + year ('Jul 2019'); dd/mm/yyyy in 'as of' notes.",
+    "notes": ""
+  },
+  "furniture": {
+    "title": "Card header in MetLife Circular, top-left, preceded by a short gradient rule; chart sub-header in uppercase small caps-style ('HISTORICAL PERFORMANCE:').",
+    "source": "Source line in Noto Sans (no pattern given).",
+    "logo": null,
+    "other": "Infographic components: Data Insight, Display Key Insights, Key Stat Breaker, Trend Spotting."
+  },
+  "annotations": "Annotations allowed as non-colour information carriers; no styling spec.",
+  "layout": "Simple data (pie/donut) for small/medium spaces; bar/column for any size; line/area/plot for large screens. Responsive: scrollable containers, collapsing sections or reduced data on mobile.",
+  "interaction": "Keyboard-accessible interactions; 'Try to avoid animation and hover states'; tooltips as supplementary info.",
+  "accessibility": "WCAG 2.1 AA; provide data table/RTF alternative; use palette in given order for adjacent contrast; never rely on colour alone; readable label sizes; text descriptions for novel charts.",
+  "chartTypes": {
+    "preferred": ["pie", "donut", "bar", "horizontal bar", "stacked bar", "column", "line", "area", "plot (scatter)", "big-number infographics"],
+    "discouraged": ["complex/novel charts without text description", "charts over photos or busy backgrounds", "excessive multiple visuals"],
+    "notes": ""
+  },
+  "distinctiveRules": [
+    { "rule": "Assign series colours in the fixed extended order: #0090DA, #333333, #00ACA0, #DB0A5B, #F2F2F2, #007ABC, #A4CE4E, #6E6E6E, #FFC600, #5F259F, #A7A8AA, #0061A0, #BADDF5, #528320, #D42123.", "source": "https://design.metlife.com/foundations/core-guidance/data-visualization/", "quote": "make sure to use colors from the pallet in provided order as they have enough contrast ratio between them" },
+    { "rule": "Headers and key numbers in MetLife Circular; all labels, legends, descriptions and source in Noto Sans.", "source": "https://design.metlife.com/foundations/core-guidance/data-visualization/", "quote": "Use Noto Sans in your data visualization for labels, legends, descriptions, source etc." },
+    { "rule": "Be bold: primary palette graphic shapes, black as anchor colour, and enlarged standalone numbers for the key figure.", "source": "https://design.metlife.com/foundations/core-guidance/data-visualization/", "quote": "Use bold, graphic shapes and the primary color palette … Use black as an anchoring color" },
+    { "rule": "Never place charts over photos or busy backgrounds; use white/light cards.", "source": "https://design.metlife.com/foundations/core-guidance/data-visualization/", "quote": "Don't Use data visualizations in front of busy backgrounds." },
+    { "rule": "Line charts: dotted light-grey horizontal gridlines, $-formatted y ticks, abbreviated month-year x labels, square-swatch legend centred below.", "source": "https://design.metlife.com/content/dam/metlifecom/uxdesign/assets/img/foundations/core-guidance/data-visualization/complex-chart/Complex-chart-2.jpg", "quote": "observed in example image" },
+    { "rule": "Horizontal bar lists: label above each bar, bar on a thin grey full-length track, large % value right of the track, legend row top-left.", "source": "https://design.metlife.com/content/dam/metlifecom/uxdesign/assets/img/foundations/core-guidance/data-visualization/bar-chart/Bar-chart-example-1.jpg", "quote": "observed in example image" },
+    { "rule": "Donuts show 'Total N%' in the centre; empty state is a solid light-grey ring.", "source": "https://design.metlife.com/content/dam/metlifecom/uxdesign/assets/img/foundations/core-guidance/data-visualization/pie-donut/Pie-donut-example-1.jpg", "quote": "observed in example image" },
+    { "rule": "Bar charts: ≤6 data points on small screens, 15–20 on wide screens.", "source": "https://design.metlife.com/foundations/core-guidance/data-visualization/", "quote": "For a wider screen, number of data points between 15-20 is preferred, while on a smaller screen 6 data points" },
+    { "rule": "Avoid animation and hover-dependent states; interactions must be keyboard accessible.", "source": "https://design.metlife.com/foundations/core-guidance/data-visualization/", "quote": "Try to avoid animation and hover states." },
+    { "rule": "Charts live in white shadowed cards whose title is preceded by a short blue→green gradient rule.", "source": "https://design.metlife.com/content/dam/metlifecom/uxdesign/assets/img/foundations/core-guidance/data-visualization/complex-chart/Complex-chart-2.jpg", "quote": "observed: 'Your Performance' card" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/metlife/Complex-chart-2.jpg", "url": "https://design.metlife.com/content/dam/metlifecom/uxdesign/assets/img/foundations/core-guidance/data-visualization/complex-chart/Complex-chart-2.jpg", "describes": "Dashboard card 'Your Performance' (white card with soft shadow, title in MetLife Circular preceded by a short blue-green rule; 'Manage My Funds' link top-right in blue). Left: 'TOTAL ACCOUNT VALUE:' uppercase label over a huge bold '$38,752.11' and a list of metrics with thin dividers. Right: 'HISTORICAL PERFORMANCE:' uppercase with 1 yr/3 yr/5 yr underline tabs. Line chart: two ~2px lines, blue #0090DA (Account Value) and green #A4CE4E (Premium), no markers; dotted light-grey horizontal gridlines; y labels $10,000–$50,000 small dark grey at left; thin dark y and x axis lines; x labels Jul 2019 / Nov 2019 / Mar 2020 with small ticks; square-swatch legend centred below." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/metlife/Bar-chart-example-1.jpg", "url": "https://design.metlife.com/content/dam/metlifecom/uxdesign/assets/img/foundations/core-guidance/data-visualization/bar-chart/Bar-chart-example-1.jpg", "describes": "Horizontal bar list on white: legend row top-left with small squares (blue, purple, grey age groups). Each item: category label in regular dark sans above, then a thick short bar (blue #0090DA-ish, purple #5F259F, or grey) sitting on a thin light-grey track line to a fixed length, with a large black percentage (54%, 32% …) to the right. No axes, no gridlines, no title in plot." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/metlife/Pie-donut-example-1.jpg", "url": "https://design.metlife.com/content/dam/metlifecom/uxdesign/assets/img/foundations/core-guidance/data-visualization/pie-donut/Pie-donut-example-1.jpg", "describes": "'Manage My Funds' modal: two donuts with uppercase headings ('NEW ALLOCATION', 'CURRENT ALLOCATION'). Empty donut is a light-grey ring with 'Total 0%' centred; filled donut with segments in dark blue, mid blue, light blue, green, purple, yellow starting at 12 o'clock, no gaps, 'Total 100%' in the centre. Adjacent table rows carry a coloured left edge bar matching each fund's donut colour." }
+  ]
+}

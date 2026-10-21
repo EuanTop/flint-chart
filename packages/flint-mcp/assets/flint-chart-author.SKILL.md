@@ -17,8 +17,10 @@ or `assembleChartjs` to get a backend spec.
 - **DO** emit `chart_spec` (chart type, channel→field mapping, properties)
   and `semantic_types` (field → semantic type).
 - **DO** add `interaction_spec` when the user asks for behaviour (highlight,
-  legend toggle, pan and zoom, brush). List presets by name; see
-  "Interactions".
+  legend toggle, pan and zoom, brush), asks for an interactive chart, or the
+  session's goal is to explore the data. List presets by name; see
+  "Interactions", and load the `flint-interaction-author` skill for an intent,
+  an interactive chart with nothing named, or a combination.
 - **Reference columns by name.** How `data` itself gets bound depends on
   the situation — a URL, a host-side variable, or embedded rows (see "How
   data gets bound"). Embedding is fine for small tables; just don't
@@ -41,13 +43,25 @@ First decide which workflow the user is asking for:
   `semantic_types` + `chart_spec` pieces. Do not install packages or write
   renderer code unless asked.
 - **MCP chart output:** if Flint MCP tools are available, **default to
-  `create_chart_view`** whenever the user asks to see a chart — it opens an
-  interactive, live-rendered view with a customization panel, and it validates
-  the spec for you. Only fall back to `render_chart` (PNG/SVG) when the host has
+  `create_chart` then `show`** whenever the user asks to see a chart.
+  `create_chart` checks the spec and returns a report and the chart's id
+  without drawing; fix what the report asks with `update_chart`, then call
+  `show` once, which opens an interactive, live-rendered card with a
+  customization panel. Only fall back to `render_chart` (PNG/SVG) when the host has
   no App UI support or the user explicitly wants a static image. Use
   `validate_chart` to check a spec without rendering, `compile_chart` when the
   user wants backend-native JSON, and `list_chart_types` when you need the
   supported chart catalog.
+- **DO** pass `updates` beside the input to `create_chart` when the user
+  asks the chart to open in a state: rows to stand out, a note on a mark, a
+  framed range. It is a list of ChartUpdate layers, state not behaviour; the
+  shapes are in `flint://interaction-skill` under "Update the chart". To change a
+  chart in a later turn, call `update_chart` with its id and new `updates`, then
+  `show` again: a new card shows the new version, earlier cards stay as they were.
+- **DO** pass `view: "table"` to `create_chart` when the user wants to see
+  a chart's numbers: the card opens on the table of the rows the chart draws,
+  and the reader can switch to the chart. When the user wants records listed and
+  no chart at all, use `chartType: "Table"` instead.
 - **Project integration, only when the user asks for code:** add Flint to an
   app, notebook, script, or agentic product, install/import the library, and
   call an assembler in code. Keep the same `ChartAssemblyInput` contract, then
@@ -125,6 +139,14 @@ Use the binding mode that matches the runtime. Do not mix them.
   pass a real runtime value, e.g. `data: { values: rows }`, to
   `assembleVegaLite`, `assembleECharts`, or `assembleChartjs`. This variable
   pattern is for generated code, not for MCP tool calls.
+  - Parse CSV with a real parser (`d3.csvParse`, Papa Parse, `pandas`), never
+    `line.split(',')`: quoted values such as `"Korea, Rep."` shift every later
+    column, and a shifted measure silently changes the chart (a wrong domain,
+    an unwanted log scale).
+  - Keep values as the data has them and let `semantic_types` read them: a
+    number column `year` typed `Year`, and a `YearMonth` column as `202501`,
+    `"202501"` or `"2025-01"`, are labelled as years and months; don't convert
+    them to date strings first.
 
 For spec-only answers, return the `semantic_types` and `chart_spec` pieces and
 state how the host should bind data. In the worked examples below, `data` is
@@ -147,8 +169,9 @@ not just the column names, and watch for:
   parts (e.g. `all` alongside `cage-free`/`caged`, or a `Total` region). Charting
   the total with its parts double-counts and flattens the parts — keep one or the
   other on a stacked/grouped/colored channel, not both.
-- **Units.** Check whether a rate is a fraction (0–1) or already a percent
-  (0–100) before tagging it `Percentage`; don't scale twice.
+- **Units.** `Percentage` accepts either a fraction (0–1) or a percent (0–100):
+  Flint reads which from the values and formats both as `%`. Don't rescale a
+  column for Flint, and don't scale it twice.
 - **One real entity.** If your breakdown column has a single distinct value, the
   per-group chart collapses to one mark — the intended breakdown is likely a
   different column.
@@ -184,6 +207,23 @@ title:    "A pyramid that is no longer a pyramid"
 subtitle: "United States population by age and sex, 2020, millions"
 ```
 
+Add `chart_spec.label` only when the chart sits in a numbered sequence or
+under a section name: `label: "Figure 2"`. It is drawn above the headline in
+the theme's kicker style.
+
+`chart_spec.source` is optional. Add it only when the user names the source or
+asks for a source line, or the data itself states where it comes from:
+`source: "UN World Population Prospects 2024"` (or `{ text, href }` to link
+it). Never invent or guess one. The theme decides how it reads ("Source:",
+side, rule, credit); a chart without one draws no footer.
+
+`chart_spec.chrome` is the house decoration the theme draws around the chart:
+header rules, tabs, wordmarks, logos, the footer rule and the house credit. It is
+not the chart's own title, label or source. The theme draws it by default; leave
+`chrome` out unless the user asks to drop it: `chrome: false`
+drops all of it; `chrome: { logos: false }` (or `header`, `footer: false`) drops
+one part. Without logos a credit keeps its words.
+
 `Jan`, `Cairo`, `Chrome` name their own kind; `26`, `5,300`, `0.42` do not, and
 the headline is where they get named. Leave it out only where the chart is not
 read on its own — a sparkline in a cell, a tile under its own caption. Nothing
@@ -213,6 +253,10 @@ Call `list_themes` to choose an id, then place it beside `chart_spec`:
 | `powerbi` | Dashboard tile: compact, legend to the right, latest point emphasised. |
 | `powerbi-light` | Light dashboard tile: white canvas, fine gridlines, and bright categorical color. |
 | `cartoon` | Playful illustration: warm paper, rounded type, bold outlines, and bright color. |
+| `apple` | App-interface chart: light labels, trailing value axis, symbols beside color. |
+| `de-stijl` | De Stijl composition: primary planes in heavy black lines, steps not slopes, title under the picture. |
+| `bbc` | BBC News graphic: big bold headline, gridlines only, heavy zero rule, footer rule with the source. |
+| `material` | Material Design 3 product chart: purple-led tonal palette, Roboto type, light gridlines, rounded bars. |
 
 ### 2. Override a preset
 
@@ -240,54 +284,37 @@ many series keep the requested brand palette.
 
 Do not copy an entire preset or invent theme keys. A theme controls
 presentation; fields, aggregation, filtering, and sorting still belong in the
-chart input. ThemeSpec currently affects Vega-Lite only.
+chart input. ThemeSpec applies to Vega-Lite and Plotly; ECharts, Chart.js, and Excel ignore it.
 
 Full reference:
 https://microsoft.github.io/flint-chart/#/documentation/theme-spec
 
 ## Interactions (`interaction_spec`)
 
-Add `interaction_spec` beside `chart_spec` only when the user asks for
-behaviour: highlight on click, a legend that hides series, pan and zoom, a
-brush, an annotation on click. A static image never needs it.
+Add `interaction_spec` beside `chart_spec` when the user asks for behaviour,
+or when the goal of the session is to explore or analyse the data. A static
+image never needs it.
 
 ```json
 {
-  "chart_spec": { "chartType": "Bar Chart", "encodings": { "x": "country", "y": "gdp", "color": "region" } },
-  "interaction_spec": {
-    "interactions": [
-      { "type": "click-highlight" },
-      { "type": "legend-toggle" },
-      { "type": "navigate", "options": { "axes": "y", "pan": false, "reset": ["double-click", "escape"] } }
-    ]
-  }
+  "chart_spec": { "chartType": "Line Chart", "encodings": { "x": "date", "y": "value", "color": "series" } },
+  "interaction_spec": { "interactions": [ { "type": "brush-x" } ] }
 }
 ```
 
-Rules:
+Every entry is `{ "type": <preset>, "options": { ... } }`, one per behaviour.
+Take the presets and their options for the chart type from
+`list_interaction_presets` with `chartType`; never invent one. Options nest under
+`options`; `id` sits on the entry.
 
-- **Presets only.** Every entry is `{ "type": <preset>, "options": { ... } }`.
-  Take the preset names for the chosen chart type from `list_chart_types`
-  (`chartTypes[].interactions`); a KPI card supports no brush, a pie chart no
-  `navigate`. Never invent a type.
-- **Options nest under `options`.** An option beside `type` is rejected.
-  `id` is optional and sits on the entry, never inside `options`.
-- **`reset`** is a list of `"click-none"`, `"double-click"`, `"escape"` on any
-  preset that keeps state. Leave it out to accept the preset's default.
-- **The data decides too.** `legend-toggle` needs a colour field with a
-  discrete legend; `navigate` needs a continuous axis; `drag-reorder` needs a
-  discrete axis. An entry the chart cannot honour is dropped with a warning
-  and the chart still renders. Run `validate_chart` to read those warnings
-  before you show the chart.
-- **Vega-Lite only.** Other backends ignore the spec.
+Which presets answer a request, how they combine, and what the warnings mean
+is the `flint-interaction-author` skill (`flint://interaction-skill` on the
+MCP server). Load it for anything beyond a single named gesture: an intent
+(explore, compare, analyse, find outliers), "make it interactive" with
+nothing named, several presets together, behaviour on a chart that already
+exists, or an update to a chart on screen.
 
-Common presets: `click-highlight` (focus a mark), `click-group-focus`
-(focus its group, `groupBy`), `legend-toggle`, `navigate` (`axes`, `pan`),
-`brush-x` / `brush-y` / `select` (drag to focus an interval or area),
-`click-annotate`, `inspect` and `inspect-index` (read values on hover),
-`drag-reorder` (reorder categories).
-
-Full guide:
+Full reference:
 https://microsoft.github.io/flint-chart/#/documentation/interaction-spec
 
 ## Step 1 — pick `chartType`
@@ -299,7 +326,7 @@ properties"). Required channels are noted.
 
 | chartType | Channels | Notes / required |
 |---|---|---|
-| `"Scatter Plot"` | x, y, color, size, opacity, column, row | x + y required |
+| `"Scatter Plot"` | x, y, color, size, shape, detail, opacity, column, row | x + y required; `detail` carries a field (e.g. `country`) on each point without a visual channel, for tooltips and linking |
 | `"Regression"` | x, y, size, color, column, row | scatter + fit line; props `regressionMethod`, `polyOrder` |
 | `"Connected Scatter Plot"` | x, y, order, color, detail, column, row | x + y required; `order` = connection sequence (time/index), so the line traces a trajectory and may self-cross |
 | `"Ranged Dot Plot"` | x, y, color | dumbbell of two x per category |
@@ -325,15 +352,30 @@ properties"). Required channels are noted.
 | `"Range Area Chart"` | x, y, y2, color, column, row | x + y + y2 required; translucent band from `y` (low) to `y2` (high), value axis fits the band (not zero) |
 | `"Violin Plot"` | x, y, color, row | x (category) + y (measure) required; mirrored KDE density per category, prop `bandwidth`; **Vega-Lite only**; a genuine `color` subgroup splits two groups or grids 3+ groups |
 | `"Streamgraph"` | x, y, color, column, row | centre-stacked areas |
-| `"Density Plot"` | x, color, column, row | prop `bandwidth` |
+| `"Density Plot"` | x, color, column, row | props `bandwidth`, `stackMode` (series stack; `layered` overlaps them), `opacity` |
+| `"Ridgeline Plot"` | x, y, color | x = measure; `color` (or a discrete `y`) names the ridges, each the KDE of x on its own baseline; a measure `y` draws each series' curve instead; props `overlap`, `order`, `tailCut`, `colorBy`, `perspective` (plans unset `skew`, `tilt`, `overlap` from the ridge count so the depth takes about 40% of the plot), `skew`, `tilt`, `valueMax`, `markAt` (`true` marks the x ticks, or a list of x values; each ridge's value is dotted and labelled, joined across ridges), `opacity`, `interpolate`, `bandwidth`; named ridges share one ink unless `colorBy` asks otherwise; a numeric `color` keeps a gradient key; **Vega-Lite only** |
+| `"Marginal Plot"` | x, y, color, size, shape, opacity | the plot follows the axis types (measure × measure = scatter, category × measure = strip, category × category = heatmap of counts) with each axis's distribution along it (density, histogram or boxplot on a measure axis, a bar of counts on a category axis, split by `color`; density margins layer by default); props `marginal`, `stackMode`, `bandwidth`, `binCount`, `whiskerMethod`, `showOutliers`; **Vega-Lite only** |
 | `"Pie Chart"` | size, color, column, row | `size` = slice value (→ angle), `color` = category; props `innerRadius`, `sortSlices` |
 | `"Rose Chart"` | x, y, color, column, row | polar bars; props `alignment`, `padAngle`, `sortSlices` |
 | `"Radar Chart"` | x, y, color, column, row | props `filled`, `fillOpacity`, `strokeWidth` |
 | `"Candlestick Chart"` | x, open, high, low, close, column, row | OHLC all required |
 | `"Bar Table"` | y, x, color, column, row | compact bars + value labels |
 | `"KPI Card"` | metric, value, goal | big-number tile; prop `behindThreshold` |
+| `"Table"` | none (`encodings: {}`) | the rows as given, one column per field in row order; shape `data.values` to the rows and fields to list, name columns with `field_display_names`; numbers and dates print by `semantic_types`; receives links and `updates`, sends no selection |
 | `"Map"` | longitude, latitude, color, size, opacity | bubble map; props `region`, `projection` |
-| `"Choropleth"` | id, color, detail | `id` = geographic key |
+| `"Choropleth"` | id, color, detail | `id` = region key (see **Maps** below); props `region` (`"world"`/`"us"`), `level` (US: `"state"`/`"county"`/`"auto"`), `projection` (world) |
+
+**Maps: what `id` accepts.** Flint joins the key to its own base map; you never
+supply geometry or a lookup. A **world** map takes country names ("India",
+"DR Congo", "United Kingdom"), ISO 3166 alpha-2 / alpha-3 codes ("IN", "IND"),
+or ISO numeric codes (356), all in one column. A **US** map takes state names,
+USPS codes ("CA") or FIPS codes (6), and county FIPS (6037) with
+`level: "county"`. Declare the key `Country` or `State` in `semantic_types`
+(or set `chartProperties.region`) whenever codes could collide: "CA", "IN",
+"Georgia", or small numbers. A key that matches no region is not drawn. Map
+marks carry only `id`, `color` and `detail`: to link a map with charts keyed by
+a name column, encode that column as `id` (names resolve too) or put it on
+`detail` (e.g. `id: "map_id", detail: "country"`), which also labels the tooltip.
 
 **Donut chart:** use `"Pie Chart"` with `chartProperties.innerRadius > 0`.
 
@@ -399,13 +441,40 @@ string shorthand, expanded to `{ field: "<string>" }`):
 |---|---|---|
 | `field` | column name | Bind the channel to a data column |
 | `type` | `quantitative`, `nominal`, `ordinal`, `temporal` | Override the inferred encoding type (rarely needed) |
-| `aggregate` | `count`, `sum`, `average`, `mean` | Force an aggregation on a measure channel |
-| `sortOrder` | `ascending`, `descending` | Sort direction for a discrete/sorted axis |
-| `sortBy` | channel name (e.g. `"y"`) or field | Sort a category axis by another channel's measure |
-| `scheme` | Vega scheme name (e.g. `viridis`, `redblue`) | Color scheme for the `color` channel |
+| `aggregate` | `count`, `sum`, `average`, `mean` | Force an aggregation on a measure channel. A heatmap that gets several rows per cell aggregates its colour on its own (sum for additive types such as `Quantity` or `Profit`, average otherwise) and warns; set `aggregate` to choose |
+| `sortOrder` | `ascending`, `descending` | Sort direction; in Vega-Lite, direction alone preserves/reverses the semantic sequence |
+| `sortBy` | mapped `"x"`, `"y"`, `"color"`; Vega-Lite also accepts a data field or JSON-array string | Explicit category ordering; see the Vega-Lite contract below |
+| `scheme` | Vega scheme name (e.g. `viridis`, `redblue`), or a list of stops low end first (`["#c0392b", "#f2f2f2", "#2e75b6"]`) | Color scheme for the `color` channel; wins over the theme's ramp |
+| `reverse` | `true` / `false` | `color` only: run the color scale the other way round |
+| `mid` | number | `color` only: where a diverging scale pivots, for this chart (the field's `divergingMidpoint`) |
+| `domain` | `[low, high]` | `color` only: the measure extent the ramp spans, in place of the data's |
+| `bins` | integer ≥ 2, or `0` | `color` only: quantize a continuous measure into that many steps; `0` keeps the ramp continuous |
+| `colors` | `{ value: color }` | `color` only: colors bound to category values, for this chart (the field's `colors`) |
+| `title` | a string, or `null` | The name the channel's axis or key prints in place of the field's; `null` prints none |
 
 You usually don't need `type`, `aggregate`, or `sortOrder` — they're
 inferred from the semantic type. Set them only with specific intent.
+
+**Vega-Lite sorting.** Omit sorting for canonical Month/Day/Quarter order.
+`sortOrder` alone follows that semantic sequence (descending reverses it),
+not alphabetical month names. Without a semantic sequence, direction alone
+uses the field's native value order.
+
+- `sortBy: "month_number"` sorts by that existing data field, ascending by
+  default. Multiple rows per category use the minimum sort-field value.
+- `sortBy: "y"` sorts by the mapped channel; cross-channel sorts default to
+  descending, while self-channel sorts default to ascending. `x`, `y`, and
+  `color` are reserved channel names and must be mapped.
+- `sortBy: "[\"Mar\",\"Jan\",\"Feb\"]"` supplies an explicit category order;
+  `sortOrder: "descending"` reverses it. Use a JSON-array **string**, not an array
+  or a Vega-Lite sort object. Members must be strings, numbers, or booleans.
+- For explicit lexical ordering of month labels, sort by the category field
+  itself: `{ "field": "month", "sortBy": "month", "sortOrder": "ascending" }`.
+
+Unknown fields, unmapped channels, invalid directions, and malformed sort
+arrays are errors, not fallback orders. Raw field-name sorting is currently
+supported by the Vega-Lite backend; for other backends use their supported
+channel-sort controls. Validate inputs against the selected backend.
 
 **Multi-series (wide → long).** To plot several measure columns as series,
 pass an **array** on `x` or `y` (only those two channels). The library
@@ -444,6 +513,8 @@ more. Pick the most specific type for each field. Full registered set:
 | Geographic (place) | `Country`, `State`, `City`, `Region`, `Address`, `ZipCode` |
 | Categorical | `Category`, `Name`, `Status`, `Boolean`, `Direction`, `Range` |
 | Fallback | `Unknown` |
+
+A temporal type also tells Flint how to read the values: a `YearMonth` accepts `202501`, `2025-01`, `2025/1`, `01/2025`, `2025M01`, `Jan 2025`, `2025-Jul`, `July-2025` or `Jul '25`; a `Date` accepts `20250115`, `2025/01/15`, `Jan 15, 2025` or `15-Jan-2025`. Pass the values as they are; an untyped field is never reinterpreted.
 
 What choosing well gets you (automatically):
 
@@ -492,6 +563,40 @@ understates what you know:
 - `sortOrder` — the order the categories should appear in, when the order in
   the data is not the one you want and it isn't alphabetical either:
   `["Low", "Medium", "High"]`. For a handful of categories, not a long list.
+- `colors` — colours that belong to particular values, when the data has a
+  convention the reader expects: `{ "DFL": "#0793AB", "Republican": "#A1000F" }`.
+  Matched on the value (case-insensitive); values left out take the palette,
+  which then skips these colours. Only for real conventions (parties, brands,
+  asset classes), not to restyle a chart — the theme owns the palette.
+- `polarity` — `"higher-is-better"` or `"lower-is-better"`: which end of a
+  diverging colour is the alarming one. Signed measures (`Profit`,
+  `PercentageChange`) read as higher-is-better on their own; set
+  `"lower-is-better"` for costs, errors, churn or delays, so their highs, not
+  their lows, take the warm end, under any theme.
+
+## Step 4 — write the spec
+
+Put the three steps into one `ChartAssemblyInput`, with the data bound as in
+"How data gets bound" and a headline as in "Write a headline":
+
+```json
+{
+  "data": { "url": "sales.csv" },
+  "semantic_types": { "month": "YearMonth", "revenue": "Amount", "region": "Region" },
+  "chart_spec": {
+    "chartType": "Line Chart",
+    "title": "Europe climbed every month after the April dip",
+    "subtitle": "Revenue by region, $m",
+    "encodings": { "x": { "field": "month" }, "y": { "field": "revenue" }, "color": { "field": "region" } }
+  },
+  "theme_spec": "economist"
+}
+```
+
+Add `theme_spec`, `chartProperties`, `interaction_spec` or `updates` only when
+the request asks for them. With the MCP tools, send it to `create_chart`
+directly (it validates; skip `validate_chart`), fix what the report asks with
+`update_chart`, then `show`. Without them, run the "Validation checklist".
 
 ## Chart-level properties (`chartProperties`)
 
@@ -504,6 +609,9 @@ derived). Values are clamped to the ranges shown.
 |---|---|---|---|
 | Bar Chart | `cornerRadius` | 0–15 (0) | Round bar corners (px) |
 | Area / Stacked Bar | `stackMode` | `stacked` \| `normalize` \| `center` \| `layered` (unset) | Stacking behavior; `normalize` = 100%, `center` = streamgraph |
+| Density Plot | `stackMode` | `normalize` \| `layered` (unset = stacked) | `layered` overlaps the series, translucent |
+| Density Plot | `opacity` | 0.1–1 (0.7) | Layered series opacity |
+| Marginal Plot | `stackMode` | `stacked` (unset = layered) | Stack the density margins instead of layering them |
 | Grouped Bar / Boxplot | `dodge` | `auto` \| `local` \| `global` (`auto`) | `local` compacts sparse groups per category; `global` preserves aligned group lanes; leave `auto` unless the user requests one |
 | Line / Area / Sparkline | `interpolate` | `linear` \| `monotone` \| `step` \| `step-before` \| `step-after` \| `basis` \| `cardinal` \| `catmull-rom` (`linear`) | Curve shape |
 | Line / ECDF Plot | `showPoints` | boolean (false) | Draw point markers on the line |
@@ -517,7 +625,18 @@ derived). Values are clamped to the ranges shown.
 | Strip Plot | `pointSize` | 0–150 (0=auto) | Point size |
 | Strip Plot | `opacity` | 0–1 (0=auto) | Point opacity |
 | Histogram | `binCount` | 5–50 (10) | Number of bins |
-| Density Plot | `bandwidth` | 0.05–2 (0=auto) | Kernel bandwidth |
+| Density Plot / Ridgeline / Marginal Plot | `bandwidth` | 0.05–2 (0=auto) | Kernel bandwidth |
+| Ridgeline | `overlap` | 0.5–4 (1.8) | How many baselines up the tallest ridge reaches |
+| Ridgeline | `order` | `mean`, `reverse` (unset = as given; a quantitative series lowest at the front) | Highest mean on top, or reversed |
+| Ridgeline | `tailCut` | 0–0.2 (0) | Trim each ridge to where its density is at least this share of its peak |
+| Ridgeline | `colorBy` | `series`, `x` (unset = one colour) | Named ridges share one ink by default; `series` colours each ridge, `x` fills each with a ramp along x |
+| Ridgeline | `perspective` | boolean (false) | Stand the ridges on a floor seen in perspective: `skew`, `tilt`, `overlap` left unset are planned so the depth takes about 40% of the plot's width and more of its height as ridges are added; the depth names, edge and value ticks give way (along the axis, then level, then every n-th) before they touch |
+| Ridgeline | `skew` | 0–0.4 (0) | Perspective: shift the back ridges left by this share of the x range |
+| Ridgeline | `tilt` | 0–6 (0) | Perspective: the x axis rises this many baselines across its range, labels following its edge |
+| Ridgeline | `opacity` | 0.1–1 (0.5) | Ridge opacity, as the Range Area Chart; solid in perspective unless set |
+| Ridgeline | `valueMax` | number (0 = tallest peak) | Perspective: the value the full ridge height stands for, read on the back-left value axis |
+| Ridgeline | `markAt` | boolean \| number[] | Mark and label every ridge's value at the x ticks inside the range (`true`) or at these x; a dashed line joins the marks at one x across the ridges |
+| Marginal Plot | `marginal` | `density` \| `histogram` \| `boxplot` (`density`) | What each margin draws along a measure axis; a category axis gets a bar of counts |
 | Pie Chart | `innerRadius` | 0–100 (0) | Donut hole size (>0 → donut) |
 | Pie / Rose | `sortSlices` | `none` \| `descending` \| `ascending` (`none`) | Order wedges and their legend by slice value |
 | Rose Chart | `alignment` | `left` \| `center` (`left`) | Wedge alignment |
@@ -545,6 +664,13 @@ relevant; set only to force non-default behavior):
 - `includeZero_x` / `includeZero_y` (boolean) — force the axis to include 0.
 - `xAxisType` / `yAxisType` (`temporal` | `nominal`) — force a temporal
   field to render as discrete bands (or vice-versa).
+- `labelOverflow` (list of steps) — the path x category names that do not
+  fit their band take. Leave it out: names wrap, then stand upright (trimmed
+  if need be), every name printed; a run of times, dates, years or ranks
+  wraps, then prints only round values (16:45, 17:00) flat. Set it only when
+  the user asks, e.g. `["wrap", "rotate90"]` to label every year, or
+  `["wrap", "rotate45", "rotate90"]` for 45° labels. Steps: `wrap`, `skip`
+  (sequences only), `rotate45`, `rotate90`.
 
 ## Parameter overrides — when to reach for them
 
@@ -555,6 +681,7 @@ default:
 - **Force an aggregation:** `encodings.y = { field: "sales", aggregate: "sum" }`.
 - **Sort a category axis by its measure:** `encodings.x = { field: "name", sortBy: "y", sortOrder: "descending" }`.
 - **Pick a color scheme:** `encodings.color = { field: "region", scheme: "tableau10" }`.
+- **Control a color ramp when the user asks for it:** `encodings.color = { field: "net", scheme: ["#c0392b", "#f2f2f2", "#2e75b6"], mid: 0, bins: 5 }`; add `reverse: true` to flip it or `domain: [-50000, 50000]` to fix its extent. These win over the theme.
 - **Override an inferred type:** `encodings.x = { field: "year", type: "ordinal" }` (e.g. treat a year as discrete bands).
 - **Use readable field titles:** `field_display_names = { percentageOfCountries: "Percentage of countries" }`.
   Keep encodings bound to the real column name; Flint uses the display name for axis titles and legend headers.
@@ -709,7 +836,9 @@ User: "Show each rep's sales against their quota."
 - **Don't set `type`/`aggregate`/`sortOrder`** unless intent conflicts
   with the default.
 - **Don't pass colors, font sizes, axis tick counts** — the compiler
-  derives these. Users fine-tune the *output* spec.
+  derives these. Users fine-tune the *output* spec. The exception is a colour
+  mapping the user asked for (a brand ramp, fixed bins, a pivot): use the
+  `color` encoding's `scheme`, `reverse`, `mid`, `domain`, `bins` and `colors`.
 - **Don't invent semantic type names.** If none fit, use the family
   default (`Quantity`, `Category`, `Date`).
 - **Don't call the library to discover channels/types** — this document is

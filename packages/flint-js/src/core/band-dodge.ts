@@ -155,6 +155,26 @@ export function resolveDodge(
     return { mode, laneCount: laneCountForMode(plan, mode) };
 }
 
+/**
+ * The axis a group channel subdivides (the discrete one, else x) and whether it dodges there. It
+ * does not when the group is the axis's own field or the dodge resolves to none; the groups then
+ * share each band.
+ */
+export function groupDodge(
+    types: { x?: string; y?: string },
+    axisFields: { x?: string; y?: string },
+    groupField: string,
+    rows: any[],
+    override?: string,
+): { axis: 'x' | 'y'; dodges: boolean } {
+    const discrete = (type: string | undefined) => type === 'nominal' || type === 'ordinal';
+    const axis = discrete(types.x) ? 'x' : discrete(types.y) ? 'y' : 'x';
+    const axisField = axisFields[axis];
+    if (!axisField) return { axis, dodges: true };
+    if (axisField === groupField) return { axis, dodges: false };
+    return { axis, dodges: resolveDodge(planBandDodge(rows, axisField, groupField), override).mode !== 'none' };
+}
+
 // ---------------------------------------------------------------------------
 // Back-compat shim (pre-`local` callers that only need a dodge boolean).
 // `local` currently renders via the global offset path, so its lane count is

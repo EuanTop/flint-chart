@@ -1,0 +1,28 @@
+.dm-page { gap: 22px; padding-bottom: 60px; }
+.dm-heading { width: min(100%, 1180px); }
+.dm-heading p { margin: 8px 0 0; color: #444; line-height: 1.55; max-width: 920px; }
+.dm-tabs { width: min(100%, 1180px); display: flex; gap: 6px; }
+.dm-tabs button { border: 1px solid #ddd; background: #fff; border-radius: 6px; padding: 5px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+.dm-tabs button.is-on { background: #1f2328; color: #fff; border-color: #1f2328; }
+.dm-row { width: min(100%, 1180px); display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.dm-row figure { margin: 0; border: 1px solid #e5e5e5; border-radius: 8px; padding: 12px; background: #fff; min-width: 0; overflow: hidden; }
+.dm-row figcaption { font-size: 12px; color: #777; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 8px; }
+.dm-row svg { max-width: 100%; height: auto; }
+
+.dm-axis text { font-size: 10.5px; fill: #555; }
+.dm-axis path, .dm-axis line { stroke: #bbb; }
+.dm-axis-y path { display: none; }
+.dm-grid line { stroke: #eee; }
+.dm-end-label { font-size: 10.5px; font-weight: 600; }
+.dm-axis-title { font-size: 11px; fill: #444; }
+.dm-parity { stroke: #999; stroke-dasharray: 3 3; }
+.dm-note { font-size: 11px; fill: #888; font-style: italic; }
+.dm-key { font-size: 10.5px; fill: #444; }
+
+.dm-notes { width: min(100%, 1180px); }
+.dm-notes h2 { font-size: 17px; margin: 0 0 6px; }
+.dm-notes h3 { font-size: 14px; margin: 16px 0 6px; }
+.dm-notes ol, .dm-notes ul { margin: 0; padding-left: 22px; font-size: 14px; line-height: 1.55; color: #333; max-width: 960px; }
+.dm-notes li { margin-bottom: 6px; }
+.dm-notes code { font-size: 12.5px; background: #f3f3f3; padding: 1px 4px; border-radius: 3px; }
+.dm-note-text { font-size: 14px; line-height: 1.55; color: #444; max-width: 960px; }

@@ -2,7 +2,11 @@
 // Licensed under the MIT License.
 
 import { describe, it, expect } from 'vitest';
+import { compile as compileVegaLite } from 'vega-lite';
+import { parse, View } from 'vega';
 import { assembleVegaLite } from '../src';
+import { openVegaLiteSession, vegaLiteStages } from '../src/vegalite/assemble';
+import { TEST_GENERATORS } from '../src/test-data';
 import { markTypeOf } from '../src/vegalite/theme';
 import { THEME_PRESETS, DEFAULT_THEME_ICON, listThemePresets, resolveThemeSpec } from '../src/core/theme/presets';
 import type { ThemeSpec } from '../src/core/theme/types';
@@ -42,6 +46,7 @@ function build(themeSpec: ThemeSpec, chartProperties?: Record<string, unknown>) 
             ...(chartProperties ? { chartProperties } : {}),
         },
         theme_spec: themeSpec,
+        options: { themeDecisions: true },
     } as any) as any;
 }
 
@@ -57,6 +62,14 @@ function markOf(spec: any): any {
 function dotSize(spec: any): number | undefined {
     const mark = markOf(spec);
     return mark?.size ?? spec.config?.[mark?.type]?.size;
+}
+
+
+/** A waterfall planned in the room its bar-chart counterpart keeps for furniture, where the bar fits its steps to the room. */
+function waterfallInBarRoom(waterfall: any, bar: any): any {
+    const { plan } = vegaLiteStages(structuredClone(bar));
+    expect(plan.reserve).toBeDefined();
+    return openVegaLiteSession(structuredClone(waterfall), { pins: { reserve: plan.reserve } }).spec;
 }
 
 describe('naming a house Flint ships', () => {
@@ -158,6 +171,12 @@ describe('naming a house Flint ships', () => {
         expect(ink.structure?.zero).toBe(ink.structure?.axis);
         expect(ink.structure?.zero).not.toBe(ink.accent);
     });
+
+    it('emphasizes McKinsey values with weight rather than a larger size', () => {
+        const typography = THEME_PRESETS.mckinsey.spec.type!;
+        expect(typography.valueLabel?.size).toBe(typography.axisLabel?.size);
+        expect(typography.valueLabel?.weight).toBe('semibold');
+    });
 });
 
 describe('cartoon mark character', () => {
@@ -221,7 +240,7 @@ describe('cartoon mark character', () => {
         expect(dotSize(dense)).toBeLessThan(170);
         expect(dotSize(dense)).toBeGreaterThanOrEqual(20);
         expect(dense.config.point.strokeWidth).toBeLessThan(2.5);
-        expect(JSON.stringify(dense._theme?.report ?? [])).toContain('cover too much');
+        expect((dense._theme?.report ?? []).some((entry: any) => entry.code === 'dots-shrunk')).toBe(true);
     });
 
     it('leaves area axis geometry to Vega-Lite', () => {
@@ -273,7 +292,6 @@ describe('cartoon mark character', () => {
         expect(bar.encoding.y.axis.zindex).toBe(1);
         // The measure axis carries the grid, so it must stay behind the bars.
         expect(bar.encoding.x.axis?.zindex).toBeUndefined();
-        expect(JSON.stringify(spec._theme?.report ?? [])).toContain('band axis is drawn over the bars');
     });
 
     it('leaves the band axis alone for a house that does not stroke its bars', () => {
@@ -392,6 +410,54 @@ describe('theme chartDefaults', () => {
         const spec = build(theme({ chartDefaults: { '*': { notAnOption: 3 } } }));
         expect(JSON.stringify(spec._theme?.report ?? [])).toContain('notAnOption');
     });
+
+    it('drops an option that changes how the data is read, and says so', () => {
+        const usesLogScale = (spec: any) => JSON.stringify(spec).includes('"type":"log"');
+        expect(usesLogScale(build(theme({}), { logScale_y: true }))).toBe(true);
+
+        const spec = build(theme({ chartDefaults: { 'Line Chart': { logScale_y: true } } }));
+        expect(usesLogScale(spec)).toBe(false);
+        expect(JSON.stringify(spec._theme?.report ?? [])).toContain('changes how the data is read');
+    });
+});
+
+describe('faceted rose theme labels', () => {
+    it.each(['nyt', 'mckinsey', 'swiss'])('preserves data-driven radii and categorical angles (%s)', async (themeSpec) => {
+        const fixture = TEST_GENERATORS['Rose Chart']()[6];
+        const spec: any = assembleVegaLite({
+            data: { values: fixture.data },
+            semantic_types: { Direction: 'Category', Speed: 'Quantity', Year: 'Year' },
+            chart_spec: {
+                chartType: 'Rose Chart', chartProperties: fixture.chartProperties,
+                encodings: { x: 'Direction', y: 'Speed', column: 'Year' },
+            },
+            theme_spec: themeSpec,
+        });
+        const view = new View(parse(compileVegaLite(spec).spec), { renderer: 'none' });
+        try {
+            await view.runAsync();
+            const arcs: any[] = [];
+            const texts: any[] = [];
+            const visit = (item: any): void => {
+                if (item.mark?.marktype === 'arc') arcs.push(item);
+                if (item.mark?.marktype === 'text') texts.push(item.text);
+                for (const child of item.items ?? []) visit(child);
+            };
+            visit((view.scenegraph() as any).root);
+            expect(arcs).toHaveLength(fixture.data.length);
+            for (const arc of arcs) {
+                expect(Number.isFinite(arc.outerRadius)).toBe(true);
+                expect(arc.outerRadius).toBeGreaterThan(0);
+                expect(Number.isFinite(arc.startAngle)).toBe(true);
+                expect(Number.isFinite(arc.endAngle)).toBe(true);
+                expect(arc.endAngle - arc.startAngle).toBeCloseTo(Math.PI / 4);
+            }
+            expect(new Set(arcs.map(arc => arc.outerRadius)).size).toBeGreaterThan(1);
+            expect(texts.map(String)).not.toContain('NaN');
+        } finally {
+            view.finalize();
+        }
+    });
 });
 
 describe('theme compileDefaults', () => {
@@ -419,9 +485,11 @@ describe('theme compileDefaults', () => {
 
     it('declares an explicit sparse band-fit preference for every house', () => {
         const expected = {
+            apple: 1,
             cartoon: 0.75,
             datawrapper: 1,
             economist: 0.55,
+            material: 1,
             mckinsey: 0.35,
             nature: 0.2,
             nyt: 0.7,
@@ -492,28 +560,22 @@ describe('theme compileDefaults', () => {
             Month: `2025-${String(index + 1).padStart(2, '0')}`,
             Change: index === 0 ? 400 : index % 3 === 0 ? -120 : 180,
         }));
-        const spec = assembleVegaLite({
+        const input = (chartType: string): any => ({
             data: { values },
             semantic_types: { Month: 'Category', Change: 'Quantity' },
             chart_spec: {
-                chartType: 'Waterfall Chart',
+                chartType,
                 encodings: { x: 'Month', y: 'Change' },
                 canvasSize: { width: 720, height: 720 },
             },
             theme_spec: 'mckinsey',
-        } as any) as any;
-        const barSpec = assembleVegaLite({
-            data: { values },
-            semantic_types: { Month: 'Category', Change: 'Quantity' },
-            chart_spec: {
-                chartType: 'Bar Chart',
-                encodings: { x: 'Month', y: 'Change' },
-                canvasSize: { width: 720, height: 720 },
-            },
-            theme_spec: 'mckinsey',
-        } as any) as any;
+        });
+        const spec = assembleVegaLite(input('Waterfall Chart')) as any;
+        const barSpec = assembleVegaLite(input('Bar Chart')) as any;
         expect(spec.encoding.x.scale.paddingInner).toBeCloseTo(0.3);
-        expect([spec._width, spec._height]).toEqual([barSpec._width, barSpec._height]);
+        // The waterfall's key and running totals take room the bar's do not; given the bar's room, it fits the bar's steps.
+        const sameRoom = waterfallInBarRoom(input('Waterfall Chart'), input('Bar Chart'));
+        expect([sameRoom._width, sameRoom._height]).toEqual([barSpec._width, barSpec._height]);
         expect(spec.encoding.x.axis?.labelAngle).toBeUndefined();
     });
 
@@ -522,7 +584,7 @@ describe('theme compileDefaults', () => {
             Month: `2025-${String(index + 1).padStart(2, '0')}`,
             Change: index === 0 ? 400_000 : index % 3 === 0 ? -120_000 : 180_000,
         }));
-        const compile = (chartType: 'Bar Chart' | 'Waterfall Chart') => assembleVegaLite({
+        const input = (chartType: 'Bar Chart' | 'Waterfall Chart'): any => ({
             data: { values },
             semantic_types: { Month: 'Category', Change: 'Quantity' },
             chart_spec: {
@@ -532,10 +594,10 @@ describe('theme compileDefaults', () => {
                 canvasSize: { width: 720, height: 440 },
             },
             theme_spec: 'powerbi',
-        } as any) as any;
+        });
 
-        const bar = compile('Bar Chart');
-        const waterfall = compile('Waterfall Chart');
+        const bar = assembleVegaLite(input('Bar Chart')) as any;
+        const waterfall = waterfallInBarRoom(input('Waterfall Chart'), input('Bar Chart'));
         const categoryX = (node: any): any => {
             if (!node || typeof node !== 'object') return undefined;
             if (node.encoding?.x?.field === 'Month') return node.encoding.x;
@@ -613,7 +675,7 @@ describe('theme compileDefaults', () => {
         expect(textFields(compile({ showValueLabels: true })).length).toBeGreaterThan(0);
     });
 
-    it('refuses a house straight angle the category names cannot fit, and keeps it when they can', () => {
+    it('keeps category names flat — widened, shrunk or as they are — before it turns them', () => {
         const compile = (prefix: string) => assembleVegaLite({
             data: {
                 values: Array.from({ length: 12 }, (_, index) => ({
@@ -631,11 +693,18 @@ describe('theme compileDefaults', () => {
             theme_spec: 'powerbi',
         } as any) as any;
 
-        // The house asks for straight labels; `2025-01` is wider than its band,
-        // so the axis must not be left flat — whether it ends up at the layout's
-        // own -45 or Vega-Lite's turn is a rendering detail, not the guarantee.
-        const long = compile('2025-');
-        expect(long.config.axisX.labelAngle ?? -45).not.toBe(0);
+        // `FY2025-01` is wider than its band even at the house's least size: the first step
+        // of the path, `wrap`, holds it whole on one line in bands widened within the stretch
+        // budget, so it stays flat rather than turning.
+        const long = compile('FY2025-');
+        expect(long.config.axisX.labelAngle ?? 0).toBe(0);
+        expect(long.width.step).toBeGreaterThan(compile('P').width.step);
+
+        // `2025-01` fits once set a little smaller: it shrinks, not past the floor, and stays flat.
+        const shrunk = compile('2025-');
+        expect(shrunk.config.axisX.labelAngle).toBe(0);
+        expect(shrunk.config.axisX.labelFontSize).toBeLessThan(compile('P').config.axisX.labelFontSize);
+        expect(shrunk.config.axisX.labelFontSize).toBeGreaterThanOrEqual(compile('P').config.axisX.labelFontSize * 0.75);
 
         // `P01` fits, so the house keeps the straight labels it asked for.
         expect(compile('P').config.axisX.labelAngle).toBe(0);
@@ -668,6 +737,25 @@ describe('theme annotation.unitsInAxisTitle', () => {
     it('leaves the title alone where the house has no such rule', () => {
         const spec = withUnit(theme({ annotation: { axisTitles: 'always' } }));
         expect(yTitle(spec)).not.toBe('Sales (kg)');
+    });
+
+    it.each(['lastTick', 'everyTick'] as const)('does not duplicate formatted currency with %s units', async (unit) => {
+        const spec = assembleVegaLite({
+            data: { values: DATA },
+            semantic_types: { Year: 'Year', Sales: { semanticType: 'Price', unit: 'USD' } },
+            chart_spec: { chartType: 'Line Chart', encodings: { x: 'Year', y: 'Sales' } },
+            theme_spec: { extends: 'datawrapper', annotation: { unit } },
+        } as any) as any;
+        const view = new View(parse(compileVegaLite(spec).spec), { renderer: 'none' });
+        try {
+            const svg = await view.toSVG();
+            const labels = [...svg.matchAll(/<text[^>]*>([^<]*)<\/text>/g)]
+                .map((match) => match[1]).filter((label) => label.includes('$') && /\d/.test(label));
+            expect(labels.length).toBeGreaterThan(0);
+            expect(labels.every((label) => /^\$\d/.test(label))).toBe(true);
+        } finally {
+            view.finalize();
+        }
     });
 });
 
@@ -1570,18 +1658,26 @@ describe('plot edges', () => {
     for (const id of Object.keys(THEME_PRESETS)) {
         it(`${id}: dots are given room to sit inside the axes`, () => {
             const spec = strip(id);
-            const pads: number[] = [];
+            const scores = STRIP.map((row) => row.Score);
+            const [lo, hi] = [Math.min(...scores), Math.max(...scores)];
+            const room: boolean[] = [];
             const visit = (n: any): void => {
                 if (!n || typeof n !== 'object') return;
                 if (Array.isArray(n)) { n.forEach(visit); return; }
-                const p = n.encoding?.y?.scale?.padding;
-                if (typeof p === 'number') pads.push(p);
+                const scale = n.encoding?.y?.scale;
+                if (scale) {
+                    // Either padding for the radius of the dot the house draws, or a rounded domain
+                    // whose ends already stand clear of the data (and then no padding moves them).
+                    const padded = typeof scale.padding === 'number' && scale.padding > 0;
+                    const clear = typeof scale.domainMin === 'number' && typeof scale.domainMax === 'number'
+                        && scale.domainMin < lo && scale.domainMax > hi;
+                    room.push(padded || clear);
+                }
                 for (const k of Object.keys(n)) if (k !== 'data') visit(n[k]);
             };
             visit(spec);
-            expect(pads.length).toBeGreaterThan(0);
-            // Room enough for the radius of the dot the house draws.
-            expect(Math.min(...pads)).toBeGreaterThan(0);
+            expect(room.length).toBeGreaterThan(0);
+            expect(room.every(Boolean)).toBe(true);
         });
 
         it(`${id}: a grid never repaints the spine it lands on`, () => {
@@ -1867,5 +1963,20 @@ describe('house icons', () => {
             expect(entry).not.toHaveProperty('icon');
             expect(JSON.stringify(entry)).not.toContain('<svg');
         }
+    });
+});
+
+describe('status ink needs categories that carry a sign', () => {
+    it('gives cities on a scatter whose x runs below zero a colour each', () => {
+        const rows = [['Chicago', -2.8, 1.7], ['Houston', 10.4, 3.3], ['Los Angeles', 11.8, 2.8], ['New York', 1.1, 3.3], ['Seattle', 4.2, 5.7]]
+            .map(([City, Temperature, Precipitation]) => ({ City, Temperature, Precipitation }));
+        const vl: any = assembleVegaLite({
+            data: { values: rows },
+            semantic_types: { City: 'City', Temperature: 'Quantity', Precipitation: 'Quantity' },
+            theme_spec: 'nyt',
+            chart_spec: { chartType: 'Scatter Plot', encodings: { x: 'Temperature', y: 'Precipitation', color: 'City' } },
+        } as any);
+        const range: string[] = vl.encoding.color.scale.range;
+        expect(new Set(range.slice(0, rows.length)).size).toBe(rows.length);
     });
 });

@@ -554,6 +554,131 @@ else:
 
 > **Key functions:** `computeElasticBudget()`, `computeAxisStep()` in `core/decisions.ts`; `computeLayout()` in `core/compute-layout.ts`.
 
+### Label pressure on banded axes
+
+Vega-Lite categorical axes also propose a horizontal label layout with at most
+two lines. The proposal uses the same elastic solver as mark packing; it does
+not immediately expand to the stretch ceiling. Other backends currently retain
+their existing label policies.
+
+1. **Propose demand.** Find each label's balanced two-line width. On X this
+  contributes to band width; on Y the number of lines contributes to band
+  height, while text width consumes the left gutter.
+2. **Solve pressure.** Let $b_0=L_0/N$ be the available base span per label and
+  $d_i$ each label's preferred band demand. The proposed step is the larger of
+  the existing mark step and
+  $\min(\max_i d_i,b_0)+\operatorname{mean}_i\min(b_0,\max(0,d_i-b_0))$.
+  Averaging bounded excess demand gives widespread long labels more influence
+  than one extreme outlier. `computeAxisStep()` then applies the existing
+  elasticity and per-axis ceiling.
+3. **Evaluate the achieved layout.** Rewrap at the solved band size and compare
+  estimated retained text, the cost of reading rotated labels, extra space
+  consumed inside the base canvas, incremental stretch beyond it, and Y-gutter
+  imbalance. Existing baseline stretch is not charged again. If the proposal
+  loses, keep the baseline; on Y, keep horizontal single-line labels.
+
+Short labels remain on one line when they fit. The renderer ellipsizes overflow;
+the fitting decision estimates this loss but does not change data or category
+identity. Y labels center their entire multiline block on the tick, not just
+the first line. A Y proposal reserves at least 4 px beyond the estimated text
+height and is rejected if this cannot fit within the height ceiling. Planning
+runs before template construction so marks and labels use the same band size,
+including grouped marks.
+
+The automatic gutter budget is $\max(\min(W_{canvas},W_{subplot})/4,180\text{ px})$.
+The 180 px floor follows Vega's default axis `labelLimit`: a narrow plot should
+not reduce the label allowance to a few characters. This is an upper allowance,
+not a forced gutter width; content and the fitting cost determine the used width.
+
+Bar tables own a real label column rather than an external axis gutter. They
+skip the generic pre-template wrap pass and fit against that column's width
+after theme fonts are resolved. The same two-line fitter uses browser font
+metrics (or headless estimates), centers the whole block against the bar, and
+only wraps when the existing row has room for two lines plus 4 px clearance.
+Dense rows retain single-line ellipsis. Full label text remains available in
+tooltip and accessibility encodings; the site enables native axis-guide hover.
+
+The current implementation uses approximate character widths and heuristic,
+dimensionless comparison costs for generic axes. Font-aware measurement there and other backend
+adapters remain follow-up work. Axis pressure does not yet apply to
+temporal/numeric tick formatting.
+
+Binned numeric axes use the bin declaration for geometry, but do not treat raw
+observations as discrete tick labels. Their tick formatting and overlap handling
+remain with the renderer; the categorical shrink/rotate ladder does not apply.
+
+Vega-Lite legend titles can word-wrap to three lines at their title font size.
+They are headings read once, so they are exempt from the stronger repeated-entry
+wrapping penalty. Their full measured width and height still consume the shared
+legend budget; authored title limits and explicit line breaks remain intact.
+Categorical entries use a shrinking-width fitter, not the axis stretch
+rules. Fitting runs after plot sizing and theme realization. The final plot
+dimensions are a one-way input: legend pressure never stretches the plot.
+
+Side legends prefer to fit within the plot height. The shared side-edge width
+budget is 24 em plus symbol space, independent of plot width.
+Top and bottom legends prefer the plot width, with a perpendicular height
+budget of 40% of the plot height (at least 48 px). Titles, symbols, padding and
+gaps consume the same budgets as entries. These are preferred bounds, not
+clipping rectangles.
+
+For each column arrangement, fitting starts at the narrower of the natural
+maximum label width and the available text width. It samples decreasing widths
+like dragging the right edge of a text box inward, using up to 25 trial widths.
+The font stays fixed. Text width does not shrink below 4 em (or its natural
+width if already shorter); an allocation below that floor can overflow.
+
+At each width, words fill a line until the next word would exceed it. The
+initial line cap is three for both side and horizontal legends. Any remaining
+text goes on the final line, where the renderer applies ellipsis. If total
+legend height exceeds the budget, fitting retries at the same width with a
+two-line cap, then one. If even one line per entry cannot fit, the candidate
+records overflow rather than dropping entries. Short entries retain their
+natural one-line height; unbroken identifiers are never split arbitrarily.
+
+The selected stopping point trades width savings and balance between entry
+widths against added lines and lost text. Wrapping is a substantial cost,
+not a free way to equalize label widths: a two-line entry costs 0.6 and a
+three-line entry costs 2.0 before averaging across entries. The third line
+must therefore earn a much larger benefit than the second. A fitting label
+is allowed to remain wider than its neighbors. Horizontal legends additionally
+favor compact row height, so an already-fitting row is not stacked simply to
+make it narrower. There is no median-width target, balanced-line partition
+search, or font-size search.
+
+The placement planner still compares column counts and edges. Multiple legends share each edge's
+budget and can stack, sit side by side, or move to different edges. Authored
+placement, columns, edge-layout direction, text limits and custom formatting
+remain constraints. Theme placement is a preference when not author-pinned.
+
+When a side candidate fits, an automatic top/bottom legend with more than two
+entry rows, or more than two lines in an entry, is excluded from placement.
+Compact horizontal keys remain eligible. The three-line title allowance is
+separate, and explicitly pinned horizontal keys are not relocated.
+
+Automatic fitted entries have no entry cap. Their full original values remain
+in label tooltip encodings and accessible descriptions even when ellipsized.
+Vega-Lite makes guides non-interactive by default; the site's Vega-Embed patch
+enables tooltip-bearing labels in the compiled Vega spec. Other interactive
+hosts need the equivalent guide-interaction setting to show hover tooltips.
+When the preferred bounds cannot accommodate the selected layout, the outer chart
+footprint can overflow; private `_legendLayout` metadata records the estimated
+dimensions and overflowing edge budgets. Entry omission and aggregation into
+an overflow category belong to the earlier semantic policy, not this planner.
+Explicit author limits and numeric key values remain unchanged.
+
+Swatches align with the **first line** of each legend entry, like list markers.
+This differs from Y-axis labels, which center the whole multiline block on
+their ticks. Horizontal multiline grids use consistent row heights; side
+legends use actual entry heights so short labels do not occupy empty two-line
+slots. Automatic rows default to 6 px padding, preserving an authored value.
+
+Browser canvas metrics measure text in the resolved font. Headless environments
+without canvas use approximate character widths, so their selected layouts may
+differ. Numeric and custom guide footprints are estimates rather than native
+renderer measurements. The search uses heuristic costs and a bounded set of
+joint candidates; it does not guarantee an optimal packing or pixel-exact bounds.
+
 ---
 
 # §3 Continuous Axis (Gas Pressure Model)
@@ -857,6 +982,46 @@ The result is clamped to $[S_{\min},\; \text{actualDim}]$ — the blend only **s
 
 > **Implementation:** Band AR blending block in `computeLayout()` (~lines 702–735). Controlled by `options.targetBandAR` (`AssembleOptions`). VL backend sets default `targetBandAR = 10` in `assemble.ts`.
 
+### §3.9.6 Band Balance
+
+Band AR blending bounds one band; **band balance** bounds the whole chart. A banded axis is
+step × count long, so few categories leave a strip and many a long low band.
+
+**Natural range.** A chart of no bands starts at its base and stretches by up to $s_x$, $s_y$, so its
+shapes run over
+
+$$\left[\frac{W_b}{H_b \cdot s_y},\; \frac{W_b \cdot s_x}{H_b}\right]$$
+
+(at least 1.25× either side of the base's ratio; `targetAspect` and `aspectTolerance` override the
+centre and the spread). 300 × 300 at ×1.5 gives 0.67–1.5.
+
+**Intrinsic shape.** The chart is judged as the reader sees it: the plot (or the panels as one grid)
+with the labels it cannot drop, as a range. Category names count from their mean to their longest
+width, capped at max(40 px, 30% of the plot side) where they would wrap or be cut; x names that do
+not fit their band count as two lines or as rotated; value labels 3–6 characters; an axis title or
+not. Its ratio runs from (W + beside.lo)/(H + below.hi) to (W + beside.hi)/(H + below.lo).
+
+**Tiers.**
+
+1. Where the intrinsic range meets the natural range, nothing changes.
+2. Otherwise the free sides lean the chart back to the natural range's nearer end:
+
+| Drift | One axis banded | Edit |
+|---|---|---|
+| Too wide, banded x (many columns) | value axis is y | Lengthen the plot height, within the stretch cap |
+| Too wide, banded y (few rows) | value axis is x | Thicken the step (to max(`maxBandSize`, 2 × house step)), then shorten the width (to half its base) |
+| Too tall, banded y (many rows) | value axis is x | Lengthen the plot width, within the stretch cap |
+| Too tall, banded x (few columns) | value axis is y | Thicken the step, then shorten the height (to half its base) |
+
+3. Where those limits stop it short of the natural range, it aims instead for that range widened
+   1.5× at each end round the base's shape — the least edit that is still worth making.
+
+The count of bands, and any step a crowd of them set, is not touched. Grids (both axes banded) are
+left to §2's square-cell rule. Faceted charts are judged as one grid; each panel's labels are
+counted where they sit. Pinned plots are skipped; `bandBalance: false` turns it off.
+
+> **Implementation:** `naturalAspectRange` / `shapeDivergence` in `core/natural-shape.ts`; the band balance block in `computeLayout()`, after band AR blending and before the pinned plot.
+
 ---
 
 # §4 Circumference (Radial Pressure Model)
@@ -933,6 +1098,11 @@ After computing the final radius $r$:
 $$W = \max(W_0,\; 2r + 2m), \quad H = \max(H_0,\; 2r + 2m)$$
 
 Both canvas dimensions grow equally (maintaining circular aspect ratio).
+
+Vega-Lite pie and donut templates use a square plot of side $\min(W,H)$ from
+this result. The computed radius and label margin are unchanged; unused space
+from a rectangular base size is removed so side legends sit near the circle
+rather than the distant edge of an otherwise empty plot rectangle.
 
 ## §4.6 Gauge Faceting
 
@@ -1129,6 +1299,7 @@ For continuous axes, raw pressure is augmented with aspect-ratio intelligence:
 6. **Gas–Banking blend (§3.8.4).** 50/50 geometric mean in log space: gasAR (density) × bankingAR (perception).
 7. **Per-subplot baseline (§3.8.2).** Faceted charts feed per-subplot canvas (with facet elasticity) to gas pressure, not the full canvas.
 8. **Band AR blending (§3.9).** When one axis is banded and the other continuous, `targetBandAR` prevents excessively elongated bands via log-space blend.
+9. **Band balance (§3.9.6).** The chart area, with the labels it cannot drop, is held within the shapes its base takes on its own, by its free sides.
 
 ### Decision tree
 
@@ -1138,6 +1309,7 @@ Is the chart axis-based?
 │   ├── Both banded  → §2 Elastic Budget on each axis
 │   ├── One banded   → §2 for banded axis, §3 for continuous axis
 │   │                  + §3.9 Band AR blending if targetBandAR set
+│   │                  + §3.9.6 Band balance
 │   └── Neither      → §3 Gas Pressure (both axes continuous)
 │                      + §3.8 Banking AR + Gas–Banking blend
 └── NO:  Is the layout radial (items around a circle)?

@@ -98,7 +98,8 @@ input[type='range'].site-range:focus-visible {
   }
 }
 
-@media (max-width: 640px) {
+/* Below this width the links no longer fit beside the brand and actions, so they take their own row. */
+@media (max-width: 980px) {
   .site-nav-bar {
     gap: 14px !important;
     padding: 0 16px !important;

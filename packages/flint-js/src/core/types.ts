@@ -1,12 +1,17 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+import type { ChartChrome } from './theme/chrome';
 import type { ZeroDecision, ColorSchemeRecommendation } from './semantic-types';
 import type { LabelSizingDecision } from './decisions';
 import type { SemanticAnnotation, FormatSpec, DomainConstraint, TickConstraint } from './field-semantics';
 import type { ColorDecisionResult } from './color-decisions';
 import type { GeometryKind, ThemeGeometry, ThemeSpec } from './theme/types';
 import type { ChartInteractionSupport, InteractionSpec } from './interaction-spec';
+import type { ChartUpdateOp, UpdateTarget } from './interaction-contracts';
+import type { ChartStructure, StructureContext } from './structure';
+import type { ViewNode } from './views';
+import type { FamilyMeasure } from './text-width';
 
 /**
  * Core types for the chart engine library.
@@ -50,7 +55,26 @@ export interface ChartEncoding {
     aggregate?: 'count' | 'sum' | 'average' | 'mean';
     sortOrder?: "ascending" | "descending";
     sortBy?: string;
-    scheme?: string;
+    /**
+     * Colour channel: a Vega scheme name (`viridis`, `redblue`), or the stops a ramp or palette runs
+     * through, low end first (`["#c0392b", "#f2f2f2", "#2e75b6"]`). Wins over the theme's ramp.
+     */
+    scheme?: string | string[];
+    /** Colour channel: run the scale the other way round. */
+    reverse?: boolean;
+    /** Colour channel: the value a diverging scale pivots on, for this chart (the field's `divergingMidpoint`). */
+    mid?: number;
+    /** Colour channel: the measure extent the ramp spans, `[low, high]`, in place of the data's. */
+    domain?: [number, number];
+    /** Colour channel: quantize a continuous measure into this many bins; `0` keeps the ramp continuous. */
+    bins?: number;
+    /** Colour channel: colours bound to values, for this chart (the field's `colors`): `{ "Win": "#2a9d8f" }`. */
+    colors?: Record<string, string>;
+    /**
+     * The name the channel's axis or key prints, in place of the field's; `null` prints none. A
+     * theme still decides whether a key is titled at all: a name given here renames it where it is.
+     */
+    title?: string | null;
 }
 
 /**
@@ -125,6 +149,12 @@ export interface ChannelSemantics {
      * Resolved from semantic type + data characteristics + channel rules.
      */
     type: 'quantitative' | 'nominal' | 'ordinal' | 'temporal';
+    /**
+     * A position axis of dates drawn as a row of snapshots: discrete bands, one per date, because
+     * the dates are few or sparse along a banded chart. Every band keeps its name: the axis never
+     * thins its labels to round dates.
+     */
+    snapshots?: boolean;
 
     // --- Formatting ---
     /** Axis/legend number format */
@@ -206,6 +236,11 @@ export type MarkCognitiveChannel = 'position' | 'length' | 'area' | 'color';
 /**
  * Template's layout intent — returned by declareLayoutMode().
  */
+/** How a banded axis spaces its bands; its span is the step times the bands it spans. */
+export type BandAxisShape =
+    | { scale: 'band'; nested: boolean }
+    | { scale: 'point'; padding: number };
+
 export interface LayoutDeclaration {
     /**
      * Which axes allocate fixed bands per data position.
@@ -227,6 +262,16 @@ export interface LayoutDeclaration {
      * Template-specific overrides to layout parameters.
      */
     paramOverrides?: Partial<AssembleOptions>;
+
+    /** Tick label decisions a template makes for an axis it labels itself; the plan holds them as given. */
+    axisLabels?: Partial<Record<'x' | 'y', { fontSize?: number; angle?: number }>>;
+
+    /**
+     * How a banded axis spaces its bands, where it is not the default (a band scale,
+     * nested when the axis steps per group): a point scale inset from the plot edges,
+     * or a band whose offset channel does or does not nest within each band.
+     */
+    bandAxes?: Partial<Record<'x' | 'y', BandAxisShape>>;
 
     /**
      * Which axes use binned encoding (e.g. histogram).
@@ -425,6 +470,15 @@ export interface LayoutResult {
     xStepUnit?: 'item' | 'group';
     yStepUnit?: 'item' | 'group';
 
+    /** Whether each step was blended toward the room the plot has (`bandStepFit`), so it moves with what that room reserves. */
+    xStepFitted?: boolean;
+    yStepFitted?: boolean;
+    /**
+     * Where the names stand above their bars: whether the y bands, held to their least step, stay
+     * within the stretch the canvas allows.
+     */
+    rowNamesAboveFit?: boolean;
+
     /** Number of banded continuous items on each axis (0 if not banded-continuous) */
     xContinuousAsDiscrete: number;
     yContinuousAsDiscrete: number;
@@ -473,6 +527,27 @@ export interface LayoutResult {
 
     /** Items truncated due to overflow */
     truncations: TruncationWarning[];
+
+    /** How each dimension and step came to its value, stage by stage. */
+    trace?: LayoutTrace;
+}
+
+/** One stage a value passed through: the rule applied, what it read, and the value it left. */
+export interface PlanStage {
+    rule: string;
+    value: number | string;
+    /** The numbers the rule read, by name. */
+    read?: Record<string, number | string | boolean | undefined>;
+    /** What the rule did with them, where the value alone does not say. */
+    note?: string;
+}
+
+/** The plot's width and height and each axis's step, stage by stage. */
+export interface LayoutTrace {
+    width: PlanStage[];
+    height: PlanStage[];
+    xStep: PlanStage[];
+    yStep: PlanStage[];
 }
 
 // ============================================================================
@@ -484,12 +559,34 @@ export interface LayoutResult {
  * Phase 2 logic. Combines semantic decisions, layout results, and original
  * inputs.
  */
+/** What a template reads to size its plot in the plan. */
+export type PlotPlanContext = Pick<InstantiateContext, 'layout' | 'canvasSize' | 'assembleOptions' | 'channelSemantics' | 'table' | 'fullTable' | 'semanticTypes' | 'chartProperties' | 'measureText'>;
+
+/** What a template reads to plan its views: the plot the plan sized and the gap it keeps between facet panels. */
+export type ViewPlanContext = PlotPlanContext & {
+    plot: { width: number; height: number };
+    spacing: number | { row: number; column: number };
+    /** The title each encoded channel prints, where it prints one. */
+    titles: Partial<Record<string, string>>;
+    /** The columns a facet on the column field alone wraps into. */
+    facetColumns: number;
+    /** How far a panel's y ruler labels hang past its top and bottom together; rows stacked by the template keep it between them. */
+    rulerOverhang: number;
+};
+
 export interface InstantiateContext {
     /** Per-channel semantic decisions (Phase 0) */
     channelSemantics: Record<string, ChannelSemantics>;
 
     /** Layout decisions (Phase 1) */
     layout: LayoutResult;
+
+    /** The plot the plan sized; a template that sets its own size draws at this one. */
+    plot?: { width: number; height: number };
+    /** The views the plan stated, where the template plans them; it draws their sizes and gaps. */
+    views?: ViewNode;
+    /** How wide text is in the family the chart's text is set in, as the plan measures it. */
+    measureText?: FamilyMeasure;
 
     /** The data table (array of row objects, post-overflow filtering) */
     table: any[];
@@ -544,6 +641,9 @@ export interface InstantiateContext {
 
     /** Chart type name */
     chartType: string;
+
+    /** The names the chart prints for fields, where the author gave some. */
+    fieldDisplayNames?: Record<string, string>;
 
     /** Assembly options (layout tuning parameters from the caller) */
     assembleOptions?: AssembleOptions;
@@ -894,6 +994,16 @@ export interface PivotDef {
  *   1. declareLayoutMode — declare axis flags, type overrides, param overrides
  *   2. instantiate — build final spec from resolved encodings + layout
  */
+/** What a chart draws past its plot on each side, in px, and whether it fills the plot itself. */
+export interface PlotOverhang {
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+    /** The marks fill the plot, as a pie or a radar does: no corner of it is free for a key. */
+    fills?: boolean;
+}
+
 export interface ChartTemplateDef {
     /** Display name of the chart type, e.g. "Scatter Plot" */
     chart: string;
@@ -925,6 +1035,9 @@ export interface ChartTemplateDef {
     /** Template-owned semantic resolution and chart-specific presentation. */
     semanticInteractions?: (context: {
         resolvedEncodings: Readonly<Record<string, any>>;
+        /** The encodings as Flint resolved them, before any backend spelling, and their semantics. */
+        encodings: Readonly<Record<string, ChartEncoding>>;
+        channelSemantics: Readonly<Record<string, ChannelSemantics>>;
     }) => {
         fields: string[];
         provenanceFields?: readonly string[];
@@ -971,6 +1084,18 @@ export interface ChartTemplateDef {
     ) => LayoutDeclaration;
 
     /**
+     * How a host with a page draws the chart: `table` draws its rows as a table (FlintTable)
+     * rather than the compiled spec, which stays the static rendering.
+     */
+    drawnAs?: 'table';
+
+    /**
+     * How the chart's table orders its columns: `by-role` (the default) puts categories and dates
+     * before measures, `as-given` keeps the order the encodings name the fields.
+     */
+    tableColumns?: 'by-role' | 'as-given';
+
+    /**
      * Optional encoding-normalization hook.
      * Runs BEFORE semantics resolution and layout, after pivot / encoding-action
      * overrides have been composed. Lets a template re-route the *authored*
@@ -1007,6 +1132,40 @@ export interface ChartTemplateDef {
         spec: any,
         context: InstantiateContext,
     ) => void;
+
+    /**
+     * Draws several views side by side (columns, halves, tiles, strips, per-category panels),
+     * so the chart has no single plot to report.
+     */
+    composite?: boolean;
+
+    /**
+     * The plot size this chart type draws when it is not the layout's, such as a square pie.
+     * Runs in the plan; `instantiate` draws at `context.plot`. Undefined keeps the layout's size.
+     */
+    planPlot?: (context: PlotPlanContext) => { width: number; height: number } | undefined;
+
+    /**
+     * How far this chart type draws past its plot on each side, in px — a radar's spoke labels stand
+     * outside its outer ring — and whether it fills the plot, so a key beside the plot stands clear
+     * of what it draws there and a key inside the plot knows it has no empty corner. Runs in the
+     * plan, at the planned plot.
+     */
+    planOverhang?: (context: PlotPlanContext, plot: { width: number; height: number }) => PlotOverhang | undefined;
+
+    /**
+     * The views this chart type draws and how they stand, where it composes them itself rather
+     * than faceting one plot by its column and row fields. Runs in the plan, after the plot;
+     * `instantiate` draws the sizes and gaps it finds in `context.views`.
+     */
+    planViews?: (context: ViewPlanContext) => ViewNode | undefined;
+
+    /**
+     * What the chart draws, where `instantiate` builds marks, fields or stacking its skeleton does
+     * not show. Runs before the plan sizes the chart; a test keeps it equal to what `instantiate`
+     * builds. Undefined derives the structure from the skeleton.
+     */
+    structure?: (context: StructureContext) => ChartStructure;
 
     /** Optional configurable properties for the chart type */
     properties?: ChartPropertyDef[];
@@ -1097,6 +1256,12 @@ export interface ChartWarning {
     /** Optional: which channel(s) or field(s) triggered the warning */
     channel?: string;
     field?: string;
+    /** Optional: on an update the chart applied only in part, its id and what it left out. */
+    update?: {
+        id: string;
+        unsupportedOps: readonly ChartUpdateOp['op'][];
+        unresolvedTargets: readonly UpdateTarget[];
+    };
 }
 
 // ---------------------------------------------------------------------------
@@ -1157,16 +1322,31 @@ export interface ChartAssemblyInput {
         /**
          * The headline — what this chart says, in words.
          *
-         * Not decoration. A chart of bare numbers names nothing on its own, and
-         * the headline is where the measure gets named: `Male` and `75+` say
-         * what they are, `35 30 25` does not. Design languages that drop axis
-         * titles are leaning on this line to carry the subject, so a chart
-         * authored without one loses the naming altogether — the compiler
-         * notices, and puts the axis titles back.
+         * Themes that omit required axis titles append their names and units
+         * to the subtitle instead. The compiler does not interpret this text
+         * to decide whether it explains an axis.
          */
         title?: string;
         /** The deck: the reading of the headline — what is measured, of whom, when, in what units. */
         subtitle?: string;
+        /**
+         * A short line above the headline: a figure label (“Figure 2”) or a kicker. Set in the
+         * theme's `type.kicker`.
+         */
+        label?: string;
+        /**
+         * Where the data comes from, drawn as the chart's source line in the house's way (the theme's
+         * `source`). Optional: give it only where the source is known — an agent should not invent one.
+         */
+        source?: string | { text: string; href?: string };
+        /**
+         * The house chrome this chart keeps. Unset follows the theme. `false` drops it all; an object
+         * turns off parts: `header` (rules, tabs, wordmarks and logos above or beside the title),
+         * `footer` (the closing rule and the house's credit beside the source) and `logos` (every
+         * logo, header or footer — a footer credit then shows its words). The source line itself is
+         * drawn whenever `source` is given.
+         */
+        chrome?: ChartChrome;
         /** Channel → encoding map (e.g., `{ x: { field: 'weight' }, y: { field: 'mpg' } }`).
          * A bare string is shorthand for `{ field: <string> }` (e.g. `{ x: 'weight' }`). */
         encodings: Record<string, RawEncodingValue>;
@@ -1252,9 +1432,49 @@ export interface ChartAssemblyInput {
  * Options for the chart assembly function.
  * Includes layout tuning parameters — all have sensible defaults.
  */
+/**
+ * A treatment the canvas-fit pass lays a chart out under, to win back room the title, keys and
+ * names took from the chart area (see `AssembleOptions.canvasFit`).
+ */
+export interface CanvasTreatment {
+    /** Every key at one edge: beside the plot, or in one row above or below it. */
+    keys?: 'side' | 'top' | 'bottom';
+    /**
+     * One key moved to another edge, the others left where they stand: the key at `index` among
+     * the chart's keys. `title` names it, for reports.
+     */
+    oneKey?: { index: number; to: 'side' | 'top' | 'bottom'; title?: string };
+    /**
+     * The width the names down the y axis are given, in px: longer ones wrap onto a second line, so
+     * the chart area — its plot and its names — takes the width the box leaves it.
+     */
+    rowNames?: number;
+    /**
+     * The room the box leaves the plot once what is around the chart is settled, in px: the plot is
+     * laid out again in it, once. A continuous side takes it; a banded side keeps its steps.
+     */
+    plotSpace?: { width?: number; height?: number };
+    /** The headline and deck set at this share of their size, never below a legible floor. */
+    titleScale?: number;
+    /** Long key names kept to this many px a column, wrapped onto lines before they are cut. */
+    names?: { keyWidth: number };
+    /**
+     * The plot laid out at this share of its base size, both ways, so it keeps its shape: what the
+     * box cannot hold comes out of the plot rather than out of every glyph, as a host shrinking the
+     * whole drawing would take it.
+     */
+    plotScale?: number;
+}
+
 export interface AssembleOptions {
     /** Whether to add tooltips to the chart (default: false) */
     addTooltips?: boolean;
+    /**
+     * Set by the interactive renderer when a viewport will change the rows in view:
+     * value labels are built for any window that could print them, and this signal
+     * decides whether they show.
+     */
+    liveLayoutSignal?: string;
     /**
      * Fraction of each step reserved for inter-category padding (0–1).
      * VL pads *inside* the step (band = step × (1 − padding)), so this
@@ -1319,6 +1539,9 @@ export interface AssembleOptions {
      * Each backend sets its own value (VL ≈ 10, ECharts ≈ 14); core uses 0.
      */
     facetGap?: number;
+    /** The gap between facet columns and between facet rows the panels are laid out for, where it differs from `facetGap`; set by the plan. */
+    facetGapColumn?: number;
+    facetGapRow?: number;
     /**
      * Explicit number of facet COLUMNS for a column-wrapped facet, overriding
      * the auto-computed wrap. When set (≥ 1) the layout uses this many columns
@@ -1365,6 +1588,37 @@ export interface AssembleOptions {
     bandStepFitCapacityX?: number;
     /** Explicit Y-axis capacity for sparse band fitting. Internal assembler bridge. */
     bandStepFitCapacityY?: number;
+    /**
+     * The smallest band step (per group where bars are grouped) the value labels need on each axis,
+     * which the plan has checked the canvas can hold. Internal: the plan sets it when it widens the
+     * bands for their labels.
+     */
+    labelStep?: { x?: number; y?: number };
+    /**
+     * Internal: the names down y stand on their own line above each bar. The y band starts at
+     * `scale` times the house band, never under `scale` times the least step nor `minStep` — a
+     * name's line, its bar and the air between — by the same stretch.
+     */
+    rowNamesAbove?: { scale: number; minStep?: number };
+    /**
+     * What the layout does when the chart will not read well in its canvas: the title, keys, labels
+     * and chrome taking the chart area's room, the drawing overflowing its box past legibility, or
+     * stretched out of its box's shape. `'auto'` (the default) lays such a chart out again — each part
+     * given a box from the canvas and fitted to it (keys on the edge with room, their names wrapped;
+     * the title set down to fit), then, where that is not enough, cheap treatments one at a time — and
+     * keeps the cheapest that reads well. A chart that reads well as planned is never changed.
+     * `'off'` lays every chart out as planned.
+     */
+    canvasFit?: 'off' | 'auto';
+    /**
+     * Whether the canvas fit, once it has settled what is around the chart, lays the plot out once
+     * more in the room the box leaves it — kept only where the chart reads better for it (default true).
+     */
+    canvasRefit?: boolean;
+    /** Internal: the treatment a canvas-fit pass lays the chart out under. */
+    canvasTreatment?: CanvasTreatment;
+    /** Attach the theme's resolved decisions to the spec as `_theme.decisions`, for tools that inspect them. Default: false. */
+    themeDecisions?: boolean;
     /**
      * Chart-specific **floor** on the per-category band step (at a 300px
      * baseline canvas), which a house's `layout.bandStep` may grow but not
@@ -1425,6 +1679,11 @@ export interface AssembleOptions {
      * Default: 10.
      */
     baseLabelFontSize?: number;
+    /**
+     * The smallest axis tick label (px) the shrink ladder may reach, as small multiples
+     * shrink their plots. A themed chart takes its theme's `type.minSize`. Default: 6.
+     */
+    minLabelFontSize?: number;
     /**
      * Backend-native base font size (px) for **headers** (axis titles, legend,
      * chart title), at a 300px reference canvas. Scaled subtly with canvas size
@@ -1517,4 +1776,26 @@ export interface AssembleOptions {
      * scatter, line, or fully-banded charts.
      */
     targetBandAR?: number;
+
+    /**
+     * How far a grid's cells grow past their reading target (28 px) toward the size that fills the
+     * base, from 0 (not at all, the default) to 1 (to twice the target at most). Set from a house's
+     * `layout.bandStepFit`.
+     */
+    cellGrowth?: number;
+
+    /**
+     * Whether a plot with one banded axis leans back where its bands, with the labels it cannot
+     * drop, put it outside the shapes a chart of its base takes on its own (default true). That
+     * range runs from the base with its height stretched to the base with its width stretched
+     * (at least 1.25× either side); where it cannot be reached readably, a range half as wide
+     * again is aimed for instead.
+     */
+    bandBalance?: boolean;
+
+    /** The centre of that range, as width over height: unset, the base's. */
+    targetAspect?: number;
+
+    /** The range's spread either side of its centre, as a ratio: unset, the stretch allowed. */
+    aspectTolerance?: number;
 }

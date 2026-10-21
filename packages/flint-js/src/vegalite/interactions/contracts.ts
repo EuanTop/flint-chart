@@ -61,11 +61,15 @@ export interface VegaInteractionPlan {
     provenanceFields: readonly string[];
     temporalProvenanceFields: readonly string[];
     rangeProvenance: readonly { field: string; startField: string; endField: string }[];
+    /** True when every rendered datum carries its source row's position, so provenance is a lookup. */
+    rowIndexed?: boolean;
     categoryField?: string;
     seriesField?: string;
+    groupHoverEmphasis?: InteractionContext['groupHoverEmphasis'];
     resolveGroupValue?: InteractionContext['resolveGroupValue'];
     legendFields?: Readonly<Record<string, string>>;
     axisFields?: Partial<Record<'x' | 'y', { field: string; type: string }>>;
+    indexAxis?: 'x' | 'y';
     axisTargets?: Readonly<Record<string, VegaAxisTarget>>;
     rangeLegendChannels?: readonly string[];
     annotationMarkType?: string;
@@ -83,6 +87,8 @@ export interface VegaInteractionPlan {
     geoLevels?: GeoLevelConfig;
     /** The projection a pre-projected base map was built with; the chart itself draws with identity. */
     geoPreProjection?: GeoPreProjection;
+    /** The dataset a single-level map reads its focus and region viewports from (set once compiled). */
+    geoFocusSource?: string;
     /** Polar templates realize the primary X brush as an angular sector. */
     angularXBrush?: boolean;
     navigationAxes?: Partial<Record<'x' | 'y', VegaNavigationAxis>>;
@@ -91,6 +97,17 @@ export interface VegaInteractionPlan {
     /** Mutable compiled inline source used by `set-data`. */
     mutableDataSource?: string;
     initialDataRows?: readonly Record<string, unknown>[];
+    /** Brings host rows into the compiled data's form (temporal values as the compiler writes them). */
+    prepareDataRows?: (rows: readonly Record<string, unknown>[]) => readonly Record<string, unknown>[];
+    /** A value of a temporal field as the compiled data holds it, read the way the input rows are. */
+    temporalValue?: (field: string, value: unknown) => unknown;
+    /**
+     * Cuts the current rows (`set-data` rows, or the input rows when none) to the category window.
+     * Returns the same array while neither the rows nor the window change.
+     */
+    windowDataRows?: (rows: readonly Record<string, unknown>[] | undefined) => readonly Record<string, unknown>[];
+    /** Signal values the current rows call for, such as the band step the layout picks for them. */
+    dataSignals?: (rows: readonly Record<string, unknown>[] | undefined) => Record<string, number>;
     reorderAxis?: VegaReorderAxis;
     reorderAxes?: readonly VegaReorderAxis[];
     resolve?: ChartInteractionResolver;

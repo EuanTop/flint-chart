@@ -1,0 +1,109 @@
+{
+  "id": "dallas-morning-news",
+  "org": "The Dallas Morning News (Graphics Stylebook, October 2005)",
+  "urls": [
+    "https://policyviz.com/2016/11/30/style-guides/",
+    "https://policyviz.com/wp-content/uploads/2021/03/tdmn_graphics.pdf",
+    "https://projects.rodrigozamith.com/datastorytelling/pdfs/Dallas%20Morning%20News%20-%20Graphics%20Stylebook.pdf"
+  ],
+  "access": "full",
+  "accessNotes": "The library's original link was broken; web_search found the same 32-page 'Graphics Stylebook, October 2005' (Chris Morris, Layne Smith, Sergio Peçanha) mirrored by PolicyViz (tdmn_graphics.pdf) and by Rodrigo Zamith's course site (identical creation date). Text extracted with pypdf and pages rendered with ImageMagick. It is a print-newspaper guide: all colours are given as CMYK only. Hex values below are the naive CMYK->RGB conversion produced by rendering the PDF (e.g. 0/100/100/25 -> #bf0000), sampled from the swatches, so treat them as approximations of the printed inks. Sizes are in points/picas for print.",
+  "summary": "Print-newspaper information graphics style (2005): boxed graphics with a thin black 0.25pt rule, an UPPERCASE Gotham Condensed Bold headline, short Gotham Book intro chatter, generous white space, and earthy muted CMYK palette led by a deep newspaper red. Fever (line) charts use thick 3pt red lines with hollow 5pt circle end markers, thin 50% grey gridlines, and black reversed-out callout boxes with bold white numbers; source and staff-artist credit sit at the bottom.",
+  "context": "editorial",
+  "colors": {
+    "categorical": ["#bf0000", "#53a6a6", "#cccc8f", "#cca33d", "#567345"],
+    "categoricalNotes": "Bar charts: 1 Red (C0 M100 Y100 K25), 2 Blue (C50 M0 Y0 K35), 3 Beige (C0 M0 Y30 K20), 4 Ocre (C0 M20 Y70 K20), 5 Green (C25 M0 Y40 K55). Fever (line) charts: 1 Red, 2 Blue, 3 Ocre (#cca33d), 4 Green (#567345), 5 Black (C0 M0 Y0 K100, #000000); greyscale alternative lines 100K solid, 100K 2-dash 2-gap, 60K 2-dash 2-gap, 30K. 'Fever and bar charts should always start with red line or bar.' Pie charts use pastel map tones in order Country #a6a68d (C0 M0 Y15 K35), Land #d9d9c4 (0/0/10/15), Park #b8ccb8 (10/0/10/20), Silver #ced9d9 (5/0/0/15), Neighbor #bfbfac (0/0/10/25); or shades of one colour. Orange (0/50/100/0, #ff8000) is also in the chart palette. Hex = naive CMYK conversion.",
+    "sequential": ["#f2f2e6", "#e6e6cf", "#d9d9c4", "#ccccb8", "#b3b398"],
+    "diverging": [],
+    "highlight": "#bf0000",
+    "context": "#cccc8f",
+    "positive": null,
+    "negative": null,
+    "background": "#ffffff",
+    "text": "#000000",
+    "textSecondary": null,
+    "gridline": "#808080",
+    "axis": "#000000",
+    "notes": "Map palette (CMYK): Land 0/0/10/15, Water 15/0/0/0 (#d9ffff), Neighbor 0/0/10/25, Park 10/0/10/20, Country 0/0/15/35, Pink 0/20/20/20 (#cca3a3), Silver 5/0/0/15. 'Sequential' list above is the stated neutral tint ramp (0C 0M 5Y 5K, 10Y 10K, 10Y 15K, 10Y 20K, 15Y 30K) converted naively. Single-line fever charts get a beige plot box (0C 0M 10Y 10K, #e6e6cf); multi-line charts do not. Gridlines are 0.25pt 50% K (#808080). Colours chosen to survive automatic greyscale conversion — always double-check. A 0.25pt 50K stroke separates areas of similar colour."
+  },
+  "typography": {
+    "family": "Gotham (Gotham Condensed Bold for heads only; Gotham Book / Bold for everything else)",
+    "fallback": "Miller (Deck/Text) for full-page headlines, credits and body text",
+    "title": { "size": 21, "weight": "bold (Gotham Condensed Bold, tracking 30, horizontal scale 110%)", "align": "left", "case": "upper", "color": "#000000" },
+    "subtitle": { "size": 11, "weight": "book (regular)", "style": "normal", "color": "#000000" },
+    "axisLabel": { "size": 9, "color": "#000000" },
+    "axisTitle": { "size": 9, "weight": "book italic", "placement": "unit note in parentheses as italic text above the axis, e.g. '(In thousands)'" },
+    "dataLabel": { "size": 11, "weight": "bold" },
+    "source": { "size": 7, "style": "'SOURCE:' uppercase lead-in, Gotham Book 5.5/7pt, inside box bottom-left", "color": "#000000" },
+    "notes": "Print sizes (pt): graphic head 16pt (1-2 columns), 20pt (3-4 col), 24pt (5-6 col), Gotham Cond Bold, always UPPERCASE; subhead Gotham Bold 9/11 uppercase; intro copy Gotham Book 8/10 (1-2 col) or 9/11 (3+ col); most labels 7/8pt Gotham Book; axis labels 7/8pt (6/7pt allowed but avoid); unit note Gotham Book Italic 7/10; callouts and number labels Gotham Bold 8/9 (never smaller); type boxes Gotham Book 7.5/10; notes Gotham Book 7/10; source Gotham Book 5.5/7; staff credit Miller Text Roman 7pt ('NAME/Staff Artist'); Gotham Book Italic for rivers/landmarks. Never use Gotham Condensed (non-bold) or Ultra weights. Pixel values above = pt x 4/3 for the 1-2 column size. Half-page+ graphics may use Miller Deck Cond headlines (35pt+, 80pt+ for full page), never uppercase and never boxed."
+  },
+  "structure": {
+    "gridlines": "Thin 0.25pt 50% K grey gridlines; fever charts show both horizontal and vertical gridlines, bar charts horizontal only.",
+    "axisLine": "Black baseline; no y-axis line.",
+    "ticks": "Short tick marks between month labels on bar chart; otherwise none.",
+    "zeroLine": "Baseline drawn darker (black) at the bottom.",
+    "yAxisPlacement": "left (labels left-aligned, sitting above gridlines)",
+    "yAxisTitle": "omitted; unit given in italic parentheses '(In thousands)' above the axis or as % on the top label only ('50%')",
+    "unitPlacement": "on the top tick label only (e.g. '50%', '120%') or in an italic parenthetical",
+    "frame": "Graphic box: 0.25pt 100% K rule around the whole graphic (standard; may be dropped for large graphics or inside CCI boxes; never with Miller heads). Inner margin 8pt (1-2 col), 10pt (3-4 col), 1 pica (5-6 col).",
+    "background": "white; beige plot box only for single-line fever charts",
+    "notes": "Leave at least one pica between elements. If too much information, make the graphic bigger; if space is tight, cut something out. Years abbreviated as '01, '02 after the first full year."
+  },
+  "legend": {
+    "placement": "top, below intro copy, left-aligned, horizontal or stacked",
+    "directLabels": "Key values called out with black callout boxes at line ends/peaks.",
+    "title": "no",
+    "swatchShape": "small square (ITC Zapf Dingbats ■ 8/12)",
+    "notes": ""
+  },
+  "marks": {
+    "bars": "Solid flat bars, narrow with gaps about equal to bar width in single-series; grouped bars touching within a group. If you show a scale, don't put numbers on the bars (except the callout); if you put numbers on bars, delete the scale.",
+    "lines": "Fever lines 3pt stroke; endpoints marked with 5pt hollow circles (1.5pt stroke, white fill); first line red.",
+    "areas": "Single-line fever chart sits on a beige box rather than an area fill.",
+    "points": "5pt circle, 1.5pt stroke, white fill.",
+    "pies": "One-column pie is a 7-pica circle; 0.7pt white stroke between slices; all callouts outside the pie with 0.5pt black pointer lines; more than five slices -> bar chart or table; pastel colours.",
+    "notes": "Tables: Gotham Book 7.5/14 with Gotham Bold header 7.5pt, 0.25pt 50% K rules between rows, left-aligned, units only in the first row."
+  },
+  "labels": {
+    "dataLabels": "Highlighted values in black reversed boxes with white Gotham Bold 8/9pt numbers (e.g. '2,877', '169,000'); first/other values as plain Gotham Book 7/8 labels near points.",
+    "numberFormat": "Comma thousands separators (93,929); % on top tick only; '$ 70 million' then bare numbers in tables (units only in the first row).",
+    "dates": "Full first year then abbreviated '01 '02; months as single initials J F M A M J J A S O N D with year beneath.",
+    "notes": "Intro copy and footnotes under 20 words (130 characters)."
+  },
+  "furniture": {
+    "title": "UPPERCASE Gotham Condensed Bold headline inside the box top-left (often a short label pun like 'FEWER TAKERS'), followed by one-sentence intro copy in Gotham Book.",
+    "source": "Inside the box at bottom-left: 'SOURCE: Army National Guard' in Gotham Book 5.5/7pt with uppercase 'SOURCE:'; notes ('Note: ...') above the source.",
+    "logo": "None on graphics; credit line 'NAME/Staff Artist' (or 'Associated Press') in Miller Text Roman 7pt outside the box, bottom-right.",
+    "other": "0.25pt black box around graphic; 8-10pt inner padding; long callouts no more than 20 words; type boxes one column wide, square, subheads every 10-15 lines, no text wrap around illustrations."
+  },
+  "annotations": "Black callout is the standard (black box, white bold number); for more than three callouts use white callouts to avoid clutter. Pointer lines 0.5pt black; dotted pointer 0.65pt black dash 0.2/2pt; 4pt circle markers with 0.35pt black stroke; 4pt red square (100M 100Y 25K) for map points. Callout font Gotham Bold 8/9pt.",
+  "layout": "Column-based print widths: 1 col 11p, 2 col 22p9.6, 3 col 34p7.2, 4 col 46p4.8, 5 col 58p2.4, 6 col 70p. Head size and border padding scale with column width. Increase white space; don't compress information.",
+  "interaction": null,
+  "accessibility": "Colours chosen to convert to greyscale; always check greyscale conversions; legibility over density (never shrink fonts, tracking or leading).",
+  "chartTypes": {
+    "preferred": ["fever (line) chart", "bar/column chart", "pie chart (≤5 slices)", "table", "locator map"],
+    "discouraged": ["pies with more than five slices", "graphics needing more than ~20 words of explanation"],
+    "notes": "When in doubt, choose the simplest solution."
+  },
+  "distinctiveRules": [
+    { "rule": "Graphic headlines are always UPPERCASE Gotham Condensed Bold (tracking 30, 110% horizontal scale): 16pt for 1-2 columns, 20pt for 3-4, 24pt for 5-6.", "source": "https://policyviz.com/wp-content/uploads/2021/03/tdmn_graphics.pdf", "quote": "Graphic heads are always UPPERCASE. Gotham Cond Bold 16pt, AV30, T 110%" },
+    { "rule": "The first series in any fever or bar chart is DMN red (C0 M100 Y100 K25 ≈ #bf0000); further series follow blue, beige/ocre, green.", "source": "https://policyviz.com/wp-content/uploads/2021/03/tdmn_graphics.pdf", "quote": "Fever and bar charts should always start with red line or bar." },
+    { "rule": "Fever-chart lines are 3pt with hollow 5pt circle markers (1.5pt stroke, white fill) at the ends.", "source": "https://policyviz.com/wp-content/uploads/2021/03/tdmn_graphics.pdf", "quote": "5pt circle 1.5 stroke White fill 3pt stroke" },
+    { "rule": "Single-line fever charts sit on a beige plot box (0C 0M 10Y 10K); multi-line charts have no box.", "source": "https://policyviz.com/wp-content/uploads/2021/03/tdmn_graphics.pdf", "quote": "Fever charts with only one line should have beige box. Charts with more than one line shouldn't." },
+    { "rule": "Key values are called out in black boxes with white Gotham Bold 8/9pt numbers; switch to white callouts if more than three.", "source": "https://policyviz.com/wp-content/uploads/2021/03/tdmn_graphics.pdf", "quote": "Black callout is the standard. But if the map has more than three callouts you might need to use white callouts" },
+    { "rule": "Either an axis scale or numbers on bars, never both (except the callout).", "source": "https://policyviz.com/wp-content/uploads/2021/03/tdmn_graphics.pdf", "quote": "If you use a scale (axis) on the graphic, don't put numbers on the bars (except the callout). If you put the numbers on the bars, delete the scale." },
+    { "rule": "Whole graphic enclosed in a 0.25pt black box with 8pt (1-2 col) / 10pt (3-6 col) inner padding.", "source": "https://policyviz.com/wp-content/uploads/2021/03/tdmn_graphics.pdf", "quote": "Box: 0.25pt, 100K ... Spacing for 1 and 2 column graphics: 8pt square (on all corners)" },
+    { "rule": "Gridlines are 0.25pt 50% black.", "source": "https://policyviz.com/wp-content/uploads/2021/03/tdmn_graphics.pdf", "quote": "Strokes 50% K 0.25pt" },
+    { "rule": "Source line inside the box bottom-left as 'SOURCE: ...' (Gotham Book 5.5/7); staff credit 'NAME/Staff Artist' in Miller 7pt outside the box bottom-right.", "source": "https://policyviz.com/wp-content/uploads/2021/03/tdmn_graphics.pdf", "quote": "SOURCE: Army National Guard ... DAMEON RUNNELS/Staff Artist ... Credit: Miller Text Roman 7pt" },
+    { "rule": "Intro copy, footnotes and callouts under 20 words (130 characters).", "source": "https://policyviz.com/wp-content/uploads/2021/03/tdmn_graphics.pdf", "quote": "Intro copy and footnotes should be as short as possible: less than 20 words (130 characters)." },
+    { "rule": "Pie charts: 7-pica circle for one column, 0.7pt white strokes between slices, all labels outside with 0.5pt black pointers, max five slices, pastel map tones.", "source": "https://policyviz.com/wp-content/uploads/2021/03/tdmn_graphics.pdf", "quote": "All callouts should be outside the pie. Use 0.5pt black stroke ... Pies with more than five slices should be treated as bar chart or table." },
+    { "rule": "Legend keys are small solid squares (Zapf Dingbats ■) placed above the chart under the intro.", "source": "https://policyviz.com/wp-content/uploads/2021/03/tdmn_graphics.pdf", "quote": "ITC Zapf Dingbat 8/12" },
+    { "rule": "Units appear only on the top axis label (e.g. '50%') or in an italic '(In thousands)' note.", "source": "https://policyviz.com/wp-content/uploads/2021/03/tdmn_graphics.pdf", "quote": "Gotham Book Ital. 7/10pt (In thousands)" },
+    { "rule": "Never shrink type below spec: number labels and callouts no smaller than Gotham Bold 8/9pt.", "source": "https://policyviz.com/wp-content/uploads/2021/03/tdmn_graphics.pdf", "quote": "Number labels: Gotham Bold 8/9pt. Don't make it smaller than this." }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/dallas-morning-news/p16.png", "url": "https://policyviz.com/wp-content/uploads/2021/03/tdmn_graphics.pdf", "describes": "Fever charts page. 'FEWER TAKERS': thin black-ruled box, uppercase condensed bold black headline top-left, Gotham Book intro sentence, y labels 2,000-8,000 left-aligned above thin grey gridlines (horizontal and vertical), single thick dark-red line descending over a beige plot box, hollow red circle markers at ends, '7,242' plain label at start and '2,877' white-on-black callout box at end, x labels 2000 '01 '02 '03 '04, tiny 'SOURCE: Army National Guard' bottom-left inside box, 'DAMEON RUNNELS/Staff Artist' serif credit below box right. 'SINGLE HOMEBUYERS ON THE RISE': two-line uppercase head, legend with red and teal squares above, red and teal thick lines with hollow end circles and black callouts '93,929' and '44,397', white background with grey grid, note and source at bottom." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/dallas-morning-news/p17.png", "url": "https://policyviz.com/wp-content/uploads/2021/03/tdmn_graphics.pdf", "describes": "Bar charts page. 'UNEMPLOYMENT': boxed, uppercase condensed headline, intro, italic '(In thousands)' unit note, single-series dark red columns with gaps ~bar width, thin grey horizontal gridlines, black baseline, month initials with years beneath, a black callout '169,000' with pointer to the last bar, 'SOURCE: U.S. Department of Labor', 'Associated Press' credit. 'MORE MEN BUYING': grouped columns red / teal / beige touching within year groups, legend of small squares above, y labels 0-50 with '%' only on top label, note and source bottom-left, 'BETSY BOCK/Staff Artist' credit." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/dallas-morning-news/p15.png", "url": "https://policyviz.com/wp-content/uploads/2021/03/tdmn_graphics.pdf", "describes": "Colour palette page: fever-chart line order 1 Red, 2 Blue (teal), 3 Ocre, 4 Green, 5 Black, each a 3pt line with hollow circle end; greyscale alternatives (black, 100K dashed, 60K dashed, 30K); bar chart swatches Red, Blue, Beige, Ocre, Green with CMYK values; pie example in pastel taupe/sage/grey-blue tones (Country, Land, Park, Silver, Neighbor) with 1st slice starting at 12 o'clock, labels outside with a pointer." }
+  ]
+}

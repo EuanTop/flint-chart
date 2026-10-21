@@ -60,6 +60,31 @@ export function guardNavigationDomain(
     return values.map((value, index) => domainValue(value, type, initial[index], logSign)) as [unknown, unknown];
 }
 
+/**
+ * The zoom factor held to the spans the guard allows, so a zoom stops at its limit instead of
+ * moving there. Past the limit the guard would keep the centre of a domain scaled about the
+ * anchor, and every further wheel step would pan toward the cursor.
+ */
+function guardZoomFactor(
+    factor: number,
+    current: readonly [unknown, unknown],
+    state: AxisState,
+    guard: NavigationDomainGuard,
+): number {
+    const logSign = state.type === 'log' && numericValue(state.initialDomain[0]) < 0 ? -1 : 1;
+    const spanOf = (domain: readonly [unknown, unknown]): number => {
+        const [start, end] = domain.map((value) => transformedValue(value, state.type, logSign));
+        return Math.abs(end - start);
+    };
+    const currentSpan = spanOf(current);
+    const initialSpan = spanOf(state.initialDomain);
+    if (!(currentSpan > 0) || !(initialSpan > 0) || !Number.isFinite(currentSpan) || !Number.isFinite(initialSpan)) return factor;
+    // A zoom in never widens the domain and a zoom out never narrows it, even from outside the limits.
+    const most = Math.max(1, currentSpan / (initialSpan * guard.minVisibleFraction));
+    const least = Math.min(1, currentSpan / (initialSpan * guard.maxVisibleFraction));
+    return Math.min(most, Math.max(least, factor));
+}
+
 /** Frame timing shared by the viewport tweens of the scale and geo controllers. */
 export const now = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
@@ -212,9 +237,10 @@ export function createVegaNavigationController(
                 } else if (event.operation === 'zoom' && event.factor && event.factor > 0 && event.anchor) {
                     const fraction = axis === 'x' ? event.anchor.x : event.anchor.y;
                     const anchor = Math.min(rangeStart, rangeEnd) + fraction * rangeExtent;
+                    const factor = guardZoomFactor(event.factor, current, state, guard);
                     proposed = [
-                        scale.invert(anchor + (rangeStart - anchor) / event.factor),
-                        scale.invert(anchor + (rangeEnd - anchor) / event.factor),
+                        scale.invert(anchor + (rangeStart - anchor) / factor),
+                        scale.invert(anchor + (rangeEnd - anchor) / factor),
                     ];
                 }
                 if (!proposed) continue;

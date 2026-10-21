@@ -18,13 +18,20 @@ import { navigate } from '../src/interactive/interactions';
 import {
     addVegaLiteInteractions,
     injectVegaGeoNavigationSignals,
+    vegaGeoFocusSource,
 } from '../src/vegalite/interactions/compile';
 import {
     createVegaGeoNavigationController,
     GEO_AXIS_SCALES,
     GEO_EXTENT_SIGNAL,
     GEO_PROJECTION_SIGNAL,
+    GEO_ROTATE_SIGNAL,
     guardGeoExtent,
+    eastwardSpan,
+    interpolateRotation,
+    sphericalCentroid,
+    turnGlobe,
+    wrapLongitude,
     remapExtentPoint,
     type GeoExtent,
 } from '../src/vegalite/interactions/navigation-geo';
@@ -143,6 +150,13 @@ describe('map navigation declaration', () => {
 });
 
 describe('geo extent helpers', () => {
+    it.each([[15, 7.5], [-15, -7.5], [50, -25], [-50, 25]])('pins a full-map extent despite overscroll when panned by %s, %s', (dx, dy) => {
+        const extent = guardGeoExtent([[dx, dy], [100 + dx, 50 + dy]], { width: 100, height: 50 }, {
+            ...GUARD, overscrollFraction: 0.15,
+        });
+        extent.flat().forEach((value, index) => expect(value).toBeCloseTo([0, 0, 100, 50][index], 10));
+    });
+
     it('remaps a pixel between extents by the fit\'s scale and offset', () => {
         const base: GeoExtent = [[0, 0], [100, 50]];
         const zoomed: GeoExtent = [[-50, -25], [150, 75]];
@@ -243,6 +257,35 @@ describe('geo navigation controller', () => {
         view.finalize();
     });
 
+    it.each([
+        { visibleFraction: 1, factor: 0.5 },
+        { visibleFraction: 0.02, factor: 2 },
+    ])('keeps the projection pinned when zoom exceeds the $visibleFraction visible-fraction limit', async ({ visibleFraction, factor }) => {
+        const { view, controller } = await mountedWorldMap();
+        const guard = { ...GUARD, overscrollFraction: 0.15 };
+        try {
+            const initial = controller.resolve({
+                type: 'navigation', phase: 'commit', operation: 'zoom', axes: 'xy',
+                factor: 1 / visibleFraction, anchor: { x: 0.5, y: 0.5 },
+            }, guard)!;
+            controller.apply(initial);
+            await view.runAsync();
+            const extent = structuredClone(view.signal(GEO_EXTENT_SIGNAL)) as GeoExtent;
+            for (const anchor of [{ x: 0.1, y: 0.1 }, { x: 0.9, y: 0.9 }, { x: 0.1, y: 0.9 }]) {
+                const update = controller.resolve({
+                    type: 'navigation', phase: 'commit', operation: 'zoom', axes: 'xy',
+                    factor, anchor,
+                }, guard)!;
+                controller.apply(update);
+                await view.runAsync();
+                const current = view.signal(GEO_EXTENT_SIGNAL) as GeoExtent;
+                current.flat().forEach((value, index) => expect(value).toBeCloseTo(extent.flat()[index], 6));
+            }
+        } finally {
+            view.finalize();
+        }
+    });
+
     it('fits an external longitude and latitude box into the plot', async () => {
         const { view, controller, width, height } = await mountedWorldMap();
         const initialScale = view.signal(GEO_PROJECTION_SIGNAL).scale();
@@ -283,5 +326,199 @@ describe('geo navigation controller', () => {
         expect(y.end).toBeGreaterThan(y.start);
         expect((x.start + x.end) / 2).toBeCloseTo(controller.scale!(GEO_AXIS_SCALES.x)!.invert!(width / 2) as number, 5);
         view.finalize();
+    });
+});
+
+/** A world choropleth drawn as a globe over the inline land blocks, mounted with navigation. */
+async function mountedGlobe(center: [number, number] = [0, 0]) {
+    const spec = assembleVegaLite({
+        data: { values: [{ Country: 'United States', Warming: 1.7 }, { Country: 'France', Warming: 2.0 }] },
+        semantic_types: { Country: 'Country', Warming: 'Quantity' },
+        chart_spec: {
+            chartType: 'Choropleth',
+            encodings: { id: 'Country', color: 'Warming' },
+            chartProperties: { region: 'world', projection: 'orthographic', projectionCenter: center },
+        },
+    } as any) as any;
+    for (const layer of spec.layer) {
+        if (layer.data?.url) layer.data = { values: BASE_FEATURES };
+    }
+    const plan = addVegaLiteInteractions(spec, [navigate()])!;
+    const compiled = compile(spec).spec as any;
+    const axes = injectVegaGeoNavigationSignals(compiled, plan.navigationChannels);
+    const focusSource = vegaGeoFocusSource(compiled);
+    const view = new View(parse(compiled), { renderer: 'none' });
+    await view.runAsync();
+    const controller = createVegaGeoNavigationController(view, axes, undefined, undefined, { focusSource });
+    return { spec, compiled, view, controller, width: view.width(), height: view.height(), focusSource };
+}
+
+/** The place at the middle of the plot. */
+function facing(view: any): [number, number] {
+    return view.signal(GEO_PROJECTION_SIGNAL).invert([view.width() / 2, view.height() / 2]);
+}
+
+describe('globe navigation', () => {
+    it('draws a world choropleth as a globe: a square plot, the sea, no-data land, and a sphere fit', () => {
+        const { spec } = { spec: assembleVegaLite({
+            data: { values: [{ Country: 'Norway', Warming: 2.8 }] },
+            semantic_types: { Country: 'Country', Warming: 'Quantity' },
+            chart_spec: {
+                chartType: 'Choropleth', encodings: { id: 'Country', color: 'Warming' },
+                chartProperties: { region: 'world', projection: 'orthographic', projectionCenter: [10, 50] },
+            },
+        } as any) as any };
+        expect(spec.projection).toEqual(expect.objectContaining({
+            type: 'orthographic', rotate: [-10, -50, 0], fit: { type: 'Sphere' },
+        }));
+        expect(spec.width).toBe(spec.height);
+        expect(spec.layer).toHaveLength(3);
+        expect(spec.layer[0].data).toEqual({ sphere: true });
+        expect(spec.layer[1].mark.fill).toBeDefined();
+        expect(spec.layer[2].encoding.color.field).toBe('Warming');
+    });
+
+    it('keeps a flat world choropleth one layer, and offers the projection only on the world map', () => {
+        const flat = assembleVegaLite({
+            data: { values: [{ Country: 'Norway', Warming: 2.8 }] },
+            semantic_types: { Country: 'Country', Warming: 'Quantity' },
+            chart_spec: { chartType: 'Choropleth', encodings: { id: 'Country', color: 'Warming' }, chartProperties: { region: 'world', projection: 'mercator' } },
+        } as any) as any;
+        expect(flat.layer).toBeUndefined();
+        expect(flat.projection.type).toBe('mercator');
+    });
+
+    it('binds the rotation to a signal that starts where the chart is centred', async () => {
+        const { compiled, view } = await mountedGlobe([10, 50]);
+        expect(compiled.projections[0].rotate).toEqual({ signal: GEO_ROTATE_SIGNAL });
+        expect(view.signal(GEO_ROTATE_SIGNAL)).toEqual([-10, -50, 0]);
+        const [lon, lat] = facing(view);
+        expect(lon).toBeCloseTo(10, 4);
+        expect(lat).toBeCloseTo(50, 4);
+    });
+
+    it('turns under a drag, and keeps its size while it turns', async () => {
+        const { view, controller, width } = await mountedGlobe();
+        const scale = view.signal(GEO_PROJECTION_SIGNAL).scale();
+        // A drag to the right brings the west into view.
+        const pan = controller.resolve({
+            type: 'navigation', phase: 'preview', operation: 'pan', axes: 'xy', delta: { x: 0.1, y: 0 },
+        }, GUARD)!;
+        expect(controller.apply(pan)).toBe(true);
+        await view.runAsync();
+        const turned = 0.1 * width * 180 / (Math.PI * scale);
+        expect(facing(view)[0]).toBeCloseTo(-turned, 3);
+        expect(view.signal(GEO_PROJECTION_SIGNAL).scale()).toBeCloseTo(scale, 6);
+        expect(view.signal(GEO_EXTENT_SIGNAL)).toEqual([[0, 0], [view.width(), view.height()]]);
+        // The reported box is centred on the place now faced.
+        const [west, east] = pan.value.x!.map(Number);
+        expect((west + east) / 2).toBeCloseTo(-turned, 3);
+        // Re-applying the same value lands on the same rotation exactly.
+        controller.apply({ op: 'set-viewport', axes: 'xy', value: {} });
+        controller.apply(pan);
+        await view.runAsync();
+        expect(facing(view)[0]).toBeCloseTo(-turned, 3);
+    });
+
+    it('stops its tilt at the poles', async () => {
+        const { view, controller } = await mountedGlobe();
+        const pan = controller.resolve({
+            type: 'navigation', phase: 'preview', operation: 'pan', axes: 'xy', delta: { x: 0, y: 5 },
+        }, GUARD)!;
+        controller.apply(pan);
+        await view.runAsync();
+        expect(view.signal(GEO_ROTATE_SIGNAL)[1]).toBe(-90);
+    });
+
+    it('zooms about its centre, so the place it faces stays put', async () => {
+        const { view, controller } = await mountedGlobe([10, 50]);
+        const zoom = controller.resolve({
+            type: 'navigation', phase: 'commit', operation: 'zoom', axes: 'xy', factor: 2, anchor: { x: 0.1, y: 0.1 },
+        }, GUARD)!;
+        controller.apply(zoom);
+        await view.runAsync();
+        const [lon, lat] = facing(view);
+        expect(lon).toBeCloseTo(10, 4);
+        expect(lat).toBeCloseTo(50, 4);
+        const [west, east] = zoom.value.x!.map(Number);
+        expect(east - west).toBeLessThan(180);
+    });
+
+    it('faces a region, and reports the country at its centre as the focus', async () => {
+        const { view, controller } = await mountedGlobe();
+        expect(controller.apply({ op: 'set-viewport', axes: 'xy', value: { region: { key: { Country: 'France' } } } })).toBe(true);
+        await view.runAsync();
+        const [lon, lat] = facing(view);
+        expect(lon).toBeGreaterThan(15);
+        expect(lon).toBeLessThan(25);
+        expect(lat).toBeGreaterThan(40);
+        expect(lat).toBeLessThan(50);
+        expect(controller.focus?.()).toEqual(expect.objectContaining({ Country: 'France', Warming: 2 }));
+    });
+
+    it('faces the middle of a box, and tweens there the short way round', async () => {
+        // Centred on the Pacific: the box lies across the antimeridian, 50° east.
+        const { view, controller } = await mountedGlobe([150, 0]);
+        const frames: string[] = [];
+        controller.apply(
+            { op: 'set-viewport', axes: 'xy', value: { x: [-170, -150], y: [30, 50] } },
+            { transition: { duration: 30, onFrame: (phase) => frames.push(phase) } },
+        );
+        await controller.settled!();
+        const [lon, lat] = facing(view);
+        expect(lon).toBeCloseTo(-160, 3);
+        expect(lat).toBeCloseTo(40, 3);
+        expect(frames.at(-1)).toBe('commit');
+        // A 20° box zooms in until it fills the plot.
+        expect(view.signal(GEO_PROJECTION_SIGNAL).scale()).toBeGreaterThan(view.width());
+    });
+
+    it('faces the middle of a hemisphere-wide box without zooming', async () => {
+        const { view, controller } = await mountedGlobe();
+        const scale = view.signal(GEO_PROJECTION_SIGNAL).scale();
+        controller.apply({ op: 'set-viewport', axes: 'xy', value: { x: [-80, 100], y: [-40, 140] } });
+        await view.runAsync();
+        const [lon, lat] = facing(view);
+        expect(lon).toBeCloseTo(10, 4);
+        expect(lat).toBeCloseTo(50, 4);
+        expect(view.signal(GEO_PROJECTION_SIGNAL).scale()).toBeCloseTo(scale, 6);
+    });
+
+    it('resets to where it started', async () => {
+        const { view, controller } = await mountedGlobe([-52, -14]);
+        controller.apply({ op: 'set-viewport', axes: 'xy', value: { x: [-100, -80], y: [-10, 10] } });
+        await view.runAsync();
+        controller.apply({ op: 'set-viewport', axes: 'xy', value: {} });
+        await view.runAsync();
+        expect(view.signal(GEO_ROTATE_SIGNAL)).toEqual([52, 14, 0]);
+        expect(view.signal(GEO_EXTENT_SIGNAL)).toBeNull();
+    });
+
+    it('leaves a flat map sliding, not turning', async () => {
+        const { compiled } = await (async () => {
+            const spec = worldBubbleMap();
+            const plan = addVegaLiteInteractions(spec, [navigate()])!;
+            const compiled = compile(spec).spec as any;
+            injectVegaGeoNavigationSignals(compiled, plan.navigationChannels);
+            return { compiled };
+        })();
+        expect(compiled.signals.map((signal: any) => signal.name)).not.toContain(GEO_ROTATE_SIGNAL);
+    });
+});
+
+describe('globe maths', () => {
+    it('finds the centre of a region across the antimeridian', () => {
+        const [lon, lat] = sphericalCentroid([[170, 10], [-170, 10], [170, -10], [-170, -10]])!;
+        expect(Math.abs(lon)).toBeCloseTo(180, 6);
+        expect(lat).toBeCloseTo(0, 6);
+    });
+
+    it('turns the short way round between two longitudes', () => {
+        expect(interpolateRotation([170, 0, 0], [-170, 0, 0], 0.5)[0]).toBeCloseTo(-180, 6);
+        expect(wrapLongitude(190)).toBe(-170);
+        expect(eastwardSpan(-80, 100)).toBe(180);
+        expect(eastwardSpan(170, -170)).toBe(20);
+        expect(eastwardSpan(-180, 180)).toBe(360);
+        expect(turnGlobe([0, 0, 0], 0, -1e6, 100)[1]).toBe(90);
     });
 });

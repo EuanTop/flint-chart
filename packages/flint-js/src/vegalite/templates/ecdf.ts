@@ -29,6 +29,7 @@
  */
 
 import { ChartTemplateDef, ChartPropertyDef } from '../../core/types';
+import { skeletonStructure } from '../../core/structure';
 import {
     fieldsFromEncodingChannels,
     firstDiscreteEncodingField,
@@ -58,6 +59,13 @@ function uniqueName(base: string, taken: Set<string>): string {
     return name;
 }
 
+/** The columns an ECDF computes, named so they do not clash with the data's own. */
+function ecdfColumns(rows: readonly Record<string, unknown>[]): { count: string; total: string; ecdf: string } {
+    const taken = new Set<string>();
+    for (const row of rows) for (const key of Object.keys(row)) taken.add(key);
+    return { count: uniqueName('__ecdf_count', taken), total: uniqueName('__ecdf_total', taken), ecdf: uniqueName('__ecdf', taken) };
+}
+
 export const ecdfPlotDef: ChartTemplateDef = {
     chart: 'ECDF Plot',
     template: {
@@ -66,6 +74,17 @@ export const ecdfPlotDef: ChartTemplateDef = {
         encoding: {},
     },
     channels: ['x', 'color', 'detail', 'column', 'row'],
+    structure: (ctx) => {
+        const structure = skeletonStructure(ecdfPlotDef.template, ctx);
+        const measure = ctx.channelSemantics.x?.field;
+        if (!measure) return structure;
+        return {
+            ...structure,
+            x: { type: 'quantitative', fields: [measure], baseline: 'data' },
+            y: { type: 'quantitative', fields: [], derived: 'cumulative-share', ownScale: true },
+            axisTitles: { y: 'Cumulative proportion' },
+        };
+    },
     interactionSupport: {
         elements: true,
         region: ['cartesian'],
@@ -108,14 +127,7 @@ export const ecdfPlotDef: ChartTemplateDef = {
         const measure = x?.field;
         if (!measure) return;
 
-        // Internal column names that must not clash with real data columns.
-        const taken = new Set<string>();
-        for (const r of ctx.table ?? []) {
-            for (const k of Object.keys(r)) taken.add(k);
-        }
-        const cntName = uniqueName('__ecdf_count', taken);
-        const totalName = uniqueName('__ecdf_total', taken);
-        const ecdfName = uniqueName('__ecdf', taken);
+        const { count: cntName, total: totalName, ecdf: ecdfName } = ecdfColumns(ctx.table ?? []);
 
         // Group the running count + total by every grouping/facet field so each
         // curve (and each facet panel) is normalized to its own n — otherwise a

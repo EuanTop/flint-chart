@@ -2,7 +2,10 @@
 // Licensed under the MIT License.
 
 import { describe, it, expect } from 'vitest';
-import { assembleVegaLite } from '../src';
+import { assembleVegaLite as assembleWithoutDecisions } from '../src';
+
+/** Compiles with the theme's full decisions attached, which these tests read. */
+const assembleVegaLite = (input: any): any => assembleWithoutDecisions({ ...input, options: { ...input.options, themeDecisions: true } });
 import {
   formatValueApprox,
   inferValueLabelFormat,
@@ -153,7 +156,8 @@ describe('value label precision', () => {
 
   describe('the fit tests inherit the honest width', () => {
     const bars = (values: number[]) => ({
-      data: { values: values.map((v, i) => ({ cat: `Category ${i + 1}`, val: v })) },
+      // Short names that stand flat in the bars' own bands, so the bands — the room — stay the same.
+      data: { values: values.map((v, i) => ({ cat: `C${i + 1}`, val: v })) },
       semantic_types: { cat: 'nominal', val: 'quantitative' },
       chart_spec: {
         chartType: 'Bar Chart',
@@ -208,10 +212,9 @@ describe('value label precision', () => {
       expect(text?.encoding?.text?.format).toBe(',.2~f');
     });
 
-    it('reports the precision it chose, so the digits are not silently changed', () => {
+    it('states the precision it chose on the label it prints', () => {
       const spec: any = assembleVegaLite(bars([3.14159265, 2.71828182, 1.41421356]));
-      const said = (spec._theme?.report ?? []).map((r: any) => `${r.path}: ${r.message}`);
-      expect(said.some((m: string) => m.startsWith('annotation.numberFormat:'))).toBe(true);
+      expect(spec._theme?.decisions?.dataLabels?.format).toMatch(/\.\d/);
     });
   });
 

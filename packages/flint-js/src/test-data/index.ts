@@ -19,6 +19,7 @@ export { seededRandom, genDates, genMonths, genYears, genNaturalDates, genCatego
 export { genScatterTests, genRegressionTests } from './scatter-tests';
 export { genBarTests, genStackedBarTests, genGroupedBarTests } from './bar-tests';
 export { genHistogramTests, genBoxplotTests, genDensityTests, genStripPlotTests } from './distribution-tests';
+export { genRidgelineTests, genMarginalScatterTests } from './ridgeline-marginal-tests';
 export { genDensityContourTests } from './density-2d-tests';
 export { genViolinTests } from './violin-tests';
 export { genLineTests } from './line-tests';
@@ -48,6 +49,7 @@ export { genDateTests, genDateYearTests, genDateMonthTests, genDateYearMonthTest
 export { genSemanticContextTests, genSnapToBoundTests } from './semantic-tests';
 export { genMapTests, genChoroplethTests } from './map-tests';
 export { genGanttTests, genBulletTests, genKpiCardTests } from './gantt-bullet-tests';
+export { genTableTests } from './table-tests';
 export {
     OMNI_VIZ_ROWS,
     OMNI_VIZ_LEVELS,
@@ -91,10 +93,12 @@ import { TestCase } from './types';
 import { genScatterTests, genRegressionTests } from './scatter-tests';
 import { genBarTests, genStackedBarTests, genGroupedBarTests, galleryBarSizingShowcase } from './bar-tests';
 import { genHistogramTests, genBoxplotTests, genDensityTests, genStripPlotTests } from './distribution-tests';
+import { genRidgelineTests, genMarginalScatterTests } from './ridgeline-marginal-tests';
 import { genDensityContourTests } from './density-2d-tests';
 import { genViolinTests } from './violin-tests';
 import { genMapTests, genChoroplethTests } from './map-tests';
 import { genGanttTests, genBulletTests, genKpiCardTests } from './gantt-bullet-tests';
+import { genTableTests } from './table-tests';
 import { genLineTests } from './line-tests';
 import { genSparklineTests } from './sparkline-tests';
 import { genBumpChartTests } from './line-area-tests';
@@ -173,6 +177,8 @@ export const TEST_GENERATORS: Record<string, () => TestCase[]> = {
     'ECDF Plot': genEcdfTests,
     'Lollipop Chart': genLollipopTests,
     'Density Plot': genDensityTests,
+    'Ridgeline Plot': genRidgelineTests,
+    'Marginal Plot': genMarginalScatterTests,
     'Density Contour': genDensityContourTests,
     'Candlestick Chart': genCandlestickTests,
     'Waterfall Chart': genWaterfallTests,
@@ -186,6 +192,7 @@ export const TEST_GENERATORS: Record<string, () => TestCase[]> = {
     'Gantt Chart': genGanttTests,
     'Bullet Chart': genBulletTests,
     'KPI Card': genKpiCardTests,
+    'Table': genTableTests,
     'Facet: Columns': genFacetColumnTests,
     'Facet: Rows': genFacetRowTests,
     'Facet: Cols+Rows': genFacetColRowTests,

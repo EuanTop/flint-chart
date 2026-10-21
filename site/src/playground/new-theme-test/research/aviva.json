@@ -1,0 +1,111 @@
+{
+  "id": "aviva",
+  "org": "Aviva (ION Design System)",
+  "urls": [
+    "https://standards.aviva.com/framework/element-library/components/pie-chart/",
+    "https://standards.aviva.com/ion/component-library/components/pie-chart/",
+    "https://standards.aviva.com/ion/component-library/components/doughnut-chart/",
+    "https://standards.aviva.com/ion/component-library/components/doughnut-chart/examples/single.html",
+    "https://standards.aviva.com/ion/component-library/components/doughnut-chart/examples/multi.html",
+    "https://standards.aviva.com/ion/component-library/components/horizontal-value-bar/",
+    "https://standards.aviva.com/ion/component-library/tables-charts-data/",
+    "https://standards.aviva.com/ion/component-library/colour/",
+    "https://static.aviva.io/assets/themes-managed/v6.2.0/aviva/fusion/css/charts.css",
+    "https://static.aviva.io/assets/themes-managed/v6.2.0/aviva/fusion/css/core.css"
+  ],
+  "access": "full",
+  "accessNotes": "The starting URL serves the Aviva ION component library 'Pie charts' page (server-rendered). Sibling pages read: Doughnut charts, Horizontal value bar, and the 'Tables, charts and data' index (which lists only pie, doughnut, horizontal value bar, data group, data replay, table — no bar/line chart components exist). The colour foundation page carries no hex codes in HTML (colours shown as images) so brand accent colours beyond those stated on chart pages are not recorded. Exact sizes came from the published charts.css/core.css. Reference images are screenshots of Aviva's own interactive example iframes rendered in a browser.",
+  "summary": "Aviva's ION design system treats charts as simple customer-facing website components for pensions and investments, not analytic graphics. Only pie, doughnut and a horizontal 'value bar' indicator exist. Charts use a fixed 5-step palette of Aviva blue and blue-greys in a mandatory order, 3px white dividers between segments, an animated clockwise reveal, a circular-swatch legend 'key' with bold values beside labels, and must sit on white backgrounds within the 12-column grid. Typography is Source Sans Pro.",
+  "context": "brand",
+  "colors": {
+    "categorical": ["#1a61bd", "#a9b2c6", "#5a8ccc", "#c2c8d5", "#7988a9"],
+    "categoricalNotes": "Exactly five segment colours, always used in this order (Segment 1 Aviva accent light blue #1a61bd, then alternating grey-blue/blue: #a9b2c6, #5a8ccc, #c2c8d5, #7988a9). Minimum 2, maximum 5 segments for pies; 1–5 for doughnuts. Single-segment doughnut: filled segment any accent colour (default #1a61bd) on a blank remainder that must always be #ccc.",
+    "sequential": [],
+    "diverging": [],
+    "highlight": "#1a61bd",
+    "context": "#cccccc",
+    "positive": null,
+    "negative": null,
+    "background": "#ffffff",
+    "text": "#444444",
+    "textSecondary": "#5c596d",
+    "gridline": null,
+    "axis": null,
+    "notes": "Pie/doughnut charts only on white backgrounds. Body copy grey #444; heading grey #5c596d (used for the centre value of single doughnuts); doughnut summary text #191919 on light themes, #fff on dark accent themes. Horizontal value bar: container #FFF with #CCC outline, background mask (track) #ececec, coverage fill uses status-badge colours; not on dark accent backgrounds (allowed on white, light grey, light blue)."
+  },
+  "typography": {
+    "family": "Source Sans Pro",
+    "fallback": "source-sans-pro-vf, fallback-system-fonts, sans-serif (headlines use AvivaCurve)",
+    "title": { "size": null, "weight": "semibold (key-lockup title / card heading a-heading--semibold)", "align": "left", "case": "sentence", "color": null },
+    "subtitle": { "size": 16, "weight": "regular", "style": "normal", "color": "#444444" },
+    "axisLabel": { "size": null, "color": null },
+    "axisTitle": { "size": null, "weight": null, "placement": "not applicable (no cartesian charts)" },
+    "dataLabel": { "size": 42, "weight": "600 (semibold)" },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "Single doughnut centre value: h1 semibold in #5c596d (charts.css: 2.625em ≈ 42px, weight 600; 2em on narrow), with 16px body-copy (#444) label beneath, centred. Legend/key: value in semibold followed by label in regular (e.g. '£82,000 Investment costs'); 1.25em (20px) in no-image variant. Horizontal value bar labels: Source Sans Pro 16px #444444, regular or semibold. Currency '£' with thousands separators."
+  },
+  "structure": {
+    "gridlines": "none (no cartesian charts)",
+    "axisLine": "none",
+    "ticks": "none",
+    "zeroLine": null,
+    "yAxisPlacement": null,
+    "yAxisTitle": null,
+    "unitPlacement": "in values (£, %)",
+    "frame": "Chart + key lock-up within the page grid; may sit in a 50:50 card (m-card--50) with image-side doughnut. Value bar sits in a white container with #CCC outline and 5px radius.",
+    "background": "#ffffff only",
+    "notes": "Chart block occupies six columns when the key is to the right; two charts with keys side by side across 12 columns; up to three charts side by side with keys below."
+  },
+  "legend": {
+    "placement": "right of the chart or beneath it (beneath when 2–3 charts sit side by side)",
+    "directLabels": "No labels on the segments; the key carries labels and values.",
+    "title": "Optional title atom in the key lock-up (e.g. 'Standard data group'), plus optional total, CTA button/text-link and copy block.",
+    "swatchShape": "circle (20px, border-radius 50%)",
+    "notes": "Mandatory for multi-segment charts (accessibility). Key colours must match segments. Value first in semibold, then label; variants: left-indented after fixed characters, reversed (label then value), right-aligned."
+  },
+  "marks": {
+    "bars": "Only the 'horizontal value bar' indicator: 12px-high track #ececec with 5px rounded corners and a status-coloured coverage fill, dotted #CCC half-point marker 30px high, labels 10px above/below aligned to edges.",
+    "lines": null,
+    "areas": null,
+    "points": null,
+    "pies": "Allowed: pie (2–5 segments) and doughnut (1–5 segments, thick ring). 3px divider between segments. Animate clockwise from 12 o'clock on first reveal in the viewport. Chart size 240px (mobile) / 253px (≥45em) / 280px (≥67.5em). Highlighted-segment variant: first chart shows the full set, following charts each highlight one segment with a key for that segment only.",
+    "notes": "Don't mix multi-segment doughnuts (with key) and single-segment doughnuts (value inside) in the same section."
+  },
+  "labels": {
+    "dataLabels": "Single-segment doughnut: value only inside the ring (large semibold %), short label beneath. Multi-segment: values in the key, none on the chart.",
+    "numberFormat": "Currency with £ and comma thousands separators (£82,000; £99.99); whole percentages (75%).",
+    "dates": "Value bar: start/end dates as labels.",
+    "notes": "Value bar labels ≤50 characters, up to 4 labels; status badge ≤20 characters."
+  },
+  "furniture": {
+    "title": "Title is an optional atom in the key lock-up or a card heading; no chart title on the graphic itself.",
+    "source": null,
+    "logo": "none on charts",
+    "other": "Non-JS fallback: a static image of the chart (285×285) or, if none, the key alone."
+  },
+  "annotations": null,
+  "layout": "12-column grid: chart+key block 6 columns (key right); 2 per row with keys; max 3 per row with keys below. Value bar: 5-col (495px container, 455px indicator) or 8-col (810/770px) on desktop; tablet 525/485 or 708/668; mobile 280/240px; 20px inner label padding; 30px vertical stacking.",
+  "interaction": "Clockwise draw-in animation the first time the chart enters the viewport; the centre number counts up to its value. Key may include CTA buttons/links.",
+  "accessibility": "3px divider between every segment is mandatory; a legend (key) with labels is mandatory for multi-segment charts; static fallback image with alt text for non-JS; headings in proper hierarchy.",
+  "chartTypes": {
+    "preferred": ["pie (2–5 segments)", "doughnut (1–5 segments)", "single-value doughnut", "horizontal value bar (progress indicator)", "data group / table"],
+    "discouraged": [],
+    "notes": "No bar, line or scatter chart components in ION."
+  },
+  "distinctiveRules": [
+    { "rule": "Segment colours are fixed and always applied in this order: #1a61bd, #a9b2c6, #5a8ccc, #c2c8d5, #7988a9 (Aviva blue alternating with blue-greys).", "source": "https://standards.aviva.com/ion/component-library/components/pie-chart/", "quote": "Each of the five potential segments will have a specific colour which must always be placed in the same order" },
+    { "rule": "Pies show 2–5 segments; doughnuts 1–5 segments; never more than five.", "source": "https://standards.aviva.com/ion/component-library/components/pie-chart/", "quote": "The chart can show a minimum of 2 and a maximum of 5 segments." },
+    { "rule": "A 3px white divider separates every pie/doughnut segment.", "source": "https://standards.aviva.com/ion/component-library/components/doughnut-chart/", "quote": "the component must have a 3px divider between each of the doughnut segments" },
+    { "rule": "Charts animate clockwise (from 12 o'clock) the first time they enter the viewport.", "source": "https://standards.aviva.com/ion/component-library/components/pie-chart/", "quote": "When a chart is revealed for the first time within the viewport it will animate clockwise its data set" },
+    { "rule": "Multi-segment charts must have a key (legend) to the right or beneath, with circular swatches, the value in semibold before the label; no labels on the segments.", "source": "https://standards.aviva.com/ion/component-library/components/pie-chart/", "quote": "All multi-segment pie charts must be accompanied by a legend (key); this contains the labels and values" },
+    { "rule": "Single-value doughnut: accent segment (default #1a61bd) over a remainder that is always #ccc, with the value as h1 semibold #5c596d inside and 16px #444 text beneath.", "source": "https://standards.aviva.com/ion/component-library/components/doughnut-chart/", "quote": "The numerical or percentage value is h1 semi-bold using #5c596d … Do not attempt to change the colour of the blank segment; this should always be #ccc." },
+    { "rule": "Pie and doughnut charts are only placed on white backgrounds.", "source": "https://standards.aviva.com/ion/component-library/components/pie-chart/", "quote": "Pie charts should only be used on white backgrounds." },
+    { "rule": "Grid placement: chart+key spans 6 of 12 columns; at most three charts side by side, then keys go below.", "source": "https://standards.aviva.com/ion/component-library/components/pie-chart/", "quote": "the block consuming six columns of the grid if the key is placed to the right … up to three pie charts can be placed side by side; in this instance the keys will be placed below" },
+    { "rule": "Horizontal value bars are 12px tall rounded (5px) tracks in #ececec inside a white card with #CCC outline and 5px radius, with a dotted #CCC half-way marker.", "source": "https://standards.aviva.com/ion/component-library/components/horizontal-value-bar/", "quote": "Component container: #FFF, outline #CCC, rounded corner radius 5px … Half point mark: Dotted key line 30px height, #CCC … 12px height. Background mask: #ececec." },
+    { "rule": "Chart diameter steps responsively: 240px, 253px (≥45em), 280px (≥67.5em).", "source": "https://static.aviva.io/assets/themes-managed/v6.2.0/aviva/fusion/css/charts.css", "quote": ".m-doughnut-chart{height:240px…} @media (min-width:45em){…253px} @media (min-width:67.5em){…280px}" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/aviva/doughnut-multi.png", "url": "https://standards.aviva.com/ion/component-library/components/doughnut-chart/examples/multi.html", "describes": "Browser screenshot of Aviva's multi-segment doughnut example: a thick ring (~70% inner radius) on white, five segments clockwise from 12 o'clock in the fixed order — Aviva blue #1a61bd, pale grey-blue #a9b2c6, mid blue #5a8ccc, light grey #c2c8d5, slate #7988a9 — separated by white dividers. No labels on the ring. Below it, a key lock-up with a regular-weight Source Sans Pro title 'Standard data group' and list items with 20px circular colour swatches, bold value '£82,000' then regular label 'Investment costs'. (Bold black page heading above is the example caption, not part of the component.)" },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/aviva/doughnut-single.png", "url": "https://standards.aviva.com/ion/component-library/components/doughnut-chart/examples/single.html", "describes": "Single-segment doughnut: thick ring, 75% filled in Aviva blue clockwise from 12 o'clock, remaining 25% in flat grey #ccc with thin white dividers at the joins. Centre: large semibold '75%' (dark grey) with small regular two-line label 'prefer standard doughnuts' beneath, centred. White background, no legend. A second example below shows the ring before animation (outline only) with '33%' counting up." }
+  ]
+}

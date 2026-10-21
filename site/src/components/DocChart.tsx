@@ -1,12 +1,10 @@
 import { useMemo, type CSSProperties } from 'react';
+import type { ChartAssemblyInput } from 'flint-chart';
 import { TEST_GENERATORS } from 'flint-chart/test-data';
-import { VegaLiteView } from './VegaLiteView';
-import { EChartsView } from './EChartsView';
-import { ChartjsView } from './ChartjsView';
-import { PlotlyView } from './PlotlyView';
+import { FlintView } from './FlintView';
 import { ScaleToFit } from './ScaleToFit';
 import { testCaseToAssemblyInput, type CanvasSize } from '../shared/test-case-utils';
-import { BACKENDS, type PreviewBackend } from '../shared/supported-backends';
+import type { PreviewBackend } from '../shared/supported-backends';
 import { siteTheme } from '../shared/theme';
 
 type Row = Record<string, unknown>;
@@ -111,28 +109,23 @@ export function DocChart({ source, backend = 'vegalite' }: { source: string; bac
     } catch (err) {
       return { ok: false as const, err: `Invalid JSON: ${(err as Error).message}` };
     }
-    try {
-      // A `generator` reference pulls a colorful, multi-series example straight
-      // from the gallery test-data set (e.g. the paper "Omni: Line" faceted
-      // chart) without inlining hundreds of rows. These come pre-aggregated.
-      if (isGeneratorSource(input)) {
-        const gen = TEST_GENERATORS[input.generator];
-        if (!gen) return { ok: false as const, err: `Unknown generator: ${input.generator}` };
-        const cases = gen();
-        const tc = cases[input.index ?? 0];
-        if (!tc) return { ok: false as const, err: `No example at index ${input.index ?? 0} for ${input.generator}` };
-        const base = testCaseToAssemblyInput(tc, input.canvasSize) as { options?: Record<string, unknown> };
-        const prepared = input.options
-          ? { ...base, options: { ...base.options, ...input.options } }
-          : base;
-        return { ok: true as const, kind: backend, value: BACKENDS[backend].assemble(prepared as never) };
-      }
-      const prepared = preAggregate(input);
-      return { ok: true as const, kind: backend, value: BACKENDS[backend].assemble(prepared as never) };
-    } catch (err) {
-      return { ok: false as const, err: (err as Error)?.message ?? String(err) };
+    // A `generator` reference pulls a colorful, multi-series example straight
+    // from the gallery test-data set (e.g. the paper "Omni: Line" faceted
+    // chart) without inlining hundreds of rows. These come pre-aggregated.
+    if (isGeneratorSource(input)) {
+      const gen = TEST_GENERATORS[input.generator];
+      if (!gen) return { ok: false as const, err: `Unknown generator: ${input.generator}` };
+      const cases = gen();
+      const tc = cases[input.index ?? 0];
+      if (!tc) return { ok: false as const, err: `No example at index ${input.index ?? 0} for ${input.generator}` };
+      const base = testCaseToAssemblyInput(tc, input.canvasSize) as { options?: Record<string, unknown> };
+      const prepared = input.options
+        ? { ...base, options: { ...base.options, ...input.options } }
+        : base;
+      return { ok: true as const, input: prepared as ChartAssemblyInput };
     }
-  }, [source, backend]);
+    return { ok: true as const, input: preAggregate(input) as ChartAssemblyInput };
+  }, [source]);
 
   if (!result.ok) {
     return (
@@ -145,10 +138,7 @@ export function DocChart({ source, backend = 'vegalite' }: { source: string; bac
   return (
     <figure style={figureStyle}>
       <ScaleToFit height={560} adaptiveHeight>
-        {result.kind === 'vegalite' && <VegaLiteView spec={result.value} />}
-        {result.kind === 'echarts' && <EChartsView option={result.value} constrain={false} />}
-        {result.kind === 'chartjs' && <ChartjsView config={result.value} constrain={false} />}
-        {result.kind === 'plotly' && <PlotlyView figure={result.value} constrain={false} />}
+        <FlintView spec={result.input} backend={backend} />
       </ScaleToFit>
     </figure>
   );

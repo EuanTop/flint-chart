@@ -11,7 +11,7 @@ export function createLinkedBrushInteraction(options: LinkedBrushOptions): Canva
         id,
         eventSource: lasso
             ? lassoTrigger(options.match ?? 'intersect', options.guide)
-            : rectangleTrigger(options.match ?? 'intersect', options.guide),
+            : { ...rectangleTrigger(options.match ?? 'intersect', options.guide), mode: options.mode ?? 'ephemeral' },
         affordances: { plot: { cursor: 'region' } },
         handle(event, context) {
             const expectedAction = lasso ? 'select-lasso' : 'select-region';

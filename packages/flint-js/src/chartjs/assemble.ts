@@ -23,6 +23,7 @@
  * This module has NO React, Redux, or UI framework dependencies.
  */
 
+import { withEncodingColorAnnotations } from '../core/color-controls';
 import {
     ChartEncoding,
     ChartTemplateDef,
@@ -33,10 +34,10 @@ import {
 } from '../core/types';
 import type { ChartWarning } from '../core/types';
 import { applyEncodingOverrides } from '../core/encoding-overrides';
-import { applyAggregation } from '../core/aggregate';
+import { applyAggregation, resolveImplicitAggregation } from '../core/aggregate';
 import { applyPivot, applyTransform, type PivotSurface, type TransformSurface } from '../core/pivot';
 import { cjsGetTemplateDef } from './templates';
-import { resolveChannelSemantics, convertTemporalData } from '../core/resolve-semantics';
+import { resolveChannelSemantics, convertTemporalData, repairEncodingSorts } from '../core/resolve-semantics';
 import { computeZeroDecision } from '../core/semantic-types';
 import { filterOverflow } from '../core/filter-overflow';
 import { computeLayout, computeChannelBudgets, deriveStretchCaps, resolveBaseSize, resolveFacetColumnsOption } from '../core/compute-layout';
@@ -75,7 +76,8 @@ function applyFieldDisplayNames(config: any, names: Record<string, string> | und
 
 export function assembleChartjs(input: ChartAssemblyInput): any {
     const chartType = input.chart_spec.chartType;
-    const semanticTypes = input.semantic_types ?? {};
+    // The colour encoding's own `colors` and `mid` speak for its field in this chart.
+    const semanticTypes = withEncodingColorAnnotations(input.semantic_types ?? {}, input.chart_spec.encodings as Record<string, unknown>);
     // Internal layout targets the base (target) size; the optional canvasSize
     // ceiling is applied as per-dimension stretch caps once options resolve.
     // The base is clamped to the ceiling so a smaller canvasSize shrinks the
@@ -103,15 +105,17 @@ export function assembleChartjs(input: ChartAssemblyInput): any {
     // PRE-PHASE: Static Series Normalization
     // ═══════════════════════════════════════════════════════════════════════
     const rawData = input.data.values ?? [];
+    const sortRepair = repairEncodingSorts(input.chart_spec.encodings, rawData, { fieldSort: false });
+    warnings.push(...sortRepair.warnings);
     const normalized = normalizeStaticSeries(
-        input.chart_spec.encodings, rawData, semanticTypes, chartType,
+        sortRepair.encodings, rawData, semanticTypes, chartType,
     );
     let data = normalized.data;
     const staticSeries = normalized.staticSeries;
 
     const prelimConvertedData = convertTemporalData(data, semanticTypes);
     const prelimSemantics = resolveChannelSemantics(
-        normalized.encodings, data, semanticTypes, prelimConvertedData,
+        normalized.encodings, data, semanticTypes, prelimConvertedData, { chartType: chartTemplate.chart },
     );
     const typedRawEncodings: Record<string, ChartEncoding> = {};
     for (const [ch, enc] of Object.entries(normalized.encodings)) {
@@ -135,7 +139,11 @@ export function assembleChartjs(input: ChartAssemblyInput): any {
     // chartProperties, keyed by action key) onto the post-transform encodings
     // before any pipeline phase runs. Flint owns the transform; the host only
     // stores the override value. See applyEncodingOverrides / EncodingActionDef.
-    const encodings = applyEncodingOverrides(chartTemplate, transformed.encodings, chartProperties);
+    const overridden = applyEncodingOverrides(chartTemplate, transformed.encodings, chartProperties);
+    // Several rows on one mark's key: aggregate the measure (and say so) rather than overplot.
+    const implicit = resolveImplicitAggregation(chartTemplate.chart, overridden, data, semanticTypes);
+    const encodings = implicit.encodings;
+    warnings.push(...implicit.warnings);
 
     // Optional aggregation transform — see vegalite/assemble for rationale.
     data = applyAggregation(encodings, data);
@@ -151,7 +159,7 @@ export function assembleChartjs(input: ChartAssemblyInput): any {
     const convertedData = convertTemporalData(data, semanticTypes);
 
     const channelSemantics = resolveChannelSemantics(
-        encodings, data, semanticTypes, convertedData,
+        encodings, data, semanticTypes, convertedData, { chartType: chartTemplate.chart },
     );
 
     // Finalize zero-baseline (requires template mark knowledge)

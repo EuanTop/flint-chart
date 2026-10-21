@@ -1,0 +1,18 @@
+.dl-page { gap: 22px; padding-bottom: 60px; }
+.dl-heading { width: min(100%, 1180px); }
+.dl-heading p { margin: 8px 0 0; color: #444; line-height: 1.55; max-width: 920px; }
+
+.dl-block { width: min(100%, 1880px); }
+.dl-block h2 { font-size: 17px; margin: 0 0 6px; }
+.dl-row h3 { font-size: 14px; margin: 14px 0 6px; }
+.dl-text { font-size: 14px; line-height: 1.55; color: #444; max-width: 960px; }
+.dl-cells { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.dl-cells figure { margin: 0; border: 1px solid #e5e5e5; border-radius: 6px; padding: 8px; background: #fff; min-width: 0; overflow-x: auto; }
+.dl-cells figcaption { font-size: 11.5px; color: #555; margin-bottom: 6px; line-height: 1.4; min-height: 3em; }
+.dl-cells svg, .dl-cells canvas { max-width: 100%; height: auto; }
+
+.dl-notes { width: min(100%, 1180px); }
+.dl-notes h2 { font-size: 17px; margin: 0 0 6px; }
+.dl-notes ol { margin: 0; padding-left: 22px; font-size: 14px; line-height: 1.55; color: #333; max-width: 960px; }
+.dl-notes li { margin-bottom: 6px; }
+.dl-notes code { font-size: 12.5px; background: #f3f3f3; padding: 1px 4px; border-radius: 3px; }

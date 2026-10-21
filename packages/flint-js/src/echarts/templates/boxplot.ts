@@ -103,6 +103,20 @@ function jitterAt(index: number): number {
 }
 
 /**
+ * Tooltips for boxes and points drawn in lanes: named by the group a lane draws at that band — the
+ * author's value — not by the lane, whose name is the template's own.
+ */
+function laneBoxTooltip(p: any): string {
+    const [min, q1, median, q3, max] = Array.isArray(p?.data?.value) ? p.data.value : [];
+    return [`${p?.name ?? ''}`, `${p?.marker ?? ''}${p?.data?.laneGroup ?? ''}`,
+        `max: ${max}`, `Q3: ${q3}`, `median: ${median}`, `Q1: ${q1}`, `min: ${min}`].join('<br/>');
+}
+
+function lanePointTooltip(p: any): string {
+    return `${p?.marker ?? ''}${p?.data?.laneGroup ?? ''}: ${Array.isArray(p?.data?.value) ? p.data.value[1] : ''}`;
+}
+
+/**
  * Scatter overlay drawn on top of the boxes — either just the outliers, or
  * every raw observation when `showPoints` is on.
  *
@@ -313,7 +327,7 @@ export const ecBoxplotDef: ChartTemplateDef = {
             // value lookup per (cat, color)
             const catGroups = groupBy(table, catField);
             for (let lane = 0; lane < maxPerBand; lane++) {
-                const boxData: ({ value: [number, number, number, number, number]; itemStyle: any } | '-')[] = [];
+                const boxData: ({ value: [number, number, number, number, number]; laneGroup: string; itemStyle: any } | '-')[] = [];
                 const pointData: any[] = [];
                 for (let i = 0; i < categories.length; i++) {
                     const cat = categories[i];
@@ -325,23 +339,27 @@ export const ecBoxplotDef: ChartTemplateDef = {
                     const c = colorFor(g);
                     boxData.push({
                         value: fiveNumberSummary(values, whiskerMethod),
+                        // The group this lane draws at this band, so the tooltip names it, not the lane.
+                        laneGroup: g,
                         // Hollow box when the sample is drawn (see makePointSeries).
                         itemStyle: { color: showPoints ? 'transparent' : c, borderColor: c },
                     });
                     if (showPoints) {
-                        values.forEach((v, k) => pointData.push([i, v, jitterAt(k)]));
+                        values.forEach((v, k) => pointData.push({ value: [i, v, jitterAt(k)], laneGroup: g }));
                     } else if (showOutliers) {
-                        for (const o of findOutliers(values)) pointData.push({ value: [i, o], itemStyle: { color: c } });
+                        for (const o of findOutliers(values)) pointData.push({ value: [i, o], laneGroup: g, itemStyle: { color: c } });
                     }
                 }
                 option.series.push({
                     name: `__lane${lane}`, type: 'boxplot', data: boxData,
                     ...(showPoints ? { itemStyle: { borderWidth: 1.5 } } : {}),
+                    tooltip: { formatter: laneBoxTooltip },
                 });
                 if (pointData.length > 0) {
-                    option.series.push(makePointSeries(
-                        `__lane${lane} (points)`, pointData, lane, maxPerBand, isHorizontal, showPoints,
-                    ));
+                    option.series.push({
+                        ...makePointSeries(`__lane${lane} (points)`, pointData, lane, maxPerBand, isHorizontal, showPoints),
+                        tooltip: { formatter: lanePointTooltip },
+                    });
                 }
             }
             option.series.push(makeGroupSeparatorSeries(categories.length, isHorizontal));

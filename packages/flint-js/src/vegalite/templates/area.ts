@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 
 import { ChartTemplateDef, ChartPropertyDef } from '../../core/types';
+import { skeletonStructure, statedStacking } from '../../core/structure';
 import { makeCartesianPivot } from '../../core/pivot';
 import { defaultBuildEncodings, setMarkProp, alignStackOrderToColorOrder } from './utils';
 import {
@@ -133,6 +134,14 @@ export const areaChartDef: ChartTemplateDef = {
     chart: "Area Chart",
     template: { mark: "area", encoding: {} },
     channels: ["x", "y", "color", "opacity", "column", "row"],
+    structure: (ctx) => {
+        // A single series is drawn as one connected area, never stacked on itself.
+        const base = skeletonStructure(areaChartDef.template, ctx);
+        const structure = base.series ? base : { ...base, stacking: 'none' as const };
+        const mode = ctx.chartProperties?.stackMode;
+        if (!mode) return structure;
+        return { ...structure, stacking: statedStacking(mode === 'layered' ? null : mode) ?? structure.stacking };
+    },
     interactionSupport: {
         elements: true,
         region: ['cartesian'],
@@ -224,6 +233,12 @@ export const streamgraphDef: ChartTemplateDef = {
     chart: "Streamgraph",
     template: { mark: "area", encoding: {} },
     channels: ["x", "y", "color", "column", "row"],
+    structure: (ctx) => {
+        // The measure is centred on itself and draws no axis.
+        const structure = skeletonStructure(streamgraphDef.template, ctx);
+        if (!structure.y && !structure.x) return structure;
+        return { ...structure, stacking: 'centered', axisTitles: { [structure.y ? 'y' : 'x']: null } };
+    },
     interactionSupport: {
         elements: true,
         region: ['cartesian'],

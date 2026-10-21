@@ -29,9 +29,11 @@ export interface InteractionEventSource {
     readonly inspectCycle?: readonly ReturnType<typeof parseInspectMode>[];
     readonly inspectTolerance?: number;
     readonly inspectIndex?: {
-        readonly axis: 'x' | 'y';
+        /** Absent: the chart's index axis, the one its series run along. */
+        readonly axis?: 'x' | 'y';
         readonly show: InspectIndexShow;
         readonly seriesBy?: string;
+        readonly displayValue?: boolean;
     };
     /** Nearest-mark acquisition radius for hover gestures, in renderer pixels. */
     readonly targetTolerance?: number;
@@ -48,6 +50,55 @@ export interface InteractionEventSource {
     readonly wheelSensitivity?: number;
     /** Gestures that reset the viewport on navigation sources; a double-click when unset. */
     readonly reset?: readonly NavigationResetGesture[];
+    /** Present on the accessible-navigation source: a semantic keyboard walk of the whole chart. */
+    readonly accessibleNavigation?: AccessibleNavigationSettings;
+}
+
+/** The chart parts a reader can reach with accessible navigation. */
+export type AccessibleNavigationSection = 'titles' | 'axes' | 'legends' | 'headers' | 'data' | 'labels';
+
+export const ACCESSIBLE_NAVIGATION_SECTIONS: readonly AccessibleNavigationSection[] = [
+    'titles', 'axes', 'legends', 'headers', 'data', 'labels',
+];
+
+export interface AccessibleNavigationSettings {
+    /** Dim the marks outside the focused element. */
+    readonly emphasis: boolean;
+    /** Show a visible caption that describes the focused element. */
+    readonly caption: boolean;
+    readonly sections: readonly AccessibleNavigationSection[];
+    /** The most data fields read out for one mark. */
+    readonly maxFields: number;
+}
+
+/** One tab stop into the chart; the keyboard then walks titles, axes, legends, headers, and marks. */
+export function accessibleNavigationTrigger(options: {
+    emphasis?: boolean;
+    caption?: boolean;
+    sections?: readonly AccessibleNavigationSection[];
+    maxFields?: number;
+} = {}): InteractionEventSource {
+    const sections = options.sections
+        ? ACCESSIBLE_NAVIGATION_SECTIONS.filter((section) => options.sections!.includes(section))
+        : ACCESSIBLE_NAVIGATION_SECTIONS;
+    for (const section of options.sections ?? []) {
+        if (!ACCESSIBLE_NAVIGATION_SECTIONS.includes(section)) {
+            throw new Error(`Unknown accessible navigation section "${String(section)}". Sections: ${ACCESSIBLE_NAVIGATION_SECTIONS.join(', ')}.`);
+        }
+    }
+    const maxFields = options.maxFields === undefined || !Number.isFinite(options.maxFields)
+        ? 8
+        : Math.max(1, Math.round(options.maxFields));
+    return {
+        type: 'element',
+        gesture: 'keyboard',
+        accessibleNavigation: {
+            emphasis: options.emphasis ?? true,
+            caption: options.caption ?? true,
+            sections,
+            maxFields,
+        },
+    };
 }
 
 /** Element drag locked to the semantic visual acquired at pointer-down. */
@@ -158,16 +209,22 @@ export function inspectTrigger(
 }
 
 export function inspectIndexTrigger(
-    axis: 'x' | 'y' = 'x',
+    axis?: 'x' | 'y',
     show: InspectIndexShow = 'all',
     seriesBy?: string,
     selector?: SemanticTargetSelector,
     guide?: InspectGuideOptions | false,
     tolerance?: number,
+    displayValue = true,
 ): InteractionEventSource {
     return {
-        ...inspectTrigger(axis, selector, tolerance, guide),
-        inspectIndex: { axis, show, ...(seriesBy ? { seriesBy } : {}) },
+        ...inspectTrigger(axis ?? 'x', selector, tolerance, guide),
+        inspectIndex: {
+            ...(axis ? { axis } : {}),
+            show,
+            ...(seriesBy ? { seriesBy } : {}),
+            ...(displayValue ? { displayValue } : {}),
+        },
     };
 }
 

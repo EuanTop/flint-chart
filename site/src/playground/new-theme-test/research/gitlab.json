@@ -1,0 +1,116 @@
+{
+  "id": "gitlab",
+  "org": "GitLab (Pajamas data visualization + GitLab Tableau style guide)",
+  "urls": [
+    "https://design.gitlab.com/data-visualization/overview",
+    "https://design.gitlab.com/data-visualization/color",
+    "https://design.gitlab.com/data-visualization/charts",
+    "https://handbook.gitlab.com/handbook/business-technology/data-team/platform/tableau-style-guide/",
+    "https://gitlab.com/gitlab-com/content-sites/handbook/-/blob/main/content/handbook/enterprise-data/platform/tableau/tableau-developer-guide/tableau-style-guide/_index.md",
+    "https://gitlab.com/gitlab-org/gitlab-ui/-/blob/main/src/utils/charts/theme.js",
+    "https://gitlab.com/gitlab-org/gitlab-ui/-/blob/main/src/utils/charts/config.js",
+    "https://gitlab.com/gitlab-org/gitlab-ui/-/blob/main/src/tokens/build/css/tokens.css",
+    "https://gitlab.com/gitlab-org/gitlab-ui/-/tree/main/tests/__image_snapshots__"
+  ],
+  "access": "full",
+  "accessNotes": "Pajamas pages (overview, color, charts) are server-rendered and were read in full. The handbook Tableau style guide URL is behind a Cloudflare challenge, so its Markdown source was read from the handbook repo via the GitLab API (it has moved to enterprise-data/platform/tableau/tableau-developer-guide/tableau-style-guide). Exact ECharts theme values come from @gitlab/ui src/utils/charts/theme.js and config.js plus the design-token CSS. Reference images are @gitlab/ui Storybook image snapshots (rendered in CI with a fallback font, not GitLab Sans). The Tableau palette PNG referenced by the handbook could not be located in the repo.",
+  "summary": "GitLab charts are product-UI ECharts components (Pajamas 'extended layer', owned by group optimize) for DevOps analytics: a 5-hue x 11-step accessible data palette (blue, orange, aqua, green, magenta) used in a 'chevron-skipping' sequence that alternates hue and lightness, always starting from data-blue-500. The look is quiet: no axis lines, light grey horizontal split lines, bold axis titles, translucent 20% column/area fills with a 1px solid border, hidden line symbols, a bottom legend with optional Avg/Max stats, and popover tooltips. The internal Tableau guide adds orange/purple brand palettes, number/date formats and a strong anti-pie stance.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#617ae2", "#b14f18", "#0090b1", "#4e7f0e", "#cf4d81", "#3f51ae", "#6f3500", "#006381", "#275600", "#9a2e5d", "#303470", "#4b2707", "#004059", "#133a03", "#661e3a"],
+    "categoricalNotes": "@gitlab/ui colorPaletteDefault (first 15 of 30 shown): blue-500, orange-600, aqua-500, green-600, magenta-500, then blue-700, orange-800, aqua-700, green-800, magenta-700, then blue-900, orange-950, aqua-900, green-950, magenta-900; continues blue-600 #4e65cd, orange-700 #92430a, aqua-600 #007b9b, green-700 #366800, magenta-600 #b93d71, blue-800 #374291, orange-900 #5e2f05, aqua-800 #00516c, green-900 #1a4500, magenta-800 #7c214f, blue-950 #2a2b59, orange-500 #c95d2e, aqua-950 #00344b, green-500 #619025, magenta-950 #541d31. 'A chevron-skipping sequence is used to alternate both hue and lightness ... order: Blue, Orange, Aqua, Green, Magenta. Blue is always the default starting point, and color.data-blue.500 is the base step.' Dark-UI palette steps lighter (blue-500, orange-400, aqua-500, green-400, magenta-500, blue-300 ...). Stacked/grouped charts may deviate (related items same hue, graded transparency); product-meaning colours (MR state, vulnerability) used sparingly. Tableau 'GitLab Palette 1': #2078D0, #2D9ED8, #FCA326, #FFCC02, #1DA855, #A989F5, #6B4FBB, #FC6D26, #B7D5F4, #E24329 ...",
+    "sequential": ["#617ae2", "#4e65cd", "#3f51ae", "#374291", "#303470", "#2a2b59"],
+    "diverging": [],
+    "highlight": "#617ae2",
+    "context": "#bfbfc3",
+    "positive": "#619025",
+    "negative": "#b93d71",
+    "background": "#ffffff",
+    "text": "#3a383f",
+    "textSecondary": "#626168",
+    "gridline": "#bfbfc3",
+    "axis": "#bfbfc3",
+    "notes": "Full palette (steps 50-950): blue #e9ebff #d2dcff #b7c6ff #97acff #7992f5 #617ae2 #4e65cd #3f51ae #374291 #303470 #2a2b59; orange #fae8d1 #f5d6b3 #eebd8c #e99b60 #e07e41 #c95d2e #b14f18 #92430a #6f3500 #5e2f05 #4b2707; aqua #b5fefd #93f2ef #5edee3 #32c5d2 #00acc4 #0090b1 #007b9b #006381 #00516c #004059 #00344b; green #ddfab7 #c6ed94 #b0d97b #94c25e #81ac41 #619025 #4e7f0e #366800 #275600 #1a4500 #133a03; magenta #ffe3eb #ffccdb #fcacc5 #f88aaf #e86e9a #cf4d81 #b93d71 #9a2e5d #7c214f #661e3a #541d31. Steps 500-950 meet 3:1 on white; 50-500 on dark #18171d. Sequential light UI: blue 500 (low) -> 950 (high); dark UI 500 -> 50. Divergent: 11 steps skipping every other step, cool-to-warm (warm = increase) or cool-to-cool; low-contrast fills get a border in the hue's 500 step. Status: success alone = green-700 #366800 vs blue-500 for the rest; success+failure together = green-500 #619025 + magenta-600 #b93d71 (dark UI green-500 + magenta-400). Heatmap hues: neutral-100 #dcdcde, blue-200, blue-400, blue-600, blue-800. Gauge: safe blue-500->blue-900, warning orange-500. Threshold line red-500 #dd2b0e dashed, threshold area rgba(221,43,14,0.1). Axis text = text-color-subtle neutral-600 #626168; axis/split lines neutral-200 #bfbfc3. Charts on background.color.default; ECharts backgroundColor transparent."
+  },
+  "typography": {
+    "family": "GitLab Sans",
+    "fallback": "\"GitLab Sans\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Noto Sans\", Ubuntu, Cantarell, \"Helvetica Neue\", sans-serif",
+    "title": { "size": null, "weight": null, "align": "left", "case": "sentence", "color": "#3a383f" },
+    "subtitle": { "size": null, "weight": null, "style": null, "color": null },
+    "axisLabel": { "size": null, "color": "#626168" },
+    "axisTitle": { "size": null, "weight": "bold", "placement": "y title rotated, left of axis (nameGap 30); x title centred below labels" },
+    "dataLabel": { "size": null, "weight": null },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "Axis label margin 8px with hideOverlap. Units in parentheses in titles/labels when needed (not for counts). Legend text after the series name (e.g. 'Avg: 1.23k \u00b7 Max: 1.42k') is optional supplementary info. Monospace: GitLab Mono."
+  },
+  "structure": {
+    "gridlines": "Horizontal split lines only (value axis), solid 1px neutral-200 #bfbfc3; no split areas.",
+    "axisLine": "Hidden (axisLine.show: false) on all axes; baseline appears as the 0 split line.",
+    "ticks": "Small tick marks shown on the category axis, aligned with labels, in #bfbfc3.",
+    "zeroLine": "No special emphasis.",
+    "yAxisPlacement": "left (optional secondary y-axis on the right for different orders of magnitude)",
+    "yAxisTitle": "rotated, bold, left of the axis",
+    "unitPlacement": "Units in parentheses in axis/chart titles; values abbreviated with k (1.2k, 1.5k).",
+    "frame": "No frame; chart grid padding top 16, bottom 44, left 64, right 32 px. Dashboards use the Dashboard panel component.",
+    "background": "transparent on background.color.default (#ffffff light, #18171d dark)",
+    "notes": "Gaps in continuous data drawn as a dashed $grey-300 line with no data point. Axis pointer is a solid line in icon-subtle colour, no label."
+  },
+  "legend": {
+    "placement": "bottom, left-aligned, below the x-axis title",
+    "directLabels": "no",
+    "title": "no",
+    "swatchShape": "Line/area charts: short rectangular line chip in the series colour; column and heat map charts: square chip whose fill and border match the column's fill and border.",
+    "notes": "Two legend types: default (simple charts) and tabular (many series or multiple stats such as average, median, max). Legend items toggle series on/off; the last active series cannot be toggled off. Add a legend only when there is more than one series."
+  },
+  "marks": {
+    "bars": "Column chart is the default chart type. Columns filled with the series colour at 20% opacity (40% on hover) with a 1px solid border in the full series colour; barMaxWidth 50% of the band. Horizontal bar charts for long categories. Grouped+stacked charts: max 5 values per dimension.",
+    "lines": "2px straight (unsmoothed) lines; circle symbols size 6 hidden by default (shown on hover), item border 1px.",
+    "areas": "Area fill opacity 0.2 under a solid line; stacked areas build up translucent layers. Prefer line charts over areas when both trend and contribution matter.",
+    "points": "Circle symbols size 6; scatter supported.",
+    "pies": "Discouraged: 'Column charts are favored over pie charts'. Tableau guide: avoid pies, use only for two values if unavoidable.",
+    "notes": "Supported: column, line, area, bar, scatter, gauge, sparkline, heat map, single stat."
+  },
+  "labels": {
+    "dataLabels": "Not shown by default; values via popover tooltip.",
+    "numberFormat": "Axis values abbreviated with k (1.2k). Tableau: currency always USD; $10,000+ as $10k; $1,000,000+ as $10m; otherwise numbers in full form; percentages 1-2 significant digits so totals add to 100%; executive charts rounded.",
+    "dates": "Tableau: yyyy-mm-dd; 24-hour UTC time; fiscal quarter 'Qn'; fiscal year 'FYyy'; combined 'FYyy-Qn' (e.g. FY21-Q2).",
+    "notes": "Calculated data (estimated/forecasted/predicted) must be labelled in title and legend (e.g. 'Estimated Seats') and drawn with a different line style."
+  },
+  "furniture": {
+    "title": "Chart titles, category and value labels used as needed, with units in parentheses.",
+    "source": "none",
+    "logo": "Tableau dashboards: GitLab logo in the upper-left corner, above the filter section.",
+    "other": "Optional 'more options' vertical-ellipsis menu in the top-right corner; optional ECharts toolbox (zoom, restore, save as image) centred at top; zoom bar only when data would overflow."
+  },
+  "annotations": "Threshold markLine: 1px dashed red-500 #dd2b0e, no label, no end symbols; threshold markArea filled rgba(221,43,14,0.1). Annotations supported as series or props.",
+  "layout": "Charts accept width/height props for responsiveness; default grid top 16 / bottom 44 / left 64 / right 32 px (right 64 with secondary axis). Dashboards follow the Pajamas dashboards pattern.",
+  "interaction": "Hover shows a GitLab popover (not ECharts tooltip): header = x value (x-axis title), body = y-axis title and value; placed to the right by default, max-width 512px, long values wrap without hyphen. Legend click toggles series. Zoom bar with drag handles for large data. Dark mode palette provided.",
+  "accessibility": "Every palette step meets 3:1 against its surface (WCAG 1.4.11); adjacent elements separated by >=1px surface-coloured gap or border; pattern fills deliberately NOT supported; avoid green/red together; don't signal status by colour alone.",
+  "chartTypes": {
+    "preferred": ["Column (default)", "Stacked/grouped column", "Line", "Area", "Bar", "Scatter", "Gauge", "Sparkline", "Heat map", "Single stat"],
+    "discouraged": ["Pie charts", "Area charts when trend and percent contribution both matter", "More than 5 values per dimension in grouped+stacked charts"],
+    "notes": "Positions along a common scale are easiest to read; angles/areas hardest."
+  },
+  "distinctiveRules": [
+    { "rule": "Categorical colours follow a 'chevron-skipping' sequence Blue, Orange, Aqua, Green, Magenta, alternating lightness steps, always starting at data-blue-500 #617ae2.", "source": "https://design.gitlab.com/data-visualization/color", "quote": "The default sequence loops through different steps of each hue in the following order: Blue, Orange, Aqua, Green, Magenta. Blue is always the default starting point" },
+    { "rule": "Columns are drawn as a 20%-opacity tint of the series colour with a 1px solid border in the full colour (40% fill on hover).", "source": "https://gitlab.com/gitlab-org/gitlab-ui/-/blob/main/src/utils/charts/config.js", "quote": "color: hexToRgba(color, 0.2), borderWidth: 1 ... hexToRgba(color, 0.4)" },
+    { "rule": "No axis lines; horizontal split lines in #bfbfc3; small ticks aligned with category labels.", "source": "https://gitlab.com/gitlab-org/gitlab-ui/-/blob/main/src/utils/charts/theme.js", "quote": "axisLine: { show: false } ... axisTick: { show: true, alignWithLabel: true }" },
+    { "rule": "Axis titles are bold; y-axis title rotated on the left, x title centred beneath the labels.", "source": "https://gitlab.com/gitlab-org/gitlab-ui/-/blob/main/src/utils/charts/theme.js", "quote": "nameGap: 30, nameTextStyle: { fontWeight: 'bold' }" },
+    { "rule": "Lines are 2px, unsmoothed, with size-6 circle symbols hidden until hover.", "source": "https://gitlab.com/gitlab-org/gitlab-ui/-/blob/main/src/utils/charts/theme.js", "quote": "lineStyle width: 2, symbolSize: '6', symbol: 'circle', showSymbol: false, smooth: false" },
+    { "rule": "Legend sits below the chart, left-aligned; line/area use a rectangular line chip, columns a square chip matching fill and border; optional trailing stats (Avg/Max) or tabular legend.", "source": "https://design.gitlab.com/data-visualization/charts", "quote": "Line and area charts use the series label with the rectangular color chip ... column and heat map charts use the square color chip" },
+    { "rule": "Gaps in continuous data are drawn as a dashed grey-300 line with no data point.", "source": "https://design.gitlab.com/data-visualization/charts", "quote": "Represent gaps in continuous data with a dashed $grey-300 line, and without a data point." },
+    { "rule": "Adjacent marks are separated by at least a 1px gap or border in the surface colour; no pattern fills.", "source": "https://design.gitlab.com/data-visualization/color", "quote": "at least 1px gap between elements, where the gap is the color of the surface ... we currently do not support [patterns]" },
+    { "rule": "Sequential data uses one hue from step 500 (low) to 950 (high) in light UI, reversed toward 50 in dark UI.", "source": "https://design.gitlab.com/data-visualization/color", "quote": "Steps in a light UI go from 500 (low) to 950 (high)" },
+    { "rule": "Success vs failure uses green-500 #619025 + magenta-600 #b93d71, never red/green.", "source": "https://design.gitlab.com/data-visualization/color", "quote": "color.data-green.500 and color.data-magenta.600 is the recommended combination" },
+    { "rule": "Thresholds drawn as unlabelled 1px dashed red (#dd2b0e) lines and 10%-red areas.", "source": "https://gitlab.com/gitlab-org/gitlab-ui/-/blob/main/src/utils/charts/theme.js", "quote": "markLine: { lineStyle: { color: threshold-line-color, width: 1, type: 'dashed' } }" },
+    { "rule": "Column charts are the default chart type; pie charts avoided (Tableau guide: only for two values).", "source": "https://design.gitlab.com/data-visualization/charts", "quote": "Column charts are the default chart type ... Column charts are favored over pie charts" },
+    { "rule": "Tooltip is a popover to the right of the point: header = x value (x-axis title), body = y title: value; max 512px wide.", "source": "https://design.gitlab.com/data-visualization/charts", "quote": "Popover header: x-axis value (x-axis title); Popover body: y-axis title, value ... Placement is set to the right by default" },
+    { "rule": "Tableau: money in USD abbreviated $10k / $10m from $10,000 / $1,000,000; dates yyyy-mm-dd; fiscal periods FY21-Q2; GitLab logo top-left above filters.", "source": "https://handbook.gitlab.com/handbook/business-technology/data-team/platform/tableau-style-guide/", "quote": "At $10,000 and above, each 000 is replaced with a k ... Dates are yyyy-mm-dd ... our logo can be added to the upper left-hand corner" },
+    { "rule": "Calculated (estimated/forecast) series must be labelled as such and drawn in a different line style.", "source": "https://handbook.gitlab.com/handbook/business-technology/data-team/platform/tableau-style-guide/", "quote": "use different line styles when mixing Calculation types on the same chart" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/gitlab/column-chart-default.png", "url": "https://gitlab.com/gitlab-org/gitlab-ui/-/raw/main/tests/__image_snapshots__/storyshots-spec-js-image-storyshots-charts-column-chart-default-1-snap.png", "describes": "Default column chart: seven columns (Joe ... Jane) with very pale blue 20% fill and thin 1px blue (#617ae2) outline, about half the band wide. Light grey horizontal split lines at 0/300/.../1.5k; no y-axis line; small grey y labels with k abbreviation; tiny ticks under category labels. Rotated small dark y title 'Pushes per day' at left; x title 'User' centred below. No legend, no title." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/gitlab/line-chart-default.png", "url": "https://gitlab.com/gitlab-org/gitlab-ui/-/raw/main/tests/__image_snapshots__/storyshots-spec-js-image-storyshots-charts-line-chart-default-1-snap.png", "describes": "Line chart with three 2px straight lines: blue #617ae2 'Requested', burnt orange #b14f18 'Actual', aqua #0090b1 'Predicted', small circle markers. Grey horizontal split lines 0-1.8k, no axis lines, ticks on x axis (Mon-Sun), y title 'Value' rotated, x title 'Time' centred. Legend below-left: short thick colour chips, series name, then smaller 'Avg: 1.23k \u00b7 Max: 1.42k' stats." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/gitlab/area-chart-mult-series.png", "url": "https://gitlab.com/gitlab-org/gitlab-ui/-/raw/main/tests/__image_snapshots__/storyshots-spec-js-image-storyshots-charts-area-chart-mult-series-1-snap.png", "describes": "Ten overlapping area series with 20% fills accumulating into muddy brown/grey layers, each with a solid 2px top line in the chevron sequence (blue, orange-600, aqua, green-600, magenta, blue-700, orange-800, aqua-700, green-800, magenta-700). Horizontal grid only, k-abbreviated y labels, 'Value'/'Time' axis titles. Three-row legend beneath with line chips, index names and 'Avg \u00b7 Max' stats." }
+  ]
+}

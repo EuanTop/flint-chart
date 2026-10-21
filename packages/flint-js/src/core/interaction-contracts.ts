@@ -29,19 +29,21 @@ export type LegendDomain =
 export interface LegendTargetValue extends Record<string, unknown> {
     channel?: string;
     field?: string;
+    /** The entry's value on a reader's hit; read `domain`, which every legend target carries. */
+    value?: unknown;
     domain: LegendDomain;
 }
 
-    export interface AxisTargetValue extends Record<string, unknown> {
-        axis: 'x' | 'y';
-        field: string;
-        value: unknown;
-    }
+export interface AxisTargetValue extends Record<string, unknown> {
+    axis: 'x' | 'y';
+    field: string;
+    value: unknown;
+}
 
 /** A semantic subject: its visual role plus represented values and provenance. */
 export interface SemanticTarget {
     visual: {
-        kind: 'mark' | 'path' | 'region' | 'widget' | 'handle' | 'legend' | 'axis';
+        kind: 'mark' | 'path' | 'region' | 'widget' | 'handle' | 'legend' | 'axis' | 'chart' | 'title' | 'header';
         role: string;
     };
     elements: readonly SemanticElement[];
@@ -78,12 +80,14 @@ export interface SemanticTargetRef {
     elements: readonly SemanticElement[];
 }
 
-export interface SemanticTargetSelector {
-    select: {
-        key: Record<string, unknown>;
-        visual?: Partial<SemanticTarget['visual']>;
-    };
-}
+/**
+ * Marks named by their values. `key` names one combination, each field equal to its value;
+ * `where` describes a set, each field `in` a list or within a `range`, and every field must hold.
+ * Ops that act on one mark (a note, an order) take a key; set-style takes either.
+ */
+export type SemanticTargetSelector =
+    | { select: { key: Record<string, unknown>; visual?: Partial<SemanticTarget['visual']> } }
+    | { select: { where: Record<string, FilterValue>; visual?: Partial<SemanticTarget['visual']> } };
 
 export type UpdateTarget = SemanticTargetRef | SemanticTargetSelector;
 
@@ -121,6 +125,12 @@ export interface AnnotationCandidate {
 
 export interface AnnotationSpec {
     text?: string;
+    /**
+     * On a line or area, `segment` (the default) marks the segment that starts
+     * at the row; `point` marks the row's own point. The last point of a line
+     * starts no segment and is always marked at its point.
+     */
+    anchor?: 'segment' | 'point';
     candidates?: readonly AnnotationCandidate[];
     subject?: Partial<SemanticTarget['visual']>;
 }
@@ -131,13 +141,18 @@ export interface StyleSpec {
     fill?: string;
     stroke?: string;
     strokeWidth?: number;
-    state?: 'normal' | 'focused' | 'emphasized' | 'muted';
+    /**
+     * `emphasized` and `focused` recede everything else to `mutedOpacity`. `highlighted` gives the
+     * targets their mark's hover cue and leaves the rest as drawn.
+     */
+    state?: 'normal' | 'focused' | 'emphasized' | 'highlighted' | 'muted';
     mutedOpacity?: number;
 }
 
 export interface OverlayStyleSpec {
     fill?: string;
     fillOpacity?: number;
+    /** On text, the halo behind the glyphs: the chart's background by default, `'none'` for no halo. */
     stroke?: string;
     strokeWidth?: number;
     strokeDash?: readonly number[];
@@ -156,13 +171,17 @@ export interface OverlayFieldEncoding {
     field: string;
 }
 
-/** A retained visual projected through an existing plot's scales. */
+/**
+ * A retained visual projected through an existing plot's scales. A rule with
+ * only `x` or only `y`, and a rect with only `x`/`x2` or only `y`/`y2`, span
+ * the plot along the other axis.
+ */
 export interface ChartOverlaySpec {
     mark: OverlayMark;
     data: { values: readonly Record<string, unknown>[] };
     encodings: {
-        x: OverlayFieldEncoding;
-        y: OverlayFieldEncoding;
+        x?: OverlayFieldEncoding;
+        y?: OverlayFieldEncoding;
         x2?: OverlayFieldEncoding;
         y2?: OverlayFieldEncoding;
         order?: OverlayFieldEncoding;
@@ -244,6 +263,16 @@ export type ChartUpdateOp =
         value: { rows: readonly Record<string, unknown>[] };
     };
 
+export const CHART_UPDATE_OPS = [
+    'set-style',
+    'set-annotation',
+    'set-viewport',
+    'set-order',
+    'set-overlay',
+    'set-freeform-overlay',
+    'set-data',
+] as const satisfies readonly ChartUpdateOp['op'][];
+
 export interface ChartUpdate {
     id: string;
     ops: readonly ChartUpdateOp[];
@@ -267,9 +296,92 @@ export interface NavigationRequest {
 
 export type NavigationUpdate = Extract<ChartUpdateOp, { op: 'set-viewport' }>;
 
-export interface InteractionContext {
+/** A data value read back from the plot's scales: a number, a Date on a time axis, a category on a discrete one. */
+export type DomainValue = number | Date | string;
+
+export type DomainCoordinate =
+    | { kind: 'value'; value: DomainValue }
+    | { kind: 'interval'; start: DomainValue; end: DomainValue };
+
+export interface DomainPoint {
+    x?: DomainValue;
+    y?: DomainValue;
+}
+
+export interface DomainGeometry {
+    x?: DomainCoordinate;
+    y?: DomainCoordinate;
+    points?: readonly DomainPoint[];
+    /** The detail level a multi-level projected chart draws for this viewport. */
+    level?: string;
+    /**
+     * On a multi-level projected chart, the coarsest-level region under the
+     * plot centre: its feature id and properties plus the joined row fields.
+     */
+    focus?: Record<string, unknown>;
+}
+
+/** The marks one retained or preview update emphasizes. */
+export interface ChartStateEntry {
+    readonly layer: 'retained' | 'preview';
+    readonly elements: readonly SemanticElement[];
+}
+
+/** A legend value a toggle hides. */
+export interface ChartHiddenValue {
+    readonly channel: string;
+    readonly value: unknown;
+}
+
+/** The slice of a category axis a rail shows. */
+export interface ChartCategoryWindow {
+    readonly start: number;
+    readonly count: number;
+    readonly total: number;
+}
+
+/** A note an update places on the chart, by the id of that update. */
+export interface ChartAnnotation {
+    readonly id: string;
+    readonly target: UpdateTarget;
+    readonly text?: string;
+    /**
+     * False while the note's target is outside the plot's current view, so the chart holds the
+     * note but does not draw it; absent until the chart has drawn the note.
+     */
+    readonly inView?: boolean;
+}
+
+/**
+ * One field's filter: the values a reader keeps (`in`), or an inclusive range (`range`)
+ * whose ends compare as numbers or dates.
+ */
+export type FilterValue =
+    | { readonly in: readonly unknown[] }
+    | { readonly range: readonly [unknown, unknown] };
+
+/** What the chart shows now, in semantic terms. A host reads it; a preset reads its superset. */
+export interface ChartState {
     readonly chartType: string;
+    /** The marks the chart emphasizes or focuses now, previews included. */
     readonly selected: readonly SemanticElement[];
+    /** The emphasized marks of each update, by update id; `selected` is their union. */
+    readonly entries?: ReadonlyMap<string, ChartStateEntry>;
+    /** The legend values a toggle hides now. */
+    readonly hidden?: readonly ChartHiddenValue[];
+    /** The domain the plot shows now, when the chart navigates. */
+    readonly viewport?: DomainGeometry;
+    /** The category window of each rail. */
+    readonly windows?: Partial<Record<'x' | 'y', ChartCategoryWindow>>;
+    readonly categoryOrder?: readonly unknown[];
+    /** The notes the chart holds now, previews included; `inView` tells which ones it draws. */
+    readonly annotations?: readonly ChartAnnotation[];
+    /** The active filter of each field, set by filter controls; absent fields show every value. */
+    readonly filters?: Readonly<Record<string, FilterValue>>;
+}
+
+export interface InteractionContext extends ChartState {
+    /** Every drawn mark; the scene is scanned on first read. */
     readonly available?: readonly SemanticElement[];
     readonly resolveGroupValue?: (element: SemanticElement) => unknown;
     readonly resolveNavigation?: (
@@ -278,9 +390,13 @@ export interface InteractionContext {
     ) => NavigationUpdate | null;
     readonly categoryField?: string;
     readonly seriesField?: string;
+    /**
+     * How a hovered group best stands out in this chart: 'highlight' where its own cue carries it
+     * (a line drawn wider), 'spotlight' where the rest must recede (points, bars, slices).
+     */
+    readonly groupHoverEmphasis?: 'highlight' | 'spotlight';
     readonly legendDomains?: Readonly<Record<string, readonly unknown[]>>;
     readonly categoryAxis?: 'x' | 'y';
-    readonly categoryOrder?: readonly unknown[];
     readonly reorderAxes?: readonly {
         axis: 'x' | 'y';
         field: string;

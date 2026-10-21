@@ -42,6 +42,7 @@ interface SemanticAnnotation {
   intrinsicDomain?: [number, number];  // e.g. Rating [1, 5]
   unit?: string;                        // e.g. USD, °C
   sortOrder?: string[];                 // custom ordinal order
+  colors?: Record<string, string>;      // colours bound to values, e.g. { DFL: "#0793AB" }
 }
 ```
 
@@ -118,6 +119,8 @@ interface ChartAssemblyInput {
     chartType: string;
     title?: string;                                    // headline
     subtitle?: string;                                 // deck: what is measured, of whom, when, in what units
+    label?: string;                                    // a figure label or kicker above the headline ("Figure 2")
+    source?: string | { text: string; href?: string };  // optional: where the data comes from, drawn as the source line
     encodings: Record<string, ChartEncoding | string>;  // string = field shorthand
     baseSize?: { width: number; height: number };      // target layout size, default 400×320
     canvasSize?: { width: number; height: number };    // optional hard ceiling on stretch
@@ -171,7 +174,7 @@ interface InteractionSpec {
 }
 ```
 
-`buildInteractiveChart()` reads it; the assemblers ignore it. An entry the chart type
+`mountChart()` (alias `buildInteractiveChart()`) and `<FlintChart>` read it; the assemblers ignore it. An entry the chart type
 cannot honour is dropped with an `unsupported_interaction` warning, and `validateChart`
 reports the same warnings before anything renders. `supportedInteractionPresets(def.interactionSupport)`
 lists the presets a template supports by declaration. See [Using interactions](/documentation/interaction-spec).
@@ -181,12 +184,15 @@ lists the presets a template supports by declaration. See [Using interactions](/
 | Field | Description |
 |-------|-------------|
 | `chartType` | Template name — must match a backend registry entry (`"Bar Chart"`, `"Heatmap"`, …) |
-| `title` | The headline. Write one: `Jan` and `Cairo` name their own kind, `26` and `5,300` do not, and a theme that omits axis titles is delegating that naming to the headline. Vega-Lite only for now; where no headline is given, the compiler puts the axis titles back. |
+| `title` | The chart headline. Themes that prefer omitting axis titles append required measure names and declared units to the subtitle instead. The compiler does not interpret headline or subtitle prose to infer whether an axis title is redundant. |
 | `subtitle` | The deck — what is measured, of whom, when, in what units. |
+| `label` | A short line above the headline: a figure label (“Figure 2”) or a kicker, set in the theme's `type.kicker`. |
+| `source` | Optional. Where the data comes from (“UN World Population Prospects 2024”, or `{ text, href }` to link it), drawn at the foot as the theme's `source` says: “Source: …” in `type.footnote` by default. Give it only when the source is known; a chart without one draws no footer. |
+| `chrome` | Optional. Leave it out to draw what the theme specifies. `false` drops the theme's header pieces, footer and logos; `{ header?, footer?, logos? }` with `false` drops one kind: `header` is the furniture around the title, `footer` the footer rule and source credit, `logos` every image piece and a credit's image (the credit keeps its words). The chart's own `label` and `source` text are not affected. |
 | `encodings` | Channel → encoding map |
 | `baseSize` | **Target** layout size in pixels (default 400×320): the size the chart aims for with typical data. Dense data may stretch past it, up to the ceiling. |
 | `canvasSize` | **Hard ceiling:** the maximum size the chart may ever reach, including faceted grids. If omitted, the ceiling is `baseSize × options.maxStretch` (default 1.5×). Per-dimension caps are `βx = canvasSize.width / baseSize.width`, `βy = canvasSize.height / baseSize.height` (each ≥ 1). The base is clamped to the ceiling, so a `canvasSize` on its own acts as a fixed box the chart fills and shrinks to fit without overflowing. |
-| `chartProperties` | Template-specific toggles (e.g. `orient`, `opacity`) |
+| `chartProperties` | Template-specific toggles (e.g. `orient`, `opacity`), and cross-cutting ones such as `labelOverflow` — the path x category names that do not fit their band take (default `["wrap", "rotate90"]`; on a run of times, dates, years or ranks `["wrap", "skip", "rotate90"]`, where `skip` prints only round values; any step may trim) |
 
 > **base vs. canvas, in one line:** `baseSize` is what the chart *aims for*;
 > `canvasSize` is what it *may never exceed*. Use `canvasSize` for a fixed slot,
@@ -207,6 +213,7 @@ interface ChartEncoding {
   sortOrder?: 'ascending' | 'descending';
   sortBy?: string;
   scheme?: string;
+  title?: string | null;
 }
 ```
 
@@ -216,6 +223,29 @@ and producing a derived column named `${field}_${aggregate}` (`count` →
 `_count`). `average` and `mean` are synonyms. Most callers should still
 aggregate their data upstream; if you do, omit `aggregate` and reference the
 derived column by name.
+
+`title` is the name the channel's axis or key prints in place of the field's;
+`null` prints none. A theme still decides whether a key is titled at all: a
+name given here renames it where it is.
+
+For **Vega-Lite**, `sortBy` accepts a mapped `x`, `y`, or `color` channel, an
+existing data-field name, or a JSON-encoded category-order array string.
+Field-name sorts default to ascending and use the minimum field value per
+category when several rows share a category. Self-channel sorts default to
+ascending; cross-channel sorts default to descending. Explicit arrays preserve
+their order unless `sortOrder: 'descending'` reverses it. Channel names take
+precedence over identically named data fields.
+
+With no `sortBy`, `sortOrder` preserves or reverses a canonical semantic
+sequence, such as January through December for `Month`; it does not request
+lexical ordering. Without a canonical sequence it uses native value order.
+To explicitly sort month labels lexically, use
+`{ field: 'month', sortBy: 'month', sortOrder: 'ascending' }`.
+
+Invalid sort targets, malformed/non-array JSON, unmapped channels, and invalid
+directions are rejected by validation and Vega-Lite compilation with the
+encoding path in the diagnostic. Raw field-name sorting is currently a
+Vega-Lite capability; validation rejects it for other backends.
 
 Common channels: `x`, `y`, `color`, `size`, `shape`, `column`, `row`, `group`, `detail`.
 
@@ -235,10 +265,59 @@ interface AssembleOptions {
   stepPadding?: number;        // band inner padding fraction (default 0.1)
   defaultBandSize?: number;    // baseline px per category (backend-tuned)
   maxBandSize?: number;        // max px per category when sparse (backend-tuned)
+  bandBalance?: boolean;       // lean a chart sized by its bands back into its base's own shapes (default true)
+  targetAspect?: number;       // the centre of those shapes, width:height (default: the base's)
+  aspectTolerance?: number;    // their spread either side, as a ratio (default: the stretch allowed)
   baseLabelFontSize?: number;  // axis tick font at the reference canvas (VL 10, EC/CJS/Plotly 12)
   baseTitleFontSize?: number;  // header font — axis title / legend / chart title (VL 11, EC/CJS 12, Plotly 14)
+  canvasFit?: 'off' | 'auto'; // what the layout does when the chart will not read well in its box (default 'auto')
+  canvasRefit?: boolean;       // once the fit settles the title and keys, lay the plot out once more in the room left (default true)
 }
 ```
+
+A plot with one banded axis is as long as its categories make it: four rows leave a bar chart a
+strip, thirty columns a long low band. **Band balance** judges it as the reader sees it — the chart
+area, the plot with the labels it cannot drop (names counted from their mean to their longest,
+capped at 30% of the plot or 40 px, where they would wrap or be cut) — against the shapes a chart of
+its base takes on its own: from the base with its height stretched to the base with its width
+stretched (300 × 300 at ×1.5: 0.67 to 1.5; at least 1.25× either side). Inside that range it is left
+alone. Past it, it leans back only to the nearer end, and only by its free sides — the value axis
+lengthens (within the stretch cap) or shortens (to half its base at most), and a few bands thicken
+first (to twice the house step). Where that cannot reach the range within those limits it aims for
+a range half as wide again, so a chart it cannot set right is not bent as far as the limits go.
+Panels are judged as one grid. The number of bands is never touched, and grids of cells are left to
+their square-cell rule.
+
+`canvasFit` is the layout's last pass. It aims for three things, judged on the plan before anything
+is drawn: the drawing **fits** its box legibly (a host may shrink it a little, never below 70%); its
+parts are in **balance** (the title, keys and chrome take at most 40% of its height or width, a
+panel's own labels at most 40% of it); and nothing around the chart bends it badly out of its box's
+**shape** — a title and a row of keys above a plot are the theme's design and are allowed for (a
+quarter of the chart area's height above and below it, a third of its width beside it). A chart that
+meets them as planned is never changed — except one drawn a little larger than its box (shown under
+97%), which only the gentlest edits mend: keys in a row on their edge, or names wrapped, kept where they
+bring it at least 3 points nearer its box with nothing going wrong.
+
+One that does not is mended with the **least edit a reader would notice**. Each problem is put down
+to the parts that cause it — too wide: the keys beside the plot; too tall: the keys stacked above or
+below, and the title only where it is most of what stands there — and only their edits are tried,
+one at a time before any two together: keys in one row on their edge; key names wrapped (the keys
+stay), or — where the chart area itself is too wide for its box — the names down the y axis wrapped;
+the title a size down (never below 13 / 11 px); one of several keys sharing an edge moved to another
+(the others stay); every key to another edge; the title two sizes down.
+Of the edits that clear, the one that costs the reader least is kept — each is priced on one scale,
+in that order, and how the result reads only tells edits alike apart, never a larger edit over a
+gentler one. Where the box cannot hold the chart legibly, the plot comes down, keeping its shape.
+With the title and keys settled, the plot is laid out **once more** in the room the box leaves it, at
+the scale the drawing is shown: a continuous side grows into that room — never past its stretch cap,
+the chart area staying within the looser range of its own shapes, banded sides keeping their steps —
+and the result is kept only where the text is no smaller, nothing new goes wrong and the drawing
+reads better (`canvasRefit: false` leaves this step out). The
+pass never lays a chart out larger for the host to shrink: a chart nothing mends is drawn at its own
+size, for the reader to scroll or the host to scale.
+
+Nothing is cut, no edit shrinks text past legibility — nor makes text already too small smaller still — and the chart's own shape is never changed. `'off'` lays every chart out as planned. What the pass judged and did is attached
+to a Vega-Lite spec as `_canvasFit`, and reported in `_theme.report` (`canvas-fit`).
 
 Fonts adapt to canvas size around these per-backend bases: at the default
 canvas each backend renders its native size, growing subtly on larger canvases
@@ -330,9 +409,21 @@ if (!result.valid) {
 }
 ```
 
+Pass `options.updates` (a ChartUpdate list) to check it against the chart in the
+same pass. A malformed list is an `invalid_updates` error. Otherwise
+`result.updates` says, op by op, what each update will do (`ok`, `text`) or why
+it will not apply (`reason`); each op that will not apply is also an
+`update_not_applied` warning, and `valid` stays about the spec. Backends other
+than `vegalite` report the updates as ignored.
+
+```ts
+const result = validateChart(input, 'vegalite', { updates });
+// result.updates: [{ id, ops: [{ op, text, ok, reason? }] }]
+```
+
 | Symbol | Purpose |
 |--------|---------|
-| `validateChart(input, backend, options?)` | Validate and assemble; never throws |
+| `validateChart(input, backend, options?)` | Validate and assemble, and check `options.updates` against the chart; never throws |
 | `validateChartInput(input, backend?, options?)` | Shape checks only; throws on the first problem |
 | `validateSemanticTypes(semantic_types)` | `unknown_semantic_type` warnings for labels not in the type registry (also included by `validateChart`) |
 | `assembleForBackend(backend, input, options?)` | Assemble and split out `_warnings` / `_width` / `_height` |
@@ -377,6 +468,9 @@ Inspect `_warnings` or `ChartWarning` arrays in integration code to surface trun
 | `flint-chart/echarts` | ECharts templates and `assembleECharts` |
 | `flint-chart/chartjs` | Chart.js templates and `assembleChartjs` |
 | `flint-chart/validate` | `validateChart` and input validation helpers |
+| `flint-chart/interactive` | `mountChart`, interaction presets, update helpers |
+| `flint-chart/react` | `<FlintChart>` component (React is an optional peer dependency) |
+| `flint-chart/render` | `renderSvg` for static SVG without a DOM |
 | `flint-chart/test-data` | Gallery generators (`TEST_GENERATORS`) |
 
 ---

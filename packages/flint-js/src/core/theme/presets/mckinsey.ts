@@ -134,7 +134,7 @@ export const mckinsey: ThemePreset = {
                 "size": "text.100"
             },
             "valueLabel": {
-                "size": "text.200",
+                "size": "text.100",
                 "weight": "semibold",
                 "color": "#051c2c"
             }
@@ -184,8 +184,7 @@ export const mckinsey: ThemePreset = {
             }
         },
         "labels": {
-            "truncation": "never",
-            "angle": "horizontal"
+            "truncation": "never"
         },
         "legend": {
             "show": "always",
@@ -195,7 +194,7 @@ export const mckinsey: ThemePreset = {
                 "top"
             ],
             "direction": "horizontal",
-            "title": "omit",
+            "title": "whenAmbiguous",
             "suppressWhenValuesPrinted": true
         },
         "dataLabels": {

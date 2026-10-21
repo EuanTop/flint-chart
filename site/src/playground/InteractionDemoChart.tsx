@@ -1,55 +1,72 @@
-import { useEffect, useRef } from 'react';
+import { createContext, forwardRef, useContext } from 'react';
 import type {
+  ChartChange,
+  ChartUpdate,
   FlintInteractionEventDetail,
   InteractionDef,
   InteractiveChartSurface,
 } from 'flint-chart/interactive';
-import { buildInteractiveChart } from 'flint-chart/interactive';
+import { FlintChart, type FlintChartHandle } from 'flint-chart/react';
 import { expressionInterpreter } from 'vega-interpreter';
+import { ScaleToFit } from '../components/ScaleToFit';
 import type { InteractionDemoFixture } from './interaction-demo-data';
+
+export interface DemoChartFit {
+  /** Largest box height in px. */
+  height: number;
+  minHeight?: number;
+  /** Largest scale applied to the chart's designed size. */
+  maxScale: number;
+}
+
+/** When provided, every demo chart below shrinks to fit its panel instead of rendering at its designed size. */
+export const DemoChartFitContext = createContext<DemoChartFit | null>(null);
 
 interface InteractionDemoChartProps {
   fixture: InteractionDemoFixture;
   interactions: readonly InteractionDef[];
   chartId: string;
-  onSurface?: (surface: InteractiveChartSurface | null) => void;
+  /** Host updates, applied by id: new or changed ids are applied, dropped ids are cleared. */
+  updates?: readonly ChartUpdate[];
+  /** After each mount and each applied host update. */
+  onRender?: (surface: InteractiveChartSurface) => void;
+  /** The raw gesture record, before the chart reacts. */
   onSemanticEvent?: (detail: FlintInteractionEventDetail) => void;
+  /** What the chart shows after each change. */
+  onChange?: (change: ChartChange) => void;
 }
 
-export function InteractionDemoChart({
+export const InteractionDemoChart = forwardRef<FlintChartHandle, InteractionDemoChartProps>(function InteractionDemoChart({
   fixture,
   interactions,
   chartId,
-  onSurface,
+  updates,
+  onRender,
   onSemanticEvent,
-}: InteractionDemoChartProps) {
-  const mountRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const mount = mountRef.current;
-    if (!mount) return;
-    const handleInteraction = (event: Event) => {
-      onSemanticEvent?.((event as CustomEvent<FlintInteractionEventDetail>).detail);
-    };
-    mount.addEventListener('flint-interaction', handleInteraction);
-    const surface = buildInteractiveChart(mount, fixture.input, {
-      backend: 'vegalite',
-      renderer: 'svg',
-      interactions,
-      chartId,
-      expressionInterpreter,
-      ariaLabel: fixture.title,
-    });
-    onSurface?.(surface);
-    void surface.ready.catch((error) => {
-      mount.textContent = error instanceof Error ? error.message : String(error);
-    });
-    return () => {
-      onSurface?.(null);
-      mount.removeEventListener('flint-interaction', handleInteraction);
-      surface.destroy();
-    };
-  }, [chartId, fixture, interactions, onSemanticEvent, onSurface]);
-
-  return <div className="it-chart-mount" ref={mountRef} />;
-}
+  onChange,
+}, ref) {
+  const fit = useContext(DemoChartFitContext);
+  const mount = (
+    <FlintChart
+      ref={ref}
+      className="it-chart-mount"
+      spec={fixture.input}
+      interactions={interactions}
+      updates={updates}
+      renderer="svg"
+      expressionInterpreter={expressionInterpreter}
+      chartId={chartId}
+      ariaLabel={fixture.title}
+      onRender={onRender}
+      onChange={onChange}
+      onInteraction={onSemanticEvent}
+      onError={(error) => console.error(`${chartId}:`, error)}
+    />
+  );
+  if (!fit) return mount;
+  return (
+    <ScaleToFit height={fit.height} minHeight={fit.minHeight} maxScale={fit.maxScale} adaptiveHeight>
+      {mount}
+    </ScaleToFit>
+  );
+});

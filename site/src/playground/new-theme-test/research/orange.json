@@ -1,0 +1,272 @@
+{
+  "id": "orange",
+  "org": "Orange (Orange Design System / Orange Unified Design System, ODS Charts)",
+  "urls": [
+    "https://system.design.orange.com/0c1af118d/p/37a8d3-data-display",
+    "https://system.design.orange.com/0c1af118d/p/210591-data-display",
+    "https://system.design.orange.com/0c1af118d/p/775f5d-getting-started",
+    "https://system.design.orange.com/0c1af118d/p/03dbe6-chart-types",
+    "https://system.design.orange.com/0c1af118d/p/002297-bar-chart",
+    "https://system.design.orange.com/0c1af118d/p/878d1f-line-chart",
+    "https://system.design.orange.com/0c1af118d/p/006c11-pie-and-donut-charts",
+    "https://system.design.orange.com/0c1af118d/p/673c90-gauges",
+    "https://system.design.orange.com/0c1af118d/p/18177e-colour",
+    "https://system.design.orange.com/0c1af118d/p/85c89f-axes-and-labels",
+    "https://system.design.orange.com/0c1af118d/p/61b1b6-legends",
+    "https://system.design.orange.com/0c1af118d/p/82894f-data-formats",
+    "https://charts.unified-design-system.orange.com/",
+    "https://github.com/Orange-OpenSource/ods-charts/tree/main/src/theme",
+    "https://github.com/Orange-OpenSource/ods-charts/blob/main/src/theme/colors/_ouds-colors-css-variables.ts",
+    "https://github.com/Orange-OpenSource/ods-charts/blob/main/src/theme/default/ODS.colors.categorical.ts",
+    "https://github.com/Orange-OpenSource/ods-charts/blob/main/src/theme/default/OUDS.lines.axis.ts",
+    "https://github.com/Orange-OpenSource/ods-charts/blob/main/src/theme/charts-type/charts-type.ts",
+    "https://github.com/Orange-OpenSource/ods-charts/blob/main/src/theme/legends/ods-chart-legends.ts"
+  ],
+  "access": "full",
+  "accessNotes": "The original data-display URL (37a8d3) redirects to the Zeroheight cover page; the current guide lives at 210591-data-display and its sub-pages, which are JS-rendered. Read them through a headless browser (all sub-pages: getting started, chart types, bar, line, pie/donut, gauges, colour, axes & labels, legends, data formats). The colour page renders the single/categorical/sequential swatches as images without hex; those hex values were taken from the ODS Charts (Apache ECharts theme) source on GitHub, file _ouds-colors-css-variables.ts (OUDS tokens, light and dark). The Zeroheight colour page lists functional/highlight/neutral/gridline hex values directly; ODS Charts uses slightly different hex for some (noted).",
+  "summary": "Orange's data display guideline is a product-UI design-system guide for charts in Orange web/mobile apps and dashboards, implemented as ODS Charts, an Apache ECharts theme. The look is plain and Swiss: Helvetica Neue, black axis labels, light grey (#cccccc) gridlines only along the value axis, no tick marks, flat square-cornered bars, and a 10-colour categorical palette led by deep purple, green and magenta. One orange (#f16e00) is used only as a highlight colour against a neutral grey. Every colour is a design token with a light-mode and a dark-mode value.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": [
+      "#5b2f98",
+      "#3ba06e",
+      "#b20077",
+      "#a38200",
+      "#0073b2",
+      "#8d60cd",
+      "#2e7b54",
+      "#e50099",
+      "#665100",
+      "#009bf0"
+    ],
+    "categoricalNotes": "OUDS categorical tokens --ouds-charts-color-categorical-tier-1..10 (light mode), from ODS Charts source. Guide: 'The sequence is carefully curated to maximise contrast between neighbouring colours ... Colours should be applied in sequence as numbered in the token names.' All meet WCAG 2.2 AA 3:1 against the primary background in light and dark. Dark-mode tiers 1-10: #a885d8, #50be87, #ff80d4, #d6aa00, #79c7ec, #8d60cd, #9bdaba, #ff4dc3, #ffd266, #1fa2e0. The 'single' palette (for charts that do not need colour to separate categories) is tiers 1, 6, 7, 2, 5, 10 (#5b2f98, #8d60cd, #2e7b54, #3ba06e, #0073b2, #009bf0); the guide's single-series examples use #8d60cd-like violet. The legacy ODS (pre-OUDS) categorical palette was #085ebd, #27a971, #bc4d9a, #9373bd, #9d6e06, #333333, #3e9dd6, #0a6e31, #d573bb, #492191, #b98f11, #666666.",
+    "sequential": [
+      "#d2ecf9",
+      "#a5daf3",
+      "#79c7ec",
+      "#4ab4e6",
+      "#1fa2e0",
+      "#1982b3",
+      "#136186",
+      "#0c415a",
+      "#06202d"
+    ],
+    "diverging": [],
+    "highlight": "#f16e00",
+    "context": "#666666",
+    "positive": "#228722",
+    "negative": "#cd3c14",
+    "background": "#ffffff",
+    "text": "#000000",
+    "textSecondary": null,
+    "gridline": "#cccccc",
+    "axis": "#cccccc",
+    "notes": "Sequential: five single-hue palettes (accent-1 blue shown above, tints 100-900; accent-2 green #e5f5ed..#123021, accent-3 pink #ffe5f6..#4d0033, accent-4 purple #f1ecf9..#150b23, accent-5 yellow #fff0cc..#332400). 'In light mode, lower values are lighter and higher values are darker. In Dark mode, lower values are darker and higher values are lighter.' Functional (Zeroheight page): information #4170d8, positive #228722, warning #8f7200, negative #cd3c14 — green success, blue info, yellow warning, red critical. ODS Charts OUDS tokens give positive #17a02f, warning #a38200, negative #db0002, info #009bf0. Highlight #f16e00 (Zeroheight) / #f15e00 (OUDS token light) / #ff7900 (dark), always paired with neutral #666666 (Zeroheight) / #8f8f8f (OUDS token). Gridlines and gauge 'track' are grey #cccccc (dark mode #666666). Dark backgrounds are #141414 or #000000; segment borders are #ffffff in light mode and #141414 in dark."
+  },
+  "typography": {
+    "family": "Helvetica Neue",
+    "fallback": "var(--bs-font-sans-serif, \"Helvetica Neue\") — Boosted's sans-serif stack",
+    "title": {
+      "size": null,
+      "weight": null,
+      "align": "left",
+      "case": "sentence",
+      "color": "#000000"
+    },
+    "subtitle": {
+      "size": null,
+      "weight": null,
+      "style": "normal",
+      "color": null
+    },
+    "axisLabel": {
+      "size": 14,
+      "color": "#000000"
+    },
+    "axisTitle": {
+      "size": null,
+      "weight": null,
+      "placement": "omitted in all examples"
+    },
+    "dataLabel": {
+      "size": 14,
+      "weight": "400"
+    },
+    "source": {
+      "size": null,
+      "style": null,
+      "color": null
+    },
+    "notes": "ODS Charts uses fontSize 14, weight 400 for gauge/legend labels and 40px bold for the big gauge value; the donut centre value appears on hover at 35px weight 700, formatted '{d}%'. Legend labels are 14px/16px, weight 400. Titles and subtitles always use sentence case."
+  },
+  "structure": {
+    "gridlines": "Light grey #cccccc solid hairlines along the value axis only: horizontal for vertical bars and lines, vertical for horizontal bars. No gridlines along the category axis.",
+    "axisLine": "The category/baseline axis line is drawn in the gridline grey (#cccccc), slightly heavier than the gridlines (about 2px in the examples). ODS Charts sets axisLine show:true for every axis type.",
+    "ticks": "None (axisTick show:false). The line-chart example shows short grey ticks under month labels.",
+    "zeroLine": "The baseline at 0 is drawn as the heavier grey axis line.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "omitted in examples; the title describes the measure",
+    "unitPlacement": "In the title/subtitle; data formats put a space before % and € (e.g. '20 %', '29,99 €').",
+    "frame": "none",
+    "background": "white (#ffffff) in light mode, #141414 or #000000 in dark mode",
+    "notes": "Y-axis labels are right-aligned and vertically centred on the gridlines. X-axis labels are centred under bars and points. 'Always include an additional increment greater than the dataset' — the axis extends one step above the maximum."
+  },
+  "legend": {
+    "placement": "Below the chart, left-aligned with the plot, is the default example. The guide also allows: left-aligned to the y-axis gridlines and the chart title; centred on the chart; left-aligned to the title and the y-axis labels; below the chart title; on top of the gridlines; above the chart title.",
+    "directLabels": "Not discussed; tooltips can stand in for a legend on hover.",
+    "title": "not shown",
+    "swatchShape": "square (12×12px) with a black or white outline, depending on the background",
+    "notes": "Use a legend only when the chart has more than one colour. Show up to two lines of legend items by default. ODS Charts renders the legend as external HTML; clicking an item toggles its series, and toggled-off items drop to 0.25 opacity."
+  },
+  "marks": {
+    "bars": "Flat, square corners, no outline. In the examples the bar is about 55-60% of the band. Stacked segments are separated by thin white gaps. Horizontal bars when category labels are long. Gauge bar width 32px.",
+    "lines": "2px solid. The default ODS Charts line style is SMOOTH, with options broken (straight segments, symbolSize 0), points, or none. The guide's line example is straight with no markers.",
+    "areas": null,
+    "points": "Bubble charts are supported. Point style is not specified.",
+    "pies": "Allowed (pie and donut). The example starts at 12 o'clock and runs clockwise, largest slice first, with white separators between slices and no labels. Donut radius is 65-80% (legend horizontal) or 80-95%; the percentage appears in the centre on hover.",
+    "notes": "Gauges are a first-class family: horizontal, semicircle, circular and dial. The track (unfilled remainder) is grey."
+  },
+  "labels": {
+    "dataLabels": "Not shown on bars or lines in the examples. Pie/donut use hover. Gauges show a large bold value.",
+    "numberFormat": "Large numbers K, M, B, T (combinable with currency, e.g. '12 K€'). Percent with a space: '20 %'. Currency uses local symbols with a space before €: '29,99 €'. Axis increments are round numbers.",
+    "dates": "Date DD/MM/YYYY. 12-hour '7:00 AM'. 24-hour '07:00'. Days 'Mon, Tue'. Months 'Jan, Feb'. Specific days 'day + month' (10 Jan); specific months 'Jan 2021'. Quarters Q1–Q4.",
+    "notes": "Skip axis labels at regular intervals rather than crowding them. Never slant labels — rotate the chart (horizontal bars) instead."
+  },
+  "furniture": {
+    "title": "Titles describe the question the dataset answers and are as short as possible. An optional subtitle explains the insight. Both are sentence case.",
+    "source": null,
+    "logo": null,
+    "other": "Charts sit inside page content or dashboards. The guide's examples have generous white margins and no card border."
+  },
+  "annotations": "Highlight a single data point in orange (#f16e00) and render the rest in neutral grey (#666666).",
+  "layout": "ODS Charts handles responsive resize and dark/light-mode switching via a theme observer. Donut centre moves to 40% when a legend is present. Horizontal gauge grid: left 20, top 32, right 20, height 32.",
+  "interaction": "Tooltips (ODS Charts 'popover') can serve as legends on hover. The popover is HTML/CSS with a 10px arrow, light/dark aware, using the legend's square colour swatches. Clicking a legend item toggles its series.",
+  "accessibility": "All categorical, single and sequential colours meet WCAG 2.2 AA 3:1 contrast against the primary background in light and dark mode, and are distinguishable for most colour-blind users (not for monochromacy). Legend swatches get a black or white outline. The 'Getting started' page requires an accessibility plan.",
+  "chartTypes": {
+    "preferred": [
+      "vertical bar",
+      "horizontal bar",
+      "grouped bar",
+      "stacked bar",
+      "bar + line",
+      "diverging bar",
+      "single line",
+      "multiple line",
+      "pie",
+      "donut",
+      "bubble",
+      "horizontal gauge",
+      "semicircle gauge",
+      "circular gauge",
+      "dial gauge",
+      "choropleth map",
+      "bubble map"
+    ],
+    "discouraged": [],
+    "notes": "Chart chooser groups: change over time, ranking (always sorted ascending or descending), part to whole, comparison, spatial, deviation, current status. Novice audiences get simple bars and lines."
+  },
+  "distinctiveRules": [
+    {
+      "rule": "Gridlines and the gauge track are always light grey #cccccc (dark mode #666666); there are no tick marks.",
+      "source": "https://system.design.orange.com/0c1af118d/p/18177e-colour",
+      "quote": "Within a chart or graph, grey is used for all grid lines and as the track colour. color.dataviz.gridlines #cccccc"
+    },
+    {
+      "rule": "Gridlines run only along the value axis: horizontal for column and line charts, vertical for horizontal bar charts. The baseline axis line is a slightly heavier grey.",
+      "source": "https://system.design.orange.com/0c1af118d/p/85c89f-axes-and-labels",
+      "quote": "Example images: vertical bars show only horizontal #ccc rules; horizontal bars show only vertical rules."
+    },
+    {
+      "rule": "Emphasis uses one orange highlight (#f16e00) against neutral grey (#666666) for everything else. Orange is not part of the categorical palette.",
+      "source": "https://system.design.orange.com/0c1af118d/p/18177e-colour",
+      "quote": "To make the highlighted information stand out, always pair it with color.chart.neutral for less important data."
+    },
+    {
+      "rule": "Categorical colours are applied strictly in token order (tier-1 purple #5b2f98, tier-2 green #3ba06e, tier-3 magenta #b20077, tier-4 ochre #a38200, tier-5 blue #0073b2, ...).",
+      "source": "https://system.design.orange.com/0c1af118d/p/18177e-colour",
+      "quote": "Colours should be applied in sequence as numbered in the token names."
+    },
+    {
+      "rule": "Each chart colour is a light/dark token pair. Sequential ramps invert in dark mode (low values dark, high values light).",
+      "source": "https://system.design.orange.com/0c1af118d/p/18177e-colour",
+      "quote": "In light mode, lower values are lighter and higher values are darker. In Dark mode, lower values are darker and higher values are lighter."
+    },
+    {
+      "rule": "Y-axis labels are right-aligned and vertically centred on their gridline. X-axis labels are centred under each bar or point.",
+      "source": "https://system.design.orange.com/0c1af118d/p/85c89f-axes-and-labels",
+      "quote": "Right align labels on the y-axis. Align vertically to the centre of the grid lines... Centre align labels for bar and line charts on the x-axis."
+    },
+    {
+      "rule": "Never slant axis labels. Switch to horizontal bars for long labels, and skip labels at regular intervals.",
+      "source": "https://system.design.orange.com/0c1af118d/p/85c89f-axes-and-labels",
+      "quote": "Don't slant labels as it makes them difficult to read... Skip labels in regular intervals."
+    },
+    {
+      "rule": "The value axis extends one round increment beyond the data maximum.",
+      "source": "https://system.design.orange.com/0c1af118d/p/85c89f-axes-and-labels",
+      "quote": "Always include an additional increment greater than the dataset."
+    },
+    {
+      "rule": "Titles and subtitles are sentence case. The title states the question; the subtitle gives the insight.",
+      "source": "https://system.design.orange.com/0c1af118d/p/85c89f-axes-and-labels",
+      "quote": "Titles should describe the question the dataset is trying to represent... Always display titles and subtitles using sentence case."
+    },
+    {
+      "rule": "Legend swatches are coloured squares with a black or white outline, shown only when there is more than one colour. The default position is below the plot, left-aligned, with at most two lines.",
+      "source": "https://system.design.orange.com/0c1af118d/p/61b1b6-legends",
+      "quote": "Coloured squares are used in legends... a black or white outline is used to surround each coloured square... Up to two lines of legends are displayed by default."
+    },
+    {
+      "rule": "French-style number formatting: a space before % and €, comma decimal ('29,99 €', '20 %'), and K/M/B/T abbreviations ('12 K€').",
+      "source": "https://system.design.orange.com/0c1af118d/p/82894f-data-formats",
+      "quote": "Include a space between the value and the % symbol... When displaying the Euro symbol, include a space between the value and the symbol."
+    },
+    {
+      "rule": "Dates are DD/MM/YYYY. Months are abbreviated to three letters ('Jan 2021'); quarters are 'Q1'.",
+      "source": "https://system.design.orange.com/0c1af118d/p/82894f-data-formats",
+      "quote": "Date format is DD/MM/YYYY"
+    },
+    {
+      "rule": "Pie slices start at 12 o'clock, run clockwise largest-first, are separated by white borders and carry no labels.",
+      "source": "https://system.design.orange.com/0c1af118d/p/006c11-pie-and-donut-charts",
+      "quote": "Pie chart example image"
+    },
+    {
+      "rule": "Ranking charts are always sorted ascending or descending.",
+      "source": "https://system.design.orange.com/0c1af118d/p/03dbe6-chart-types",
+      "quote": "Ranking charts should always be arranged in ascending or descending order."
+    },
+    {
+      "rule": "Lines are 2px, smooth by default in ODS Charts, with no point markers unless the 'points' style is chosen.",
+      "source": "https://github.com/Orange-OpenSource/ods-charts/blob/main/src/theme/charts-type/charts-type.ts",
+      "quote": "getLineChartConfiguration(config = { lineStyle: ODSChartsLineStyle.SMOOTH }); broken style: width: 2, symbolSize: 0"
+    }
+  ],
+  "referenceImages": [
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/orange/orange-bar-1.png",
+      "url": "https://system.design.orange.com/0c1af118d/p/002297-bar-chart",
+      "describes": "Vertical bar chart, six categories A–F, all bars one violet (#8d60cd-like), flat tops, square corners, bar width about 55% of the band. Light grey horizontal gridlines at 0–50 in steps of 10; a heavier grey baseline at 0. No vertical gridlines, no tick marks, no y-axis line. Black Helvetica Neue labels: y labels right-aligned left of the plot, x labels centred under the bars. No title, legend or source; white background with large margins."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/orange/orange-line.png",
+      "url": "https://system.design.orange.com/0c1af118d/p/878d1f-line-chart",
+      "describes": "Single line chart: one deep-purple (#5b2f98) straight-segment line about 2–3px, no markers, Jan–Jun. Light grey horizontal gridlines 0–50 and a heavier grey baseline with short grey tick marks under the month labels. Black sans-serif labels, y right-aligned. No title or legend; wide white margins."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/orange/legend-1.png",
+      "url": "https://system.design.orange.com/0c1af118d/p/61b1b6-legends",
+      "describes": "Stacked horizontal bar chart (Accounts A–D) with segments in categorical tiers 1–3: deep purple #5b2f98, green #3ba06e, magenta #b20077, separated by thin white gaps. Vertical light grey gridlines 0–100 every 10, a thicker grey y-axis line at 0, value labels centred below. Category labels right-aligned on the left. Legend below the plot, left-aligned with the plot edge: small solid square swatches followed by 'Dataset 1/2/3' in black regular type on one row."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/orange/orange-pie.png",
+      "url": "https://system.design.orange.com/0c1af118d/p/006c11-pie-and-donut-charts",
+      "describes": "Pie with five slices starting at 12 o'clock, clockwise and largest first: purple #5b2f98, green #3ba06e, magenta #b20077, ochre #a38200, blue #0073b2. Thin white borders between slices; no labels, legend or title."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/orange/axes-3.png",
+      "url": "https://system.design.orange.com/0c1af118d/p/85c89f-axes-and-labels",
+      "describes": "'Do' example: horizontal bar chart with long category names ('Information technology', 'Communication services') right-aligned in black to the left of the bars, so labels stay horizontal. Single violet colour, vertical grey gridlines 0–60, heavier grey zero line on the left, x-axis numbers centred beneath."
+    }
+  ]
+}

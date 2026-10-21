@@ -69,7 +69,7 @@ presets
 | `labels`, `legend`, `dataLabels` | 截断、位置、显示规则与标签颜色 |
 | `annotation` | 单位、轴标题、数值格式、点强调与统计信息 |
 | `layout`, `facets` | 疏密、标题间距、色带步长、面板间距与共享比例尺 |
-| `chartDefaults`, `compileDefaults` | 图表控件、基础尺寸、画布尺寸与布局限制的默认值 |
+| `chartDefaults`, `compileDefaults` | 图表控件、基础尺寸、画布尺寸与布局限制的默认值。`chartDefaults` 只设置改变图表外观的控件；改变数据读取方式的控件（轴类型、零基线、对数刻度、变换、排序）会被报告并丢弃 |
 | `furniture` | 分隔线、标签页及其他重复出现的图表结构 |
 | `variants` | 根据语义、密度或图表形态调整规则的条件 |
 

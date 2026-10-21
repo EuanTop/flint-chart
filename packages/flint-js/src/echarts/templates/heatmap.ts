@@ -10,6 +10,7 @@
  *       and a visualMap component for the color scale.
  */
 
+import { schemeName as namedScheme } from '../../core/color-controls';
 import { ChartTemplateDef, EncodingActionDef } from '../../core/types';
 import { makeCartesianPivot } from '../../core/pivot';
 import { extractCategories } from './utils';
@@ -113,7 +114,7 @@ export const ecHeatmapDef: ChartTemplateDef = {
         // (see applyEncodingOverrides), so we just read it here. This also covers
         // charts saved before the migration, whose value lived in
         // chartProperties.colorScheme.
-        const encScheme = encodings?.color?.scheme;
+        const encScheme = namedScheme(encodings?.color?.scheme);
         const userScheme = (encScheme && encScheme !== 'default') ? encScheme : undefined;
         const decision = colorDecisions?.color ?? colorDecisions?.group;
         const semanticIsDiverging = decision?.schemeType === 'diverging';
@@ -276,7 +277,7 @@ export const ecHeatmapDef: ChartTemplateDef = {
                     { value: 'redblue', label: 'Red-Blue (diverging)' },
                 ],
             },
-            get: (enc) => enc.color?.scheme,
+            get: (enc) => namedScheme(enc.color?.scheme),
             set: (enc, value) => ({ ...enc, color: { ...enc.color, scheme: value } }),
         },
     ] as EncodingActionDef[],

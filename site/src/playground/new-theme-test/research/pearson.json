@@ -1,0 +1,117 @@
+{
+  "id": "pearson",
+  "org": "Pearson (Accessibility team; guide authored with Fizz Studio)",
+  "urls": [
+    "https://accessibility.pearson.com/resources/dataviz/",
+    "https://github.com/fizzstudio/dataviz-style-guide",
+    "https://raw.githubusercontent.com/fizzstudio/dataviz-style-guide/HEAD/index.html",
+    "https://raw.githubusercontent.com/fizzstudio/dataviz-style-guide/HEAD/assets/pearson_color_palette.svg",
+    "https://raw.githubusercontent.com/fizzstudio/dataviz-style-guide/HEAD/assets/qualitative-colors.svg",
+    "https://raw.githubusercontent.com/fizzstudio/dataviz-style-guide/HEAD/assets/sequential-colors.svg",
+    "https://raw.githubusercontent.com/fizzstudio/dataviz-style-guide/HEAD/assets/diverging-colors.svg",
+    "https://raw.githubusercontent.com/fizzstudio/dataviz-style-guide/HEAD/assets/grayscale-colors.svg",
+    "https://raw.githubusercontent.com/fizzstudio/dataviz-style-guide/HEAD/assets/examples/barchart-anatomy.svg",
+    "https://raw.githubusercontent.com/fizzstudio/dataviz-style-guide/HEAD/assets/examples/direct-labeling-linechart.svg",
+    "https://raw.githubusercontent.com/VisAnatomy/VisAnatomy.github.io/HEAD/public/examples_svg/DonutChart12.svg",
+    "https://raw.githubusercontent.com/VisAnatomy/VisAnatomy.github.io/HEAD/src/assets/csv/examples_collection.csv"
+  ],
+  "access": "partial",
+  "accessNotes": "accessibility.pearson.com resets every connection (curl, web_fetch and a headless browser all failed), and the Wayback Machine was temporarily offline. The guide's source is public on GitHub as fizzstudio/dataviz-style-guide: 'Accessible Data Visualization Style Guide, v0.3.0', last pushed March 2023. Its contributors are Pearson's accessibility and brand leads plus Doug Schepers of Fizz Studio, and the repo includes pearson_color_palette.svg. I read index.html and the palette SVGs from there. That repo version may lag the live page. Several sections are still marked 'TODO'. A donut chart that VisAnatomy collected from the live Pearson page (DonutChart12.svg) was used as a reference image. Colours are given in the source as HSL CSS variables; the hex values here are exact conversions.",
+  "summary": "An accessibility-first data visualisation guide for Pearson's educational content, written for learners including younger readers and people with low vision, colour-vision deficiency or cognitive disabilities. Charts use Open Sans (Arial fallback) in neutral black or grey text, always show both axes and a labelled numeric axis, and favour direct labels, distinct point symbols per series, donuts over pies, and solid fills with no hatching. The colour palette is Pearson's brand palette: a set of named lights, midtones and darks, plus a grey ramp.",
+  "context": "academic",
+  "colors": {
+    "categorical": ["#9e007e", "#11b0a6", "#84bd00", "#ff757a", "#ffba1a", "#d2dd0e", "#95e7ea", "#008537", "#003057"],
+    "categoricalNotes": "The first four are the series_0..3 colours in the Pearson donut example: Royal Purple hsl(312,100%,31%), Marine Turquoise hsl(176,82%,38%), Fresh Green hsl(78,100%,37%), Coral Pink hsl(358,100%,73%). The rest of the 'discrete' palette follows the guide's swatch order (lights → midtones → darks): Bright Orange hsl(42,100%,55%), Lime Green hsl(63,88%,46%), Sky Blue hsl(182,67%,75%), Grass Green hsl(145,100%,26%), Midnight Blue hsl(207,100%,17%). Guidance: '1-5 colours ideally, 10 at most if really needed'. 'Do not use red and green in the same document/chart... if at all possible'. Use one colour for one category (don't vary colour within a series). The line-chart example uses muted hsl(12,69%,35%) rust, hsl(75,43%,45%) olive and hsl(225,30%,52%) slate blue.",
+    "sequential": ["#dceab9", "#bbd87c", "#84bd00", "#6a9510", "#496414"],
+    "diverging": ["#ff757a", "#e0875c", "#c2993d", "#a3ab1f", "#84bd00"],
+    "highlight": "#7f40bf",
+    "context": null,
+    "positive": null,
+    "negative": null,
+    "background": "#ffffff",
+    "text": "#000000",
+    "textSecondary": "#505758",
+    "gridline": null,
+    "axis": "#000000",
+    "notes": "Every brand colour has a five-step tonal ramp in pearson_color_palette.svg (e.g. Coral Pink #ffd3d2, #ffacab, #ff757a, #c85e61, #803f40). Grayscale ramp: #c8c8c8, #898989, #666665, #2f2f2f, #151515. Backgrounds: Chalk White #ffffff and Ink Black #000000. Neutrals: Mist Grey #dfe1e1 and Graphite Grey #505758. The example charts' default series colour is hsl(270,50%,50%) = #7f40bf (purple). Text should be 'distinct, contrasting, neutral grayscale colors, such as graphite gray, ink black, or chalk white'. Adjacent tints must differ by about 40%; light colours get an outline. Avoid vibrating pairs: red/blue, pink/green, red/green, black/red, green/purple."
+  },
+  "typography": {
+    "family": "Open Sans",
+    "fallback": "\"Open Sans\", Arial, sans-serif (serif: Playfair Display)",
+    "title": { "size": 18, "weight": "normal", "align": "center", "case": "title", "color": "#000000" },
+    "subtitle": { "size": null, "weight": null, "style": null, "color": null },
+    "axisLabel": { "size": 13, "color": "#000000" },
+    "axisTitle": { "size": 15, "weight": "normal", "placement": "rotated, left of the y-axis" },
+    "dataLabel": { "size": 13, "weight": "normal" },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "Strict size hierarchy: title largest, then axis titles, then tick labels. Every label at a level shares one size (x and y titles match; x and y ticks match). Value, legend and annotation labels match the nearest level (value labels = tick label size). Never shrink long labels to fit — abbreviate. Avoid bold and italic except for deliberate emphasis. Example SVGs: svg 15px, title 18px, radial/tick labels 13px, gauge centre text 2rem. Display images large enough that the smallest text meets the style guide's minimum font size."
+  },
+  "structure": {
+    "gridlines": "Optional: 'Axis guide lines optional ... both approaches are acceptable.' The line example draws light grey horizontal gridlines across the plot (no vertical ones).",
+    "axisLine": "Always draw both the x and y axis lines (black in the examples): 'Don't hide axis lines or labels'.",
+    "ticks": "Tick marks on the y-axis (tickmark_y class in examples).",
+    "zeroLine": "The x-axis line at 0 serves as the baseline.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "rotated 90°, left of the tick labels; required for numeric axes",
+    "unitPlacement": "In the axis title (e.g. 'Student Enrollment', 'Number of Books Read').",
+    "frame": "none",
+    "background": "white",
+    "notes": "Anatomy diagram minimums: y-axis title margin 8px, y-axis tick-label margin 14px, bar padding 3px, bar margin 6px (twice the bar padding). Keylines are at least 1pt (2pt for patterned lines). Gridlines and data on 'graph paper' need about 70% contrast."
+  },
+  "legend": {
+    "placement": "Avoid when possible. If needed, use it alongside direct labels, not instead of them.",
+    "directLabels": "Strongly preferred. Line charts: series name at the end of each line, next to the final point symbol. Bars: label at the end of or along the bar. Pie/donut: category label outside the slice, value inside. Resolve collisions with leader lines or staggered labels.",
+    "title": null,
+    "swatchShape": "Key items 'big enough to be legible (For example, 44px square minimum or 10mm square minimum for colours, patterns and symbols.)'",
+    "notes": "'Keys are not an alternative, they should be used as an additional tool where necessary.' A key with more than two items should also use symbols."
+  },
+  "marks": {
+    "bars": "Solid single-colour fills, one colour per category/series. Narrow 3px padding between bars (bars are wide). Sort by value unless the order carries meaning. Lollipop is a lower-clutter variant.",
+    "lines": "3px lines (stroke-width 3, round caps). Every series gets a different colour AND a different point symbol (circle, square, triangle, diamond, cross) at each data point. Do not use dash patterns to distinguish series; reserve dashes for projected, estimated or missing data and thresholds. Five lines at most.",
+    "areas": "Example CSS: area fill at opacity 0.8 with a 3px stroke in the same colour.",
+    "points": "Distinct filled symbols per series, about 10–12px in the examples.",
+    "pies": "Prefer donuts to pies. At most 5 slices (2–3 is ideal); aggregate small slices into 'other'. Sort largest to smallest unless the order is fixed, and keep slice order in sync across comparative pies. Label categories outside and values plus percentages inside. The example donut starts at 12 o'clock, runs clockwise largest-first, has an inner radius about 54% of the outer, no separators and a centred 18px title above.",
+    "notes": "Avoid hatching and dot/cross patterns as differentiators. Patterns are only for semantic exceptions (missing, uncertain or projected data)."
+  },
+  "labels": {
+    "dataLabels": "Label everything where possible. Place labels outside but close to the data element, consistently. Value labels use the tick-label size.",
+    "numberFormat": null,
+    "dates": null,
+    "notes": "Use 7–10 data elements at most, and break complex data into several charts."
+  },
+  "furniture": {
+    "title": "Every chart has a title placed before the data. In the examples the title is a short descriptive phrase in Title Case (e.g. 'Student Enrollment per Subject by Semester', 'Pet Popularity'), regular weight, 18px, centred or left-aligned above the plot. Layout guidance: 'Left align every text element if you can.'",
+    "source": "Optional: 'the chart should also include citations or sources for the data.'",
+    "logo": null,
+    "other": "Always provide alt text: the chart type, what the data is, and its meaning or trend. Complex charts also need a long description and ideally an explorable SVG/HTML structure or a data table/CSV download. Dashboards may use big-number 'cards'."
+  },
+  "annotations": "Use leader lines only to resolve label collisions. Otherwise avoid them to keep visual complexity down.",
+  "layout": "Leave generous white space between lines and blocks of data. Don't split text data and visual data on either side of a graph. Keep every chart at a display size where its smallest text stays legible.",
+  "interaction": "The example SVGs make every datapoint keyboard-focusable (tabindex=0 on each slice/bar group) and include an SVG <title>. Interfaces may let users select or filter series, as long as that does not produce spaghetti charts.",
+  "accessibility": "This is the core of the guide. Never rely on colour alone (WCAG 1.4.1): add point symbols. Check colour-vision-deficiency and contrast. Avoid red with green. Keep tints about 40% apart. Avoid patterns (they raise cognitive load), and when patterns are unavoidable keep the gap size different from the element size and never use two similar patterns. Screen-reader users need each value in visual order plus a summary. Key swatches are at least 44px.",
+  "chartTypes": {
+    "preferred": ["bar (vertical/horizontal, stacked, grouped)", "line", "donut", "lollipop", "percentage (100%) bar", "gauge (half-circle)", "scatterplot", "table", "dashboard"],
+    "discouraged": ["pie (prefer donut)", "spaghetti line charts (>5 lines)", "vertical line charts", "line charts for non-time-series data", "pies with more than 5 slices"],
+    "notes": "Includes a 'dataviz decider' that maps chart-type selection to the relevant guidance."
+  },
+  "distinctiveRules": [
+    { "rule": "Always draw both x and y axis lines and always label the numeric axis. Hiding axes 'to reduce clutter' is a don't.", "source": "https://github.com/fizzstudio/dataviz-style-guide/blob/main/index.html", "quote": "Always include axis lines, and always include axis labels for numeric axes." },
+    { "rule": "Each line series gets a different colour and a different point symbol (circle, square, triangle...) at every data point.", "source": "https://github.com/fizzstudio/dataviz-style-guide/blob/main/index.html", "quote": "Use a different color and symbol for each line" },
+    { "rule": "Direct-label line ends with the series name next to the last point, in place of a legend.", "source": "https://github.com/fizzstudio/dataviz-style-guide/blob/main/index.html", "quote": "Do: add a direct label to each line of a line chart" },
+    { "rule": "No dashed lines or hatched fills to tell series apart. Dashes and patterns are reserved for projected, uncertain or missing data and thresholds.", "source": "https://github.com/fizzstudio/dataviz-style-guide/blob/main/index.html", "quote": "Use solid colors for fill and lines, and avoid patterns such as cross-hatches, dots, or dashed lines." },
+    { "rule": "Prefer a donut over a pie. Use at most 5 slices, sorted largest to smallest; category labels go outside and value plus percentage inside.", "source": "https://github.com/fizzstudio/dataviz-style-guide/blob/main/index.html", "quote": "Generally, a donut chart should be used instead of a pie chart... no more than 5 slices... sorted from largest to smallest values." },
+    { "rule": "At most 5 lines on a line chart.", "source": "https://github.com/fizzstudio/dataviz-style-guide/blob/main/index.html", "quote": "Line charts with 5 or fewer data lines ... are most likely to provide clear patterns" },
+    { "rule": "Font: Open Sans (fallback Arial) in neutral black or graphite text. No bold or italic unless it is deliberate emphasis.", "source": "https://github.com/fizzstudio/dataviz-style-guide/blob/main/index.html", "quote": "We use the sans-serif typeface Open Sans; where Open Sans is not available, we use Arial." },
+    { "rule": "Strict three-level type hierarchy: title > axis titles > tick labels, one size per level. Value labels match tick labels (examples: 18 / 15 / 13 px).", "source": "https://github.com/fizzstudio/dataviz-style-guide/blob/main/index.html", "quote": "the title of the chart should be largest, followed by the axis labels, followed by the axis tick labels." },
+    { "rule": "Do not put red and green in the same chart. Use 1–5 colours, 10 at most.", "source": "https://github.com/fizzstudio/dataviz-style-guide/blob/main/index.html", "quote": "Do not use red and green in the same document/chart or data visualisation if at all possible." },
+    { "rule": "Gridlines are optional — both with and without are acceptable.", "source": "https://github.com/fizzstudio/dataviz-style-guide/blob/main/index.html", "quote": "Inclusion of guide lines is optional, and both approaches are acceptable." },
+    { "rule": "Legend/key swatches are at least 44px (10mm) square, and a key never replaces labels.", "source": "https://github.com/fizzstudio/dataviz-style-guide/blob/main/index.html", "quote": "44px square minimum or 10mm square minimum for colours, patterns and symbols." },
+    { "rule": "Bars are wide with tight gaps: minimum 3px padding and 6px margin.", "source": "https://github.com/fizzstudio/dataviz-style-guide/blob/main/assets/examples/barchart-anatomy.svg", "quote": "bar padding: 3px minimum; bar margin: 6px minimum (2x bar padding)" },
+    { "rule": "The categorical palette is Pearson brand: Royal Purple #9e007e, Marine Turquoise #11b0a6, Fresh Green #84bd00, Coral Pink #ff757a, ...", "source": "https://github.com/fizzstudio/dataviz-style-guide/blob/main/assets/pearson_color_palette.svg", "quote": "Pearson Brand ... chromatic colors: lights / midtones / darks" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/pearson/pearson-donut.png", "url": "https://raw.githubusercontent.com/VisAnatomy/VisAnatomy.github.io/HEAD/public/examples_png/DonutChart12.png", "describes": "Donut chart collected from the Pearson dataviz page. Title 'Pet Popularity' centred above in regular-weight black sans (Open Sans/Arial, 18px). Four segments starting at 12 o'clock, clockwise, largest first: dog royal purple #9e007e, cat turquoise #11b0a6, fish lime-green #84bd00, other coral #ff757a. Inner radius about 54% of the outer, no white separators. Category names in black 13px text just outside each segment; no values, no legend, no source; white background." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/pearson/pearson-direct-labeling-linechart.png", "url": "https://raw.githubusercontent.com/fizzstudio/dataviz-style-guide/HEAD/assets/examples/direct-labeling-linechart.svg", "describes": "Line chart 'Student Enrollment per Subject by Semester'. Title top-left, regular weight, larger sans. Three 3px lines in muted rust, olive green and slate blue; each has its own filled marker at every point (circles, squares, triangles). Series names (science, math, english) sit directly right of the last points, with no legend. Light grey horizontal gridlines every 50, solid black left y-axis and bottom x-axis lines. Rotated y-axis title 'Student Enrollment'. Small black tick labels." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/pearson/pearson-barchart-anatomy.png", "url": "https://raw.githubusercontent.com/fizzstudio/dataviz-style-guide/HEAD/assets/examples/barchart-anatomy.svg", "describes": "Annotated bar-chart anatomy diagram (rendered without the page CSS, so it falls back to serif type and black bars). Four wide bars separated by narrow gaps. A rotated y-axis title 'Number of Books Read' and a centred title 'Number of Books Read by Reader'. Annotations give the spacing minimums: y-axis title margin 8px, y-axis tick margin 14px, bar padding 3px, bar margin 6px (2× padding), title font largest, axis tick font smallest." }
+  ]
+}

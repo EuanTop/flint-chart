@@ -1,0 +1,112 @@
+{
+  "id": "apple-hig",
+  "org": "Apple Human Interface Guidelines: Charts",
+  "urls": [
+    "https://developer.apple.com/design/human-interface-guidelines/charts",
+    "https://developer.apple.com/tutorials/data/design/human-interface-guidelines/charts.json",
+    "https://developer.apple.com/design/human-interface-guidelines/charting-data",
+    "https://developer.apple.com/tutorials/data/design/human-interface-guidelines/charting-data.json",
+    "https://developer.apple.com/tutorials/data/design/human-interface-guidelines/color.json",
+    "https://developer.apple.com/tutorials/data/documentation/charts.json",
+    "https://gist.github.com/lithammer/e9e68c131297c3158a654c0fdfc4111a",
+    "https://stackoverflow.com/questions/79405780/how-to-fully-reproduce-default-styling-of-swift-charts-with-override-options"
+  ],
+  "access": "full",
+  "accessNotes": "HIG pages are JS-rendered, but their full text was read from Apple's DocC JSON endpoints (tutorials/data/design/human-interface-guidelines/charts.json and charting-data.json); images were located by rendering the page in a browser and downloaded from developer.apple.com/tutorials/images/com.apple.HIG/. The HIG gives qualitative guidance only — no hex codes, px sizes or palettes for charts. Swift Charts' default series colour order (blue, green, orange, purple, red, cyan, yellow) is undocumented by Apple; it comes from a web-search summary of developer observations (Stack Overflow page itself returned 403) and is marked as secondary. System colour hex values are Apple's published iOS light-mode system colours as reproduced in a public gist (web search); Apple shows them only as images on the Color page. Values may shift slightly by OS version.",
+  "summary": "Apple's chart guidance is product-UI first: charts are minimal, glanceable and integrated with surrounding interface, set in SF Pro with system colours (default accent blue). The look is defined by Swift Charts defaults: very light gridlines, faint grey tick labels, the y axis on the trailing (right) side, rounded bar marks, a bold descriptive headline + plain-language subtitle summarising the takeaway, and strong emphasis on accessibility (VoiceOver labels, Audio Graphs) and scrubbing interaction.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#007AFF", "#34C759", "#FF9500", "#AF52DE", "#FF3B30", "#32ADE6", "#FFCC00"],
+    "categoricalNotes": "Swift Charts assigns system colours automatically with .foregroundStyle(by:) in the observed order blue, green, orange, purple, red, cyan, yellow (secondary source; undocumented by Apple). A single-series chart uses the app accent colour (system blue by default). Hex values are iOS light-mode system colours; dark-mode variants are brighter. HIG: use colour to clarify, evoke brand and give continuity; keep colours consistent across related charts.",
+    "sequential": [],
+    "diverging": [],
+    "highlight": "#007AFF",
+    "context": null,
+    "positive": null,
+    "negative": null,
+    "background": null,
+    "text": null,
+    "textSecondary": null,
+    "gridline": null,
+    "axis": null,
+    "notes": "HIG defines no chart palette or ramps. Use semantic system colours (label, secondaryLabel, separator) so charts adapt to Light/Dark mode and Increase Contrast automatically. Never rely solely on colour: supplement with shapes or patterns (Health uses different point shapes for systolic/diastolic blood pressure). Add visual separation (narrow gaps) between contiguous areas of colour. Gradient area fills (accent colour fading to transparent) appear in Stocks-style examples."
+  },
+  "typography": {
+    "family": "SF Pro",
+    "fallback": "-apple-system, BlinkMacSystemFont, system-ui",
+    "title": { "size": null, "weight": "bold/semibold (headline)", "align": "left", "case": "title in Weather example ('Heavy Rain Forecasted'); otherwise sentence", "color": null },
+    "subtitle": { "size": null, "weight": "regular", "style": "normal", "color": null },
+    "axisLabel": { "size": null, "color": "light secondary/tertiary grey (system label colours)" },
+    "axisTitle": { "size": null, "weight": null, "placement": "usually omitted; describe units in the title and place long category labels inside the plot area" },
+    "dataLabel": { "size": null, "weight": null },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "Use Dynamic Type text styles (e.g. caption for axis labels) so labels scale. Keep vertical-axis labels as short as possible. Avoid ambiguous abbreviations in accessibility labels ('June 6' not '6/6'; '60 minutes' not '60m')."
+  },
+  "structure": {
+    "gridlines": "Light grid lines extending from ticks; density/weight tailored to context — fewer grid lines and light label colours when the chart is interactive. Anatomy example: solid light-grey horizontal grid lines and dashed light-grey vertical grid lines at x ticks.",
+    "axisLine": "No prominent axis lines; baseline drawn as a light grey grid line.",
+    "ticks": "Short ticks anchor x labels to vertical grid lines; tick labels sit on the trailing side of each vertical grid line.",
+    "zeroLine": "Bar charts typically use zero as the lower bound; no special emphasis.",
+    "yAxisPlacement": "right (trailing) — Swift Charts default; HIG suggests shifting the y axis to the trailing side so labels don't protrude past the leading edge",
+    "yAxisTitle": "omitted; units go in the title/subtitle",
+    "unitPlacement": "in the title or subtitle",
+    "frame": "none, or the chart lives inside a rounded card/platter (e.g. Weather widget) aligned with surrounding views",
+    "background": "system background (adapts to dark mode)",
+    "notes": "Align the leading edge of the chart with the leading edge of other views. Prefer familiar tick sequences (0, 5, 10 …). Choose fixed axis ranges when bounds are meaningful (battery 0–100%) or dynamic ranges that fill the plot (Health Steps)."
+  },
+  "legend": {
+    "placement": "bottom-leading (Swift Charts default, below the plot)",
+    "directLabels": "Encouraged where possible: place long category labels inside the plot area.",
+    "title": "none",
+    "swatchShape": "circle (Swift Charts default legend symbol)",
+    "notes": "Legend only when colour/shape encodes something not conveyed by position."
+  },
+  "marks": {
+    "bars": "Bar marks with slightly rounded corners, narrow gaps; good for sums per period (steps per day). Stacked single bars separated by narrow strips of empty space (iPhone Storage).",
+    "lines": "Single 2pt-ish line in the accent colour, often with a gradient area fill fading to transparent beneath; points can be added on top of the line to highlight individual values.",
+    "areas": "Gradient fill from accent colour to transparent (Stocks example).",
+    "points": "Point marks for individual values/outliers; vary shape to supplement colour.",
+    "pies": "Not covered in the HIG charts page (SectorMark exists in Swift Charts since iOS 17).",
+    "notes": "Combine mark types (line + points) when it adds clarity."
+  },
+  "labels": {
+    "dataLabels": "Sparing; descriptive titles, subtitles and annotations carry the key values.",
+    "numberFormat": "Familiar round sequences for ticks; locale-aware formatting.",
+    "dates": "Short relative/time labels on axes (e.g. '9', '10', '11', '12 PM'; 'Now', '10m', '20m'); spell out in accessibility labels.",
+    "notes": "Avoid subjective words in descriptions; report actual values."
+  },
+  "furniture": {
+    "title": "Information-rich title and subtitle that summarise the main message before people read the chart (Weather: 'Heavy Rain Forecasted' / 'Heavy rain in the next hour.'). A descriptive headline or summary can precede the chart.",
+    "source": null,
+    "logo": "none",
+    "other": "Charts may appear as small glanceable previews that expand to a detailed version with the same style, colours, marks and annotations (Health Trends)."
+  },
+  "annotations": "Titles, subtitles and annotations emphasise key information and actionable takeaways; a vertical selection indicator (rule) can be dragged across the chart to reveal values (Stocks).",
+  "layout": "In compact environments maximise plot width; keep y labels short; match chart size to its functionality (small glanceable snapshot vs large interactive chart); align chart edges with surrounding UI.",
+  "interaction": "Let people scrub across the plot area (expand the hit target to the entire plot) to reveal values with a vertical indicator; don't require interaction to reveal critical information; support keyboard/Full Keyboard Access and Switch Control with a logical navigation order (e.g. along the x axis) or navigation by subsets; animate changes but also announce them for VoiceOver users. watchOS: avoid complex interactions.",
+  "accessibility": "Every chart must be accessible: per-mark (or per-group) accessibility labels, Audio Graphs with a title and summary, describe what data represents not what it looks like, consistent axis order in descriptions, hide visible axis/tick labels from assistive technologies, never rely on colour alone (use shapes/patterns), add separators between adjacent colour areas.",
+  "chartTypes": {
+    "preferred": ["bar", "line", "point/scatter", "line + points", "area (gradient)"],
+    "discouraged": ["novel chart types without onboarding", "charts for data that is better in a list or table"],
+    "notes": "Prefer common chart types; if novel, teach people how to read it (Activity rings animation)."
+  },
+  "distinctiveRules": [
+    { "rule": "The y axis sits on the trailing (right) side with tick labels in light grey; x labels sit on the trailing side of their dashed vertical grid lines, anchored by short ticks.", "source": "https://developer.apple.com/design/human-interface-guidelines/charts", "quote": "display the label for each vertical grid line on its trailing side. You might also consider shifting the Y axis to the trailing side of the chart" },
+    { "rule": "Headline-style title plus plain-language subtitle that states the takeaway, above the chart (e.g. 'Heavy Rain Forecasted' / 'Heavy rain in the next hour.').", "source": "https://developer.apple.com/design/human-interface-guidelines/charts", "quote": "Weather provides a title and subtitle that succinctly describe the expected precipitation for the next hour" },
+    { "rule": "No axis titles; units are stated in the title, and long category labels are placed inside the plot area.", "source": "https://developer.apple.com/design/human-interface-guidelines/charts", "quote": "consider describing units in other areas of the chart, such as in a title, and placing a longer axis label … inside the plot area" },
+    { "rule": "Data is the most prominent element; grid lines and labels are light and sparse, especially in interactive charts.", "source": "https://developer.apple.com/design/human-interface-guidelines/charts", "quote": "you might use fewer grid lines and light label colors to ensure the data remains visually prominent" },
+    { "rule": "Single-series charts use the accent colour (system blue #007AFF) for all marks; multiple series cycle system colours blue, green, orange, purple, red, cyan, yellow.", "source": "https://stackoverflow.com/questions/79405780/how-to-fully-reproduce-default-styling-of-swift-charts-with-override-options", "quote": "(secondary) Swift Charts cycles through these 7 main colors in the given order" },
+    { "rule": "Contiguous colour areas (stacked bar segments) are separated by narrow strips of empty space.", "source": "https://developer.apple.com/design/human-interface-guidelines/charts", "quote": "adding separators between the marks can help people distinguish individual ones" },
+    { "rule": "Never rely on colour alone — use different point shapes or patterns per series.", "source": "https://developer.apple.com/design/human-interface-guidelines/charts", "quote": "Health uses two different shapes in the point marks that represent the two components of blood pressure" },
+    { "rule": "Tick values follow familiar round sequences (0, 5, 10 …); bar charts start at zero; fixed ranges for meaningful bounds (0–100%).", "source": "https://developer.apple.com/design/human-interface-guidelines/charts", "quote": "Prefer familiar sequences of values in the tick and grid-line labels" },
+    { "rule": "Interactive charts let people scrub the whole plot area with a vertical indicator to reveal values; critical information never requires interaction.", "source": "https://developer.apple.com/design/human-interface-guidelines/charts", "quote": "consider expanding the hit target to include the entire plot area, letting people scrub across the area to reveal various values" },
+    { "rule": "Chart's leading edge aligns with the leading edge of surrounding views; in compact layouts maximise plot width and keep y labels short.", "source": "https://developer.apple.com/design/human-interface-guidelines/charts", "quote": "align the leading edge of a chart with the leading edge of other views in a screen" },
+    { "rule": "Related charts (preview and expanded) keep the same chart type, colours, marks, annotations and layout.", "source": "https://developer.apple.com/design/human-interface-guidelines/charting-data", "quote": "use one chart type and consistent colors, annotations, layouts, and descriptive text" },
+    { "rule": "Every mark has a VoiceOver accessibility label and the chart supports Audio Graphs with a title and summary.", "source": "https://developer.apple.com/design/human-interface-guidelines/charts", "quote": "Consider using Audio Graphs to give VoiceOver users more information about your chart." }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/apple-hig/charts-anatomy.png", "url": "https://developer.apple.com/tutorials/images/com.apple.HIG/charts-anatomy@2x.png", "describes": "Anatomy diagram of a Swift Charts-style column chart: system-blue (#007AFF) bars with slightly rounded tops and gaps ~1/3 bar width; y axis on the RIGHT with very light grey labels 0/50/100; solid light-grey horizontal gridlines at 0, 50, 100; dashed light-grey vertical gridlines at each hour with short ticks below; x labels '9', '10', '11', '12 PM' placed just to the right (trailing side) of each vertical gridline, light grey SF Pro. No axis lines, no title, no legend. Black callouts name grid line, plot area, mark, axis, tick, tick label." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/apple-hig/charts-line-marks.png", "url": "https://developer.apple.com/tutorials/images/com.apple.HIG/charts-line-marks@2x.png", "describes": "Stocks-style line chart: thin system-blue line with a vertical blue-to-transparent gradient area fill beneath; y labels on the right (71, 108, 145, 182) in grey; light grey solid horizontal and vertical gridlines; year labels 2018–2022 below on the trailing side of vertical lines. No title, legend or axis titles." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/apple-hig/charts-descriptive-content.png", "url": "https://developer.apple.com/tutorials/images/com.apple.HIG/charts-descriptive-content@2x.png", "describes": "Weather widget card: dark slate rounded-rectangle background; bold white headline 'Heavy Rain Forecasted' top-left, regular white subtitle 'Heavy rain in the next hour.'; dense row of thin light-cyan bars with two dotted light horizontal guide lines; x labels 'Now' (bold) then '10m'…'50m' in grey, left-aligned to ticks. No y axis, no legend." }
+  ]
+}

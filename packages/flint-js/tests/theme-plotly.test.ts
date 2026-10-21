@@ -78,8 +78,55 @@ function denseLine(spec: ThemeSpec, showPoints?: boolean): any {
     } as any) as any;
 }
 
+/** A Plotly title as words: line breaks become spaces and the markup goes, until none is left. */
+function plainTitle(text: string): string {
+    let out = text.replace(/<br>/g, ' ');
+    for (let previous = ''; previous !== out;) {
+        previous = out;
+        out = out.replace(/<[^<>]*>/g, '');
+    }
+    return out;
+}
+
 const traceNamed = (fig: any, name: string) =>
     (fig.data ?? []).find((t: any) => t.name === name);
+
+describe('omitted axis titles', () => {
+    it('keeps the raw numeric field name without semantic metadata', () => {
+        const figure: any = assemblePlotly({
+            data: { values: [{ Item: 'Bananas', yoy_year_change: 8.8 }, { Item: 'Bread', yoy_year_change: -5.6 }] },
+            chart_spec: {
+                chartType: 'Bar Chart',
+                subtitle: 'Consumer price changes',
+                encodings: { x: 'yoy_year_change', y: 'Item' },
+            },
+            theme_spec: 'mckinsey',
+        });
+        const text = plainTitle(figure.layout.title.text);
+        expect(text).toContain('Consumer price changes; yoy_year_change');
+        expect(figure.layout.xaxis.title.text).toBe('');
+    });
+
+    it.each([
+        { title: 'Shipment comparison', subtitle: 'Two shipments in September' },
+        { title: undefined, subtitle: undefined },
+        { title: undefined, subtitle: 'Two shipments in September' },
+    ])('appends the measure and unit to the subtitle ($title / $subtitle)', ({ title, subtitle }) => {
+        const figure: any = assemblePlotly({
+            data: { values: [{ Item: 'A', Mass: 10 }, { Item: 'B', Mass: 20 }] },
+            semantic_types: { Item: 'Category', Mass: { semanticType: 'Amount', unit: 'kg' } },
+            chart_spec: {
+                chartType: 'Bar Chart', title, subtitle,
+                encodings: { x: 'Mass', y: 'Item' },
+            },
+            theme_spec: 'mckinsey',
+        });
+        const text = plainTitle(figure.layout.title.text);
+        expect(text).toContain(subtitle ? `${subtitle}; Mass (kg)` : 'Mass (kg)');
+        if (title) expect(text).toContain(title);
+        expect(figure.layout.xaxis.title.text).toBe('');
+    });
+});
 
 describe('semantic geometry survives house styling', () => {
     it('keeps sparklines free of theme-preferred dots', () => {
@@ -372,18 +419,42 @@ describe('furniture is not a series', () => {
     });
 });
 
+describe('an outlined house on bars too thin to hold the outline', () => {
+    const grouped = (groups: number): any => assemblePlotly({
+        data: { values: ['A', 'B', 'C', 'D'].flatMap((Node) => Array.from({ length: groups }, (_, g) => ({ Node, g, Value: 10 + g }))) },
+        semantic_types: { Node: 'Category', g: 'Quantity', Value: 'Quantity' },
+        chart_spec: { chartType: 'Grouped Bar Chart', encodings: { x: 'Node', y: 'Value', group: 'g' }, baseSize: { width: 400, height: 300 } },
+        theme_spec: THEME_PRESETS.pop.spec,
+    } as any) as any;
+
+    it('leaves them unbordered, so their colour shows', () => {
+        const fig = grouped(50);
+        expect(fig.data.every((t: any) => t.marker?.line == null)).toBe(true);
+        expect(fig._theme.report.some((r: any) => r.path === 'marks.outline')).toBe(true);
+    });
+
+    it('keeps the outline on bars wide enough to hold it', () => {
+        expect(grouped(2).data[0].marker.line.width).toBeGreaterThan(0);
+    });
+});
+
 describe('a banded axis measured against the room it has', () => {
-    it('keeps the template\'s turned labels where straight ones will not fit', () => {
-        const narrow = monthlyLine(theme({ axes: { label: { angle: 0 } } } as any), 260);
-        // Twelve month names across 260px cannot read straight.
-        expect(narrow.layout.xaxis.tickangle).not.toBe(0);
-        expect(
-            narrow._theme.report.some((r: any) => /keeps its turned labels/.test(r.message)),
-        ).toBe(true);
+    it('takes the house\'s overflow where straight labels will not fit, and never thins a row of names', () => {
+        const narrow = monthlyLine(theme({}), 260);
+        // Twelve month names (as plain categories) across 260px: too narrow a band to cut, and a row
+        // of names never drops some, so they stand upright.
+        expect(narrow.layout.xaxis.tickangle).toBe(-90);
+        expect(narrow.layout.xaxis.ticklabelstep).toBeUndefined();
+    });
+
+    it('stands them upright by default where they will not fit', () => {
+        const narrow = monthlyLine(theme({}), 260);
+        expect([0, -90]).toContain(narrow.layout.xaxis.tickangle ?? 0);
+        expect(narrow.layout.xaxis.tickangle).not.toBe(-45);
     });
 
     it('lets the house straighten them where there is room', () => {
-        const wide = monthlyLine(theme({ axes: { label: { angle: 0 } } } as any), 1400);
+        const wide = monthlyLine(theme({}), 1400);
         expect(wide.layout.xaxis.tickangle).toBe(0);
     });
 });

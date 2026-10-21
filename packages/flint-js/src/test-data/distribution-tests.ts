@@ -362,6 +362,12 @@ export function genDensityTests(): TestCase[] {
             },
             encodingMap: { x: makeEncodingItem('Value'), color: makeEncodingItem('Group') },
         });
+        tests.push({
+            ...tests[tests.length - 1],
+            title: 'Grouped Density, layered',
+            description: 'The same three distributions drawn on one baseline, translucent',
+            chartProperties: { stackMode: 'layered' },
+        });
     }
 
     // 3. Bimodal distribution

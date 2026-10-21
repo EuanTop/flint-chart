@@ -1,10 +1,16 @@
-# Using interactions
+# Declarative spec
+
+Use `interaction_spec` to make a Flint chart interactive with preset behaviors, without writing a custom handler.
+
+Start with [Introduction](interaction-introduction.md) for the interaction model. For events and chart updates, see [Components](interaction-components.md). To use preset factories or define bespoke handlers, see [Programming API](interaction-api.md).
+
+> Interactions run on the Vega-Lite interactive surface. Static assemblers do not execute them; `validateChart` reports `interaction_spec` as ignored for static backends.
 
 `interaction_spec` sits beside `chart_spec` and `theme_spec` in a `ChartAssemblyInput`. The chart spec says **what the chart means**. The theme spec says **how it looks**. The interaction spec says **how it behaves** when a reader clicks, hovers, drags, or presses a key.
 
-Every behaviour comes from a **preset**: a named interaction Flint ships, such as `click-highlight` or `navigate`. You list the presets you want, each with its own options. Flint mounts the ones the chart can honour and tells you about the ones it cannot.
+Choose presets such as `click-highlight` or `navigate`, each with its own options. No custom handler is required: Flint mounts the presets the chart can honour and reports the ones it cannot.
 
-> `interaction_spec` affects the Vega-Lite interactive surface only. The assemblers and the static backends leave it untouched, and `validateChart` reports it as ignored for those backends.
+> For agents: the [interaction-author skill](https://github.com/microsoft/flint-chart/blob/main/agent-skills/flint-interaction-author/SKILL.md) covers behaviour on a chart: presets as one valid `interaction_spec`, the `ChartUpdate` an application or an agent applies to a mounted chart, reading the chart state, linking charts, and bespoke interactions. The MCP server serves it as `flint://interaction-skill`.
 
 ## Shape
 
@@ -28,9 +34,11 @@ Every behaviour comes from a **preset**: a named interaction Flint ships, such a
 | `interactions[].id` | Optional. Names the interaction when a chart uses the same preset twice, and names it in the `flint-interaction` event. |
 | `interactions[].options` | The preset's own options, always nested under `options`. Never put an option beside `type`. |
 | `assistedTargeting` | Optional. Pointer acquisition that snaps to a nearby mark. `false` requires direct hits; an object sets `maxDistance`, `indicator`, `details`. |
-| `keyboardTargeting` | Optional. Lets a reader move between marks with the keyboard. |
+| `keyboardTargeting` | Optional. Lets a reader move between marks with the keyboard. For a full semantic walk of the chart, add the `accessible-navigation` preset instead; the two are not combined, and `keyboardTargeting` is ignored when the preset is present. |
 
 An entry has no string shorthand: `"click-highlight"` alone is rejected, `{ "type": "click-highlight" }` is the smallest form.
+
+State is not part of the spec. What the chart shows now, an emphasis, a note, a viewport, an order, arrives as a `ChartUpdate` through the surface (`applyUpdate`, `setUpdates`) or as the `updates` option of `mountChart()`. The MCP tools take the same list as an `updates` argument beside the input.
 
 ## The presets
 
@@ -38,13 +46,13 @@ An entry has no string shorthand: `"click-highlight"` alone is rejected, `{ "typ
 |---|---|---|---|
 | `click-highlight` | Clicks a mark, legend item, or axis label to emphasise it and mute the rest. | elements | click-none, escape |
 | `click-group-focus` | Clicks a mark to emphasise every mark in its group (`groupBy`). | elements | click-none, escape |
-| `hover-group-focus` | Hovers a mark to preview its group (`groupBy` required). | elements | none |
+| `hover-group-focus` | Hovers a mark to bring out its group (`groupBy` required). `emphasis`: `"auto"` (default) widens a line and dims the rest of a point, bar, or slice chart; `"highlight"` never dims; `"spotlight"` always does. | elements | none |
 | `click-annotate` | Clicks a mark to pin an annotation with its value. | elements | click-none, escape |
 | `context-activate` | Right-clicks or long-presses to hand the host a context target. | elements | none |
 | `long-press` | Holds a mark to activate it. | elements | click-none, escape |
 | `double-activate` | Double-clicks a mark to activate it. | elements | click-none, escape |
 | `inspect` | Moves over the plot to read the nearest mark's values. | elements | none |
-| `inspect-index` | Moves over the plot to read every series at one x position (`seriesBy` for a single series). | index axis | escape |
+| `inspect-index` | Moves over the plot to read every series at one x position (`seriesBy` for a single series, `displayValue` for value-guide labels). | index axis | escape |
 | `select` | Drags a rectangle to emphasise the marks inside. | elements, cartesian region | click-none, escape |
 | `lasso-select` | Draws a freehand region to emphasise the marks inside. | elements, cartesian region | click-none, escape |
 | `brush-x`, `brush-y` | Drags an interval along one axis; on a polar chart the x brush is an angular sector. | elements, cartesian region | click-none, escape |
@@ -53,10 +61,19 @@ An entry has no string shorthand: `"click-highlight"` alone is rejected, `{ "typ
 | `brush-zoom` | Drags a rectangle to zoom into it (`axes`, `transition`, `resetTransition`). | navigation | double-click, escape |
 | `navigate` | Drags to pan and scrolls or pinches to zoom continuous axes (`axes`, `pan`, `domainGuard`, `resetTransition`). | navigation | double-click |
 | `legend-toggle` | Clicks a legend item to hide or restore its series. | discrete legend | none |
+| `filter-controls` | Draws one row of controls per field under the chart (pills, a segmented bar, a searchable dropdown, a slider, a range, a switch); they remove the rows that fail, or mute them with `mode: "highlight"` (`fields`, `mode`, `placement`, `render`, `initial`, `dimOpacity`). The state is reported as `state.filters`. Use it for one or two listed fields the chart does not encode, and only when the reader should narrow the data. In filter mode it is dropped on a scrolling category axis outside Vega-Lite. | none | none |
+| `context-menu` | Lets the reader pick marks with one `gesture` (`rectangle` by default, `lasso`, `brush-x`, `brush-y`, `click`, `right-click`, `long-press`) and opens a menu of host actions beside them; picking one emits `menu-select` with the item's id as `item` and the picked marks as the target. A rectangle or brush stays on screen to move or resize (`items` required, `gesture`, `dimOpacity`, `reset`, `render`). | elements, cartesian region | click-none, escape |
 | `axis-highlight` | Clicks a discrete axis label to emphasise its category. | discrete axis | click-none, escape |
 | `drag-reorder` | Drags a discrete axis label to change the category order. | reorderable axis | none |
+| `accessible-navigation` | Tabs into the chart and walks titles, axes and their labels, legends and their items, facet headers, series, and marks with the keyboard. Each step names the element and what it represents, and emphasises its data (`emphasis`, `caption`, `sections`, `maxFields`). | elements | none |
 
 The option names are the ones the matching factory in `flint-chart/interactive` accepts. `InteractionPresetSpec` in that entry gives the precise shape per type for TypeScript callers.
+
+For `inspect-index`, the value guides carry labels inside the plot, rather than on the axis.
+Labels reflect the current interpolated scale value; labels and value guides inherit the
+rendered series colour. Nearby labels stagger along their guides to avoid overlap. Labels are
+on by default; `options.displayValue: false` hides them. Setting `guide: false` hides both the
+guides and their labels.
 
 A viewport a gesture commits, and a reset, animate over 400 ms. `"transition": { "duration": 0 }` on `brush-zoom`, or `"resetTransition": { "duration": 0 }` on either preset, jumps instead. Panning and wheel zooming follow the pointer and never animate.
 
@@ -76,10 +93,10 @@ A gesture resets only the interactions whose list holds it, each by its own id. 
 
 Each chart type declares the properties it offers: marks that resolve to data, a drag region, navigable axes, a reorderable axis, a discrete legend, discrete axis labels, an index axis. Each preset declares the properties it needs. A preset is supported when the chart type offers everything it needs.
 
-Three places show the answer:
+Two places show the answer:
 
-- The [Vega-Lite chart reference](/documentation/reference-vegalite) prints an **Interactions** line per chart type.
 - The MCP tool `list_chart_types` returns `interactions` per chart type.
+- The MCP tool `list_interaction_presets` describes each preset, what it needs, and the options it accepts; `chartType` narrows it to one chart type.
 - The Interactions lab's **Coverage** tab shows every chart type against every preset.
 
 The data can still remove a preset at mount. A bar chart supports `legend-toggle`, but a bar chart with no colour field has no legend to toggle. `navigate` needs a continuous, unfaceted axis. `drag-reorder` needs a discrete axis in the bound encodings.
@@ -120,27 +137,12 @@ Two options avoid a conflict before it happens. `click-highlight` takes `targets
 Where to read the warnings:
 
 - `validateChart(input, 'vegalite')` returns them before anything renders, with a malformed spec reported as an `invalid_interaction_spec` error.
-- `buildInteractiveChart(container, input)` exposes them on `surface.warnings` and logs them once to the console.
+- `mountChart(container, input)` exposes them on `surface.warnings` and logs them once to the console.
 - The MCP tool `validate_chart` returns the same list.
 
-A malformed entry is an error, not a drop: an unknown `type`, an option outside `options`, an `id` inside `options`, a missing required option such as `groupBy`, an unknown or unsupported `reset` gesture, or a duplicate `id`.
-
-## Code and spec, one definition
-
-A spec entry and a factory call are two spellings of one interaction:
-
-```ts
-import { buildInteractiveChart, clickHighlight } from 'flint-chart/interactive';
-
-// From the spec
-buildInteractiveChart(container, { ...input, interaction_spec: { interactions: [{ type: 'click-highlight', options: { dimOpacity: 0.2 } }] } });
-
-// From code
-buildInteractiveChart(container, input, { interactions: [clickHighlight({ dimOpacity: 0.2 })] });
-```
-
-Both may appear on one chart; the spec entries mount first. An `id` used by both is an error. A code definition the chart cannot honour throws, because a developer sees the exception; a spec entry is dropped, because an agent reads warnings.
+A malformed entry is an error, not a drop: an unknown `type`, an option outside `options`, an `id` inside `options`, a missing required option such as `groupBy`, an unknown or unsupported `reset` gesture, or a duplicate `id`. The mount fails with the same message.
 
 ## Where it runs
 
-`buildInteractiveChart()` reads `interaction_spec` from the input. The MCP tool `create_chart_view` mounts the same surface, so an agent can ask for behaviour in the same JSON that asks for the chart. The site's editor and gallery mount from the spec too.
+`mountChart()` reads `interaction_spec` from the input. The MCP `show` card mounts the same surface, so an agent can ask for behaviour in the same JSON that asks for the chart. The site's editor and gallery mount from the spec too.
+

@@ -1,5 +1,6 @@
 import type { InteractionPresetType } from '../../core/interaction-spec';
 import type {
+    AccessibleNavigationOptions,
     AngularBrushOptions,
     AxisHighlightOptions,
     BrushOptions,
@@ -20,6 +21,8 @@ import type {
     NavigateOptions,
     SelectOptions,
 } from '../interactions';
+import type { FilterControlsOptions } from '../filter-controls';
+import type { ContextMenuOptions } from '../context-menu';
 
 /**
  * The options each preset type accepts in a spec. They are the factory option
@@ -47,6 +50,9 @@ export interface InteractionPresetOptions {
     'inspect-index': InspectIndexOptions;
     'navigate': NavigateOptions;
     'drag-reorder': DragReorderOptions;
+    'accessible-navigation': AccessibleNavigationOptions;
+    'filter-controls': FilterControlsOptions;
+    'context-menu': ContextMenuOptions;
 }
 
 /**

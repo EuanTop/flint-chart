@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 
 import { ChartTemplateDef } from '../../core/types';
+import { skeletonStructure } from '../../core/structure';
 import { defaultBuildEncodings } from './utils';
 import { interpolateConfigProperty, applyInterpolate } from './line';
 import {
@@ -51,7 +52,9 @@ export const bumpChartDef: ChartTemplateDef = {
             renderSelectionStyles: { line: { strokeWidthMultiplier: 1.2 } },
             resolve: (event, context) => resolveSeriesTarget(event, context, seriesField),
             presentUpdate: presentAnnotationUpdate(
-                () => annotationCandidates('segment-midpoint', 'center', 'right', 'left'),
+                (_element, _context, visual) => visual?.kind === 'path'
+                    ? annotationCandidates('segment-midpoint', 'center', 'right', 'left')
+                    : annotationCandidates('center', 'right', 'left'),
                 transitionAnnotationText(resolvedEncodings.y?.field),
             ),
         };
@@ -60,6 +63,21 @@ export const bumpChartDef: ChartTemplateDef = {
     declareLayoutMode: () => ({
         paramOverrides: { continuousMarkCrossSection: { x: 80, y: 20, seriesCountAxis: 'auto' }, facetAspectRatioResistance: 0.4 },
     }),
+    // A rank runs from first to last, so a measured rank axis spans the ranks, not zero, ticked at each place.
+    structure: (ctx) => {
+        const structure = skeletonStructure(bumpChartDef.template, ctx);
+        const { x, y } = ctx.channelSemantics;
+        if (!x?.field || !y?.field) return structure;
+        const side = (channel: 'x' | 'y') => ({
+            type: ctx.resolvedTypes?.[channel] ?? ctx.channelSemantics[channel]?.type,
+            semanticType: ctx.channelSemantics[channel]?.semanticAnnotation?.semanticType ?? '',
+        });
+        const rankAxis = rankAxisOf(side('x'), side('y'));
+        const cs = ctx.channelSemantics[rankAxis]!;
+        return side(rankAxis).type === 'quantitative' && rankDomain(cs.semanticAnnotation?.intrinsicDomain, ctx.table, cs.field)
+            ? { ...structure, [rankAxis]: { ...structure[rankAxis]!, baseline: 'data', ownScale: true, ...(rankAxis === 'y' ? { reversed: true } : {}) } }
+            : rankAxis === 'y' && structure.y ? { ...structure, y: { ...structure.y, reversed: true } } : structure;
+    },
     instantiate: (spec, ctx) => {
         defaultBuildEncodings(spec, ctx.resolvedEncodings);
 
@@ -75,26 +93,10 @@ export const bumpChartDef: ChartTemplateDef = {
         if (!xEnc || !yEnc) return;
 
         const semanticTypes = ctx.semanticTypes;
-
-        // --- Decide which axis is rank ---
-        let rankAxis: 'x' | 'y';
-
-        const xSemType = (xEnc.field && semanticTypes?.[xEnc.field]) || '';
-        const ySemType = (yEnc.field && semanticTypes?.[yEnc.field]) || '';
-        const xIsRank = RANK_SEMANTIC_TYPES.has(xSemType);
-        const yIsRank = RANK_SEMANTIC_TYPES.has(ySemType);
-
-        if (yIsRank && !xIsRank) {
-            rankAxis = 'y';
-        } else if (xIsRank && !yIsRank) {
-            rankAxis = 'x';
-        } else if (isDiscrete(xEnc.type) && !isDiscrete(yEnc.type)) {
-            rankAxis = 'y';
-        } else if (isDiscrete(yEnc.type) && !isDiscrete(xEnc.type)) {
-            rankAxis = 'x';
-        } else {
-            rankAxis = 'y';
-        }
+        const rankAxis = rankAxisOf(
+            { type: xEnc.type, semanticType: (xEnc.field && semanticTypes?.[xEnc.field]) || '' },
+            { type: yEnc.type, semanticType: (yEnc.field && semanticTypes?.[yEnc.field]) || '' },
+        );
 
         // Y is rank → reverse Y so rank 1 is at top
         if (rankAxis === 'y') {
@@ -114,6 +116,31 @@ export const bumpChartDef: ChartTemplateDef = {
     },
 };
 
+/** The axis that carries the standing: the one tagged as a rank, else the continuous one beside a discrete one, else y. */
+function rankAxisOf(x: { type?: string; semanticType: string }, y: { type?: string; semanticType: string }): 'x' | 'y' {
+    const xIsRank = RANK_SEMANTIC_TYPES.has(x.semanticType);
+    const yIsRank = RANK_SEMANTIC_TYPES.has(y.semanticType);
+    if (yIsRank && !xIsRank) return 'y';
+    if (xIsRank && !yIsRank) return 'x';
+    if (isDiscrete(x.type) && !isDiscrete(y.type)) return 'y';
+    if (isDiscrete(y.type) && !isDiscrete(x.type)) return 'x';
+    return 'y';
+}
+
+/** The places a rank axis spans: the author's declared bounds, else the ranks in the data when there are two or more. */
+function rankDomain(declared: unknown, table: any[] | undefined, field: string): [number, number] | undefined {
+    if (Array.isArray(declared) && declared.length === 2) return [declared[0], declared[1]];
+    let min = Infinity;
+    let max = -Infinity;
+    for (const row of table ?? []) {
+        const v = Number(row?.[field]);
+        if (!Number.isFinite(v)) continue;
+        if (v < min) min = v;
+        if (v > max) max = v;
+    }
+    return Number.isFinite(min) && Number.isFinite(max) && min !== max ? [min, max] : undefined;
+}
+
 /**
  * A rank runs from first to last, and there is no zeroth place.
  *
@@ -130,23 +157,8 @@ export const bumpChartDef: ChartTemplateDef = {
 function applyRankScale(enc: any, ctx: any, rankAxis: 'x' | 'y'): void {
     if (!enc?.field || enc.type !== 'quantitative') return;
 
-    const declared = ctx.channelSemantics?.[rankAxis]?.semanticAnnotation?.intrinsicDomain;
-    let domain: [number, number] | undefined = Array.isArray(declared) && declared.length === 2
-        ? [declared[0], declared[1]]
-        : undefined;
-
-    if (!domain) {
-        let min = Infinity;
-        let max = -Infinity;
-        for (const row of ctx.table ?? []) {
-            const v = Number(row?.[enc.field]);
-            if (!Number.isFinite(v)) continue;
-            if (v < min) min = v;
-            if (v > max) max = v;
-        }
-        if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) return;
-        domain = [min, max];
-    }
+    const domain = rankDomain(ctx.channelSemantics?.[rankAxis]?.semanticAnnotation?.intrinsicDomain, ctx.table, enc.field);
+    if (!domain) return;
 
     enc.scale = { ...enc.scale, domain, zero: false, nice: false, padding: RANK_END_PAD };
 

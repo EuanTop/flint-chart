@@ -1,0 +1,116 @@
+{
+  "id": "visa",
+  "org": "Visa (Visa Chart Components / Visa Product Design System)",
+  "urls": [
+    "https://developer.visa.com/pages/chart-components",
+    "https://github.com/visa/visa-chart-components",
+    "https://raw.githubusercontent.com/visa/visa-chart-components/main/packages/utils/src/utils/colors.ts",
+    "https://raw.githubusercontent.com/visa/visa-chart-components/main/packages/utils/src/utils/propDefaultValues.ts",
+    "https://raw.githubusercontent.com/visa/visa-chart-components/main/packages/bar-chart/src/components/bar-chart/bar-chart-default-values.ts",
+    "https://raw.githubusercontent.com/visa/visa-chart-components/main/packages/bar-chart/src/components/bar-chart/bar-chart.scss",
+    "https://raw.githubusercontent.com/visa/visa-chart-components/main/packages/bar-chart/src/components/bar-chart/bar-chart.tsx",
+    "https://raw.githubusercontent.com/visa/visa-chart-components/main/packages/utils/src/utils/tooltip.ts",
+    "https://raw.githubusercontent.com/visa/visa-chart-components/main/packages/utils/src/utils/grid.ts",
+    "https://raw.githubusercontent.com/visa/visa-chart-components/main/packages/utils/src/utils/textures.ts",
+    "https://raw.githubusercontent.com/visa/visa-chart-components/main/packages/utils/README.md"
+  ],
+  "access": "partial",
+  "accessNotes": "developer.visa.com page is marketing prose (with two Visa Analytics Platform screenshots); there is no prose visual style guide. All concrete values come from the open-source visa-chart-components repo (colour palettes, default props, SCSS, tooltip code, accessibility utils). Title/subtitle typography is rendered as HTML headings styled by the host app, so exact font family/sizes are not specified in source; descriptions of those come from the README screenshots only.",
+  "summary": "Accessibility-first product-UI chart components (Stencil + d3) used in Visa Analytics Platform dashboards. Look: HTML title and subtitle above the chart, dashed light-grey gridlines, abbreviated value labels on every mark (e.g. '6.5m'), series labels at line ends, and Visa's muted 'categorical' palette with darker/lighter/text variants of each hue. Distinctive accessibility layer: diagonal-hatch textures and contrasting strokes on fills, auto black/white label colour, keyboard navigation and a data-table toggle button under every chart.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#7c99b1", "#cacae7", "#abb798", "#a19491", "#e7c0b8", "#624c48"],
+    "categoricalNotes": "Default 'categorical' (= 'categorical_light') palette has 6 colours. Paired 'categorical_dark': #226092, #796aaf, #829e46, #7a6763, #c18174, #43312d; and 'categorical_text' (for labels in series colour): #164d79, #66589b, #498329, #6e5a55, #954737, #43312d. Single-series default is 'single_blue' = categorical_blue #226092. Colour index tables pick the first n colours (categoricalColorIndex up to 10/11 steps). Brand single colours: pri_grey #5C5C5C, sec_blue #003ea9, sec_orange #ef8400, sec_yellow #ffd700, comp_blue #2bb4da, comp_green #00a25e, supp_pink #ae48b4, supp_purple #7f48b4, supp_green #649f4a, supp_red #a50026; OSS: oss_blue #0051dc, oss_light_blue #7FA8ED, oss_dark_grey #363636, oss_light_grey #D7D7D7.",
+    "sequential": ["#f7fcfd", "#e3daec", "#cebadd", "#b59acc", "#977ebb", "#7367a5", "#554f87", "#423667", "#331d48"],
+    "diverging": ["#a50026", "#c7422a", "#df7232", "#f3a14b", "#ffcf7b", "#afdbf1", "#7ab7e5", "#5390d1", "#386bb6", "#2d4697"],
+    "highlight": "#226092",
+    "context": "#D7D7DE",
+    "positive": null,
+    "negative": null,
+    "background": "#ffffff",
+    "text": "#222222",
+    "textSecondary": "#767676",
+    "gridline": "#c9c9c9",
+    "axis": "#767676",
+    "notes": "Default sequential = 'sequential_suppPurple' (above); others: sequential_secBlue #ecf9f9..#002c76, sequential_secOrange #fee9c7..#5c1c00, sequential_compBlue, sequential_compGreen, sequential_suppPink, sequential_suppGreen, sequential_grey #f2f2f2..#2e2e2e (9 steps each, step index tables choose e.g. [0,3,6] for 3). Default diverging = 'diverging_RtoB' (10 steps); also diverging_RtoG and diverging_GtoP (#194f46 ... #3c3f85). base_grey #D7D7DE, light_text #ffffff, grey_text #565656, dark_text #222222. Dark theme class: gridlines 'lightgrey' at 0.7 opacity. Windows High Contrast detection applies a luminance-only inversion filter."
+  },
+  "typography": {
+    "family": null,
+    "fallback": "sans-serif (axis-label CSS uses '1rem sans-serif')",
+    "title": { "size": null, "weight": "light/regular (rendered as HTML h2)", "align": "left", "case": "sentence", "color": null },
+    "subtitle": { "size": null, "weight": "normal", "style": "normal", "color": null },
+    "axisLabel": { "size": 12, "color": "#767676" },
+    "axisTitle": { "size": 16, "weight": "normal", "placement": "rotated y-axis title left of axis; x-axis title centred below tick labels" },
+    "dataLabel": { "size": null, "weight": "normal" },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "Title is an HTML heading (highestHeadingLevel default 'h2'); in README screenshots it renders large, light-weight, in Visa blue, with a smaller grey-violet subtitle beneath. Subtitle supports 'keywordsHighlight' to colour key words. Tooltip text 14px weight 400 #222222. Data-table link 12px #767676."
+  },
+  "structure": {
+    "gridlines": "Value-axis gridlines only by default (horizontal for vertical bars, vertical for horizontal bars); dashed in rendered examples, stroke #c9c9c9, width 0.8, opacity 1; x-axis grid off for date axes.",
+    "axisLine": "Bar charts: y-axis domain path hidden (opacity 0), x-axis path transparent, a solid baseline at zero; line charts show thin grey left and bottom axis lines.",
+    "ticks": "Tick lines #767676 (minimal); tick text #767676 12px.",
+    "zeroLine": "Baseline drawn (showBaseline true for bars); centerBaseline option for diverging bars.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "rotated, left of axis (default label 'Y Axis')",
+    "unitPlacement": "Abbreviated suffix on every tick (numeral format '0[.][0][0]a', e.g. 8m, 10b)",
+    "frame": "none in component; in VAP the chart sits in a white page panel under tabs and a question-style heading",
+    "background": "white #ffffff",
+    "notes": "Default size 675 x 325 px; margin 1% of each dimension; padding top 20, bottom 50, left 60, right 60. Layout default vertical."
+  },
+  "legend": {
+    "placement": "top, left-aligned, above the plot (below subtitle)",
+    "directLabels": "Line charts use series labels at line ends (seriesLabel placement 'right') coloured in the series' text colour, plus legend.",
+    "title": "none",
+    "swatchShape": "line segment with dash style for line charts; square/textured swatch for bars",
+    "notes": "Legend non-interactive by default; hidden from screen readers (accessible via controller)."
+  },
+  "marks": {
+    "bars": "barIntervalRatio 0.2 (padding between bars); roundedCorner 0; fill with diagonal-stripe texture plus contrasting stroke (accessibility textures on by default); sortOrder none by default; vertical layout default.",
+    "lines": "Linear curve, strokeWidth 2 (hover/click 2-3), dots shown (radius 4-6, filled with lighter tint and darker outline); series differentiated by dash pattern (solid vs dashed) as well as colour.",
+    "areas": null,
+    "points": "circle symbols, radius 4-6, opacity 1, contrasting outline stroke.",
+    "pies": "Pie chart component exists; labels placed outside with normalized (percentage) format and collision resolution.",
+    "notes": "Reference lines default colour pri_grey #5C5C5C, 1px, solid unless dashed specified, labelled."
+  },
+  "labels": {
+    "dataLabels": "On by default for bars and lines: placed on top of each bar/point with collision detection (collisionPlacement 'top'); text colour auto-chosen #ffffff or #222222 for contrast when inside marks; label colour in series text colour for lines.",
+    "numberFormat": "numeral.js '0[.][0][0]a' -> up to two optional decimals with k/m/b suffix (1.4m, 9.7b); localisable (numeralLocale 'US').",
+    "dates": "d3 format '%b %y' for date axes (e.g. 'Apr 17'), wrapped onto two lines when tight.",
+    "notes": "wrapLabel true: long tick labels wrap."
+  },
+  "furniture": {
+    "title": "Required mainTitle and subTitle props rendered above chart as HTML headings, left-aligned; VAP examples use a question headline ('How has Spend per Active trended over time?') followed by a sentence-long summary of the finding.",
+    "source": null,
+    "logo": null,
+    "other": "A small data-table toggle icon button (four-square grid icon in blue) sits bottom-left under every chart (hideDataTableButton false). Screen-reader-only instructions and keyboard instructions component."
+  },
+  "annotations": "d3-annotation based annotations supported; reference lines in pri_grey 1px with labels. VAP examples emphasise last value with large bold coloured number (e.g. '-0.4%') and series name at the line end.",
+  "layout": "Default 675 x 325 px with padding {top 20, bottom 50, left 60, right 60}; chart area 90% width when vertical layout. Responsive sizing is host-controlled.",
+  "interaction": "Tooltip: absolutely positioned, white #ffffff background, 1px solid #565656 border, 3px radius, 0.5rem padding, 14px/400 #222222 text, min-width 80px, max-width 300px. Hover/click styles add a 2px (symbols 3px) stroke; optional hoverOpacity to dim others. Full keyboard navigation via accessibility controller with focus indicators; animations on by default (can be disabled).",
+  "accessibility": "Accessibility is the core differentiator: textures (diagonal hatch patterns) applied to fills by default (hideTextures false), contrasting strokes with >=3:1 non-text contrast computed by getContrastingStroke, autoTextColor picks #ffffff or #222222 via WCAG contrast, Windows High Contrast inversion filter, generated alt text / executive summary / structure notes, keyboard navigation, data-table alternative, validations that warn when accessibility props are missing.",
+  "chartTypes": {
+    "preferred": ["bar", "clustered bar", "stacked bar", "line", "scatter", "pie", "dumbbell", "heat map", "alluvial", "parallel plot", "circle packing", "world map", "data table"],
+    "discouraged": [],
+    "notes": "Opinionated component set; less low-level flexibility by design."
+  },
+  "distinctiveRules": [
+    { "rule": "Filled marks carry an accessibility texture (diagonal hatch lines in a contrasting tint) and a contrasting outline stroke by default.", "source": "https://raw.githubusercontent.com/visa/visa-chart-components/main/packages/utils/README.md", "quote": "For Visa Chart Components with textures, the interior fill will always use the first color for the texture's stroke." },
+    { "rule": "Every bar and line point is labelled by default with an abbreviated value (numeral '0[.][0][0]a', e.g. 3.2m, 9.7b) placed above the mark.", "source": "https://raw.githubusercontent.com/visa/visa-chart-components/main/packages/utils/src/utils/propDefaultValues.ts", "quote": "dataLabelBar = { visible: true, placement: 'top', format: '0[.][0][0]a' }" },
+    { "rule": "Tick labels on axes use the same k/m/b abbreviation (e.g. 8m, 10b) rather than full numbers.", "source": "https://raw.githubusercontent.com/visa/visa-chart-components/main/packages/utils/src/utils/propDefaultValues.ts", "quote": "yAxis = { gridVisible: true, format: '0[.][0][0]a' }" },
+    { "rule": "Gridlines only on the value axis, dashed light grey (#c9c9c9, 0.8px); no gridlines on date axes.", "source": "https://raw.githubusercontent.com/visa/visa-chart-components/main/packages/bar-chart/src/components/bar-chart/bar-chart.scss", "quote": ".grid line { stroke: #c9c9c9; stroke-width: 0.8 } ... xAxisDate gridVisible: false" },
+    { "rule": "Axis tick text 12px #767676; y-axis domain line hidden on bar charts with a solid baseline at zero.", "source": "https://raw.githubusercontent.com/visa/visa-chart-components/main/packages/bar-chart/src/components/bar-chart/bar-chart.scss", "quote": ".axis { font-size: 12px; .tick text { fill: #767676 } } .y.axis path { opacity: 0 }" },
+    { "rule": "Data-label/text colour automatically switches between #ffffff and #222222 for WCAG contrast against the mark fill.", "source": "https://raw.githubusercontent.com/visa/visa-chart-components/main/packages/utils/README.md", "quote": "A hex color will be returned, either '#ffffff' or '#222222'." },
+    { "rule": "Categorical palette uses muted hues with matched dark and 'text' variants: light #7c99b1, #cacae7, #abb798, #a19491, #e7c0b8, #624c48; labels drawn in the text variant (#164d79, #66589b, ...).", "source": "https://raw.githubusercontent.com/visa/visa-chart-components/main/packages/utils/src/utils/colors.ts", "quote": "colorArr['categorical_text'] = ['#164d79','#66589b','#498329','#6e5a55','#954737','#43312d']" },
+    { "rule": "Single-series charts default to categorical blue #226092.", "source": "https://raw.githubusercontent.com/visa/visa-chart-components/main/packages/utils/src/utils/propDefaultValues.ts", "quote": "colorPaletteSingle = 'single_blue'" },
+    { "rule": "Line series are distinguished by dash pattern and dotted points as well as colour, and labelled at the right end of each line.", "source": "https://raw.githubusercontent.com/visa/visa-chart-components/main/packages/utils/src/utils/propDefaultValues.ts", "quote": "seriesLabel = { visible: true, placement: 'right' }; showDots = true; lineCurve = 'linear'" },
+    { "rule": "Tooltip is a white box with 1px #565656 border, 3px radius, 0.5rem padding, 14px #222222 text, max-width 300px.", "source": "https://raw.githubusercontent.com/visa/visa-chart-components/main/packages/utils/src/utils/tooltip.ts", "quote": ".style('border', '1px solid #565656').style('border-radius', '3px')" },
+    { "rule": "A data-table toggle button (blue four-square icon) appears bottom-left beneath every chart.", "source": "https://github.com/visa/visa-chart-components", "quote": "accessibility.hideDataTableButton: false (visible in README screenshots)" },
+    { "rule": "Title and subtitle are HTML headings above the chart, left-aligned; subtitle can highlight keywords in series colours.", "source": "https://raw.githubusercontent.com/visa/visa-chart-components/main/packages/utils/src/utils/propDefaultValues.ts", "quote": "subTitle = { text: 'This is a subtitle', keywordsHighlight: [] }; highestHeadingLevel = 'h2'" },
+    { "rule": "Bars have square corners (roundedCorner 0) and a 0.2 padding ratio between bars.", "source": "https://raw.githubusercontent.com/visa/visa-chart-components/main/packages/utils/src/utils/propDefaultValues.ts", "quote": "roundedCorner = 0; barIntervalRatio = 0.2" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/visa/bar-chart-1.png", "url": "https://raw.githubusercontent.com/visa/visa-chart-components/main/packages/bar-chart/docs/bar-chart-1.png", "describes": "Default VCC bar chart: title 'This is bar chart title' large, light-weight, Visa blue, top-left; subtitle smaller grey-violet beneath. Vertical bars in #226092 with white diagonal hatch texture, square corners, narrow gaps. Abbreviated value labels above each bar (1.4m, 6m, 8.5m) in dark grey. Dashed light-grey horizontal gridlines only, y ticks '0, 1m...8m' in small grey, rotated black 'Y Axis' title, black 'X Axis' title centred below, x ticks 'Apr 17' month-year format, solid grey baseline. Small blue four-square data-table icon bottom-left. No legend, no source." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/visa/line-chart-1.png", "url": "https://raw.githubusercontent.com/visa/visa-chart-components/main/packages/line-chart/docs/line-chart-1.png", "describes": "Default VCC line chart: blue light-weight title top-left, grey-violet subtitle; legend row above plot left-aligned with line swatches (solid dark slate 'Card A', dashed purple 'Card B'). Two lines: solid dark slate-grey with grey-filled circles and dashed purple (#796aaf-ish) with light lavender-filled circles with darker outline; value labels (7.7b, 6.6b) above every point in the series' colour; series names 'Card A'/'Card B' at right line ends. Dashed grey horizontal gridlines, thin grey left and bottom axis lines, tick labels '3b..10b', two-line month/year x labels; data-table icon bottom-left." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/visa/vap-trend-line.jpg", "url": "https://developer.visa.com/images2/stock/vcc/trend%20line%20example%20vap%20-%20cropped%20.jpg", "describes": "Visa Analytics Platform product screen: tab bar (active tab underlined in blue), bold question headline 'How has Spend per Active trended over time?' with sentence summary below, a thin divider, then controls (dropdown, view toggle, blue toggle switch, dashed-underlined help link). Legend above chart left: dashed grey 'Benchmark YoY' and solid blue 'Issuer YoY' with hollow circle markers. Dotted light-grey horizontal gridlines, solid grey zero line, small grey % ticks, rotated small y title. End-of-line big bold values '3.7%' grey and '-0.4%' blue with series names. Below, a difference bar strip with outlined light-grey bars and the final bar dark grey, annotated '4.1% Percentage Points below Benchmark'." }
+  ]
+}

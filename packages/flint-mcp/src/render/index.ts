@@ -7,6 +7,7 @@ import {
   stripPrivateKeys,
 } from './assemble.js';
 import { renderVegaLite } from './vegalite.js';
+import { installFlintTextMeasurer } from './fonts.js';
 import { renderECharts } from './echarts.js';
 import { renderChartjs } from './chartjs.js';
 import type {
@@ -69,9 +70,11 @@ export async function renderChart(
     );
   }
 
+  await installFlintTextMeasurer();
   const { spec, warnings, width, height } = assembleForBackend(backend, input, {
     disableFileReference: options.disableFileReference,
     cwd: options.cwd,
+    roots: options.roots,
   });
 
   // Extract sizing before stripping Flint's private annotation keys. Vega-Lite

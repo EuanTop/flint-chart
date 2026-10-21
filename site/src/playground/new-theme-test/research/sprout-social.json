@@ -1,0 +1,109 @@
+{
+  "id": "sprout-social",
+  "org": "Sprout Social — Seeds design system (data visualization & charts)",
+  "urls": [
+    "https://seeds.sproutsocial.com/visual/dataviz/",
+    "https://seeds.sproutsocial.com/patterns/dataviz/",
+    "https://seeds.sproutsocial.com/patterns/charts/",
+    "https://seeds.sproutsocial.com/components/chart-legend/",
+    "https://www.npmjs.com/package/@sproutsocial/seeds-react-theme (v4.8.1 dist/theme.css, theme-dark.css)",
+    "https://www.npmjs.com/package/@sproutsocial/seeds-react-data-viz (v0.30.3 dist/chart-styles.css, bar.css)",
+    "https://www.npmjs.com/package/@sproutsocial/seeds-color (v2.5.0)"
+  ],
+  "access": "partial",
+  "accessNotes": "The given URL /visual/dataviz/ returns 404; the content now lives at /patterns/dataviz/ (number & trend formats) and /patterns/charts/ (chart rules), both readable as server-rendered HTML. Colour swatches, trend colours and the colour 'rotation' list are rendered by JS components and did not appear in fetched text, so exact palette values were taken from the published npm packages @sproutsocial/seeds-react-theme (--color-dataviz-list-*, light and dark) and @sproutsocial/seeds-react-data-viz (Highcharts styling CSS). Trend positive/negative colours were not recoverable.",
+  "summary": "Social-media analytics product UI built on Highcharts: white cards with a grey border, light #DEE1E1 gridlines, 11px grey system-font axis labels, 3px sharp-cornered lines, and a vivid 20-colour rotation starting teal #08C4B2, purple, raspberry, yellow, blue. Strong number-formatting rules (6.45B, '-' for null, N/A) and rich bordered tooltips; static exports carry the Sprout logo bottom-left and URL bottom-right.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#08C4B2", "#9747FF", "#CE3665", "#FFCD1C", "#3876E3", "#DB61DB", "#59CB59", "#FC8943", "#DB3E3E", "#026661", "#D5A9FF", "#931847", "#944C0C", "#0C3F89", "#6C2277", "#006B40", "#962C0B", "#FF7F6E", "#0CA750", "#BA7506"],
+    "categoricalNotes": "--color-dataviz-list-0..19 (light theme), applied in this rotation order ('Colors should be applied in the following order'). Ideal ≤4 series per chart, max 10 metrics; multi-select line chart max 20 items. Shades of one hue to relate data; contrasting colours to differentiate; social-network brand colours must not be used in data viz. Brand campaigns may use their own palette but avoid analogous schemes. Placeholder/empty colour #C8CCCC.",
+    "sequential": [],
+    "diverging": [],
+    "highlight": "#08C4B2",
+    "context": "#C8CCCC",
+    "positive": null,
+    "negative": null,
+    "background": "#FFFFFF",
+    "text": "#364141",
+    "textSecondary": "#515E5F",
+    "gridline": "#DEE1E1",
+    "axis": "#DEE1E1",
+    "notes": "Dark theme rotation: #24E0C5, #D5A9FF, #FF76AE, #FFCD1C, #679EFF, #F282F5, #75DD66, #FF9C5D, #DB3E3E, #0B968F, ... Headline text #273333; zero line and crosshair #6E797A (--color-container-border-decorative-neutral). Trend table defines Positive/Neutral/Negative colours but values were not visible in fetched content."
+  },
+  "typography": {
+    "family": "system-ui",
+    "fallback": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif",
+    "title": { "size": null, "weight": null, "align": "left", "case": null, "color": "#273333" },
+    "subtitle": { "size": null, "weight": null, "style": null, "color": null },
+    "axisLabel": { "size": 11, "color": "#515E5F" },
+    "axisTitle": { "size": null, "weight": null, "placement": "omitted" },
+    "dataLabel": { "size": null, "weight": null },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "Axis labels: --font-size-100 (11px), weight 400, fill --color-text-subtext. Two-line datetime x labels with the boundary token (e.g. month/year) on a second line in semibold (600). Totals should be bold/emphasised to stand out."
+  },
+  "structure": {
+    "gridlines": "Horizontal value gridlines, solid 1px #DEE1E1 (--color-container-border-base).",
+    "axisLine": "x axis line same #DEE1E1 as gridlines.",
+    "ticks": "No tick marks (stroke: none).",
+    "zeroLine": "y-axis zero plot line emphasised in darker #6E797A.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "omitted",
+    "unitPlacement": "On tick labels via abbreviations",
+    "frame": "Static charts: white background with grey border; live charts inside Seeds cards.",
+    "background": "#FFFFFF",
+    "notes": "Vertical crosshair 1px #6E797A on hover. Hovering a series does not fade other series (inactive opacity 1)."
+  },
+  "legend": {
+    "placement": "below the chart (legend wrapper with top margin), inline or stacked orientation",
+    "directLabels": null,
+    "title": "not shown",
+    "swatchShape": "small icon/swatch + label (network icons supported)",
+    "notes": "Legend colours follow the standard dataviz rotation by index; donuts use a key rather than labels on slices."
+  },
+  "marks": {
+    "bars": "Sort highest to lowest by default; topic labels right-aligned to the y-axis; value labels left-aligned at the end of each bar. Use horizontal bars to give long labels space.",
+    "lines": "3px line weight; sharp corners (polyline), not smoothed/rounded.",
+    "areas": "Stacked area for multiple metrics/cumulative totals; area fill-opacity 0.3 (line-area family CSS).",
+    "points": null,
+    "pies": "Donut only for parts of a whole, ≤5 categories summing to 100%; optional 1px white separators between segments; large and small sizes (two small = height of one large); use a key for labels.",
+    "notes": null
+  },
+  "labels": {
+    "dataLabels": "Bar values left-aligned at bar end.",
+    "numberFormat": "Locale separators; up to 2 decimals only when necessary, no trailing zeros, leading 0 for |x|<1; ≥10,000 abbreviated with 2 decimals keeping trailing zeros (6.45B, 5.00B) with full value in tooltip; currency always 2 decimals ($1,234.56); averages/per-metrics ≥1 decimal; percentages ≤1 decimal. Zero '0', null '-', not applicable 'N/A'. Tables show full numbers with consistent decimals per column.",
+    "dates": "Two-line datetime axis labels with semibold boundary token.",
+    "notes": "Trends (% change) shown with ↑/↓ arrows and coloured; null comparisons show '-' with no arrow."
+  },
+  "furniture": {
+    "title": null,
+    "source": null,
+    "logo": "Static charts: Sprout Social (or Bambu) logo bottom-left, URL bottom-right.",
+    "other": "Static charts sit on white with a grey border."
+  },
+  "annotations": "Highcharts annotation labels centred on the target axis point (data-viz package).",
+  "layout": "Ideal 4 metrics per chart, max 10.",
+  "interaction": "Tooltip: min-width 285px, 16px padding, 12px gap, white background, 1px #DEE1E1 border, 6px radius, medium shadow, header and footer sections separated by full-width dividers; percent-change tooltips show both period values when not visible elsewhere. Vertical crosshair on time series.",
+  "accessibility": "Contrast emphasised ('It's all about contrast!'); colours must be distinct.",
+  "chartTypes": {
+    "preferred": ["line", "bar", "horizontal bar", "stacked area", "multi-select line", "donut", "table"],
+    "discouraged": ["smoothed/rounded lines", "donuts for >5 categories or time series", "network brand colours"],
+    "notes": null
+  },
+  "distinctiveRules": [
+    { "rule": "Colour rotation starts teal #08C4B2, purple #9747FF, raspberry #CE3665, yellow #FFCD1C, blue #3876E3, magenta #DB61DB, green #59CB59, orange #FC8943.", "source": "https://www.npmjs.com/package/@sproutsocial/seeds-react-theme", "quote": "--color-dataviz-list-0: #08c4b2; --color-dataviz-list-1: #9747ff; ..." },
+    { "rule": "Lines are 3px with sharp (un-rounded) vertices.", "source": "https://seeds.sproutsocial.com/patterns/charts/", "quote": "Line weight: 3px ... Use sharp edges" },
+    { "rule": "Ideal four series per chart, never more than ten.", "source": "https://seeds.sproutsocial.com/patterns/charts/", "quote": "The max number of metrics allowed on a single chart should be no more then ten. The ideal state for readability is four." },
+    { "rule": "Static charts: white background with grey border, Sprout logo bottom-left, URL bottom-right.", "source": "https://seeds.sproutsocial.com/patterns/charts/", "quote": "The Sprout Social or Bambu logo should be located in the bottom-left and a URL in the bottom-right." },
+    { "rule": "Bar charts sorted highest to lowest; topic labels right-aligned to the y-axis, values left-aligned at the bar end.", "source": "https://seeds.sproutsocial.com/patterns/charts/", "quote": "Right-align topic labels in bar charts to the y-axis. Numerical values should be left aligned with the end of a given topic's data bar." },
+    { "rule": "Gridlines and axis line #DEE1E1, no tick marks, darker #6E797A zero line.", "source": "https://www.npmjs.com/package/@sproutsocial/seeds-react-data-viz", "quote": ".highcharts-tick { stroke: none; } ... y-axis-zero-line { stroke: var(--color-container-border-decorative-neutral) }" },
+    { "rule": "Axis labels 11px regular in subtext grey #515E5F; datetime boundary token on a second, semibold line.", "source": "https://www.npmjs.com/package/@sproutsocial/seeds-react-data-viz", "quote": "font-size: var(--font-size-100); ... tspan.hc-axis-label-secondary { font-weight: var(--font-weight-semibold) }" },
+    { "rule": "Donuts only for ≤5 parts of 100%, 1px white separators, labels in a key.", "source": "https://seeds.sproutsocial.com/patterns/charts/", "quote": "Use to convey five or fewer discrete categories that add up to 100%." },
+    { "rule": "Never use social-network brand colours for data.", "source": "https://seeds.sproutsocial.com/patterns/charts/", "quote": "Networks colors should not be used in data visualization." },
+    { "rule": "Large numbers abbreviated with exactly two decimals (6.45B, 5.00B); null shown as '-', not applicable as 'N/A'.", "source": "https://seeds.sproutsocial.com/patterns/dataviz/", "quote": "6,450,022,339 use 6.45B, not 6B" },
+    { "rule": "Tooltip card: ≥285px wide, 16px padding, 1px #DEE1E1 border, 6px radius, shadow, divided header/footer.", "source": "https://www.npmjs.com/package/@sproutsocial/seeds-react-data-viz", "quote": "min-width: 285px; padding: var(--space-400); /* 16px */ ... border-radius: var(--radius-500); /* 6px */" },
+    { "rule": "Hovering one series does not dim the others; a 1px vertical crosshair marks the hovered time.", "source": "https://www.npmjs.com/package/@sproutsocial/seeds-react-data-viz", "quote": "/* don't drop opacity when another series is hovered */" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/sprout-social/line_sharp_edges.png", "url": "https://seeds.sproutsocial.com/patterns/charts/ (inline data-URI SVG 'Image of sharp edges')", "describes": "Schematic 'Do' line chart from the Seeds charts page: single teal (#08C4B2) line with sharp straight segments (stroke 5 in a 700×380 viewBox), on white. Five thin light grey (#C8CCCC) horizontal gridlines, the bottom baseline slightly heavier; grey (#B0B6B7) placeholder bars for y labels at left and for x labels along the bottom. No axis line on the left, no ticks, no legend, no title. Original SVG also saved as line_sharp_edges.svg." }
+  ]
+}

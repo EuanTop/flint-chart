@@ -9,7 +9,7 @@ import type { InteractionEventSource, NavigationResetGesture } from './triggers'
 export type { NavigationResetGesture } from './triggers';
 import { NAVIGATION_RESET, NO_RESET, SELECTION_RESET, normalizeResetGestures, type InteractionResetGesture } from './reset';
 import type { InteractionPresetType } from '../core/interaction-spec';
-import type { InspectIndexShow, InspectMode } from './triggers';
+import type { AccessibleNavigationSection, InspectIndexShow, InspectMode } from './triggers';
 import type { InspectGuideOptions, RegionGuideOptions } from './guides';
 import type { InteractionAffordanceTarget, InteractionAffordances } from './affordances';
 import type {
@@ -37,10 +37,15 @@ import {
     createDragReorderInteraction,
     createLinkedBrushInteraction,
     createHoverGroupFocusInteraction,
+    createAccessibleNavigationInteraction,
 } from './presets';
 import type { CanvasInteractionEvent } from './language/events';
 export type {
     ChartUpdatePresenter,
+    ChartCategoryWindow,
+    ChartHiddenValue,
+    ChartState,
+    ChartStateEntry,
     InteractionContext,
     NavigationDomainGuard,
     NavigationRequest,
@@ -108,6 +113,8 @@ export interface CanvasInteractionDef {
     readonly origin?: 'spec';
     /** The preset that made this definition; admission reads its requirements from the registry. */
     readonly preset?: InteractionPresetType;
+    /** The options the preset was made with, so a host can tell two definitions with one id apart. */
+    readonly presetOptions?: Readonly<object>;
     /** Gestures that return this interaction to its neutral state, normalised by the factory. Absent on presets that retain nothing. */
     readonly reset?: readonly InteractionResetGesture[];
     /** Drops state the preset keeps outside the chart's retained updates, when a reset gesture fires. */
@@ -159,7 +166,9 @@ export type GroupBy =
 
 export interface AxisHighlightOptions {
     id?: string;
+    /** Limits the preset to one axis; both discrete axes when unset. */
     axis?: 'x' | 'y';
+    /** Defaults to 'click'. */
     event?: 'hover' | 'click';
     dimOpacity?: number;
     /** Gestures that return this interaction to its neutral state. */
@@ -195,12 +204,21 @@ export interface ClickAnnotateOptions {
 
 export interface LinkedBrushOptions extends SelectOptions {
     groupBy: GroupBy;
+    /** Defaults to 'rectangle'. A lasso has no stateful mode: its freehand region ends at the commit. */
     brush?: 'rectangle' | 'lasso';
 }
 
 export interface HoverGroupFocusOptions {
     id?: string;
     groupBy: string | readonly string[];
+    /**
+     * How the hovered group stands out. 'highlight' gives it its mark's hover cue and leaves the
+     * other groups as drawn; 'spotlight' also dims the other groups to `dimOpacity`; 'auto'
+     * highlights a group drawn as a line and spotlights points, bars, and slices.
+     * Defaults to 'auto'.
+     */
+    emphasis?: 'auto' | 'highlight' | 'spotlight';
+    /** The other groups' opacity under 'spotlight'. Defaults to 0.25. */
     dimOpacity?: number;
     /** Nearest-mark hover radius in renderer pixels. Defaults to 8. */
     tolerance?: number;
@@ -208,21 +226,23 @@ export interface HoverGroupFocusOptions {
 
 export interface SelectOptions {
     id?: string;
+    /** The marks the region lists: those it touches, or only those it contains. Defaults to 'intersect'. */
     match?: 'intersect' | 'contain';
     dimOpacity?: number;
     /** Transient region shown during the gesture; false disables visual feedback. */
     guide?: RegionGuideOptions | false;
+    /** 'stateful' keeps the region on screen and editable after the drag. Defaults to 'ephemeral'. */
+    mode?: 'ephemeral' | 'stateful';
     /** Gestures that return this interaction to its neutral state. */
     reset?: readonly InteractionResetGesture[];
 }
 
-export interface BrushOptions extends SelectOptions {
-    mode?: 'ephemeral' | 'stateful';
-}
+export type BrushOptions = SelectOptions;
 
-export type AngularBrushOptions = SelectOptions & { mode?: 'ephemeral' | 'stateful' };
+export type AngularBrushOptions = SelectOptions;
 
-export type LassoSelectOptions = SelectOptions;
+/** A lasso has no stateful mode: its freehand region ends at the commit. */
+export type LassoSelectOptions = Omit<SelectOptions, 'mode'>;
 
 export interface LegendToggleOptions {
     id?: string;
@@ -237,6 +257,7 @@ export interface ContextActivateOptions {
 
 export interface InspectOptions {
     id?: string;
+    /** The axes the pointer reads, with an optional comparison per axis. Defaults to 'xy'. */
     mode?: InspectMode;
     /** Ordered modes cycled by wheel or context-menu gestures; mode is included automatically. */
     cycle?: readonly InspectMode[];
@@ -250,7 +271,7 @@ export interface InspectOptions {
 
 export interface InspectIndexOptions {
     id?: string;
-    /** Independent chart axis used to acquire one index slice. */
+    /** The axis an index slice is read along. Defaults to the chart's index axis: the temporal one, else the discrete one beside a measure, else x. */
     axis?: 'x' | 'y';
     /** Near-axis acquisition radius as a plot-size fraction. Defaults to 0.01. */
     tolerance?: number;
@@ -258,6 +279,8 @@ export interface InspectIndexOptions {
     show?: InspectIndexShow;
     /** Record field identifying a series; single-series policies switch through the legend. */
     seriesBy?: string;
+    /** Show compact series-colored labels on value guides inside the plot. Defaults to true. */
+    displayValue?: boolean;
     guide?: InspectGuideOptions | false;
     selector?: SemanticTargetSelector;
     /** Releases a locked series. Defaults to ['escape']. */
@@ -266,6 +289,7 @@ export interface InspectIndexOptions {
 
 export interface BrushZoomOptions {
     id?: string;
+    /** Defaults to 'xy'. */
     axes?: 'x' | 'y' | 'xy';
     guide?: RegionGuideOptions | false;
     /** Returns the viewport to the full frame. Defaults to ['double-click', 'escape']. */
@@ -278,6 +302,7 @@ export interface BrushZoomOptions {
 
 export interface LongPressOptions {
     id?: string;
+    /** Defaults to 500. */
     holdMs?: number;
     dimOpacity?: number;
     /** Gestures that return this interaction to its neutral state. */
@@ -298,9 +323,13 @@ export interface NavigationTransition {
 
 export interface NavigateOptions {
     id?: string;
+    /** 'available' navigates every axis the chart confirms. Defaults to 'available'. */
     axes?: NavigationAxes | 'available';
+    /** Defaults to true. */
     pan?: boolean;
+    /** Defaults to true. */
     zoom?: boolean;
+    /** Defaults to 0.002. */
     wheelSensitivity?: number;
     domainGuard?: Partial<NavigationDomainGuard>;
     /** Returns the viewport to the full frame. Defaults to ['double-click']. */
@@ -309,14 +338,28 @@ export interface NavigateOptions {
     resetTransition?: NavigationTransition;
 }
 
+export interface AccessibleNavigationOptions {
+    id?: string;
+    /** Dim the marks outside the focused element, as a click highlight does. Defaults to true. */
+    emphasis?: boolean;
+    dimOpacity?: number;
+    /** Show a visible caption naming the focused element and its content. Defaults to true. */
+    caption?: boolean;
+    /** The chart parts the walk reaches, in reading order. Defaults to every section. */
+    sections?: readonly AccessibleNavigationSection[];
+    /** The most data fields read out for one mark. Defaults to 8. */
+    maxFields?: number;
+}
+
 export interface DragReorderOptions {
     id?: string;
     /** The order is a setting, so nothing resets it unless this list says so. */
     reset?: readonly InteractionResetGesture[];
 }
 
-function asPreset(type: InteractionPresetType, definition: CanvasInteractionDef): CanvasInteractionDef {
-    return { ...definition, preset: type };
+function asPreset(type: InteractionPresetType, definition: CanvasInteractionDef, options: { id?: string }): CanvasInteractionDef {
+    const { id: _id, ...presetOptions } = options;
+    return { ...definition, preset: type, presetOptions };
 }
 
 /** Attaches the normalised reset list; presets that retain nothing never pass through here. */
@@ -330,7 +373,7 @@ function withReset(
 
 export function clickHighlight(options: ClickHighlightOptions = {}): CanvasInteractionDef {
     return {
-        ...asPreset('click-highlight', withReset(createClickHighlightInteraction(options), options.reset, SELECTION_RESET)),
+        ...asPreset('click-highlight', withReset(createClickHighlightInteraction(options), options.reset, SELECTION_RESET), options),
         withoutAffordances(drop) {
             const remaining = (options.targets ?? CLICK_HIGHLIGHT_DEFAULT_TARGETS)
                 .filter((target) => !drop.includes(CLICK_HIGHLIGHT_AFFORDANCE_TARGET[target]));
@@ -340,7 +383,7 @@ export function clickHighlight(options: ClickHighlightOptions = {}): CanvasInter
 }
 
 export function axisHighlight(options: AxisHighlightOptions = {}): CanvasInteractionDef {
-    return asPreset('axis-highlight', withReset(createAxisHighlightInteraction(options), options.reset, SELECTION_RESET));
+    return asPreset('axis-highlight', withReset(createAxisHighlightInteraction(options), options.reset, SELECTION_RESET), options);
 }
 
 export function clickGroupFocus(options: ClickGroupFocusOptions = {}): CanvasInteractionDef {
@@ -348,78 +391,87 @@ export function clickGroupFocus(options: ClickGroupFocusOptions = {}): CanvasInt
         id: options.id ?? 'click-group-focus',
         dimOpacity: options.dimOpacity,
         groupBy: options.groupBy,
-    }), options.reset, SELECTION_RESET));
+    }), options.reset, SELECTION_RESET), options);
 }
 
 export function clickAnnotate(options: ClickAnnotateOptions = {}): CanvasInteractionDef {
-    return asPreset('click-annotate', withReset(createClickAnnotateInteraction(options), options.reset, SELECTION_RESET));
+    return asPreset('click-annotate', withReset(createClickAnnotateInteraction(options), options.reset, SELECTION_RESET), options);
 }
 
 export function linkedBrush(options: LinkedBrushOptions): CanvasInteractionDef {
-    return asPreset('linked-brush', withReset(createLinkedBrushInteraction(options), options.reset, SELECTION_RESET));
+    return asPreset('linked-brush', withReset(createLinkedBrushInteraction(options), options.reset, SELECTION_RESET), options);
 }
 
 export function hoverGroupFocus(options: HoverGroupFocusOptions): CanvasInteractionDef {
-    return asPreset('hover-group-focus', createHoverGroupFocusInteraction({ ...options, id: options.id ?? 'hover-group-focus' }));
+    return asPreset('hover-group-focus', createHoverGroupFocusInteraction({ ...options, id: options.id ?? 'hover-group-focus' }), options);
 }
 
 export function select(options: SelectOptions = {}): CanvasInteractionDef {
-    return asPreset('select', withReset(createSelectInteraction(options), options.reset, SELECTION_RESET));
+    return asPreset('select', withReset(createSelectInteraction(options), options.reset, SELECTION_RESET), options);
 }
 
 export function lassoSelect(options: LassoSelectOptions = {}): CanvasInteractionDef {
-    return asPreset('lasso-select', withReset(createLassoSelectInteraction(options), options.reset, SELECTION_RESET));
+    return asPreset('lasso-select', withReset(createLassoSelectInteraction(options), options.reset, SELECTION_RESET), options);
 }
 
 export function legendToggle(options: LegendToggleOptions = {}): CanvasInteractionDef {
-    return asPreset('legend-toggle', withReset(createLegendToggleInteraction(options), options.reset, NO_RESET));
+    return asPreset('legend-toggle', withReset(createLegendToggleInteraction(options), options.reset, NO_RESET), options);
 }
 
 export function contextActivate(options: ContextActivateOptions = {}): CanvasInteractionDef {
-    return asPreset('context-activate', createContextActivateInteraction(options));
+    return asPreset('context-activate', createContextActivateInteraction(options), options);
 }
 
 export function inspect(options: InspectOptions = {}): CanvasInteractionDef {
-    return asPreset('inspect', createInspectInteraction(options));
+    return asPreset('inspect', createInspectInteraction(options), options);
 }
 
 export function inspectIndex(options: InspectIndexOptions = {}): CanvasInteractionDef {
-    return asPreset('inspect-index', withReset(createInspectIndexInteraction(options), options.reset, ['escape']));
+    return asPreset('inspect-index', withReset(createInspectIndexInteraction(options), options.reset, ['escape']), options);
 }
 
 export function brushZoom(options: BrushZoomOptions = {}): CanvasInteractionDef {
-    return asPreset('brush-zoom', withReset(createBrushZoomInteraction(options), options.reset, ['double-click', 'escape']));
+    return asPreset('brush-zoom', withReset(createBrushZoomInteraction(options), options.reset, ['double-click', 'escape']), options);
 }
 
 export function longPress(options: LongPressOptions = {}): CanvasInteractionDef {
-    return asPreset('long-press', withReset(createLongPressInteraction(options), options.reset, SELECTION_RESET));
+    return asPreset('long-press', withReset(createLongPressInteraction(options), options.reset, SELECTION_RESET), options);
 }
 
 export function doubleActivate(options: DoubleActivateOptions = {}): CanvasInteractionDef {
-    return asPreset('double-activate', withReset(createDoubleActivateInteraction(options), options.reset, SELECTION_RESET));
+    return asPreset('double-activate', withReset(createDoubleActivateInteraction(options), options.reset, SELECTION_RESET), options);
 }
 
 export function brushX(options: BrushOptions = {}): CanvasInteractionDef {
-    return asPreset('brush-x', withReset(createBrushInteraction('x', options), options.reset, SELECTION_RESET));
+    return asPreset('brush-x', withReset(createBrushInteraction('x', options), options.reset, SELECTION_RESET), options);
 }
 
 export function brushY(options: BrushOptions = {}): CanvasInteractionDef {
-    return asPreset('brush-y', withReset(createBrushInteraction('y', options), options.reset, SELECTION_RESET));
+    return asPreset('brush-y', withReset(createBrushInteraction('y', options), options.reset, SELECTION_RESET), options);
 }
 
 /** Select an angular interval on a polar chart. */
 export function brushAngle(options: AngularBrushOptions = {}): CanvasInteractionDef {
-    return asPreset('brush-angle', withReset(createAngularBrushInteraction(options), options.reset, SELECTION_RESET));
+    return asPreset('brush-angle', withReset(createAngularBrushInteraction(options), options.reset, SELECTION_RESET), options);
 }
 
 export function navigate(options: NavigateOptions = {}): CanvasInteractionDef {
     const definition = createNavigateInteraction(options);
     // Mirrors the trigger's normalised list.
-    return asPreset('navigate', { ...definition, reset: definition.eventSource.reset ?? NAVIGATION_RESET });
+    return asPreset('navigate', { ...definition, reset: definition.eventSource.reset ?? NAVIGATION_RESET }, options);
 }
 
 export function dragReorder(options: DragReorderOptions = {}): CanvasInteractionDef {
-    return asPreset('drag-reorder', withReset(createDragReorderInteraction(options), options.reset, NO_RESET));
+    return asPreset('drag-reorder', withReset(createDragReorderInteraction(options), options.reset, NO_RESET), options);
+}
+
+/**
+ * Walk the whole chart from the keyboard: titles, axes and their labels, legends
+ * and their entries, facet headers, series, and every mark. Each step says what
+ * the element is and what it represents, and emphasises the data behind it.
+ */
+export function accessibleNavigation(options: AccessibleNavigationOptions = {}): CanvasInteractionDef {
+    return asPreset('accessible-navigation', createAccessibleNavigationInteraction(options), options);
 }
 
 export function normalizeInteractions(

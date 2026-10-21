@@ -1,9 +1,8 @@
 import { useEffect, useRef } from 'react';
 import embed from 'vega-embed';
-import { readCanvasFurniture } from 'flint-chart';
+import { appendCanvasFurniture, enableGuideLabelTooltips, readCanvasFurniture, readCanvasPatterns } from 'flint-chart';
 import type { View } from 'vega';
 
-const SVG_NS = 'http://www.w3.org/2000/svg';
 
 interface VegaLiteViewProps {
   spec: any;
@@ -24,8 +23,13 @@ export function VegaLiteView({ spec, renderer = 'canvas', onReady }: VegaLiteVie
     // a spec carrying furniture is forced to render as SVG regardless of the
     // requested renderer.
     const furniture = readCanvasFurniture(spec);
-    const useRenderer = furniture.length ? 'svg' : renderer;
-    embed(host, spec, { actions: false, renderer: useRenderer })
+    const patterns = readCanvasPatterns(spec);
+    const useRenderer = furniture.length || patterns.length ? 'svg' : renderer;
+    embed(host, spec, {
+      actions: false,
+      renderer: useRenderer,
+      patch: enableGuideLabelTooltips,
+    })
       .then((result) => {
         embeddedView = result.view;
         if (cancelled) {
@@ -34,17 +38,8 @@ export function VegaLiteView({ spec, renderer = 'canvas', onReady }: VegaLiteVie
         }
         const svgEl = host.querySelector('svg');
         if (!svgEl) return;
-        if (furniture.length) {
-          for (const it of furniture) {
-            const rect = document.createElementNS(SVG_NS, 'rect');
-            rect.setAttribute('x', String(it.x));
-            rect.setAttribute('y', String(it.y));
-            rect.setAttribute('width', String(it.width));
-            rect.setAttribute('height', String(it.height));
-            rect.setAttribute('fill', it.color);
-            svgEl.appendChild(rect);
-          }
-        }
+        // Rules on the canvas edge, figure labels, wordmarks and logos, sized to the rendered canvas.
+        if (furniture.length || patterns.length) appendCanvasFurniture(svgEl as SVGSVGElement, furniture, patterns);
         cleanupReady = onReady?.(svgEl, result.view);
       })
       .catch((err) => {

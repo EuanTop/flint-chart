@@ -1,0 +1,107 @@
+{
+  "id": "human-managed",
+  "org": "Human Managed — Data Viz Style Guide (Figma 'Data viz system')",
+  "urls": [
+    "https://www.figma.com/file/jixsiIT7pCeiPMk8oiM6Qb/Data-viz-system?node-id=547%3A12066",
+    "https://www.figma.com/design/jixsiIT7pCeiPMk8oiM6Qb/Data-viz-system?node-id=265-0",
+    "https://www.humanmanaged.com/blog/building-the-human-managed-design-system"
+  ],
+  "access": "partial",
+  "accessNotes": "The Figma file is publicly viewable (no login) but canvas-rendered, so content was read by opening it in a headless browser, zooming/panning and screenshotting frames (Cover, Typography/'Chart Components', Color Palette, Color Palette 2; frames 'Layout' and 'Layout 2' were only seen as thumbnails). All hex values and sizes below were read visually from those screenshots of the file itself. Some right-hand columns (typography 'Notes', part of the 'Color' column, right-side annotations of the basic template) were cut off and could not be read; the 'highlighted values' colour was only partially legible. Web search found only general Human Managed blog posts (atomic design system, HM Works dashboards) with no chart-style specifics.",
+  "summary": "Human Managed (a cyber-security/data-intelligence company) publishes a compact 'Data Viz Style Guide' (beta) for its HM Works product dashboards. Charts sit on a white-smoke (#F5F5F5) card 684px wide, with a bold title-case Sofia Pro headline in deep navy (#022334), a sentence-case explanatory subtitle 'highlighting what matters', a horizontal y-axis title with units in parentheses, light grey gridlines, direct labels instead of legends, and a bold 'Source:'/'Note:' footer. The palette is five brand hues (green, yellow, 'Invicta' blue, 'Controlshift' purple, a modified red) with 10–70% tints, plus prescribed one/two/three-group combinations that pair a blue-grey comparison colour with green emphasis.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#42B24F", "#F9C80E", "#00B0F0", "#711EFF", "#AB2346"],
+    "categoricalNotes": "'Main colors and their tints': Green #42B24F, Yellow #F9C80E, Blue #00B0F0 ('Invicta blue'), Purple #711EFF ('Controlshift purple'), Red alt #AB2346 ('a modified hue from the brand color'). 'While the brand colors are vibrant and fitting of the brand personality, not all brand colors can be used together to convey data points. The colors are not always visually distinct enough and may pose problems for color-blind audience.' Prescribed 'Color Combinations' (adjusted with chroma.js for perceptually correct scales): one group → Green 40% #8ED195; two groups → Blue-Gray #81919A 'for comparison' + Green #42B24F 'for emphasis', or Yellow #F9C80E + Green #42B24F; three groups → #8ED195, #49A051, #286B2F (light-to-dark greens) or Yellow #F9C80E, Green #42B24F, Blue-Gray #81919A. Stacked-bar template uses yellow, green and blue-grey segments.",
+    "sequential": ["#C6E8CA", "#B3E0B9", "#A1D9A7", "#8ED195", "#7BC984", "#68C172", "#55BA61", "#42B24F"],
+    "diverging": [],
+    "highlight": "#42B24F",
+    "context": "#81919A",
+    "positive": null,
+    "negative": null,
+    "background": "#F5F5F5",
+    "text": "#022334",
+    "textSecondary": "#706C61",
+    "gridline": "#D8D8D8",
+    "axis": "#706C61",
+    "notes": "Functional colours: Headlines/body text Deep blue #022334; Axis, ticks and labels Medium Gray #706C61; Grid lines Light Gray #D8D8D8; Chart background White smoke #F5F5F5; Null data Gray #ADADAD; De-emphasized data Blue-Gray #81919A. Tints (10%→70% lighter): green #55BA61 #68C172 #7BC984 #8ED195 #A1D9A7 #B3E0B9 #C6E8CA; yellow #FACE26 #FAD33E #FBD956 #FBDE6E #FCE487 #FDE99F #FDEFB7; blue #1AB8F2 #33C0F3 #4DC8F5 #66D0F6 #80D8F8 #99DFF9 #B3E7FB; purple #7F35FF #8D4BFF #9C62FF #AA78FF #B88FFF #C6A5FF; red #B33959 #BC4F6B #C4657E #CD7B90 #D591A3 #DDA7B5. 'Only add text over chart elements if it passes AA contrast checker' (webaim). 'Highlighted values' use an 'HM blue bright' colour (hex only partly legible, appears to be the #00B0F0 family)."
+  },
+  "typography": {
+    "family": "Sofia Pro",
+    "fallback": null,
+    "title": { "size": 24, "weight": "Bold", "align": "left", "case": "title", "color": "#022334" },
+    "subtitle": { "size": 16, "weight": "Regular", "style": "normal", "color": "#022334" },
+    "axisLabel": { "size": 14, "color": "#706C61" },
+    "axisTitle": { "size": 14, "weight": "Light", "placement": "y-axis title horizontal at top-left above the axis (e.g. 'Y Axis Title (Units)'); x-axis title centred below the tick labels" },
+    "dataLabel": { "size": 14, "weight": "Regular (values); Semibold for directly labelled category names" },
+    "source": { "size": 12, "style": "Regular with bold 'Source:' and 'Note:' prefixes", "color": "#022334" },
+    "notes": "Type table (desktop rem / mobile rem): Title Bold, Title case, 1.5 / 1.25, HM deep blue #022334. Subtitle Regular, Sentence case, 1 / 1.125, #022334. Axis titles Light, sentence case, 0.875 / 1, Medium Gray #706C61. Axis labels Light, 0.875 / 1, #706C61. Directly labeled categories Semibold, 0.875 / 1, #022334. Directly labeled values Regular, 0.875 / 1, #022334. Callout Regular 0.875 / 1. Highlighted values Regular 0.875 / 1, HM blue bright. Source and notes Regular 0.75 / 0.875 — 'Source' and 'Notes' in bold. 'Use Sofia Pro where possible.' Everything except the title is sentence case."
+  },
+  "structure": {
+    "gridlines": "Light Gray #D8D8D8 thin gridlines in both directions in the basic template (horizontal at each y label, vertical at category positions).",
+    "axisLine": "x baseline drawn (darker grey); no y-axis line.",
+    "ticks": "no tick marks; y labels sit just above/left of gridlines (5px offset); x labels 8px below the axis",
+    "zeroLine": "baseline at 0",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "horizontal at top-left above the plot, 48px below the subtitle, with units in parentheses",
+    "unitPlacement": "in parentheses in the axis titles: 'Y Axis Title (Units)', 'X Axis Title (Units)'",
+    "frame": "chart card with White smoke #F5F5F5 background, no border",
+    "background": "#F5F5F5",
+    "notes": "Spacing annotations: 24px around title/subtitle, 48px subtitle→chart, 24px tick labels→x-axis title."
+  },
+  "legend": {
+    "placement": "none — direct labels",
+    "directLabels": "Category names written directly beside the mark (Semibold 14px, deep blue), values inside segments (Regular 14px) only where AA contrast allows.",
+    "title": null,
+    "swatchShape": null,
+    "notes": null
+  },
+  "marks": {
+    "bars": "Flat, unrounded bars; stacked bar segments in yellow / green / blue-grey with 'Value' inside each segment and 'Category n' label to the right.",
+    "lines": "Sparklines (thin grey lines) used in a table-style tracker ('Same guidelines apply even with non-standard charts like this set of sparklines').",
+    "areas": null,
+    "points": null,
+    "pies": null,
+    "notes": "Null data in grey #ADADAD; de-emphasised data in blue-grey #81919A."
+  },
+  "labels": {
+    "dataLabels": "Direct value labels on/inside marks, only if they pass AA contrast.",
+    "numberFormat": "Decimals in example values (4.68, 4.41, 2.16); unit in column header '(mil GB)'.",
+    "dates": "Short month + year ('Mar 2019', 'Feb 2020').",
+    "notes": null
+  },
+  "furniture": {
+    "title": "Succinct title ('This is a Succinct Chart Title') in Sofia Pro Bold 24px, title case; subtitle 'provides an explanatory text, highlighting what matters'.",
+    "source": "Bottom-left inside the card: 'Source: If applicable.' and 'Note: What the audience may wish to be aware of.' — Sofia Pro Regular 12px with bold 'Source:'/'Note:'.",
+    "logo": null,
+    "other": "Guide carries a 'Beta' badge. Cover 'Key things to bear in mind': Not ideal — 'Don't let the audience do the heavy lifting in charts. This happens when a chart is overloaded with information or every component is competing for attention.' Ideal — 'Consider if you need to create a data viz in the first place. The end-goal is to help the audience with decision making. Test data viz with real data, where possible.'"
+  },
+  "annotations": "Callout text Regular 14px; highlighted values in bright HM blue.",
+  "layout": "Basic template (desktop): 684px standard width, height flexible. Mobile type scale slightly larger (rem values). 'Layout' frames show dashboard card layouts (dark navy header bars) — not legible in detail.",
+  "interaction": "Example tracker card has dropdown filters (Source: All, Trend: Past 1 Year) with green underline.",
+  "accessibility": "Brand colours not all distinct or colour-blind safe, hence curated combinations; text over chart elements only if it passes WCAG AA; perceptual scales via chroma.js.",
+  "chartTypes": {
+    "preferred": ["stacked bar", "bar", "sparkline table"],
+    "discouraged": [],
+    "notes": "Consider whether a data viz is needed at all."
+  },
+  "distinctiveRules": [
+    { "rule": "Chart card is 684px wide with a White smoke #F5F5F5 background.", "source": "https://www.figma.com/design/jixsiIT7pCeiPMk8oiM6Qb/Data-viz-system?node-id=265-0", "quote": "684px standard width, height is flexible ... Background: White smoke color (#F5F5F5)" },
+    { "rule": "Title Sofia Pro Bold 24px, title case, deep blue #022334, left-aligned; subtitle Regular 16px sentence case below it.", "source": "https://www.figma.com/design/jixsiIT7pCeiPMk8oiM6Qb/Data-viz-system?node-id=265-0", "quote": "Title Bold Title case 1.5rem HM deep blue #022334; Subtitle Regular Sentence case 1rem" },
+    { "rule": "Y-axis title is horizontal at the top-left of the plot with units in parentheses, set in Sofia Pro Light 14px medium grey.", "source": "https://www.figma.com/design/jixsiIT7pCeiPMk8oiM6Qb/Data-viz-system?node-id=265-0", "quote": "Y Axis Title (Units) — Sofia Pro light, 14px. Show units in parenthesis" },
+    { "rule": "Axis titles, ticks and labels in Medium Gray #706C61; gridlines Light Gray #D8D8D8.", "source": "https://www.figma.com/design/jixsiIT7pCeiPMk8oiM6Qb/Data-viz-system?node-id=265-0", "quote": "AXIS, TICKS, AND LABELS Medium Gray #706C61; GRID LINES Light Gray #D8D8D8" },
+    { "rule": "Direct labels instead of a legend: category names Semibold 14px beside the mark, values Regular 14px inside it.", "source": "https://www.figma.com/design/jixsiIT7pCeiPMk8oiM6Qb/Data-viz-system?node-id=265-0", "quote": "Category 2 — Sofia Pro Semibold, 14px; Value — Sofia Pro regular, 14px" },
+    { "rule": "Text placed over chart marks only if it passes WCAG AA contrast.", "source": "https://www.figma.com/design/jixsiIT7pCeiPMk8oiM6Qb/Data-viz-system?node-id=265-0", "quote": "Only add text over chart elements if it passes AA contrast checker" },
+    { "rule": "Footer inside the card: 'Source:' and 'Note:' lines in Regular 12px with bold prefixes.", "source": "https://www.figma.com/design/jixsiIT7pCeiPMk8oiM6Qb/Data-viz-system?node-id=265-0", "quote": "Sofia Pro regular, 12px. Bold 'Source:' and 'Note:'" },
+    { "rule": "Two-group comparisons: Blue-Gray #81919A for the comparison series, Green #42B24F for the emphasised series.", "source": "https://www.figma.com/design/jixsiIT7pCeiPMk8oiM6Qb/Data-viz-system?node-id=265-0", "quote": "TWO GROUPS: Blue-Gray #81919A For comparison; Green #42B24F For emphasis" },
+    { "rule": "Single-series charts use Green 40% #8ED195; three ordered groups use greens #8ED195, #49A051, #286B2F.", "source": "https://www.figma.com/design/jixsiIT7pCeiPMk8oiM6Qb/Data-viz-system?node-id=265-0", "quote": "ONE GROUP Green 40% #8ED195; THREE GROUPS #8ED195 #49A051 #286B2F" },
+    { "rule": "Null data in Gray #ADADAD; de-emphasised data in Blue-Gray #81919A.", "source": "https://www.figma.com/design/jixsiIT7pCeiPMk8oiM6Qb/Data-viz-system?node-id=265-0", "quote": "NULL DATA Gray #ADADAD; DE-EMPHASIZED DATA Blue-Gray #81919A" },
+    { "rule": "Only title is title case; all other chart text sentence case.", "source": "https://www.figma.com/design/jixsiIT7pCeiPMk8oiM6Qb/Data-viz-system?node-id=265-0", "quote": "Case column: Title case for Title; Sentence case for all other rows" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/human-managed/figma-basic-template.png", "url": "https://www.figma.com/design/jixsiIT7pCeiPMk8oiM6Qb/Data-viz-system?node-id=265-0", "describes": "Screenshot of 'Basic Template (for desktop)': light grey (#F5F5F5) card; bold navy title 'This is a Succinct Chart Title' top-left, regular subtitle beneath; horizontal 'Y Axis Title (Units)' top-left above the plot; light grey grid in both directions; grey y labels ('Label', 0) left; one stacked bar with yellow, green and blue-grey segments each containing dark 'Value' text and a semibold 'Category n' label to the right; x labels 'Labels' and centred 'X Axis Title (Units)'; bottom-left 'Source: If applicable.' and 'Note: …' with bold prefixes. Green redline annotations give sizes (684px width, 24px/48px spacing, Sofia Pro weights/sizes)." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/human-managed/figma-main-colors-tints.png", "url": "https://www.figma.com/design/jixsiIT7pCeiPMk8oiM6Qb/Data-viz-system?node-id=265-0", "describes": "'Main colors and their tints': five brand swatches (Green #42B24F, Yellow #F9C80E, Blue #00B0F0 'Invicta blue', Purple #711EFF 'Controlshift purple', Red alt #AB2346) each followed by a strip of tints labelled 10%–70% lighter with hex codes." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/human-managed/figma-ui-colors-combinations.png", "url": "https://www.figma.com/design/jixsiIT7pCeiPMk8oiM6Qb/Data-viz-system?node-id=265-0", "describes": "Functional colour dots (Deep blue #022334 headlines; Medium Gray #706C61 axis/ticks/labels; Light Gray #D8D8D8 grid lines; White smoke #F5F5F5 chart background; Gray #ADADAD null data; Blue-Gray #81919A de-emphasized data) and 'Color Combinations' for one, two and three groups, noting chroma.js adjustment." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/human-managed/figma-typography-table.png", "url": "https://www.figma.com/design/jixsiIT7pCeiPMk8oiM6Qb/Data-viz-system?node-id=265-0", "describes": "Typography table rows (Directly labeled categories Semibold, values Regular, Callout, Highlighted values, Source and notes 0.75/0.875 rem) with sentence case, desktop/mobile rem scales; top of the Basic Template visible." }
+  ]
+}

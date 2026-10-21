@@ -1,8 +1,11 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-import { ChartTemplateDef, ChartPropertyDef, ChannelSemantics } from '../../core/types';
+import { ChartTemplateDef, ChartPropertyDef, ChannelSemantics, type PlotPlanContext, type ViewPlanContext } from '../../core/types';
+import { facetViews, type ViewNode } from '../../core/views';
+import { facetPanelLength, resolveStretchCaps } from '../../core/compute-layout';
 import { getRegistryEntry } from '../../core/type-registry';
+import { fitTwoLineLabels } from '../../core/decisions';
 import { resolveDisplayUnit, titleWithDisplayUnit, type FormatSpec } from '../../core/field-semantics';
 import {
     fieldsFromEncodingChannels,
@@ -16,6 +19,7 @@ import {
     valueAnnotationText,
 } from '../../interactive/presentation/annotation';
 import { formatSpecToVegaExpr } from '../format';
+import { hostTextMeasurer } from '../../core/text-width';
 
 /**
  * Bar Table — a ranked horizontal "data bar table".
@@ -37,8 +41,660 @@ import { formatSpecToVegaExpr } from '../format';
  *   - color (nominal/ordinal): groups rows by hue (overrides default
  *     gradient-by-value styling)
  */
+/**
+ * Whether a bar table's values read around zero: a measure that always diverges (profit,
+ * correlation), or one that may and here holds both signs.
+ */
+function divergingValues(xCS: ChannelSemantics | undefined, xField: string, rows: readonly Record<string, any>[]): boolean {
+    const entry = getRegistryEntry(xCS?.semanticAnnotation?.semanticType ?? 'Unknown');
+    if (entry.diverging === 'inherent') return true;
+    if (entry.diverging !== 'conditional') return false;
+    let hasNegative = false;
+    let hasPositive = false;
+    for (const r of rows) {
+        const v = r[xField];
+        if (typeof v === 'number' && isFinite(v)) {
+            if (v < 0) hasNegative = true;
+            else if (v > 0) hasPositive = true;
+        }
+    }
+    return hasNegative && hasPositive;
+}
+
+/** What a Bar Table reads to lay itself out, in the plan or when it builds its spec. */
+type BarTableLayoutContext = PlotPlanContext;
+
+/**
+ * A Bar Table's rows, formats and sizes: the top rows and an "Others" row past `maxRows`, each
+ * category's aggregate, the fonts its density calls for, and the width of each column of the
+ * table and the height its rows take.
+ */
+function barTableLayout(
+    ctx: BarTableLayoutContext,
+    encodings: Partial<Record<'x' | 'y' | 'color' | 'column' | 'row', any>>,
+) {
+    const { x, y, color, column, row } = encodings;
+    const config = ctx.chartProperties;
+    // ── Source of truth: full pre-overflow data ─────────────────
+    //
+    // We read from `ctx.fullTable` (pre-overflow) rather than
+    // `ctx.table` (post-overflow). The framework's filterOverflow
+    // step silently drops categories that don't fit pixel-budget
+    // assumptions — for a Bar Table, those budgets are wrong
+    // (we override panelHeight ourselves) AND lossy (the whole
+    // design is "top-N + Others", which only works if we can see
+    // the actual tail). Falling back to `ctx.table` keeps the
+    // template usable in tests / standalone callers that don't
+    // populate fullTable.
+    const table = ctx.fullTable ?? ctx.table ?? [];
+    const canvasSize = ctx.canvasSize;
+
+    const xField: string = x?.field || 'Value';
+    const yField: string = y?.field || 'Category';
+    const colorField: string | undefined = color?.field;
+    const facetFields = [column?.field, row?.field].filter(Boolean) as string[];
+    const hasFacet = facetFields.length > 0;
+    const scopeKeyOf = (r: any) => facetFields.map(f => String(r[f] ?? '')).join('\x00');
+    const scopeValuesOf = (r: any) => Object.fromEntries(facetFields.map(f => [f, r[f]]));
+
+    // ── Channel semantics (resolved by framework, may be undefined
+    //    when the chart is rendered without a full pipeline) ───────
+    const xCS: ChannelSemantics | undefined = ctx.channelSemantics?.x;
+    const yCS: ChannelSemantics | undefined = ctx.channelSemantics?.y;
+
+    // ── Ordinal measures (Rank) ──────────────────────────────────
+    // An ordinal is a standing, not a magnitude: "how much better is 1st
+    // than 2nd" has no answer. Length-encoding it (bar length + sequential
+    // colour ramp) would invert the ranking — rank 1 gets the shortest,
+    // palest bar. Honor the documented `Rank` behaviour instead (see
+    // flint://agent-skill: "Rank → reversed axis (1 on top), discrete
+    // color"): sort by rank ascending (1 first), use a discrete colour
+    // scale, and keep bars equal-length so the mark does not imply a
+    // magnitude that isn't there.
+    const xIsOrdinal = xCS?.type === 'ordinal';
+
+
+    // showPercent: off by default (safer — avoids misleading shares
+    // for intensive measures, already-percent values, mixed-sign
+    // data, etc.). The agent or the user can flip it on when the
+    // measure is genuinely additive.
+    const showPercent = config?.showPercent === true;
+
+    // ── Per-category aggregate (built once on the input table) ──
+    // Used for both the Top-N trim decision and the panel-width
+    // estimation. `aggValue` collapses one group's sum/count into
+    // the single number the chart will display.
+    const useMeanForDisplay = xCS?.aggregationDefault === 'average';
+    const aggValue = (g: { sum: number; n: number }) =>
+        useMeanForDisplay ? g.sum / Math.max(1, g.n) : g.sum;
+
+    const scopedCategoryAgg = new Map<string, {
+        facetValues: Record<string, any>;
+        categories: Map<any, { sum: number; n: number }>;
+    }>();
+    for (const r of table) {
+        const v = r[xField];
+        if (typeof v !== 'number' || !isFinite(v)) continue;
+        const scopeKey = hasFacet ? scopeKeyOf(r) : '';
+        let scope = scopedCategoryAgg.get(scopeKey);
+        if (!scope) {
+            scope = { facetValues: hasFacet ? scopeValuesOf(r) : {}, categories: new Map() };
+            scopedCategoryAgg.set(scopeKey, scope);
+        }
+        const g = scope.categories.get(r[yField]) ?? { sum: 0, n: 0 };
+        g.sum += v; g.n += 1;
+        scope.categories.set(r[yField], g);
+    }
+    const scopes = Array.from(scopedCategoryAgg.entries());
+    const globalCategoryAgg = new Map<any, { sum: number; n: number }>();
+    for (const { categories } of scopedCategoryAgg.values()) {
+        for (const [cat, g] of categories.entries()) {
+            const total = globalCategoryAgg.get(cat) ?? { sum: 0, n: 0 };
+            total.sum += g.sum;
+            total.n += g.n;
+            globalCategoryAgg.set(cat, total);
+        }
+    }
+    const uniqueCats = Array.from(globalCategoryAgg.keys());
+
+    // ── Top-N + "Others" rollup ──────────────────────────────────
+    //
+    // Long bar tables become unreadable past ~20 rows. We rank
+    // categories by their per-category aggregate, keep the top
+    // (maxRows − 1), and roll the rest into one synthetic
+    // "Others (+N)" row pinned to the bottom.
+    //
+    // Skip when:
+    //   * y has a canonical ordinal order (Month, Rank, …) — top-N
+    //     would break the natural sequence.
+    //   * the user disables it via `maxRows: 0`.
+    //
+    // When a color field is bound (stacked bars), kept categories
+    // retain all their original (color-split) rows so VL can still
+    // stack; the Others row carries no color value and renders gray.
+    const maxRows: number = Math.max(0, Number(config?.maxRows ?? 20));
+    const ySortOrderForTrim: string[] | undefined = yCS?.ordinalSortOrder;
+    const maxScopedCategoryCount = Math.max(0, ...scopes.map(([, scope]) => scope.categories.size));
+    const canTrim = maxRows > 0
+        && !(ySortOrderForTrim && ySortOrderForTrim.length > 0)
+        && maxScopedCategoryCount > maxRows;
+
+    const sortRowsByValue = (items: Array<{ cat: any; value: number }>) => items
+        .sort((a, b) => xIsOrdinal
+            ? a.value - b.value
+            : (yCS?.reversed ? a.value - b.value : b.value - a.value));
+
+    let displayTable: any[] = [];
+    let othersCatLabel: string | undefined;
+    let keptCatOrder: any[] | undefined;
+    const perCatAggValues: number[] = [];
+    const perScopeAggValues: number[][] = [];
+    let maxDisplayRowsPerScope = 0;
+
+    if (canTrim) {
+        const keepN = Math.max(1, maxRows - 1);
+        const displayRows: any[] = [];
+        for (const [scopeKey, scope] of scopes) {
+            const sorted = sortRowsByValue(Array.from(scope.categories.entries())
+                .map(([cat, g]) => ({ cat, value: aggValue(g) })));
+            const keptItems = sorted.slice(0, keepN);
+            const rest = sorted.slice(keepN);
+            if (!hasFacet) {
+                keptCatOrder = keptItems.map(a => a.cat);
+            }
+            const keptCats = new Set(keptItems.map(a => a.cat));
+
+            if (colorField) {
+                const keptRanks = new Map(keptItems.map((a, idx) => [a.cat, idx]));
+                for (const r of table) {
+                    if ((hasFacet ? scopeKeyOf(r) : '') === scopeKey && keptCats.has(r[yField])) {
+                        displayRows.push({ ...r, __bt_sort: keptRanks.get(r[yField]) ?? 0, __bt_others: false, __bt_others_num: 0 });
+                    }
+                }
+            } else {
+                keptItems.forEach((a, idx) => {
+                    displayRows.push({ ...scope.facetValues, [yField]: a.cat, [xField]: a.value, __bt_sort: idx, __bt_others: false, __bt_others_num: 0 });
+                });
+            }
+
+            const restSum = rest.reduce((s, a) => s + a.value, 0);
+            const othersValue = useMeanForDisplay && rest.length > 0 ? restSum / rest.length : restSum;
+            const scopeOthersLabel = `Others (+${rest.length})`;
+            othersCatLabel = othersCatLabel ?? scopeOthersLabel;
+            displayRows.push({
+                ...scope.facetValues,
+                [yField]: scopeOthersLabel,
+                [xField]: othersValue,
+                __bt_sort: keptItems.length,
+                __bt_others: true,
+                __bt_others_num: 1,
+            });
+            const scopeAggValues = [...keptItems.map(a => a.value), othersValue];
+            perCatAggValues.push(...scopeAggValues);
+            perScopeAggValues.push(scopeAggValues);
+            maxDisplayRowsPerScope = Math.max(maxDisplayRowsPerScope, keptItems.length + 1);
+        }
+        displayTable = displayRows;
+    }
+
+    if (!canTrim) {
+        const sortRanksByScope = new Map<string, Map<any, number>>();
+        for (const [scopeKey, scope] of scopes) {
+            const sorted = sortRowsByValue(Array.from(scope.categories.entries())
+                .map(([cat, g]) => ({ cat, value: aggValue(g) })));
+            sortRanksByScope.set(scopeKey, new Map(sorted.map((a, idx) => [a.cat, idx])));
+            const scopeAggValues = sorted.map(a => a.value);
+            perCatAggValues.push(...scopeAggValues);
+            perScopeAggValues.push(scopeAggValues);
+            maxDisplayRowsPerScope = Math.max(maxDisplayRowsPerScope, sorted.length);
+        }
+        displayTable = table.map(r => {
+            const scopeKey = hasFacet ? scopeKeyOf(r) : '';
+            return { ...r, __bt_sort: sortRanksByScope.get(scopeKey)?.get(r[yField]) ?? 0, __bt_others: false, __bt_others_num: 0 };
+        });
+    }
+
+    // ── Column header labels ─────────────────────────────────────
+    // Derived directly from field names; no override knobs.
+    const categoryHeader = yField;
+    const percentHeader  = '%';
+    // headerStyle.fontSize is set below once the responsive
+    // `fontSize` constant is available.
+
+    // ── Format derivation (from ChannelSemantics) ────────────────
+    //
+    // Policy: don't over-process user input. The framework's
+    // `resolveFormat` already follows a "only override when the raw
+    // number would be misleading" rule (e.g., 0–1 Percentage with an
+    // intrinsicDomain, currency with a known unit symbol). When
+    // `cs.format` is undefined, the raw value is already readable —
+    // we show it as-is and let VL apply its default number rendering.
+    //
+    // The %-share column (panel 1) is a different story: it's a
+    // *derived* 0..1 ratio computed by us, so it always needs `%`
+    // formatting. That's `pctPattern` below.
+    const displayUnit = resolveDisplayUnit(xCS?.semanticAnnotation);
+    const valueFmt: FormatSpec | undefined = displayUnit?.placement === 'value'
+        ? {
+            ...(xCS?.format ?? {}),
+            ...(displayUnit.position === 'prefix' && !xCS?.format?.prefix
+                ? { prefix: displayUnit.text }
+                : {}),
+            ...(displayUnit.position === 'suffix' && !xCS?.format?.suffix
+                ? { suffix: /^[A-Za-z]/.test(displayUnit.text) ? ` ${displayUnit.text}` : displayUnit.text }
+                : {}),
+        }
+        : xCS?.format;
+    const valueHeader = titleWithDisplayUnit(xField, displayUnit);
+    const pctPattern = '.1%';
+
+    // ── Text-panel transforms ────────────────────────────────────
+    //
+    // The bar panel naturally handles stacked / grouped data via VL.
+    // The text panels (% and value) must show ONE row per category;
+    // when the input has multiple rows per y-category (e.g. stacked
+    // by `color`), we first aggregate per-category, then derive the
+    // share. Without this, each input row would render its own text
+    // mark (overlapping) and each share would be value/grand-total
+    // (~0% per row instead of the per-category percent).
+    const sortOp: 'sum' | 'mean' = (xCS?.aggregationDefault === 'average') ? 'mean' : 'sum';
+    const uniqueGroupby = (fields: string[]) => Array.from(new Set(fields));
+    const textGroupby = hasFacet ? uniqueGroupby([...facetFields, yField]) : [yField];
+    const textPanelTransform: any[] = [
+        { aggregate: [{ op: sortOp, field: xField, as: '__bt_val' }, { op: 'min', field: '__bt_sort', as: '__bt_sort' }, { op: 'max', field: '__bt_others_num', as: '__bt_others_num' }], groupby: textGroupby },
+    ];
+    if (showPercent) {
+        const totalTransform: any = { joinaggregate: [{ op: 'sum', field: '__bt_val', as: '__bt_total' }] };
+        if (hasFacet) {
+            totalTransform.groupby = facetFields;
+        }
+        textPanelTransform.push(
+            totalTransform,
+            { calculate: `datum.__bt_total === 0 ? null : datum.__bt_val / datum.__bt_total`, as: '__bt_pct' },
+        );
+    }
+
+    const uniqueFacetValueCount = (field?: string) => field
+        ? new Set(displayTable.map(r => r[field])).size
+        : 0;
+    const columnFacetCount = uniqueFacetValueCount(column?.field);
+    const rowFacetCount = uniqueFacetValueCount(row?.field);
+    const layoutFacetColumns = ctx.layout?.facet?.columns ?? (columnFacetCount || 1);
+    const facetColsForSizing = hasFacet
+        ? Math.max(1, Math.min(layoutFacetColumns, columnFacetCount || 1))
+        : 1;
+    const facetRowsForSizing = hasFacet
+        ? Math.max(1, rowFacetCount || Math.ceil(Math.max(1, columnFacetCount) / facetColsForSizing))
+        : 1;
+    const subplotWidth = hasFacet ? (ctx.layout?.subplotWidth ?? canvasSize?.width) : canvasSize?.width;
+    const layoutSubplotHeight = hasFacet ? (ctx.layout?.subplotHeight ?? canvasSize?.height) : canvasSize?.height;
+    const facetHeightBudget = hasFacet && facetRowsForSizing > 1
+        ? Math.max(0, Math.round(facetPanelLength(
+            canvasSize.height, facetRowsForSizing, resolveStretchCaps(ctx.assembleOptions ?? {}).y,
+            ctx.assembleOptions?.facetElasticity ?? 0.3, ctx.assembleOptions?.facetFixedPadding?.height ?? 0,
+            ctx.assembleOptions?.facetGapRow ?? ctx.layout?.effectiveFacetGap ?? ctx.assembleOptions?.facetGap ?? 0,
+        )))
+        : layoutSubplotHeight;
+
+    // ── Sizing constants (responsive to row density) ────────
+    // `displayCount` is the number of rows the chart will actually
+    // render (post-rollup). As it grows, we shrink fonts so labels
+    // don't crowd. In facets, shrink again when each mini-table has
+    // substantially less plot budget than the full canvas.
+    const displayCount = maxDisplayRowsPerScope || uniqueCats.length;
+    // 0 (sparse, ≤12 rows) … 1 (dense, ≥52 rows) — font/density curve.
+    const density = Math.min(1, Math.max(0, (displayCount - 12) / 40));
+    const lerp = (a: number, b: number) => Math.round(a + (b - a) * density);
+    const subplotWidthRatio = hasFacet && canvasSize?.width
+        ? Math.min(1, Math.max(0, (subplotWidth ?? canvasSize.width) / canvasSize.width))
+        : 1;
+    const subplotHeightRatio = hasFacet && canvasSize?.height
+        ? Math.min(1, Math.max(0, (facetHeightBudget ?? canvasSize.height) / canvasSize.height))
+        : 1;
+    const facetFontDrop = hasFacet
+        ? Math.round((1 - Math.min(subplotWidthRatio, subplotHeightRatio)) * 3)
+        : 0;
+
+    const fontSize       = Math.max(9, lerp(12, 10) - facetFontDrop);   // text panels
+    const labelFontSize  = Math.max(9, lerp(13, 10) - facetFontDrop);   // y-axis tick labels
+
+    // ── Bar geometry: capped thickness, proportional gap ─────────
+    //
+    // Design intent: the bar is the signal — never let it get
+    // stretched into a fat rectangle (un-bar-like) and never let
+    // the gap dominate it. Vega-Lite default bars sit around 18px;
+    // we cap a touch tighter at 16 to match BI "data bar" feel.
+    //
+    // Bars stay at `barCap` until row count exceeds `compressStart`,
+    // then shrink linearly to `barMin` by `compressEnd`. Below
+    // `barMin` the mark becomes a hairline and stops reading as
+    // a bar, so we hold the floor.
+    //
+    // Gap = max(`gapMin`, bar × `gapRatio`) — proportional so the
+    // bar:gap ratio stays roughly constant (≈4–5×) across densities,
+    // with a 2px floor so rows never visually merge.
+    const barCap = 16, barMin = 8;
+    const gapMin = 2, gapRatio = 0.2;
+    const compressStart = 30, compressEnd = 80;
+    const compressT = Math.min(1, Math.max(0,
+        (displayCount - compressStart) / (compressEnd - compressStart)));
+    const barPx  = Math.round(barCap - (barCap - barMin) * compressT);
+    const gapPx  = Math.max(gapMin, Math.round(barPx * gapRatio));
+    const rowStep = barPx + gapPx;
+    const barBandRatio = +(barPx / rowStep).toFixed(3);
+
+    const charPx = fontSize * 0.6;
+    const textPad = 12;
+    const minTextPanel = 36;
+    const maxTextPanel = 140;
+    const cjkRe = /[\u4E00-\u9FFF\u3000-\u303F]/;
+
+    const headerStyle = {
+        fontSize: fontSize,
+        fontWeight: 'normal' as const,
+        color: '#999',
+    };
+
+    // ── Shared y encoding ────────────────────────────────────────
+    // Sort: honor canonical ordinal order if the y field has one
+    // (e.g. Month, Day-of-week, Rank); otherwise rank by aggregated x.
+    // When we trimmed, pin the synthetic "Others" row to the bottom
+    // by using an explicit sort array (kept categories in rank order
+    // followed by the Others label).
+    //
+    // Important: we use an explicit category array (not a
+    // `{field, op}` sort) even in the un-trimmed case. The y scale
+    // is `resolve: shared` across 3 panels, but the % / value
+    // panels run an `aggregate` transform that renames `xField` to
+    // `__bt_val`. With a field-based sort, VL can't resolve
+    // `xField` post-transform and falls back to alphabetical
+    // domain order — which silently breaks the ranking.
+    const ySortOrder: string[] | undefined = yCS?.ordinalSortOrder;
+    const rankedCatOrder = (() => {
+        if (canTrim && keptCatOrder && othersCatLabel) {
+            return [...keptCatOrder, othersCatLabel];
+        }
+        return uniqueCats
+            .map(cat => ({ cat, value: aggValue(globalCategoryAgg.get(cat)!) }))
+            .sort((a, b) => xIsOrdinal
+                ? a.value - b.value
+                : (yCS?.reversed ? a.value - b.value : b.value - a.value))
+            .map(a => a.cat);
+    })();
+    const ySort: any = ySortOrder && ySortOrder.length > 0
+        ? ySortOrder
+        : hasFacet ? { field: '__bt_sort', op: 'min', order: 'ascending' } : rankedCatOrder;
+
+    // Labels are left-aligned and pushed flush with the panel's left
+    // edge so they line up under the "Category" column header.
+    const categoryLabelWidth = (() => {
+        const widest = displayTable.reduce((m, r) => {
+            const s = String(r[yField] ?? '');
+            const w = ctx.measureText
+                ? ctx.measureText(s, labelFontSize)
+                : [...s].reduce((a, ch) => a + (cjkRe.test(ch) ? 2 : 1), 0) * labelFontSize * 0.55;
+            return Math.max(m, w);
+        }, 0);
+        return Math.min(220, Math.max(60, Math.round(widest + 12)));
+    })();
+    const yEncWithLabels: any = {
+        field: yField,
+        type: 'nominal',
+        sort: ySort,
+        axis: {
+            title: null,
+            domain: false,
+            ticks: false,
+            labelFontSize,
+            labelAlign: 'left',
+            labelPadding: categoryLabelWidth,
+            labelLimit: categoryLabelWidth,
+        },
+    };
+    const yEncNoLabels: any = { ...yEncWithLabels, axis: null };
+
+    // ── Color: gradient by value (default) or grouped by field ───
+    // Diverging types (Profit/Correlation) and mixed-sign data get a
+    // diverging palette anchored at 0; otherwise a sequential ramp.
+    const isDiverging = !colorField && divergingValues(xCS, xField, table);
+    const colorEnc = colorField
+        ? (() => {
+            // When we trimmed, the synthetic Others row has no value
+            // for colorField, which would surface as an "undefined"
+            // entry in the legend. Restrict the scale domain to the
+            // actual values present in the kept rows.
+            const base: any = { ...color };
+            if (canTrim) {
+                const vals = Array.from(new Set(
+                    displayTable
+                        .filter(r => !r.__bt_others)
+                        .map(r => r[colorField])
+                        .filter(v => v !== undefined && v !== null)
+                ));
+                base.scale = { ...(base.scale || {}), domain: vals };
+            }
+            return base;
+        })()
+        : isDiverging
+            ? {
+                field: xField,
+                type: 'quantitative',
+                legend: null,
+                scale: { scheme: 'redyellowgreen', domainMid: 0 },
+            }
+            : xIsOrdinal
+                ? {
+                    field: xField,
+                    type: 'ordinal',
+                    legend: null,
+                    scale: { scheme: 'tableau10' },
+                }
+                : {
+                    field: xField,
+                    type: 'quantitative',
+                    legend: null,
+                    scale: { range: ['#cdebd3', '#41a25f'] },
+                };
+
+    // ── Dynamic panel widths from longest formatted label ────────
+    //
+    // Approximates the framework's d3-format output well enough for
+    // panel sizing. When no format is resolved, we just show the raw
+    // value via `String(v)` and measure that.
+    const approxFormat = (v: number): string => {
+        if (!Number.isFinite(v)) return '';
+        if (!valueFmt) return String(v);
+        const p = valueFmt.pattern || '';
+        let body: string;
+        if (p.includes('%')) {
+            const dec = /\.(\d+)/.exec(p)?.[1];
+            body = (v * 100).toFixed(dec ? parseInt(dec) : 1) + '%';
+        } else if (p.includes('d')) {
+            body = Math.round(v).toLocaleString('en-US');
+        } else if (/~s|s$/.test(p)) {
+            body = Math.abs(v) >= 1e6 ? (v / 1e6).toFixed(1) + 'M'
+                 : Math.abs(v) >= 1e3 ? (v / 1e3).toFixed(1) + 'K'
+                 : v.toFixed(0);
+        } else if (p) {
+            const dec = /\.(\d+)/.exec(p)?.[1];
+            body = v.toLocaleString('en-US', {
+                minimumFractionDigits: dec ? parseInt(dec) : 0,
+                maximumFractionDigits: dec ? parseInt(dec) : 2,
+            });
+        } else {
+            body = String(v);
+        }
+        return (valueFmt.prefix ?? '') + body + (valueFmt.suffix ?? '');
+    };
+    const approxPct = (v: number) =>
+        Number.isFinite(v) ? `${(v * 100).toFixed(1)}%` : '';
+
+    const textWidthOf = (text: string) => ctx.measureText ? ctx.measureText(text, fontSize) : text.length * charPx;
+    const measure = (strs: string[]) => {
+        const widest = strs.reduce((m, s) => Math.max(m, textWidthOf(s)), 0);
+        return Math.min(maxTextPanel, Math.max(minTextPanel, Math.round(widest + textPad)));
+    };
+
+    // ── Header wrap / truncate strategy ──────────────────────────
+    // Long field names like `video_views_for_the_last_30_days` blow
+    // past panel width. We try to fit them by:
+    //   1. measuring single-line width and reserving that as a
+    //      minimum for the panel (capped at maxTextPanel);
+    //   2. wrapping on `_` / space boundaries into up to two lines
+    //      when the single line still doesn't fit;
+    //   3. handing VL a `title.limit` so it ellipsizes anything
+    //      that still overflows.
+    const headerPad = 4;
+    const headerWidthOf = (s: string) => Math.round(textWidthOf(s)) + headerPad;
+    const wrapHeader = (label: string, maxPx: number): { text: string | string[]; widthPx: number } => {
+        const single = headerWidthOf(label);
+        if (single <= maxPx) return { text: label, widthPx: single };
+        const tokens = label.split(/[_\s]+/).filter(Boolean);
+        if (tokens.length < 2) return { text: label, widthPx: single };
+        // Greedy balanced two-line split on token boundaries.
+        const totalLen = tokens.reduce((a, t) => a + t.length, 0);
+        let acc = 0, splitAt = 1;
+        for (let i = 0; i < tokens.length - 1; i++) {
+            acc += tokens[i].length;
+            if (acc >= totalLen / 2) { splitAt = i + 1; break; }
+        }
+        const line1 = tokens.slice(0, splitAt).join('_');
+        const line2 = tokens.slice(splitAt).join('_');
+        return { text: [line1, line2], widthPx: Math.max(headerWidthOf(line1), headerWidthOf(line2)) };
+    };
+
+    // Per-category aggregate values used for panel-width sizing.
+    // Built above as `perCatAggValues` — reuse directly.
+
+    // Wrap headers up to the panel's max width budget; the wrap
+    // result's `widthPx` then acts as a floor on the actual panel
+    // width (so the title doesn't get truncated when the data is
+    // narrower than the header).
+    const valueHeaderWrap   = wrapHeader(valueHeader,   maxTextPanel - headerPad);
+    const percentHeaderWrap = wrapHeader(percentHeader, maxTextPanel - headerPad);
+
+    const valuePanelDataWidth = measure(perCatAggValues.map(approxFormat));
+    const valuePanelWidth = Math.min(
+        maxTextPanel,
+        Math.max(valuePanelDataWidth, valueHeaderWrap.widthPx + headerPad, minTextPanel),
+    );
+    const pctValuesForSizing = perScopeAggValues.flatMap(values => {
+        const scopeTotal = values.reduce((a, b) => a + b, 0);
+        return Math.abs(scopeTotal) > 1e-9 ? values.map(v => v / scopeTotal) : [];
+    });
+    const percentPanelWidth = showPercent && pctValuesForSizing.length > 0
+        ? Math.min(
+            maxTextPanel,
+            Math.max(
+                measure(pctValuesForSizing.map(approxPct)),
+                percentHeaderWrap.widthPx + headerPad,
+                minTextPanel,
+            ),
+        )
+        : 0;
+
+    const totalWidth = subplotWidth ?? 480;
+    const interPanelGap = 8;
+    const reservedForText = valuePanelWidth + interPanelGap
+        + (showPercent ? percentPanelWidth + interPanelGap : 0);
+    // Bar panel needs a meaningful min width — a 3-panel layout
+    // squeezes the bar column more than a basic bar chart, and the
+    // bar IS the chart, so it should never collapse below ~45% of
+    // the plot budget. Faceted small multiples get a smaller
+    // absolute floor so each mini-table can shrink like other charts.
+    const minBarPanelWidth = hasFacet
+        ? Math.max(80, Math.round(totalWidth * 0.45))
+        : Math.max(180, Math.round(totalWidth * 0.45));
+    const barPanelWidth = Math.max(minBarPanelWidth, totalWidth - reservedForText - categoryLabelWidth);
+
+    const yCard = Math.max(1, maxDisplayRowsPerScope || new Set(displayTable.map(r => r[yField])).size);
+    const panelHeight = Math.max(facetHeightBudget ?? 0, yCard * rowStep);
+    return {
+        x,
+        y,
+        color,
+        column,
+        row,
+        table,
+        xField,
+        yField,
+        colorField,
+        facetFields,
+        hasFacet,
+        xIsOrdinal,
+        showPercent,
+        useMeanForDisplay,
+        canTrim,
+        displayTable,
+        categoryHeader,
+        valueFmt,
+        pctPattern,
+        sortOp,
+        uniqueGroupby,
+        textPanelTransform,
+        fontSize,
+        barBandRatio,
+        headerStyle,
+        yEncWithLabels,
+        yEncNoLabels,
+        isDiverging,
+        colorEnc,
+        headerPad,
+        valueHeaderWrap,
+        percentHeaderWrap,
+        valuePanelWidth,
+        percentPanelWidth,
+        interPanelGap,
+        barPanelWidth,
+        panelHeight,
+    };
+}
+
+interface TableSizes { barPanelWidth: number; percentPanelWidth: number; valuePanelWidth: number; panelHeight: number; interPanelGap: number }
+
+/** The column widths, row height and gap a Bar Table's planned views state. */
+function plannedTable(views: ViewNode | undefined): TableSizes | undefined {
+    const table = views?.kind === 'facet' ? views.panel : views;
+    if (table?.kind !== 'concat') return undefined;
+    const columns = table.children.filter((child): child is Extract<ViewNode, { kind: 'view' }> => child.kind === 'view');
+    if (columns.length !== table.children.length || columns.length < 2) return undefined;
+    const [bar, ...text] = columns;
+    return {
+        barPanelWidth: bar.width,
+        percentPanelWidth: text.length > 1 ? text[0].width : 0,
+        valuePanelWidth: text[text.length - 1].width,
+        panelHeight: bar.height,
+        interPanelGap: table.gap,
+    };
+}
+
+/**
+ * A Bar Table's views: the bars with their names, the shares where asked, and the values, side by
+ * side; faceted, the table repeats per panel the plan's facet gap apart.
+ */
+function barTableViews(ctx: ViewPlanContext): ViewNode {
+    const field = (channel: string) => ctx.channelSemantics[channel]?.field ? { field: ctx.channelSemantics[channel]!.field } : undefined;
+    const encodings = { x: field('x'), y: field('y'), color: field('color'), column: field('column'), row: field('row') };
+    const laid = barTableLayout(ctx, encodings);
+    const column = (role: 'plot' | 'text', width: number): ViewNode => ({ kind: 'view', role, width, height: laid.panelHeight });
+    const table: ViewNode = {
+        kind: 'concat', direction: 'row', gap: laid.interPanelGap,
+        children: [
+            column('plot', laid.barPanelWidth),
+            ...(laid.showPercent ? [column('text', laid.percentPanelWidth)] : []),
+            column('text', laid.valuePanelWidth),
+        ],
+    };
+    if (!laid.hasFacet) return table;
+    const facets = facetViews(table.children[0].kind === 'view' ? table.children[0] : ctx.plot,
+        { column: encodings.column?.field, row: encodings.row?.field, wrapColumns: ctx.facetColumns }, laid.displayTable, ctx.spacing);
+    return facets.kind === 'facet' ? { ...facets, panel: table } : table;
+}
+
 export const barTableDef: ChartTemplateDef = {
     chart: "Bar Table",
+    composite: true,
+    planViews: barTableViews,
     template: {
         spacing: 4,
         resolve: { scale: { y: 'shared' } },
@@ -128,557 +784,70 @@ export const barTableDef: ChartTemplateDef = {
             },
         };
     },
-    instantiate: (spec, ctx) => {
-        const { x, y, color, column, row } = ctx.resolvedEncodings;
-        const config = ctx.chartProperties;
-        // ── Source of truth: full pre-overflow data ─────────────────
-        //
-        // We read from `ctx.fullTable` (pre-overflow) rather than
-        // `ctx.table` (post-overflow). The framework's filterOverflow
-        // step silently drops categories that don't fit pixel-budget
-        // assumptions — for a Bar Table, those budgets are wrong
-        // (we override panelHeight ourselves) AND lossy (the whole
-        // design is "top-N + Others", which only works if we can see
-        // the actual tail). Falling back to `ctx.table` keeps the
-        // template usable in tests / standalone callers that don't
-        // populate fullTable.
-        const table = ctx.fullTable ?? ctx.table ?? [];
-        const canvasSize = ctx.canvasSize;
-
-        const xField: string = x?.field || 'Value';
-        const yField: string = y?.field || 'Category';
-        const colorField: string | undefined = color?.field;
-        const facetFields = [column?.field, row?.field].filter(Boolean) as string[];
-        const hasFacet = facetFields.length > 0;
-        const scopeKeyOf = (r: any) => facetFields.map(f => String(r[f] ?? '')).join('\x00');
-        const scopeValuesOf = (r: any) => Object.fromEntries(facetFields.map(f => [f, r[f]]));
-
-        // ── Channel semantics (resolved by framework, may be undefined
-        //    when the chart is rendered without a full pipeline) ───────
-        const xCS: ChannelSemantics | undefined = ctx.channelSemantics?.x;
-        const yCS: ChannelSemantics | undefined = ctx.channelSemantics?.y;
-        const xEntry = getRegistryEntry(xCS?.semanticAnnotation?.semanticType ?? 'Unknown');
-
-        // ── Ordinal measures (Rank) ──────────────────────────────────
-        // An ordinal is a standing, not a magnitude: "how much better is 1st
-        // than 2nd" has no answer. Length-encoding it (bar length + sequential
-        // colour ramp) would invert the ranking — rank 1 gets the shortest,
-        // palest bar. Honor the documented `Rank` behaviour instead (see
-        // flint://agent-skill: "Rank → reversed axis (1 on top), discrete
-        // color"): sort by rank ascending (1 first), use a discrete colour
-        // scale, and keep bars equal-length so the mark does not imply a
-        // magnitude that isn't there.
+    structure: (ctx) => {
+        // Each category's bar beside its value printed as text; colour comes from a bound field, or
+        // shades the bars by their value. Neither axis carries a title.
+        const { x: xCS, y: yCS, color } = ctx.channelSemantics;
+        const xField = xCS?.field || 'Value';
+        const yField = yCS?.field || 'Category';
         const xIsOrdinal = xCS?.type === 'ordinal';
-
-        // Sign profile of x values — used by the diverging-palette check.
-        let hasNegative = false;
-        let hasPositive = false;
-        for (const r of table) {
-            const v = r[xField];
-            if (typeof v === 'number' && isFinite(v)) {
-                if (v < 0) hasNegative = true;
-                else if (v > 0) hasPositive = true;
-            }
-        }
-
-        // showPercent: off by default (safer — avoids misleading shares
-        // for intensive measures, already-percent values, mixed-sign
-        // data, etc.). The agent or the user can flip it on when the
-        // measure is genuinely additive.
-        const showPercent = config?.showPercent === true;
-
-        // ── Per-category aggregate (built once on the input table) ──
-        // Used for both the Top-N trim decision and the panel-width
-        // estimation. `aggValue` collapses one group's sum/count into
-        // the single number the chart will display.
-        const useMeanForDisplay = xCS?.aggregationDefault === 'average';
-        const aggValue = (g: { sum: number; n: number }) =>
-            useMeanForDisplay ? g.sum / Math.max(1, g.n) : g.sum;
-
-        const scopedCategoryAgg = new Map<string, {
-            facetValues: Record<string, any>;
-            categories: Map<any, { sum: number; n: number }>;
-        }>();
-        for (const r of table) {
-            const v = r[xField];
-            if (typeof v !== 'number' || !isFinite(v)) continue;
-            const scopeKey = hasFacet ? scopeKeyOf(r) : '';
-            let scope = scopedCategoryAgg.get(scopeKey);
-            if (!scope) {
-                scope = { facetValues: hasFacet ? scopeValuesOf(r) : {}, categories: new Map() };
-                scopedCategoryAgg.set(scopeKey, scope);
-            }
-            const g = scope.categories.get(r[yField]) ?? { sum: 0, n: 0 };
-            g.sum += v; g.n += 1;
-            scope.categories.set(r[yField], g);
-        }
-        const scopes = Array.from(scopedCategoryAgg.entries());
-        const globalCategoryAgg = new Map<any, { sum: number; n: number }>();
-        for (const { categories } of scopedCategoryAgg.values()) {
-            for (const [cat, g] of categories.entries()) {
-                const total = globalCategoryAgg.get(cat) ?? { sum: 0, n: 0 };
-                total.sum += g.sum;
-                total.n += g.n;
-                globalCategoryAgg.set(cat, total);
-            }
-        }
-        const uniqueCats = Array.from(globalCategoryAgg.keys());
-
-        // ── Top-N + "Others" rollup ──────────────────────────────────
-        //
-        // Long bar tables become unreadable past ~20 rows. We rank
-        // categories by their per-category aggregate, keep the top
-        // (maxRows − 1), and roll the rest into one synthetic
-        // "Others (+N)" row pinned to the bottom.
-        //
-        // Skip when:
-        //   * y has a canonical ordinal order (Month, Rank, …) — top-N
-        //     would break the natural sequence.
-        //   * the user disables it via `maxRows: 0`.
-        //
-        // When a color field is bound (stacked bars), kept categories
-        // retain all their original (color-split) rows so VL can still
-        // stack; the Others row carries no color value and renders gray.
-        const maxRows: number = Math.max(0, Number(config?.maxRows ?? 20));
-        const ySortOrderForTrim: string[] | undefined = yCS?.ordinalSortOrder;
-        const maxScopedCategoryCount = Math.max(0, ...scopes.map(([, scope]) => scope.categories.size));
-        const canTrim = maxRows > 0
-            && !(ySortOrderForTrim && ySortOrderForTrim.length > 0)
-            && maxScopedCategoryCount > maxRows;
-
-        const sortRowsByValue = (items: Array<{ cat: any; value: number }>) => items
-            .sort((a, b) => xIsOrdinal
-                ? a.value - b.value
-                : (yCS?.reversed ? a.value - b.value : b.value - a.value));
-
-        let displayTable: any[] = [];
-        let othersCatLabel: string | undefined;
-        let keptCatOrder: any[] | undefined;
-        const perCatAggValues: number[] = [];
-        const perScopeAggValues: number[][] = [];
-        let maxDisplayRowsPerScope = 0;
-
-        if (canTrim) {
-            const keepN = Math.max(1, maxRows - 1);
-            const displayRows: any[] = [];
-            for (const [scopeKey, scope] of scopes) {
-                const sorted = sortRowsByValue(Array.from(scope.categories.entries())
-                    .map(([cat, g]) => ({ cat, value: aggValue(g) })));
-                const keptItems = sorted.slice(0, keepN);
-                const rest = sorted.slice(keepN);
-                if (!hasFacet) {
-                    keptCatOrder = keptItems.map(a => a.cat);
-                }
-                const keptCats = new Set(keptItems.map(a => a.cat));
-
-                if (colorField) {
-                    const keptRanks = new Map(keptItems.map((a, idx) => [a.cat, idx]));
-                    for (const r of table) {
-                        if ((hasFacet ? scopeKeyOf(r) : '') === scopeKey && keptCats.has(r[yField])) {
-                            displayRows.push({ ...r, __bt_sort: keptRanks.get(r[yField]) ?? 0, __bt_others: false, __bt_others_num: 0 });
-                        }
-                    }
-                } else {
-                    keptItems.forEach((a, idx) => {
-                        displayRows.push({ ...scope.facetValues, [yField]: a.cat, [xField]: a.value, __bt_sort: idx, __bt_others: false, __bt_others_num: 0 });
-                    });
-                }
-
-                const restSum = rest.reduce((s, a) => s + a.value, 0);
-                const othersValue = useMeanForDisplay && rest.length > 0 ? restSum / rest.length : restSum;
-                const scopeOthersLabel = `Others (+${rest.length})`;
-                othersCatLabel = othersCatLabel ?? scopeOthersLabel;
-                displayRows.push({
-                    ...scope.facetValues,
-                    [yField]: scopeOthersLabel,
-                    [xField]: othersValue,
-                    __bt_sort: keptItems.length,
-                    __bt_others: true,
-                    __bt_others_num: 1,
-                });
-                const scopeAggValues = [...keptItems.map(a => a.value), othersValue];
-                perCatAggValues.push(...scopeAggValues);
-                perScopeAggValues.push(scopeAggValues);
-                maxDisplayRowsPerScope = Math.max(maxDisplayRowsPerScope, keptItems.length + 1);
-            }
-            displayTable = displayRows;
-        }
-
-        if (!canTrim) {
-            const sortRanksByScope = new Map<string, Map<any, number>>();
-            for (const [scopeKey, scope] of scopes) {
-                const sorted = sortRowsByValue(Array.from(scope.categories.entries())
-                    .map(([cat, g]) => ({ cat, value: aggValue(g) })));
-                sortRanksByScope.set(scopeKey, new Map(sorted.map((a, idx) => [a.cat, idx])));
-                const scopeAggValues = sorted.map(a => a.value);
-                perCatAggValues.push(...scopeAggValues);
-                perScopeAggValues.push(scopeAggValues);
-                maxDisplayRowsPerScope = Math.max(maxDisplayRowsPerScope, sorted.length);
-            }
-            displayTable = table.map(r => {
-                const scopeKey = hasFacet ? scopeKeyOf(r) : '';
-                return { ...r, __bt_sort: sortRanksByScope.get(scopeKey)?.get(r[yField]) ?? 0, __bt_others: false, __bt_others_num: 0 };
-            });
-        }
-
-        // ── Column header labels ─────────────────────────────────────
-        // Derived directly from field names; no override knobs.
-        const categoryHeader = yField;
-        const percentHeader  = '%';
-        // headerStyle.fontSize is set below once the responsive
-        // `fontSize` constant is available.
-
-        // ── Format derivation (from ChannelSemantics) ────────────────
-        //
-        // Policy: don't over-process user input. The framework's
-        // `resolveFormat` already follows a "only override when the raw
-        // number would be misleading" rule (e.g., 0–1 Percentage with an
-        // intrinsicDomain, currency with a known unit symbol). When
-        // `cs.format` is undefined, the raw value is already readable —
-        // we show it as-is and let VL apply its default number rendering.
-        //
-        // The %-share column (panel 1) is a different story: it's a
-        // *derived* 0..1 ratio computed by us, so it always needs `%`
-        // formatting. That's `pctPattern` below.
-        const displayUnit = resolveDisplayUnit(xCS?.semanticAnnotation);
-        const valueFmt: FormatSpec | undefined = displayUnit?.placement === 'value'
-            ? {
-                ...(xCS?.format ?? {}),
-                ...(displayUnit.position === 'prefix' && !xCS?.format?.prefix
-                    ? { prefix: displayUnit.text }
-                    : {}),
-                ...(displayUnit.position === 'suffix' && !xCS?.format?.suffix
-                    ? { suffix: /^[A-Za-z]/.test(displayUnit.text) ? ` ${displayUnit.text}` : displayUnit.text }
-                    : {}),
-            }
-            : xCS?.format;
-        const valueHeader = titleWithDisplayUnit(xField, displayUnit);
-        const pctPattern = '.1%';
-
-        // ── Text-panel transforms ────────────────────────────────────
-        //
-        // The bar panel naturally handles stacked / grouped data via VL.
-        // The text panels (% and value) must show ONE row per category;
-        // when the input has multiple rows per y-category (e.g. stacked
-        // by `color`), we first aggregate per-category, then derive the
-        // share. Without this, each input row would render its own text
-        // mark (overlapping) and each share would be value/grand-total
-        // (~0% per row instead of the per-category percent).
-        const sortOp: 'sum' | 'mean' = (xCS?.aggregationDefault === 'average') ? 'mean' : 'sum';
-        const uniqueGroupby = (fields: string[]) => Array.from(new Set(fields));
-        const textGroupby = hasFacet ? uniqueGroupby([...facetFields, yField]) : [yField];
-        const textPanelTransform: any[] = [
-            { aggregate: [{ op: sortOp, field: xField, as: '__bt_val' }, { op: 'min', field: '__bt_sort', as: '__bt_sort' }, { op: 'max', field: '__bt_others_num', as: '__bt_others_num' }], groupby: textGroupby },
-        ];
-        if (showPercent) {
-            const totalTransform: any = { joinaggregate: [{ op: 'sum', field: '__bt_val', as: '__bt_total' }] };
-            if (hasFacet) {
-                totalTransform.groupby = facetFields;
-            }
-            textPanelTransform.push(
-                totalTransform,
-                { calculate: `datum.__bt_total === 0 ? null : datum.__bt_val / datum.__bt_total`, as: '__bt_pct' },
-            );
-        }
-
-        const uniqueFacetValueCount = (field?: string) => field
-            ? new Set(displayTable.map(r => r[field])).size
-            : 0;
-        const columnFacetCount = uniqueFacetValueCount(column?.field);
-        const rowFacetCount = uniqueFacetValueCount(row?.field);
-        const layoutFacetColumns = ctx.layout?.facet?.columns ?? (columnFacetCount || 1);
-        const facetColsForSizing = hasFacet
-            ? Math.max(1, Math.min(layoutFacetColumns, columnFacetCount || 1))
-            : 1;
-        const facetRowsForSizing = hasFacet
-            ? Math.max(1, rowFacetCount || Math.ceil(Math.max(1, columnFacetCount) / facetColsForSizing))
-            : 1;
-        const subplotWidth = hasFacet ? (ctx.layout?.subplotWidth ?? canvasSize?.width) : canvasSize?.width;
-        const layoutSubplotHeight = hasFacet ? (ctx.layout?.subplotHeight ?? canvasSize?.height) : canvasSize?.height;
-        const facetHeightBudget = hasFacet && facetRowsForSizing > 1
-            ? (() => {
-                const maxStretch = ctx.assembleOptions?.maxStretchY ?? ctx.assembleOptions?.maxStretch ?? 2;
-                const facetElasticity = ctx.assembleOptions?.facetElasticity ?? 0.3;
-                const fixH = ctx.assembleOptions?.facetFixedPadding?.height ?? 0;
-                const gap = ctx.layout?.effectiveFacetGap ?? ctx.assembleOptions?.facetGap ?? 0;
-                const stretch = Math.min(maxStretch, Math.pow(facetRowsForSizing, facetElasticity));
-                return Math.max(0, Math.round((canvasSize.height * stretch - fixH) / facetRowsForSizing - gap));
-            })()
-            : layoutSubplotHeight;
-
-        // ── Sizing constants (responsive to row density) ────────
-        // `displayCount` is the number of rows the chart will actually
-        // render (post-rollup). As it grows, we shrink fonts so labels
-        // don't crowd. In facets, shrink again when each mini-table has
-        // substantially less plot budget than the full canvas.
-        const displayCount = maxDisplayRowsPerScope || uniqueCats.length;
-        // 0 (sparse, ≤12 rows) … 1 (dense, ≥52 rows) — font/density curve.
-        const density = Math.min(1, Math.max(0, (displayCount - 12) / 40));
-        const lerp = (a: number, b: number) => Math.round(a + (b - a) * density);
-        const subplotWidthRatio = hasFacet && canvasSize?.width
-            ? Math.min(1, Math.max(0, (subplotWidth ?? canvasSize.width) / canvasSize.width))
-            : 1;
-        const subplotHeightRatio = hasFacet && canvasSize?.height
-            ? Math.min(1, Math.max(0, (facetHeightBudget ?? canvasSize.height) / canvasSize.height))
-            : 1;
-        const facetFontDrop = hasFacet
-            ? Math.round((1 - Math.min(subplotWidthRatio, subplotHeightRatio)) * 3)
-            : 0;
-
-        const fontSize       = Math.max(9, lerp(12, 10) - facetFontDrop);   // text panels
-        const labelFontSize  = Math.max(9, lerp(13, 10) - facetFontDrop);   // y-axis tick labels
-
-        // ── Bar geometry: capped thickness, proportional gap ─────────
-        //
-        // Design intent: the bar is the signal — never let it get
-        // stretched into a fat rectangle (un-bar-like) and never let
-        // the gap dominate it. Vega-Lite default bars sit around 18px;
-        // we cap a touch tighter at 16 to match BI "data bar" feel.
-        //
-        // Bars stay at `barCap` until row count exceeds `compressStart`,
-        // then shrink linearly to `barMin` by `compressEnd`. Below
-        // `barMin` the mark becomes a hairline and stops reading as
-        // a bar, so we hold the floor.
-        //
-        // Gap = max(`gapMin`, bar × `gapRatio`) — proportional so the
-        // bar:gap ratio stays roughly constant (≈4–5×) across densities,
-        // with a 2px floor so rows never visually merge.
-        const barCap = 16, barMin = 8;
-        const gapMin = 2, gapRatio = 0.2;
-        const compressStart = 30, compressEnd = 80;
-        const compressT = Math.min(1, Math.max(0,
-            (displayCount - compressStart) / (compressEnd - compressStart)));
-        const barPx  = Math.round(barCap - (barCap - barMin) * compressT);
-        const gapPx  = Math.max(gapMin, Math.round(barPx * gapRatio));
-        const rowStep = barPx + gapPx;
-        const barBandRatio = +(barPx / rowStep).toFixed(3);
-
-        const charPx = fontSize * 0.6;
-        const textPad = 12;
-        const minTextPanel = 36;
-        const maxTextPanel = 140;
-        const cjkRe = /[\u4E00-\u9FFF\u3000-\u303F]/;
-
-        const headerStyle = {
-            fontSize: fontSize,
-            fontWeight: 'normal' as const,
-            color: '#999',
+        const series = color?.field ? { field: color.field, type: color.type }
+            : { field: xField, type: xIsOrdinal && !divergingValues(xCS, xField, ctx.fullTable) ? 'ordinal' : 'quantitative' };
+        return {
+            marks: ['bar', 'text'],
+            x: { type: 'quantitative', fields: [xField], rounded: false },
+            y: { type: 'nominal', fields: [yField] },
+            series,
+            stacking: 'stacked',
+            // Bars shaded by their own value need no key; a bound colour field gets one.
+            keys: color?.field ? [{ channel: 'color', field: color.field, ...(color.type ? { type: color.type } : {}) }] : [],
+            axisTitles: { x: null, y: null },
         };
-
-        // ── Shared y encoding ────────────────────────────────────────
-        // Sort: honor canonical ordinal order if the y field has one
-        // (e.g. Month, Day-of-week, Rank); otherwise rank by aggregated x.
-        // When we trimmed, pin the synthetic "Others" row to the bottom
-        // by using an explicit sort array (kept categories in rank order
-        // followed by the Others label).
-        //
-        // Important: we use an explicit category array (not a
-        // `{field, op}` sort) even in the un-trimmed case. The y scale
-        // is `resolve: shared` across 3 panels, but the % / value
-        // panels run an `aggregate` transform that renames `xField` to
-        // `__bt_val`. With a field-based sort, VL can't resolve
-        // `xField` post-transform and falls back to alphabetical
-        // domain order — which silently breaks the ranking.
-        const ySortOrder: string[] | undefined = yCS?.ordinalSortOrder;
-        const rankedCatOrder = (() => {
-            if (canTrim && keptCatOrder && othersCatLabel) {
-                return [...keptCatOrder, othersCatLabel];
-            }
-            return uniqueCats
-                .map(cat => ({ cat, value: aggValue(globalCategoryAgg.get(cat)!) }))
-                .sort((a, b) => xIsOrdinal
-                    ? a.value - b.value
-                    : (yCS?.reversed ? a.value - b.value : b.value - a.value))
-                .map(a => a.cat);
-        })();
-        const ySort: any = ySortOrder && ySortOrder.length > 0
-            ? ySortOrder
-            : hasFacet ? { field: '__bt_sort', op: 'min', order: 'ascending' } : rankedCatOrder;
-
-        // Labels are left-aligned and pushed flush with the panel's left
-        // edge so they line up under the "Category" column header.
-        const categoryLabelWidth = (() => {
-            const maxChars = displayTable.reduce((m, r) => {
-                const s = String(r[yField] ?? '');
-                const w = [...s].reduce((a, ch) => a + (cjkRe.test(ch) ? 2 : 1), 0);
-                return Math.max(m, w);
-            }, 0);
-            return Math.min(220, Math.max(60, Math.round(maxChars * labelFontSize * 0.55 + 12)));
-        })();
-        const yEncWithLabels: any = {
-            field: yField,
-            type: 'nominal',
-            sort: ySort,
-            axis: {
-                title: null,
-                domain: false,
-                ticks: false,
-                labelFontSize,
-                labelAlign: 'left',
-                labelPadding: categoryLabelWidth,
-                labelLimit: categoryLabelWidth,
-            },
+    },
+    instantiate: (spec, ctx) => {
+        const {
+            x,
+            y,
+            color,
+            column,
+            row,
+            table,
+            xField,
+            yField,
+            colorField,
+            facetFields,
+            hasFacet,
+            xIsOrdinal,
+            showPercent,
+            useMeanForDisplay,
+            canTrim,
+            displayTable,
+            categoryHeader,
+            valueFmt,
+            pctPattern,
+            sortOp,
+            uniqueGroupby,
+            textPanelTransform,
+            fontSize,
+            barBandRatio,
+            headerStyle,
+            yEncWithLabels,
+            yEncNoLabels,
+            isDiverging,
+            colorEnc,
+            headerPad,
+            valueHeaderWrap,
+            percentHeaderWrap,
+            valuePanelWidth: laidValuePanelWidth,
+            percentPanelWidth: laidPercentPanelWidth,
+            interPanelGap: laidInterPanelGap,
+            barPanelWidth: laidBarPanelWidth,
+            panelHeight: laidPanelHeight,
+        } = barTableLayout(ctx, ctx.resolvedEncodings);
+        const { barPanelWidth, percentPanelWidth, valuePanelWidth, panelHeight, interPanelGap } = plannedTable(ctx.views) ?? {
+            barPanelWidth: laidBarPanelWidth, percentPanelWidth: laidPercentPanelWidth, valuePanelWidth: laidValuePanelWidth,
+            panelHeight: laidPanelHeight, interPanelGap: laidInterPanelGap,
         };
-        const yEncNoLabels: any = { ...yEncWithLabels, axis: null };
-
-        // ── Color: gradient by value (default) or grouped by field ───
-        // Diverging types (Profit/Correlation) and mixed-sign data get a
-        // diverging palette anchored at 0; otherwise a sequential ramp.
-        const isDiverging = !colorField && (
-            xEntry.diverging === 'inherent'
-            || (xEntry.diverging === 'conditional' && hasNegative && hasPositive)
-        );
-        const colorEnc = colorField
-            ? (() => {
-                // When we trimmed, the synthetic Others row has no value
-                // for colorField, which would surface as an "undefined"
-                // entry in the legend. Restrict the scale domain to the
-                // actual values present in the kept rows.
-                const base: any = { ...color };
-                if (canTrim) {
-                    const vals = Array.from(new Set(
-                        displayTable
-                            .filter(r => !r.__bt_others)
-                            .map(r => r[colorField])
-                            .filter(v => v !== undefined && v !== null)
-                    ));
-                    base.scale = { ...(base.scale || {}), domain: vals };
-                }
-                return base;
-            })()
-            : isDiverging
-                ? {
-                    field: xField,
-                    type: 'quantitative',
-                    legend: null,
-                    scale: { scheme: 'redyellowgreen', domainMid: 0 },
-                }
-                : xIsOrdinal
-                    ? {
-                        field: xField,
-                        type: 'ordinal',
-                        legend: null,
-                        scale: { scheme: 'tableau10' },
-                    }
-                    : {
-                        field: xField,
-                        type: 'quantitative',
-                        legend: null,
-                        scale: { range: ['#cdebd3', '#41a25f'] },
-                    };
-
-        // ── Dynamic panel widths from longest formatted label ────────
-        //
-        // Approximates the framework's d3-format output well enough for
-        // panel sizing. When no format is resolved, we just show the raw
-        // value via `String(v)` and measure that.
-        const approxFormat = (v: number): string => {
-            if (!Number.isFinite(v)) return '';
-            if (!valueFmt) return String(v);
-            const p = valueFmt.pattern || '';
-            let body: string;
-            if (p.includes('%')) {
-                const dec = /\.(\d+)/.exec(p)?.[1];
-                body = (v * 100).toFixed(dec ? parseInt(dec) : 1) + '%';
-            } else if (p.includes('d')) {
-                body = Math.round(v).toLocaleString('en-US');
-            } else if (/~s|s$/.test(p)) {
-                body = Math.abs(v) >= 1e6 ? (v / 1e6).toFixed(1) + 'M'
-                     : Math.abs(v) >= 1e3 ? (v / 1e3).toFixed(1) + 'K'
-                     : v.toFixed(0);
-            } else if (p) {
-                const dec = /\.(\d+)/.exec(p)?.[1];
-                body = v.toLocaleString('en-US', {
-                    minimumFractionDigits: dec ? parseInt(dec) : 0,
-                    maximumFractionDigits: dec ? parseInt(dec) : 2,
-                });
-            } else {
-                body = String(v);
-            }
-            return (valueFmt.prefix ?? '') + body + (valueFmt.suffix ?? '');
-        };
-        const approxPct = (v: number) =>
-            Number.isFinite(v) ? `${(v * 100).toFixed(1)}%` : '';
-
-        const measure = (strs: string[]) => {
-            const maxChars = strs.reduce((m, s) => Math.max(m, s.length), 0);
-            return Math.min(maxTextPanel, Math.max(minTextPanel, Math.round(maxChars * charPx + textPad)));
-        };
-
-        // ── Header wrap / truncate strategy ──────────────────────────
-        // Long field names like `video_views_for_the_last_30_days` blow
-        // past panel width. We try to fit them by:
-        //   1. measuring single-line width and reserving that as a
-        //      minimum for the panel (capped at maxTextPanel);
-        //   2. wrapping on `_` / space boundaries into up to two lines
-        //      when the single line still doesn't fit;
-        //   3. handing VL a `title.limit` so it ellipsizes anything
-        //      that still overflows.
-        const headerPad = 4;
-        const headerWidthOf = (s: string) => Math.round(s.length * charPx) + headerPad;
-        const wrapHeader = (label: string, maxPx: number): { text: string | string[]; widthPx: number } => {
-            const single = headerWidthOf(label);
-            if (single <= maxPx) return { text: label, widthPx: single };
-            const tokens = label.split(/[_\s]+/).filter(Boolean);
-            if (tokens.length < 2) return { text: label, widthPx: single };
-            // Greedy balanced two-line split on token boundaries.
-            const totalLen = tokens.reduce((a, t) => a + t.length, 0);
-            let acc = 0, splitAt = 1;
-            for (let i = 0; i < tokens.length - 1; i++) {
-                acc += tokens[i].length;
-                if (acc >= totalLen / 2) { splitAt = i + 1; break; }
-            }
-            const line1 = tokens.slice(0, splitAt).join('_');
-            const line2 = tokens.slice(splitAt).join('_');
-            return { text: [line1, line2], widthPx: Math.max(headerWidthOf(line1), headerWidthOf(line2)) };
-        };
-
-        // Per-category aggregate values used for panel-width sizing.
-        // Built above as `perCatAggValues` — reuse directly.
-
-        // Wrap headers up to the panel's max width budget; the wrap
-        // result's `widthPx` then acts as a floor on the actual panel
-        // width (so the title doesn't get truncated when the data is
-        // narrower than the header).
-        const valueHeaderWrap   = wrapHeader(valueHeader,   maxTextPanel - headerPad);
-        const percentHeaderWrap = wrapHeader(percentHeader, maxTextPanel - headerPad);
-
-        const valuePanelDataWidth = measure(perCatAggValues.map(approxFormat));
-        const valuePanelWidth = Math.min(
-            maxTextPanel,
-            Math.max(valuePanelDataWidth, valueHeaderWrap.widthPx + headerPad, minTextPanel),
-        );
-        const pctValuesForSizing = perScopeAggValues.flatMap(values => {
-            const scopeTotal = values.reduce((a, b) => a + b, 0);
-            return Math.abs(scopeTotal) > 1e-9 ? values.map(v => v / scopeTotal) : [];
-        });
-        const percentPanelWidth = showPercent && pctValuesForSizing.length > 0
-            ? Math.min(
-                maxTextPanel,
-                Math.max(
-                    measure(pctValuesForSizing.map(approxPct)),
-                    percentHeaderWrap.widthPx + headerPad,
-                    minTextPanel,
-                ),
-            )
-            : 0;
-
-        const totalWidth = subplotWidth ?? 480;
-        const interPanelGap = 8;
-        const reservedForText = valuePanelWidth + interPanelGap
-            + (showPercent ? percentPanelWidth + interPanelGap : 0);
-        // Bar panel needs a meaningful min width — a 3-panel layout
-        // squeezes the bar column more than a basic bar chart, and the
-        // bar IS the chart, so it should never collapse below ~45% of
-        // the plot budget. Faceted small multiples get a smaller
-        // absolute floor so each mini-table can shrink like other charts.
-        const minBarPanelWidth = hasFacet
-            ? Math.max(80, Math.round(totalWidth * 0.45))
-            : Math.max(180, Math.round(totalWidth * 0.45));
-        const barPanelWidth = Math.max(minBarPanelWidth, totalWidth - reservedForText - categoryLabelWidth);
-
-        const yCard = Math.max(1, maxDisplayRowsPerScope || new Set(displayTable.map(r => r[yField])).size);
-        const panelHeight = Math.max(facetHeightBudget ?? 0, yCard * rowStep);
 
         // ── Helpers to build a text encoding honoring prefix/suffix ──
         //
@@ -865,6 +1034,64 @@ export const barTableDef: ChartTemplateDef = {
             if (column) spec.encoding.column = column;
             if (row) spec.encoding.row = row;
         }
+    },
+    postProcess: (spec, context) => {
+        const field = context.channelSemantics.y?.field;
+        if (!field) return;
+        const table: Record<string, any>[] = spec.datasets?.__bt_displayTable ?? context.table;
+        const labels = [...new Set(table.map(row => row[field]).filter(value => value != null).map(String))];
+        const facetFields = ['row', 'column'].map(channel => context.channelSemantics[channel]?.field).filter(Boolean) as string[];
+        const scopes = new Map<string, Set<string>>();
+        for (const row of table) {
+            const key = JSON.stringify(facetFields.map(facet => row[facet]));
+            const categories = scopes.get(key) ?? new Set<string>();
+            categories.add(String(row[field]));
+            scopes.set(key, categories);
+        }
+        const rowCount = Math.max(1, ...[...scopes.values()].map(categories => categories.size));
+        const canvas = typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d');
+        const visit = (node: any): void => {
+            const axis = node.encoding?.y?.axis;
+            if (axis && typeof axis.labelPadding === 'number' && axis.labelPadding > 0) {
+                const settings = { ...spec.config?.axis, ...spec.config?.axisY, ...axis };
+                const fontSize = settings.labelFontSize ?? 13;
+                const limit = Math.min(axis.labelPadding, settings.labelLimit > 0 ? settings.labelLimit : axis.labelPadding);
+                const lineHeight = Math.ceil(fontSize * 1.2);
+                const cache = new Map<string, number>();
+                const widthOf = (text: string): number => {
+                    const host = hostTextMeasurer();
+                    if (!canvas) return host
+                        ? host(fontSize, settings.labelFont ?? spec.config?.font ?? 'sans-serif', settings.labelFontWeight ?? 'normal', settings.labelFontStyle ?? 'normal')(text)
+                        : text.length * fontSize * 0.62;
+                    if (!cache.has(text)) {
+                        canvas.font = `${settings.labelFontStyle ?? 'normal'} ${settings.labelFontWeight ?? 'normal'} ${fontSize}px ${settings.labelFont ?? spec.config?.font ?? 'sans-serif'}`;
+                        cache.set(text, canvas.measureText(text).width);
+                    }
+                    return cache.get(text)!;
+                };
+                const fit = typeof node.height === 'number' && node.height / rowCount >= fontSize + lineHeight + 4
+                    ? fitTwoLineLabels(labels, fontSize, limit, true, widthOf) : null;
+                if (fit) {
+                    const index = `indexof(${JSON.stringify(labels)}, toString(datum.value))`;
+                    const offsets = fit.lines.map(lines => -(lines.length - 1) * lineHeight / 2);
+                    Object.assign(axis, {
+                        labelExpr: `${index} < 0 ? datum.label : ${JSON.stringify(fit.lines)}[${index}]`,
+                        labelLineHeight: lineHeight,
+                        labelBaseline: 'middle',
+                        labelOffset: { expr: `${index} < 0 ? 0 : ${JSON.stringify(offsets)}[${index}]` },
+                    });
+                }
+                axis.encoding = { ...axis.encoding, labels: { ...axis.encoding?.labels,
+                    tooltip: { value: { expr: 'datum.value' } },
+                    description: { value: { expr: 'toString(datum.value)' } },
+                } };
+            }
+            if (node.spec) visit(node.spec);
+            for (const key of ['hconcat', 'vconcat', 'concat', 'layer']) {
+                for (const child of node[key] ?? []) visit(child);
+            }
+        };
+        visit(spec);
     },
     properties: [
         { key: 'maxRows', label: 'Max Rows', type: 'continuous', min: 5, max: 100, step: 1, defaultValue: 20 },

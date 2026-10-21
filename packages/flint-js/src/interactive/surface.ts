@@ -7,7 +7,10 @@ import type {
     ViewportChannel,
     ViewportState,
 } from './types';
-import { isExternalInteraction } from './interactions';
+import { isExternalInteraction, type FlintInteractionEventDetail } from './interactions';
+import { describeFilterFields, isFilterControls, type FilterControlsDef, type FilterControlsPayload } from './filter-controls';
+import { isContextMenu, mountContextMenu } from './context-menu';
+import { mountFilterEmptyNotice, mountFilterStrip, resolveFilterPlacement } from './filter-controls-dom';
 import type { ChartUpdate, ChartUpdateResult } from './language/updates';
 
 let generatedChartId = 0;
@@ -17,10 +20,12 @@ function nextChartId(): string {
     return `flint-chart-${generatedChartId}`;
 }
 
-const RAIL_THICKNESS = 8;
+const RAIL_THICKNESS = 6;
 const RAIL_GAP = 9;
+const RAIL_ROW_GAP = 6;
 const RAIL_TRACK_COLOR = 'rgba(31, 41, 55, 0.035)';
-const RAIL_THUMB_COLOR = 'rgba(31, 41, 55, 0.14)';
+const RAIL_THUMB_COLOR = 'rgba(31, 41, 55, 0.16)';
+const RAIL_THUMB_ACTIVE_COLOR = 'rgba(31, 41, 55, 0.3)';
 const MIN_HORIZONTAL_RAIL_INSET = 8;
 const MAX_HORIZONTAL_RAIL_INSET = 16;
 const HORIZONTAL_RAIL_INSET_RATIO = 0.025;
@@ -35,10 +40,16 @@ function applyStyles(element: HTMLElement, styles: Partial<CSSStyleDeclaration>)
 }
 
 function createViewportRail(
-    viewport: CategoryViewport,
+    initialViewport: CategoryViewport,
     initialStart: number,
     onChange: (start: number) => void,
-): { element: HTMLElement; update(start: number): void; setGeometry(offset: number, extent: number): void } {
+): {
+    element: HTMLElement;
+    update(start: number): void;
+    setViewport(viewport: CategoryViewport, start: number): void;
+    setGeometry(offset: number, extent: number): void;
+} {
+    let viewport = initialViewport;
     const vertical = viewport.channel === 'y';
     const rail = document.createElement('div');
     const track = document.createElement('span');
@@ -58,15 +69,15 @@ function createViewportRail(
     track.setAttribute('aria-orientation', vertical ? 'vertical' : 'horizontal');
     applyStyles(track, vertical ? {
         position: 'relative', display: 'block', width: `${RAIL_THICKNESS}px`, flex: '1 1 auto', minHeight: '96px', overflow: 'hidden',
-        borderRadius: '4px', background: RAIL_TRACK_COLOR, cursor: 'ns-resize', touchAction: 'none', outline: 'none',
+        borderRadius: '3px', background: RAIL_TRACK_COLOR, cursor: 'pointer', touchAction: 'none', outline: 'none',
     } : {
         position: 'relative', display: 'block', width: '100%', height: `${RAIL_THICKNESS}px`, overflow: 'hidden',
-        borderRadius: '4px', background: RAIL_TRACK_COLOR, cursor: 'ew-resize', touchAction: 'none', outline: 'none',
+        borderRadius: '3px', background: RAIL_TRACK_COLOR, cursor: 'pointer', touchAction: 'none', outline: 'none',
     });
     applyStyles(thumb, vertical ? {
-        position: 'absolute', left: '0', right: '0', borderRadius: '4px', background: RAIL_THUMB_COLOR, pointerEvents: 'none',
+        position: 'absolute', left: '0', right: '0', borderRadius: '3px', background: RAIL_THUMB_COLOR, cursor: 'grab', transition: 'background-color 100ms',
     } : {
-        position: 'absolute', top: '0', bottom: '0', borderRadius: '4px', background: RAIL_THUMB_COLOR, pointerEvents: 'none',
+        position: 'absolute', top: '0', bottom: '0', borderRadius: '3px', background: RAIL_THUMB_COLOR, cursor: 'grab', transition: 'background-color 100ms',
     });
     track.append(thumb);
     rail.append(track);
@@ -108,8 +119,12 @@ function createViewportRail(
         const pointer = vertical ? event.clientY - rect.top : event.clientX - rect.left;
         const thumbLeading = length * start / viewport.totalCount;
         const thumbLength = length * viewport.visibleCount / viewport.totalCount;
+        // A grab on the thumb keeps the point held under the pointer; a click on the track centers the thumb there.
         dragOffset = event.target === thumb ? pointer - thumbLeading : thumbLength / 2;
         track.setPointerCapture(event.pointerId);
+        thumb.style.cursor = 'grabbing';
+        track.style.cursor = 'grabbing';
+        paintThumb();
         updateFromPointer(event);
     });
     track.addEventListener('pointermove', (event) => {
@@ -117,7 +132,20 @@ function createViewportRail(
     });
     const release = (event: PointerEvent): void => {
         if (track.hasPointerCapture(event.pointerId)) track.releasePointerCapture(event.pointerId);
+        thumb.style.cursor = 'grab';
+        track.style.cursor = 'pointer';
+        paintThumb();
     };
+    let hovered = false;
+    // The thumb darkens while the pointer is on the rail or dragging, like an overlay scrollbar.
+    const paintThumb = (): void => {
+        thumb.style.background = hovered || track.style.cursor === 'grabbing' || document.activeElement === track
+            ? RAIL_THUMB_ACTIVE_COLOR : RAIL_THUMB_COLOR;
+    };
+    track.addEventListener('pointerenter', () => { hovered = true; paintThumb(); });
+    track.addEventListener('pointerleave', () => { hovered = false; paintThumb(); });
+    track.addEventListener('focus', paintThumb);
+    track.addEventListener('blur', paintThumb);
     track.addEventListener('pointerup', release);
     track.addEventListener('pointercancel', release);
     track.addEventListener('keydown', (event) => {
@@ -138,6 +166,12 @@ function createViewportRail(
         onChange(clamped);
     });
     update(start);
+    const setViewport = (next: CategoryViewport, requestedStart: number): void => {
+        viewport = next;
+        // Nothing to scroll once a filter leaves no more categories than fit; the space stays so the chart does not shift.
+        rail.style.visibility = next.totalCount > next.visibleCount ? '' : 'hidden';
+        update(requestedStart);
+    };
     const setGeometry = (offset: number, extent: number): void => {
         if (!Number.isFinite(offset) || !Number.isFinite(extent) || extent <= 0) return;
         if (vertical) {
@@ -153,7 +187,7 @@ function createViewportRail(
             rail.style.width = `${Math.max(1, Math.floor(extent - inset * 2))}px`;
         }
     };
-    return { element: rail, update, setGeometry };
+    return { element: rail, update, setViewport, setGeometry };
 }
 
 function renderedChartExtent(chart: HTMLElement): { width: number; height: number } {
@@ -185,6 +219,12 @@ export function mountInteractiveChartSurface(
     const externalInteractions = new Map(
         interactions.filter(isExternalInteraction).map((interaction) => [interaction.id, interaction]),
     );
+    const filterDefs = interactions.filter(isFilterControls);
+    const drawnFilters = filterDefs.filter((definition) => definition.filterControls.options.render !== false);
+    // Drawn controls sit around the chart, so the chart and its rails move into a body of their own.
+    const body = drawnFilters.length > 0 ? document.createElement('div') : root;
+    const strips: { destroy(): void }[] = [];
+    for (const definition of filterDefs) definition.filterControls.bindRows(input.data.values ?? []);
     let renderer: InteractiveRenderer | undefined;
     let updateTimer: number | undefined;
     let destroyed = false;
@@ -194,15 +234,28 @@ export function mountInteractiveChartSurface(
     root.setAttribute('role', 'figure');
     root.setAttribute('aria-label', options.ariaLabel ?? input.chart_spec.title ?? 'Interactive chart');
     root.dataset.flintChartId = chartId;
-    applyStyles(root, {
+    applyStyles(body, {
         display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gridTemplateRows: 'minmax(0, auto) auto',
-        alignItems: 'stretch', rowGap: '6px', minWidth: '0',
+        alignItems: 'stretch', minWidth: '0',
     });
+    if (body !== root) {
+        body.dataset.flintChartBody = '';
+        // Rows: controls above, the chart, controls below.
+        applyStyles(root, {
+            display: 'grid', gridTemplateColumns: 'max-content', gridTemplateRows: 'auto auto auto',
+            alignItems: 'start', columnGap: '12px', rowGap: '8px', minWidth: '0',
+        });
+        applyStyles(body, { gridColumn: '1', gridRow: '2' });
+        root.append(body);
+    }
     chart.dataset.flintChart = '';
     // The chart keeps its compiled width; handling any overflow is the host's decision.
     applyStyles(chart, { gridColumn: '1', gridRow: '1', minWidth: '0' });
-    root.append(chart);
+    body.append(chart);
     container.replaceChildren(root);
+    for (const definition of interactions.filter(isContextMenu)) {
+        if (definition.contextMenu.options.render !== false) strips.push(mountContextMenu(root, definition));
+    }
 
     const scheduleRender = (): void => {
         if (!renderer || updateTimer !== undefined || destroyed) return;
@@ -211,8 +264,15 @@ export function mountInteractiveChartSurface(
             void renderer?.setViewports({ ...state });
         }, 0);
     };
+    const currentViewports = (): CategoryViewport[] => renderer?.getViewports?.() ?? renderer?.viewports ?? [];
+    const syncRails = (): void => {
+        for (const viewport of currentViewports()) {
+            state[viewport.channel] = clampViewportStart(viewport, state[viewport.channel] ?? 0);
+            rails.get(viewport.channel)?.setViewport(viewport, state[viewport.channel] ?? 0);
+        }
+    };
     const setViewport = (channel: ViewportChannel, requestedStart: number): void => {
-        const viewport = renderer?.viewports.find((candidate) => candidate.channel === channel);
+        const viewport = currentViewports().find((candidate) => candidate.channel === channel);
         if (!viewport) return;
         state[channel] = clampViewportStart(viewport, requestedStart);
         rails.get(channel)?.update(state[channel] ?? 0);
@@ -239,9 +299,31 @@ export function mountInteractiveChartSurface(
                 ...warnings.map((warning) => `  - ${warning.code}: ${warning.message}`),
             ].join('\n'));
         }
-        if ((options.updates?.length ?? 0) > 0) {
+        const initialUpdates = options.updates ?? [];
+        if (initialUpdates.length > 0) {
             if (!mounted.setUpdates) throw new Error('This interactive backend does not support chart updates.');
-            await mounted.setUpdates(options.updates ?? []);
+            const results = await mounted.setUpdates(initialUpdates);
+            results.forEach((result, index) => {
+                if (result.status === 'applied') return;
+                const parts = [
+                    result.unresolvedTargets.length > 0
+                        ? `${result.unresolvedTargets.length} target${result.unresolvedTargets.length === 1 ? '' : 's'} matched nothing`
+                        : '',
+                    result.unsupportedOps.length > 0 ? `unsupported: ${result.unsupportedOps.join(', ')}` : '',
+                ].filter(Boolean);
+                const warning: ChartWarning = {
+                    severity: 'warning',
+                    code: result.status === 'unsupported' ? 'unsupported_update' : 'partially_applied_update',
+                    message: `Update "${initialUpdates[index]?.id}" was ${result.status.replace('-', ' ')}: ${parts.join('; ')}.`,
+                    update: {
+                        id: initialUpdates[index]?.id ?? '',
+                        unsupportedOps: result.unsupportedOps,
+                        unresolvedTargets: result.unresolvedTargets,
+                    },
+                };
+                warnings.push(warning);
+                console.warn(`[flint-chart] ${chartId}: ${warning.code}: ${warning.message}`);
+            });
         }
         for (const viewport of mounted.viewports) {
             state[viewport.channel] = 0;
@@ -250,13 +332,14 @@ export function mountInteractiveChartSurface(
             if (viewport.channel === 'x') {
                 rail.element.style.gridColumn = '1';
                 rail.element.style.gridRow = '2';
+                body.style.rowGap = `${RAIL_ROW_GAP}px`;
             } else {
                 rail.element.style.gridColumn = '2';
                 rail.element.style.gridRow = '1';
-                root.style.gridTemplateColumns = `minmax(0, 1fr) ${RAIL_THICKNESS}px`;
-                root.style.columnGap = `${RAIL_GAP}px`;
+                body.style.gridTemplateColumns = `minmax(0, 1fr) ${RAIL_THICKNESS}px`;
+                body.style.columnGap = `${RAIL_GAP}px`;
             }
-            root.append(rail.element);
+            body.append(rail.element);
         }
         const syncRailExtents = (): void => {
             const extent = renderedChartExtent(chart);
@@ -269,13 +352,93 @@ export function mountInteractiveChartSurface(
         };
         syncRailExtents();
         window.setTimeout(syncRailExtents, 0);
+        await mountFilters(mounted);
     });
+
+    const applyFilter = async (
+        definition: FilterControlsDef,
+        payload: FilterControlsPayload,
+        source: 'reader' | 'host',
+    ): Promise<ChartUpdateResult | null> => {
+        if (destroyed || !renderer?.getInteractionContext) return null;
+        const update = definition.handle(payload, renderer.getInteractionContext());
+        if (!update) return null;
+        if (!renderer.applyUpdate) return unsupportedUpdate(update);
+        const result = await renderer.applyUpdate(update, { interactionId: definition.id, source });
+        syncRails();
+        return result;
+    };
+    async function mountFilters(mounted: InteractiveRenderer): Promise<void> {
+        if (filterDefs.length === 0) return;
+        if (mounted.viewports.length > 0 && !mounted.getViewports
+            && filterDefs.some((definition) => (definition.filterControls.options.mode ?? 'filter') === 'filter')) {
+            // This backend swaps its rows on every scroll, which would undo a filter.
+            const warning: ChartWarning = {
+                severity: 'warning',
+                code: 'filter_controls_windowed',
+                message: 'Filter controls are not drawn on a chart that scrolls its categories; narrow the data before mounting instead.',
+            };
+            warnings.push(warning);
+            console.warn(`[flint-chart] ${chartId}: ${warning.code}: ${warning.message}`);
+            return;
+        }
+        const descriptorsFor = new Map(filterDefs.map((definition) => [definition, describeFilterFields(
+            input,
+            definition.filterControls.options,
+            interactions.filter((interaction) => interaction !== definition),
+        )]));
+        for (const definition of filterDefs) {
+            // A required field holds its `initial` value, or else its first, and Clear returns to it.
+            const authored = definition.filterControls.getFilters();
+            definition.filterControls.setDefaults(Object.fromEntries((descriptorsFor.get(definition) ?? [])
+                .filter((descriptor) => descriptor.required && descriptor.values.length > 0)
+                .map((descriptor) => [descriptor.field, authored[descriptor.field] ?? { in: [descriptor.values[0]] }])));
+            const initial = definition.filterControls.getFilters();
+            if (Object.keys(initial).length > 0) await applyFilter(definition, { filters: initial }, 'host');
+        }
+        const plotBox = (): { left: number; top: number; width: number; height: number } | undefined => {
+            const x = renderer?.getViewportGeometry?.('x');
+            const y = renderer?.getViewportGeometry?.('y');
+            if (!x || !y) return undefined;
+            const bodyRect = body.getBoundingClientRect();
+            const chartRect = chart.getBoundingClientRect();
+            const scale = body.offsetWidth > 0 ? bodyRect.width / body.offsetWidth : 1;
+            return {
+                left: (chartRect.left - bodyRect.left) / scale + x.offset,
+                top: (chartRect.top - bodyRect.top) / scale + y.offset,
+                width: x.extent,
+                height: y.extent,
+            };
+        };
+        strips.push(mountFilterEmptyNotice({
+            body,
+            runtimes: filterDefs.map((definition) => definition.filterControls),
+            plotBox,
+            onClear: () => { for (const definition of filterDefs) void applyFilter(definition, { reset: true }, 'reader'); },
+        }));
+        if (drawnFilters.length === 0) return;
+        for (const definition of drawnFilters) {
+            const descriptors = descriptorsFor.get(definition) ?? [];
+            if (descriptors.length === 0) continue;
+            strips.push(mountFilterStrip({
+                root,
+                descriptors,
+                runtime: definition.filterControls,
+                placement: resolveFilterPlacement(definition.filterControls.options.placement),
+                dispatch: (payload) => { void applyFilter(definition, payload, 'reader'); },
+            }));
+        }
+    }
 
     return {
         element: root,
         chartId,
         ready,
+        interactions,
         warnings: ready.then(() => warnings as readonly ChartWarning[], () => warnings as readonly ChartWarning[]),
+        get layout() {
+            return renderer?.layout;
+        },
         getViewportState: () => ({ ...state }),
         setViewport,
         dispatch: async (interactionId, payload) => {
@@ -291,10 +454,13 @@ export function mountInteractiveChartSurface(
             if (!renderer?.getInteractionContext) {
                 throw new Error('This interactive backend does not provide interaction context.');
             }
+            if (isFilterControls(interaction)) {
+                return applyFilter(interaction, payload as FilterControlsPayload, 'host');
+            }
             const update = interaction.handle(payload, renderer.getInteractionContext());
             if (!update) return null;
             if (!renderer.applyUpdate) return unsupportedUpdate(update);
-            return renderer.applyUpdate(update);
+            return renderer.applyUpdate(update, { interactionId });
         },
         applyUpdate: async (update, applyOptions) => {
             await ready;
@@ -312,13 +478,39 @@ export function mountInteractiveChartSurface(
             await ready;
             if (!destroyed) await renderer?.clearUpdate?.(id);
         },
+        getState: () => (destroyed ? undefined : renderer?.getState?.()),
+        onChange: (callback) => {
+            let active = true;
+            let unsubscribe: (() => void) | undefined;
+            void ready.then(() => {
+                if (!active || destroyed) return;
+                unsubscribe = renderer?.onChange?.(callback);
+            }, () => undefined);
+            return () => {
+                active = false;
+                unsubscribe?.();
+            };
+        },
+        onInteraction: (callback) => {
+            const listener = (event: Event): void => {
+                callback((event as CustomEvent<FlintInteractionEventDetail>).detail);
+            };
+            root.addEventListener('flint-interaction', listener);
+            return () => root.removeEventListener('flint-interaction', listener);
+        },
         refresh: () => {
             if (!destroyed) renderer?.refresh?.();
+        },
+        relayout: async (size) => {
+            await ready;
+            if (destroyed || !renderer?.relayout) return false;
+            return renderer.relayout(size);
         },
         destroy: () => {
             if (destroyed) return;
             destroyed = true;
             if (updateTimer !== undefined) window.clearTimeout(updateTimer);
+            for (const strip of strips) strip.destroy();
             renderer?.destroy();
             container.replaceChildren();
         },

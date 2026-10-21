@@ -1,10 +1,14 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { assembleECharts, assembleVegaLite, type ChartAssemblyInput } from 'flint-chart';
-import { genEChartsSlopeTests } from 'flint-chart/test-data';
+import { mountChart, type ChartUpdate } from 'flint-chart/interactive';
+import { genEChartsSlopeTests, TEST_GENERATORS } from 'flint-chart/test-data';
+import { compile } from 'vega-lite';
+import { parse, View } from 'vega';
+import { expressionInterpreter } from 'vega-interpreter';
 import { EChartsView } from '../components/EChartsView';
 import { ScaleToFit } from '../components/ScaleToFit';
-import { VegaLiteView } from '../components/VegaLiteView';
-import { testCaseToAssemblyInput } from '../shared/test-case-utils';
+import { FlintView } from '../components/FlintView';
+import { testCaseToAssemblyInput, withHouse } from '../shared/test-case-utils';
 import { siteTheme } from '../shared/theme';
 
 const rows = [
@@ -55,17 +59,19 @@ function findFieldEncoding(node: unknown, field: string): Record<string, any> | 
 }
 
 function compileCase(typed: boolean) {
+  const input = makeInput(typed);
   try {
-    const spec = assembleVegaLite(makeInput(typed)) as any;
+    // Compiled here only to read the color encoding's resolved type.
+    const spec = assembleVegaLite(input) as any;
     const color = findFieldEncoding(spec, '年度');
     const resolvedType = color?.type ?? 'not found';
     const legendKind = resolvedType === 'quantitative' || resolvedType === 'temporal'
       ? 'continuous gradient'
       : 'categorical swatches';
-    return { spec, error: null as string | null, resolvedType, legendKind };
+    return { input, error: null as string | null, resolvedType, legendKind };
   } catch (error) {
     return {
-      spec: null,
+      input,
       error: String((error as Error)?.message ?? error),
       resolvedType: 'error',
       legendKind: 'error',
@@ -97,7 +103,7 @@ function CasePanel({ typed }: { typed: boolean }) {
         <pre style={{ color: '#b42318', whiteSpace: 'pre-wrap' }}>{result.error}</pre>
       ) : (
         <ScaleToFit height={320} minHeight={220} adaptiveHeight>
-          <VegaLiteView spec={result.spec} />
+          <FlintView spec={result.input} />
         </ScaleToFit>
       )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 16px', marginTop: 6, fontSize: 12 }}>
@@ -185,6 +191,424 @@ function SlopeGym() {
   );
 }
 
+const SPENDING = [
+  1.59, 1.64, 1.85, 1.78, 2.06, 2.27, 2.35, 2.44, 2.47, 2.55, 2.52, 2.73,
+  2.71, 2.68, 2.85, 3.34, 3.10, 3.02, 3.08, 3.23, 3.32, 3.37, 3.19, 3.31,
+  3.27, 3.27, 3.50, 3.80, 4.10, 4.55, 4.92, 5.37,
+];
+
+function spendingInput(chartType = 'Line Chart'): ChartAssemblyInput {
+  return {
+    data: { values: SPENDING.map((Spending, index) => ({
+      Month: `${2024 + Math.floor(index / 12)}-${String(index % 12 + 1).padStart(2, '0')}`,
+      Spending,
+    })) },
+    semantic_types: { Month: 'YearMonth', Spending: 'Quantity' },
+    field_display_names: { Spending: 'Spending ($ billions)' },
+    chart_spec: {
+      chartType,
+      title: 'Data center construction spending has more than tripled since 2024',
+      subtitle: 'United States, monthly construction spending on data centers, 2024 to 2026, billions of dollars',
+      encodings: { x: 'Month', y: 'Spending' },
+      baseSize: { width: 430, height: 270 },
+    },
+  };
+}
+
+function TemporalAxisGym() {
+  const host = useRef<HTMLDivElement>(null);
+  const [result, setResult] = useState<{ passed: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!host.current) return;
+    const container = host.current;
+    let cancelled = false;
+    let surface: ReturnType<typeof mountChart> | undefined;
+    let reference: View | undefined;
+    const run = async () => {
+      const input = spendingInput();
+      reference = new View(parse(compile(assembleVegaLite(input) as any).spec), { renderer: 'none' });
+      await reference.runAsync();
+      if (cancelled) return;
+      const expected: string[] = [];
+      const labelKey = (item: any): string | null => item?.datum?.value instanceof Date
+        && item.text && item.opacity !== 0
+        ? `${Number(item.datum.value)}:${item.text}` : null;
+      const visit = (node: any): void => {
+        if (node?.role === 'axis-label') {
+          for (const item of node.items ?? []) {
+            const key = labelKey(item);
+            if (key) expected.push(key);
+          }
+        }
+        for (const item of node?.items ?? []) visit(item);
+      };
+      visit((reference.scenegraph() as any).root);
+      reference.finalize();
+      reference = undefined;
+      surface = mountChart(container, input, {
+        backend: 'vegalite', renderer: 'svg', expressionInterpreter,
+      });
+      await surface.ready;
+      if (cancelled) return;
+      const actual = Array.from(container.querySelectorAll('.role-axis-label text'),
+        node => labelKey((node as any).__data__)).filter((key): key is string => key !== null);
+      const passed = expected.length > 0 && JSON.stringify(actual) === JSON.stringify(expected);
+      setResult({ passed, text: passed
+        ? `Pass: ${actual.length} time labels match static Vega`
+        : `Fail: ${actual.length} interactive / ${expected.length} static time labels` });
+    };
+    void run().catch(error => {
+      if (!cancelled) setResult({ passed: false, text: `Fail: ${String(error)}` });
+    });
+    return () => {
+      cancelled = true;
+      reference?.finalize();
+      surface?.destroy();
+      container.replaceChildren();
+    };
+  }, []);
+
+  return (
+    <section style={{ width: 'min(100%, 1080px)' }}>
+      <h2 style={{ margin: '0 0 8px', fontSize: 16 }}>Temporal axis interpreter</h2>
+      <article style={{ ...cardStyle, maxWidth: 510 }} data-case="temporal-axis-interpreter">
+        <ScaleToFit height={360} minHeight={220} adaptiveHeight>
+          <div ref={host} />
+        </ScaleToFit>
+        <div role="status" style={{ marginTop: 6, fontSize: 12, color: result ? (result.passed ? '#16794b' : '#b42318') : siteTheme.textMuted }}>
+          {result?.text ?? 'Checking time labels...'}
+        </div>
+      </article>
+    </section>
+  );
+}
+
+const TARGET_MONTH = Date.UTC(2025, 5, 1);
+
+const KEY_VALUE_CASES = [
+  { id: 'source-text', label: 'Source text', code: "key: { Month: '2025-06' }", month: '2025-06' },
+  { id: 'local-time', label: 'Local time', code: 'key: { Month: new Date(2025, 5, 1) }', month: new Date(2025, 5, 1) },
+  { id: 'utc-ms', label: 'UTC milliseconds', code: 'key: { Month: Date.UTC(2025, 5, 1) }', month: TARGET_MONTH },
+] as const;
+
+type KeyValueCase = (typeof KEY_VALUE_CASES)[number];
+
+function describeKey(value: unknown): string {
+  if (value instanceof Date) return `${value.getTime()} (${value.toISOString().slice(0, 16).replace('T', ' ')} UTC)`;
+  if (typeof value === 'number') return `${value} (${new Date(value).toISOString().slice(0, 16).replace('T', ' ')} UTC)`;
+  return JSON.stringify(value);
+}
+
+function TemporalKeyCase({ keyCase }: { keyCase: KeyValueCase }) {
+  const host = useRef<HTMLDivElement>(null);
+  const [result, setResult] = useState<{ passed: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!host.current) return;
+    const container = host.current;
+    let cancelled = false;
+    let surface: ReturnType<typeof mountChart> | undefined;
+    const update: ChartUpdate = {
+      id: 'june',
+      ops: [{
+        op: 'set-style',
+        targets: [{ select: { key: { Month: keyCase.month } } }],
+        value: { state: 'emphasized' },
+      }],
+    };
+    const run = async () => {
+      surface = mountChart(container, spendingInput('Bar Chart'), {
+        backend: 'vegalite', renderer: 'svg', expressionInterpreter,
+      });
+      await surface.ready;
+      if (cancelled) return;
+      const [outcome] = await surface.setUpdates([update]);
+      if (cancelled) return;
+      const selected = surface.getState()?.selected ?? [];
+      const hit = selected.find((element) => toMs(element.value.Month) === TARGET_MONTH);
+      const passed = outcome?.status === 'applied' && hit !== undefined;
+      setResult({ passed, text: passed
+        ? `Pass: ${outcome.resolvedTargets} target resolved, selected Month = ${describeKey(hit.value.Month)}`
+        : `Fail: ${outcome?.status ?? 'no result'}, ${outcome?.unresolvedTargets.length ?? 1} target matched nothing, `
+          + `rows hold ${describeKey(TARGET_MONTH)}` });
+    };
+    void run().catch(error => {
+      if (!cancelled) setResult({ passed: false, text: `Fail: ${String(error)}` });
+    });
+    return () => {
+      cancelled = true;
+      surface?.destroy();
+      container.replaceChildren();
+    };
+  }, [keyCase]);
+
+  return (
+    <article style={{ ...cardStyle, padding: 10 }} data-case={`temporal-key-${keyCase.id}`}>
+      <h3 style={{ margin: '0 0 2px', fontSize: 13 }}>{keyCase.label}</h3>
+      <code style={{ display: 'block', fontSize: 11, color: siteTheme.textMuted, marginBottom: 4 }}>{keyCase.code}</code>
+      <ScaleToFit height={300} minHeight={200} adaptiveHeight>
+        <div ref={host} />
+      </ScaleToFit>
+      <div role="status" style={{ marginTop: 6, fontSize: 12, color: result ? (result.passed ? '#16794b' : '#b42318') : siteTheme.textMuted }}>
+        {result?.text ?? 'Applying update...'}
+      </div>
+    </article>
+  );
+}
+
+function toMs(value: unknown): number {
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') return Date.parse(value);
+  return Number.NaN;
+}
+
+function TemporalValueGym() {
+  return (
+    <section style={{ width: 'min(100%, 1080px)' }} data-gym="temporal-values">
+      <header style={{ marginBottom: 8 }}>
+        <h2 style={{ margin: 0, fontSize: 16 }}>Temporal update values</h2>
+        <p style={{ margin: '2px 0 0', fontSize: 11, color: siteTheme.textMuted }}>
+          The same <code>set-style</code> emphasis on June 2025, keyed on the <code>Month</code> field in three value
+          forms. The parsed rows hold UTC epoch milliseconds, so only the last form resolves; the local-time form
+          misses by the browser's offset from UTC.
+        </p>
+      </header>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 10 }}>
+        {KEY_VALUE_CASES.map((keyCase) => (
+          <TemporalKeyCase key={keyCase.id} keyCase={keyCase} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+const PICKING_CASES = [
+  { id: 'scatter', generator: 'Scatter Plot', title: 'Palmer Penguins — flipper length vs body mass', mark: 'symbol',
+    interactions: [{ type: 'click-highlight' }, { type: 'legend-toggle' }] },
+  { id: 'faceted-line', generator: 'Omni: Line', title: undefined, mark: 'line',
+    interactions: [{ type: 'hover-group-focus', options: { groupBy: 'gameType' } }] },
+] as const;
+const PICKING_THEMES = [undefined, 'economist'] as const;
+
+/** Two rendering frames (layout observers have run), or half a second where frames don't come (a hidden tab). */
+function settledFrames(): Promise<void> {
+  return Promise.race([
+    new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+    new Promise<void>((resolve) => setTimeout(resolve, 500)),
+  ]);
+}
+
+function pickingInput(caseId: string, themeId: string | undefined): ChartAssemblyInput {
+  const pick = PICKING_CASES.find((item) => item.id === caseId)!;
+  const cases = TEST_GENERATORS[pick.generator]();
+  const testCase = (pick.title ? cases.find((item) => item.title === pick.title) : cases[0])!;
+  const base = withHouse(testCaseToAssemblyInput(testCase, { width: 460, height: 320 }), themeId);
+  return { ...base, interaction_spec: { interactions: pick.interactions } } as unknown as ChartAssemblyInput;
+}
+
+/** What the reader's pointer lands on over a data mark: the mark itself, or something drawn above it. */
+function PickingCase({ caseId, themeId }: { caseId: string; themeId: string | undefined }) {
+  const host = useRef<HTMLDivElement>(null);
+  const [result, setResult] = useState<{ passed: boolean; text: string } | null>(null);
+  const mark = PICKING_CASES.find((item) => item.id === caseId)!.mark;
+
+  useEffect(() => {
+    if (!host.current) return;
+    const container = host.current;
+    let cancelled = false;
+    let surface: ReturnType<typeof mountChart> | undefined;
+    const run = async () => {
+      surface = mountChart(container, pickingInput(caseId, themeId), {
+        backend: 'vegalite', renderer: 'svg', expressionInterpreter,
+      });
+      await surface.ready;
+      if (cancelled) return;
+      const target = container.querySelector<SVGPathElement>(`.mark-${mark}.role-mark path`);
+      if (!target) {
+        setResult({ passed: false, text: `Fail: no .mark-${mark} element rendered` });
+        return;
+      }
+      const card = container.closest('article');
+      const probePoint = () => {
+        // elementFromPoint only sees the viewport.
+        target.scrollIntoView({ block: 'center' });
+        const at = target.getPointAtLength(mark === 'line' ? target.getTotalLength() / 2 : 0);
+        const box = target.getBoundingClientRect();
+        const matrix = target.getScreenCTM()!;
+        const point = mark === 'line'
+          ? { x: matrix.a * at.x + matrix.c * at.y + matrix.e, y: matrix.b * at.x + matrix.d * at.y + matrix.f }
+          : { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+        const clip = container.closest('[style*="overflow: hidden"]')?.getBoundingClientRect();
+        const inside = !clip || (point.x >= clip.left && point.x <= clip.right && point.y >= clip.top && point.y <= clip.bottom);
+        return { point, inside };
+      };
+      // ScaleToFit shrinks the chart a few frames after it renders; until then it spills over the
+      // neighbouring cards and the probe would land on their marks. Wait for it to fit.
+      let probe = probePoint();
+      for (let attempt = 0; !probe.inside && attempt < 30; attempt += 1) {
+        await settledFrames();
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        if (cancelled) return;
+        probe = probePoint();
+      }
+      if (!probe.inside) {
+        setResult({ passed: false, text: `Info: the ${mark} probed stays outside the card's visible box (the chart was not scaled to fit; is the tab hidden?)` });
+        return;
+      }
+      const { point } = probe;
+      const top = document.elementFromPoint(point.x, point.y);
+      const owner = top?.closest('g[class*="mark-"]');
+      const elsewhere = top && card && !card.contains(top) ? ' (another card)' : '';
+      const label = (owner?.getAttribute('class') ?? top?.tagName ?? 'nothing') + elsewhere;
+      const passed = top === target || !!owner?.contains(target);
+      setResult({ passed, text: passed
+        ? `Pass: the pointer reaches the ${mark} mark`
+        : `Fail: the pointer lands on "${label}" above the ${mark}` });
+    };
+    void run().catch(error => {
+      if (!cancelled) setResult({ passed: false, text: `Fail: ${String(error)}` });
+    });
+    return () => {
+      cancelled = true;
+      surface?.destroy();
+      container.replaceChildren();
+    };
+  }, [caseId, themeId, mark]);
+
+  return (
+    <article style={{ ...cardStyle, padding: 10 }} data-case={`picking-${caseId}-${themeId ?? 'plain'}`}>
+      <h3 style={{ margin: '0 0 4px', fontSize: 13 }}>{caseId} · {themeId ?? 'no theme'}</h3>
+      <ScaleToFit height={300} minHeight={200} adaptiveHeight>
+        <div ref={host} />
+      </ScaleToFit>
+      <div role="status" style={{ marginTop: 6, fontSize: 12, color: result ? (result.passed ? '#16794b' : '#b42318') : siteTheme.textMuted }}>
+        {result?.text ?? 'Probing pointer target...'}
+      </div>
+    </article>
+  );
+}
+
+// The same drag, as fractions of the chart box, on every renderer.
+const SELECT_DRAG = { from: { x: 0.3, y: 0.35 }, to: { x: 0.55, y: 0.65 } };
+
+function selectInput(themeId: string | undefined): ChartAssemblyInput {
+  const testCase = TEST_GENERATORS['Scatter Plot']()
+    .find((item) => item.title === 'Palmer Penguins — flipper length vs body mass')!;
+  const base = withHouse(testCaseToAssemblyInput(testCase, { width: 360, height: 280 }), themeId);
+  return { ...base, interaction_spec: { interactions: [{ type: 'select' }] } } as ChartAssemblyInput;
+}
+
+async function dragSelect(container: HTMLElement, themeId: string | undefined, renderer: 'svg' | 'canvas') {
+  const surface = mountChart(container, selectInput(themeId), { backend: 'vegalite', renderer, expressionInterpreter });
+  await surface.ready;
+  // The renderer's own element; overlays add other SVGs to the mount.
+  const target = container.querySelector(renderer === 'svg' ? 'svg.marks' : 'canvas.marks') as Element;
+  const box = target.getBoundingClientRect();
+  const at = (point: { x: number; y: number }) => ({
+    clientX: box.left + box.width * point.x, clientY: box.top + box.height * point.y,
+    bubbles: true, pointerId: 1, pointerType: 'mouse', button: 0, buttons: 1,
+  });
+  target.dispatchEvent(new PointerEvent('pointerdown', at(SELECT_DRAG.from)));
+  for (let step = 1; step <= 4; step += 1) {
+    const t = step / 4;
+    target.dispatchEvent(new PointerEvent('pointermove', at({
+      x: SELECT_DRAG.from.x + (SELECT_DRAG.to.x - SELECT_DRAG.from.x) * t,
+      y: SELECT_DRAG.from.y + (SELECT_DRAG.to.y - SELECT_DRAG.from.y) * t,
+    })));
+  }
+  target.dispatchEvent(new PointerEvent('pointerup', { ...at(SELECT_DRAG.to), buttons: 0 }));
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  const keys = (surface.getState()?.selected ?? [])
+    .map((element) => `${element.value['Flipper length (mm)']}|${element.value['Body mass (g)']}`);
+  return { surface, keys: new Set(keys) };
+}
+
+/** A drag selects by where the reader drew it; canvas must select what SVG (measured from its CTM) selects. */
+function SelectAlignmentCase({ themeId }: { themeId: string | undefined }) {
+  const svgHost = useRef<HTMLDivElement>(null);
+  const canvasHost = useRef<HTMLDivElement>(null);
+  const [result, setResult] = useState<{ passed: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!svgHost.current || !canvasHost.current) return;
+    const hosts = [svgHost.current, canvasHost.current];
+    let cancelled = false;
+    const surfaces: { destroy(): void }[] = [];
+    const run = async () => {
+      const svg = await dragSelect(hosts[0], themeId, 'svg');
+      surfaces.push(svg.surface);
+      const canvas = await dragSelect(hosts[1], themeId, 'canvas');
+      surfaces.push(canvas.surface);
+      if (cancelled) return;
+      const shared = [...svg.keys].filter((key) => canvas.keys.has(key)).length;
+      const passed = svg.keys.size > 0 && shared === svg.keys.size && shared === canvas.keys.size;
+      setResult({ passed, text: passed
+        ? `Pass: both renderers select the same ${shared} points`
+        : `Fail: SVG selects ${svg.keys.size}, canvas ${canvas.keys.size}, ${shared} in common` });
+    };
+    void run().catch(error => {
+      if (!cancelled) setResult({ passed: false, text: `Fail: ${String(error)}` });
+    });
+    return () => {
+      cancelled = true;
+      for (const surface of surfaces) surface.destroy();
+      for (const host of hosts) host.replaceChildren();
+    };
+  }, [themeId]);
+
+  return (
+    <article style={{ ...cardStyle, padding: 10 }} data-case={`select-alignment-${themeId ?? 'plain'}`}>
+      <h3 style={{ margin: '0 0 4px', fontSize: 13 }}>select · {themeId ?? 'no theme'} · SVG | canvas</h3>
+      <div style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
+        <div ref={svgHost} />
+        <div ref={canvasHost} />
+      </div>
+      <div role="status" style={{ marginTop: 6, fontSize: 12, color: result ? (result.passed ? '#16794b' : '#b42318') : siteTheme.textMuted }}>
+        {result?.text ?? 'Dragging...'}
+      </div>
+    </article>
+  );
+}
+
+function SelectAlignmentGym() {
+  return (
+    <section style={{ width: 'min(100%, 1080px)' }} data-gym="select-alignment">
+      <header style={{ marginBottom: 8 }}>
+        <h2 style={{ margin: 0, fontSize: 16 }}>Region select alignment</h2>
+        <p style={{ margin: '2px 0 0', fontSize: 11, color: siteTheme.textMuted }}>
+          Under the Economist theme the landing showcase selects points offset from the drawn rectangle on the
+          canvas renderer. Each card drags the same box across an SVG and a canvas mount at full size and compares
+          the points each selects.
+        </p>
+      </header>
+      <div style={{ display: 'grid', gap: 10 }}>
+        {PICKING_THEMES.map((themeId) => <SelectAlignmentCase key={themeId ?? 'plain'} themeId={themeId} />)}
+      </div>
+    </section>
+  );
+}
+
+function ThemePickingGym() {
+  return (
+    <section style={{ width: 'min(100%, 1080px)' }} data-gym="theme-picking">
+      <header style={{ marginBottom: 8 }}>
+        <h2 style={{ margin: 0, fontSize: 16 }}>Theme pointer picking</h2>
+        <p style={{ margin: '2px 0 0', fontSize: 11, color: siteTheme.textMuted }}>
+          Hover and click presets on the landing showcase stop responding under the Economist theme. Each card mounts
+          the same interactive chart with and without the theme and reports which element sits under a data mark.
+        </p>
+      </header>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 10 }}>
+        {PICKING_CASES.flatMap((item) => PICKING_THEMES.map((themeId) => (
+          <PickingCase key={`${item.id}-${themeId ?? 'plain'}`} caseId={item.id} themeId={themeId} />
+        )))}
+      </div>
+    </section>
+  );
+}
+
 export function DebugGym() {
   return (
     <div className="dev-page" style={{ gap: 12 }}>
@@ -200,6 +624,10 @@ export function DebugGym() {
         <CasePanel typed={false} />
       </div>
       <SlopeGym />
+      <TemporalAxisGym />
+      <TemporalValueGym />
+      <ThemePickingGym />
+      <SelectAlignmentGym />
     </div>
   );
 }

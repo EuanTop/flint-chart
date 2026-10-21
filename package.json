@@ -11,6 +11,9 @@
     "build": "npm run build -w packages/flint-js && npm run build -w packages/flint-mcp",
     "build:js": "npm run build -w packages/flint-js",
     "build:mcp": "npm run build -w packages/flint-mcp",
+    "build:copilot-plugin": "npm run build && node scripts/sync-copilot-plugin.mjs",
+    "check:copilot-plugin": "node scripts/sync-copilot-plugin.mjs --check",
+    "sync:skills": "node scripts/sync-skills.mjs",
     "typecheck": "npm run build:js && npm run typecheck:js && npm run typecheck:mcp",
     "typecheck:js": "npm run typecheck -w packages/flint-js",
     "typecheck:mcp": "npm run typecheck -w packages/flint-mcp",
@@ -25,7 +28,8 @@
     "clean": "npm run clean -w packages/flint-js && npm run clean -w packages/flint-mcp",
     "site": "npm run dev -w site",
     "site:build": "npm run build -w site",
-    "gen:reference": "esbuild scripts/gen-chart-reference.ts --bundle --platform=node --format=esm --outfile=scripts/.gen-chart-reference.mjs && node scripts/.gen-chart-reference.mjs && rm -f scripts/.gen-chart-reference.mjs",
+    "gen:text-widths": "node scripts/gen-text-widths.mjs",
+    "gen:reference": "esbuild scripts/gen-chart-reference.ts --bundle --platform=node --format=esm --external:typescript --outfile=scripts/.gen-chart-reference.mjs && node scripts/.gen-chart-reference.mjs && rm -f scripts/.gen-chart-reference.mjs",
     "presite": "npm run gen:reference",
     "presite:build": "npm run gen:reference",
     "postinstall": "node scripts/link-site-react.mjs"
@@ -34,11 +38,17 @@
     "node": ">=18"
   },
   "devDependencies": {
+    "@turf/point-on-feature": "^7.4.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
+    "d3-dsv": "^3.0.1",
     "puppeteer-core": "^25.4.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "topojson-client": "^3.1.0",
+    "topojson-server": "^3.0.1",
+    "topojson-simplify": "^3.0.3",
+    "wellknown": "^0.5.0"
   },
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "^4.0.0",

@@ -1,0 +1,112 @@
+{
+  "id": "trafford",
+  "org": "Trafford Data Lab (Trafford Council, UK)",
+  "urls": [
+    "https://www.trafforddatalab.io/graphics_companion/",
+    "https://www.trafforddatalab.io/interactive_graphics_companion/",
+    "https://raw.githubusercontent.com/traffordDataLab/assets/601e80334e0d78dfe913685561196b8b6fc278a7/theme/ggplot2/theme_lab.R",
+    "https://www.trafforddatalab.io/interactive_graphics_companion/src/line_multiple.vl.json",
+    "https://www.trafforddatalab.io/interactive_graphics_companion/src/bar_labels.vl.json",
+    "https://www.trafforddatalab.io/interactive_graphics_companion/src/column.vl.json",
+    "https://www.trafforddatalab.io/interactive_graphics_companion/src/choropleth.vl.json",
+    "https://colorbrewer2.org/#type=qualitative&scheme=Set2&n=8"
+  ],
+  "access": "full",
+  "accessNotes": "Both companions are static pages and were read fully (ggplot2 companion last updated 9 July 2020; interactive Vega-Lite companion December 2019). The exact theme values come from the theme_lab() R source linked from the companion. Example images are base64 PNGs embedded in the ggplot2 companion page and were extracted. The interactive companion renders Vega-Lite specs at runtime (no static images); several .vl.json specs were read directly. These are code cookbooks rather than prose style guides, so rules are inferred from the theme code and consistent usage in examples. ColorBrewer Set2 hexes were taken from ColorBrewer because the companion references the palette by name only.",
+  "summary": "Local-government open-data lab style: minimal, airy ggplot2 charts in Roboto/Open Sans with everything in mid-grey #757575 - no axis lines, no ticks, no panel background, only light dotted grey major gridlines. The descriptive 'subtitle' acts as the headline (grey, left), and a dark right-aligned caption reads 'Source: ... | @traffordDataLab'. Single-series charts use the Lab's orange #FC6721; multi-category charts use ColorBrewer Set2.",
+  "context": "government",
+  "colors": {
+    "categorical": ["#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3"],
+    "categoricalNotes": "Multi-category charts use scale_fill_brewer(palette = \"Set2\") (11 uses in the companion) - hexes from ColorBrewer Set2. Two-series line chart uses orange #FC6721 + gold #E7B800. Single-series charts use #FC6721 (bars at alpha 0.8). Interactive companion: column chart #FC6721, labelled bar chart yellow #FFDC25, choropleth viridis.",
+    "sequential": [],
+    "diverging": ["#31A354", "#DE2D26"],
+    "highlight": "#FC6721",
+    "context": "#F0F0F0",
+    "positive": "#31A354",
+    "negative": "#DE2D26",
+    "background": "transparent",
+    "text": "#757575",
+    "textSecondary": "#757575",
+    "gridline": "#757575",
+    "axis": "#FFFFFF",
+    "notes": "theme_lab(): all text except caption is #757575; caption #212121; gridlines dotted #757575 at size 0.3; axis.line drawn in white (#FFFFFF, i.e. invisible on white). Diverging bar: 'Above median' #31A354 green / 'Below median' #DE2D26 red. Choropleth: brewer.pal(5, \"Oranges\") gradient, non-data land #F0F0F0 with white borders. Lollipop stems #F0F0F0 with #FC6721 dots. Density ridges outline #BDBDBD. Sequential palettes referenced by name only (ColorBrewer Oranges; viridis in Vega-Lite)."
+  },
+  "typography": {
+    "family": "Roboto (titles, legend, caption); Open Sans (axis titles, tick labels, strip text)",
+    "fallback": null,
+    "title": { "size": 18, "weight": "plain", "align": "left", "case": "sentence", "color": "#757575" },
+    "subtitle": { "size": 12, "weight": "plain", "style": "normal", "color": "#757575" },
+    "axisLabel": { "size": 10, "color": "#757575" },
+    "axisTitle": { "size": 11, "weight": "plain", "placement": "rotated on y, justified to the top end (hjust = 1); x title right-aligned; frequently omitted (x = NULL)" },
+    "dataLabel": { "size": null, "weight": "bold (Vega-Lite bar labels fontStyle bold, #757575)" },
+    "source": { "size": 10, "style": "plain, right-aligned, 'Source: Gapminder.org | @traffordDataLab'", "color": "#212121" },
+    "notes": "theme_grey base_size 11.5. Sizes are ggplot pt. In every example the title is left empty (title = \"\") and the descriptive subtitle ('Life expectancy in Argentina, 1952-2007') serves as the visible heading. Legend title 12pt, legend text 10pt, strip text Open Sans 12pt, all #757575."
+  },
+  "structure": {
+    "gridlines": "Major gridlines only, dotted, #757575, size 0.3; examples remove vertical gridlines (panel.grid.major.x = element_blank()) leaving horizontal dotted lines; no minor gridlines. Vega-Lite: x grid off, domain hidden.",
+    "axisLine": "Hidden (axis lines white on white; Vega-Lite domainColor none).",
+    "ticks": "None (axis.ticks = element_blank(); Vega-Lite ticks false).",
+    "zeroLine": "Not emphasised; bars sit on y expand = c(0, 0) so they start exactly at the lowest gridline.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "Rotated, top-aligned along the axis (hjust = 1), grey; often omitted with units in the subtitle",
+    "unitPlacement": "In the y-axis title ('Age (years)', 'GDP per capita ($)') or tick formatting ($, %, comma).",
+    "frame": "none (no panel border, no plot background)",
+    "background": "transparent / white; Vega-Lite cell stroke transparent",
+    "notes": "plot.margin 0.5cm on all sides; subtitle bottom margin 10; caption top margin 15."
+  },
+  "legend": {
+    "placement": "bottom, horizontal, centred (legend.position = \"bottom\"); right for some; none when direct labels suffice",
+    "directLabels": "Used in slope chart (country, value labels at line ends) and labelled bars (value at bar end, bold grey).",
+    "title": "Usually removed (colour = NULL / fill = NULL; Vega-Lite title null)",
+    "swatchShape": "line+point for line charts, filled square for bars",
+    "notes": "Transparent legend background and keys."
+  },
+  "marks": {
+    "bars": "Solid fill #FC6721 at alpha 0.8, no outline, square corners, narrow white gaps; bars begin at the axis (expand 0). Diverging bars width 0.5.",
+    "lines": "size 1 with size-2 points at each observation; slope chart lines size 2 alpha 0.8 with size-5 points.",
+    "areas": "Stacked areas alpha 0.4 with white separating outlines, Set2 fills.",
+    "points": "Scatter points #FC6721; lollipop dots size 3 alpha 0.8; bubbles size range 1-20.",
+    "pies": null,
+    "notes": "Maps: features alpha 0.8 with white 0.1 borders over #F0F0F0 basemap."
+  },
+  "labels": {
+    "dataLabels": "Bold grey (#757575) values just past bar ends (dx 3) in labelled bar charts with no value axis; slope chart labels in series colour.",
+    "numberFormat": "scales::comma for thousands, scales::dollar ($5,000), scales::percent; tooltips ',.1f'.",
+    "dates": "Four-digit years (%Y).",
+    "notes": null
+  },
+  "furniture": {
+    "title": "Descriptive heading stating measure, place and period ('GDP per capita in Egypt, 1952-2007'), left-aligned, grey, plain weight - set as subtitle with empty title.",
+    "source": "Required on every chart: bottom-right, dark #212121, 'Source: Gapminder.org | @traffordDataLab' (source + pipe + Lab Twitter handle). Interactive version prints 'Source: Gapminder' beneath each chart.",
+    "logo": "No image logo on charts; attribution via '@traffordDataLab' in the caption.",
+    "other": null
+  },
+  "annotations": null,
+  "layout": "ggplot charts ~ 7 x 5 in at 0.5cm margins; Vega-Lite specs use width 'container' (responsive full width).",
+  "interaction": "Vega-Lite tooltips on all interactive charts with human-readable field titles ('Year', 'Country', 'Number of babies') and formats (.1f, ,.1f); default vega-embed styling.",
+  "accessibility": "Not addressed explicitly; viridis used for interactive choropleth.",
+  "chartTypes": {
+    "preferred": ["line", "column/bar", "slope", "stacked area", "scatter", "bubble", "diverging bar", "histogram", "density/ridgeline", "boxplot/violin", "lollipop/dot plot", "treemap", "choropleth", "proportional symbol", "barcode", "circle timeline", "steamgraph"],
+    "discouraged": [],
+    "notes": "Organised by the Financial Times Visual Vocabulary categories (change over time, correlation, deviation, distribution, magnitude, part-to-whole, ranking, spatial)."
+  },
+  "distinctiveRules": [
+    { "rule": "Only dotted major gridlines (#757575, 0.3 width), typically horizontal only; no minor grid.", "source": "https://raw.githubusercontent.com/traffordDataLab/assets/601e80334e0d78dfe913685561196b8b6fc278a7/theme/ggplot2/theme_lab.R", "quote": "panel.grid.major = element_line(linetype = \"dotted\", colour = \"#757575\", size = 0.3)" },
+    { "rule": "No axis lines, no tick marks, no panel background or border.", "source": "https://raw.githubusercontent.com/traffordDataLab/assets/601e80334e0d78dfe913685561196b8b6fc278a7/theme/ggplot2/theme_lab.R", "quote": "axis.ticks = element_blank(), axis.line = element_line(color = \"#FFFFFF\", size = 0.3)" },
+    { "rule": "All chart text (heading, axes, legend) in mid-grey #757575; only the caption is dark (#212121).", "source": "https://raw.githubusercontent.com/traffordDataLab/assets/601e80334e0d78dfe913685561196b8b6fc278a7/theme/ggplot2/theme_lab.R", "quote": "plot.subtitle ... colour = \"#757575\" ... plot.caption = element_text(size = 10, colour = \"#212121\", hjust = 1" },
+    { "rule": "Caption bottom-right: 'Source: <source> | @traffordDataLab'.", "source": "https://www.trafforddatalab.io/graphics_companion/", "quote": "caption = \"Source: Gapminder.org | @traffordDataLab\"" },
+    { "rule": "Heading is a plain-weight grey descriptive line (measure, place, years) set as the subtitle, left-aligned; the bold title slot is left empty.", "source": "https://www.trafforddatalab.io/graphics_companion/", "quote": "labs(title = \"\", subtitle = \"Life expectancy in Argentina, 1952-2007\"" },
+    { "rule": "Single-series marks in Lab orange #FC6721 (bars at 80% opacity).", "source": "https://www.trafforddatalab.io/graphics_companion/", "quote": "geom_col(fill = \"#fc6721\", alpha = 0.8)" },
+    { "rule": "Multi-category fills use ColorBrewer Set2 pastels.", "source": "https://www.trafforddatalab.io/graphics_companion/", "quote": "scale_fill_brewer(palette = \"Set2\")" },
+    { "rule": "Two fonts: Roboto for heading/legend/caption, Open Sans for axis titles and tick labels.", "source": "https://raw.githubusercontent.com/traffordDataLab/assets/601e80334e0d78dfe913685561196b8b6fc278a7/theme/ggplot2/theme_lab.R", "quote": "change to Open Sans for axes titles, tick labels, legend title and legend key, and strip text" },
+    { "rule": "Legend at the bottom, horizontal, with no legend title.", "source": "https://www.trafforddatalab.io/graphics_companion/", "quote": "legend.position = \"bottom\" ... colour = NULL" },
+    { "rule": "Y-axis title rotated and pushed to the top end of the axis (hjust = 1); x title often omitted for time axes.", "source": "https://raw.githubusercontent.com/traffordDataLab/assets/601e80334e0d78dfe913685561196b8b6fc278a7/theme/ggplot2/theme_lab.R", "quote": "axis.title = element_text(family = \"Open Sans\", size = 11, colour = \"#757575\", face = \"plain\", hjust = 1)" },
+    { "rule": "Bars start flush on the baseline with no padding (expand = c(0, 0)).", "source": "https://www.trafforddatalab.io/graphics_companion/", "quote": "scale_y_continuous(expand = c(0, 0), labels = scales::dollar)" },
+    { "rule": "Interactive charts: responsive width 'container', no view stroke, tooltips with friendly titles and formatted numbers.", "source": "https://www.trafforddatalab.io/interactive_graphics_companion/src/line_multiple.vl.json", "quote": "\"width\": \"container\" ... \"cell\": {\"stroke\": \"transparent\"} ... \"format\": \".1f\"" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/trafford/ggplot-multiple-line.png", "url": "https://www.trafforddatalab.io/graphics_companion/", "describes": "Two-line chart: heading 'Life expectancy in Argentina and Italy, 1952-2007' top-left in plain grey Roboto, no bold title. Orange #FC6721 and gold #E7B800 lines (~1.5px) with filled circle markers at every year. Horizontal dotted grey gridlines only; no axis lines or ticks; grey tick labels; y title 'Age (years)' rotated and placed at the top end of the axis. Legend centred at the bottom with line+dot keys and no title. Caption bottom-right in dark grey 'Source: Gapminder.org | @traffordDataLab'. Lots of white margin." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/trafford/ggplot-vertical-bar.png", "url": "https://www.trafforddatalab.io/graphics_companion/", "describes": "Column chart 'GDP per capita in Egypt, 1952-2007': grey plain heading top-left; solid orange (#FC6721 at 80%) columns with thin white gaps, square corners, sitting flush on $0; dotted grey horizontal gridlines; $-formatted grey y labels with comma; rotated y title at top; no axis lines/ticks; right-aligned dark caption." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/trafford/ggplot-img13.png", "url": "https://www.trafforddatalab.io/graphics_companion/", "describes": "Categorical column chart 'Median GDP per capita by continent, 2007' with each bar a ColorBrewer Set2 pastel (teal-green, salmon, periwinkle, pink, lime), no legend (category labels on x), dotted horizontal gridlines, no axis lines, same grey heading and right-aligned caption." }
+  ]
+}

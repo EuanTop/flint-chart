@@ -31,9 +31,9 @@ Configure a canvas interaction with a reusable handler:
 
 ```ts
 import {
-    buildInteractiveChart,
     clickTrigger,
     externalInteraction,
+    mountChart,
     type CanvasInteractionDef,
 } from 'flint-chart/interactive';
 
@@ -50,7 +50,7 @@ const selectCountry: CanvasInteractionDef = {
     } : null,
 };
 
-const surface = buildInteractiveChart(container, input, {
+const surface = mountChart(container, input, {
     backend: 'vegalite',
     interactions: [selectCountry],
 });
@@ -73,7 +73,7 @@ const countryPicker = externalInteraction<{ country: string; selected: boolean }
     }),
 });
 
-const surface = buildInteractiveChart(container, input, {
+const surface = mountChart(container, input, {
     backend: 'vegalite',
     interactions: [countryPicker],
 });
@@ -97,12 +97,63 @@ The surface API is intentionally small:
 
 | API | Purpose |
 |---|---|
-| `flint-interaction` event | Receive resolved canvas actions |
+| `getState()` | Read what the chart shows now: emphasized marks, hidden series, viewport, rail windows |
+| `onChange(callback)` | Hear every change to that state after the render: a gesture frame, a commit, a cancel, a host call |
+| `layout` | Read the plot box the chart is drawn with, once ready; a filter that re-lays the chart out updates it (Vega-Lite charts that draw one plot) |
+| `flint-interaction` event | Receive every resolved canvas action before the chart reacts to it |
 | `applyUpdate(update)` | Apply precomputed retained chart state by ID |
 | `setUpdates(updates)` | Replace the retained update collection |
 | `clearUpdate(id)` | Remove one retained update |
 | `dispatch(interactionId, payload)` | Invoke an external handler and report its update result |
 | `destroy()` | Remove listeners, renderer state, and DOM |
+
+## Read the chart
+
+The chart owns its state. A host reads it instead of replaying the gestures, so an agent's
+`applyUpdate`, a reset, a legend toggle and a user's brush all land in one place.
+
+`getState()` returns a `ChartState`:
+
+| Field | Holds |
+|---|---|
+| `selected` | The marks the chart emphasizes, focuses or highlights now, previews included |
+| `entries` | The same marks per update id, with `layer: 'retained' \| 'preview'` |
+| `hidden` | The legend values a toggle hides, as `{ channel, value }` |
+| `viewport` | The domain the plot shows after a pan or zoom, with level and focus on a map |
+| `windows` | The category rail windows, as `{ start, count, total }` per channel |
+
+Each element's `value` is the mark in field terms: a bar's category and measure, a legend item's
+channel and value, a histogram bar's field and range. The host owns the rows, so it queries them
+from the value and the geometry; the chart hands over no copy of the data.
+
+`onChange(callback)` fires after every render with a `ChartChange`: `phase` (`preview` while a
+gesture runs, `commit` for a committed change or a host call, `cancel` when a gesture ends with
+none), the interaction id and action, the gesture's own `target` and `geometry`, and the `state`
+after the change. A preview that did not change its target or domain fires once.
+
+A panel that follows the chart shows the gesture live and otherwise shows what the chart shows:
+
+```ts
+const valuesOf = (elements: readonly SemanticElement[]) => elements.map((element) => element.value);
+surface.onChange(({ phase, target, state }) => {
+    const hit = valuesOf(target?.elements ?? []);
+    panel.show(phase === 'preview' && hit.length > 0 ? hit : valuesOf(state.selected));
+});
+```
+
+A hover with `hover-group-focus` reports the hovered point in `target` and the whole series in
+`state.selected`, so the panel can show the point beside the series mean. An `inspect-index`
+hover reports one mark per series in `target` and the index value in `geometry.domain`. Flint
+computes no statistics; the host knows what its rows mean.
+
+A model context reads only committed changes:
+
+```ts
+surface.onChange(({ phase, state }) => {
+    if (phase !== 'commit') return;
+    sendContext({ selected: valuesOf(state.selected), hidden: state.hidden, viewport: state.viewport });
+});
+```
 
 ## Cross-chart routing
 
@@ -111,15 +162,16 @@ canvas interaction. Acceptance is explicit: each destination registers an extern
 interaction, and the application chooses destinations by dispatching its semantic payload.
 
 ```ts
-dashboard.addEventListener('flint-interaction', (nativeEvent) => {
-    const detail = (nativeEvent as CustomEvent<FlintInteractionEventDetail>).detail;
-    const selection = deriveSelection(detail.event);
-
-    for (const [chartId, surface] of dashboardSurfaces) {
-        if (chartId === detail.chartId) continue;
-        void surface.dispatch('linked-selection', { selection });
-    }
-});
+for (const [sourceId, source] of dashboardSurfaces) {
+    source.onChange(({ phase, state }) => {
+        if (phase !== 'commit') return;
+        const keys = state.selected.map((element) => element.value.Observation);
+        for (const [chartId, surface] of dashboardSurfaces) {
+            if (chartId === sourceId) continue;
+            void surface.dispatch('linked-selection', { keys });
+        }
+    });
+}
 ```
 
 Charts do not automatically consume events from neighboring charts. The dashboard,
@@ -471,6 +523,7 @@ inspectIndex({
     axis: 'x',
     seriesBy: 'Series',
     show: 'all',
+    displayValue: false,
 });
 
 brushX({
@@ -494,6 +547,10 @@ returns every series in that slice. `show: 'single'` starts with the first serie
 `show: { series: value }` starts with a preferred series. In either single-series mode, clicking
 a legend item switches tracking to that series; marks remain inert and available to other interactions.
 The tracked series remains highlighted in its authored colour. Hovering another legend item previews it.
+Compact labels on the value guides inside the plot show the current interpolated scale values.
+Labels and value guides inherit the rendered series colour,
+and nearby labels stagger along their guides without moving the reference lines.
+They are on by default; `displayValue: false` hides them, and `guide: false` hides guides and labels.
 Both single-series policies require the `seriesBy` field. Aggregates such as averages remain custom-handler logic;
 the preset does not transform records. Directional predicates on the lower-level
 `inspectTrigger()` can support bespoke interactions such as threshold quadrants.
@@ -578,10 +635,11 @@ Brushes support two lifecycle modes:
 ```ts
 brushX({ mode: 'ephemeral' }) // default: overlay exists only during the drag
 brushY({ mode: 'stateful' })  // committed overlay remains editable
+select({ mode: 'stateful' })  // committed rectangle remains editable
 brushAngle()                   // ephemeral polar sector
 ```
 
-Select and Cartesian brushes share the rectangular region gesture engine. `select()` configures a free two-dimensional ephemeral rectangle. A stateful axis brush retains its committed interval, allows dragging the body to move it, allows dragging either edge to resize it, and clears on an outside click or Escape. Angular brushing is currently ephemeral; editable wrapped-angle handles require a separate circular interaction model. Region events identify transitions with `create`, `move`, `resize-leading`, `resize-trailing`, and `clear` operations. This state and its interaction chrome are owned per chart surface by the trigger runtime; preset handlers remain stateless.
+Select and Cartesian brushes share the rectangular region gesture engine. `select()` configures a free two-dimensional rectangle; a stateful one moves by its body and resizes by any edge or corner. A stateful axis brush retains its committed interval, allows dragging the body to move it, allows dragging either edge to resize it, and clears on an outside click or Escape. Angular brushing is currently ephemeral; editable wrapped-angle handles require a separate circular interaction model. Region events identify transitions with `create`, `move`, `resize-leading`, `resize-trailing`, and `clear` operations. This state and its interaction chrome are owned per chart surface by the trigger runtime; preset handlers remain stateless.
 
 The folder is organized as:
 
@@ -692,6 +750,14 @@ A custom source may register listeners and emit normalized events. Renderer-spec
 
 Assisted pointer and keyboard targeting share a transient target indicator and a floating semantic tooltip. Keyboard arrows move the indicator, apply the active hover styling, and emit `focus-element` through the `keyboard-targeting` interaction ID even when no click preset is configured. Enter or Space invokes any configured click presets. The tooltip uses the compiled pointer-hover fields, stays clear of the active mark, may extend beyond the chart canvas, and scrolls with the chart.
 
+Normal keyboard targeting is a flat traversal of targetable chart marks, without titles, axes, legends, or series-level entry. Left/Right visits the complete target set in horizontal order; Up/Down visits the same set in vertical order. The other coordinate breaks ties; coincident targets retain scene order. Both pairs stop at the ends without wrapping. Symbols use encoded positions, bars use unstroked geometry, and map shapes remove Vega's stroke padding from their bounds so hover emphasis does not reorder them. Shape coordinates are rounded to a millionth of a pixel to preserve ties across floating-point stroke adjustments. Composite marks still have one representative per interaction key. Enter/Space activates the current target and Escape clears it.
+
+Target details and accessible-navigation captions share `floating-panel.ts`: native manual popovers escape ancestor clipping in the browser top layer, with a document-body fallback where the Popover API is unavailable. Floating UI anchors them in client coordinates, flips and shifts at viewport edges, and constrains long content with scrolling. Placement follows scrolling, resizing, and CSS transforms without moving keyboard focus. Each panel belongs to the chart's own document: inside an MCP iframe/webview, its viewport is the boundary, not the chart canvas or the outer host window. Chart annotations, focus rings, and selection geometry remain chart-local; renderer-native tooltips retain their renderer's placement behavior.
+
+A panel hides when its anchor is fully outside the chart container, viewport, or a clipping ancestor. It reappears automatically when the anchor returns to view, without changing keyboard focus or selection. The panel itself may still extend beyond the chart while its anchor is visible.
+
+Panels use document-relative absolute positioning so page scrolling carries them with their anchors immediately, without waiting for asynchronous positioning updates. Floating UI still handles edge placement, nested scrolling, resizing, and transforms; no movement transition is applied.
+
 Eligible element presets use modest assisted pointer targeting by default: click, annotation,
 context, and double activation use an 8-pixel acquisition radius, hover uses 6 pixels, and long
 press uses 12 pixels. Region selection, brushing, navigation, and element dragging never use
@@ -700,7 +766,7 @@ assisted acquisition. Set `assistedTargeting: false` to require direct hits glob
 opt-in:
 
 ```ts
-buildInteractiveChart(container, input, {
+mountChart(container, input, {
     backend: 'vegalite',
     interactions: [clickHighlight({ targets: ['mark', 'legend', 'discreteAxis'] }), axisHighlight()],
     assistedTargeting: {
@@ -713,6 +779,34 @@ buildInteractiveChart(container, input, {
 ```
 
 `axisHighlight()` treats native categorical axis ticks as semantic controls. The compiler maps each Vega scale back to its authored field, and the runtime associates a tick with represented mark keys. Quantitative and temporal ticks remain inert until a nearest-value or interval policy is specified.
+
+### Accessible navigation
+
+`accessibleNavigation()` (`{ "type": "accessible-navigation" }` in a spec) turns the whole chart into one keyboard stop that walks its semantic structure, not only its marks. The Vega-Lite runtime reads a tree from the rendered scenegraph (`vegalite/interactions/accessible-navigation/model.ts`):
+
+```
+Chart
+├─ Title, Subtitle
+├─ X axis / Y axis ── axis title, tick labels ── (categorical label) its marks
+├─ Legend ── legend title, items ── its marks
+├─ Column headers / Row headers / Facet headers ── header ── its panels
+├─ Data ── panels ── series (a line or an area) ── marks
+└─ Text labels
+```
+
+Both arrow pairs traverse the same complete sibling set. Left/Right sorts by the left edge, then top edge; Up/Down sorts by the top edge, then left edge. Both stop only at their respective list boundaries, with exact ties retaining stable canonical order. Neither pair searches for a nearest neighbor or jumps into another series. To switch series from one of its points, Escape returns to the series list.
+
+Each level retains a default canonical reading direction for numbering, entry, Home/End, and Page Up/Down. Horizontal bars and row-based charts read vertically; vertical bars, lines, scatter, and other charts default to horizontal reading. Axes follow their own direction, legends their displayed arrangement, and row/column headers their orientation. Alternate arrow ordering does not mutate the canonical list or the element's identity.
+
+Canonical order uses stable reading geometry rather than focus decoration: points use their encoded positions and series use the union of those positions. Changing a focus stroke or symbol size does not reshuffle the list. Equal reading bounds retain distinct stops in stable order; painted bounds still determine the focus ring.
+
+Enter goes in, Escape or Backspace goes out; Home, End, Page Up, and Page Down move within canonical order; T, X, Y, L, F, and D jump to the title, the axes, the legend, the headers, and the data. Space on a mark, legend item, or axis label runs the configured click presets with `activate-element`, so `legend-toggle` and `click-highlight` answer the keyboard too. Tab still leaves the chart.
+
+Each step focuses a transparent proxy element laid over the rendered element: its accessible name is the announcement, it draws the focus ring, and the visible caption repeats it. The preset emphasises the data the element stands for (a bar, a series, a legend cohort, a category, a panel) as a preview update and emits `focus-element` with `event.description`: the element `kind`, its spoken `type` ("Bar"), its `content` ("Country: US, Sales: 200"), its position, and the full `text`. It claims no pointer trigger, so it composes with every other preset.
+
+After Space runs a click preset, the walk re-reads the element once the chart has re-rendered and announces its new state ("Activated. Source: Coal. No bars."). Each navigation/refresh rebuilds the tree while preserving the cursor by stable id: unchanged geometry and keys do not imply unchanged data or tooltip contents. Activation errors announce failure and log the original error; a `false` result repeats the reading. Pending announcements are invalidated when the reader moves away, leaves, issues another command, or the controller is destroyed.
+
+The chart is a single tab stop. When a preset also resets on Escape, the container stays focusable for a pointer press but leaves the tab order (`tabindex="-1"`); the walk's own proxy is the stop. `keyboardTargeting` is ignored while accessible navigation is mounted, since both would claim the arrow keys. Escape on the chart itself leaves the walk without consuming the key, so an Escape reset still runs. The design, its limits, and the Plotly plan are in [`docs/design-accessible-navigation.md`](../../../../docs/design-accessible-navigation.md).
 
 ## Update Language
 
@@ -742,13 +836,17 @@ interface StyleSpec {
     fill?: string;
     stroke?: string;
     strokeWidth?: number;
-    state?: 'normal' | 'focused' | 'emphasized' | 'muted';
+    state?: 'normal' | 'focused' | 'emphasized' | 'highlighted' | 'muted';
     mutedOpacity?: number;
 }
 ```
 
 Operators are plain JSON. Presets and applications construct object literals directly;
 there are no trivial operator factory functions.
+
+`emphasized` and `focused` recede every other mark to `mutedOpacity`. `highlighted` gives its
+targets their mark's hover cue (a wider line drawn in front, an outline, a contrast step) and
+leaves every other mark as drawn.
 
 The renderer has two inputs:
 
@@ -944,8 +1042,11 @@ clickGroupFocus({ groupBy: 'Quadrant' });
 This keeps grouping serializable and reusable by other chart semantics. Event-relative or otherwise
 custom interaction logic belongs in a custom `handle`, which can emit the existing style updates.
 
-`hoverGroupFocus({ groupBy: 'Country' })` provides the transient counterpart. Its preview
-clears on pointer exit and does not replace retained click or brush state. Assisted acquisition
+`hoverGroupFocus({ groupBy: 'Country' })` provides the transient counterpart. `emphasis`
+sets how the hovered group stands out: `'highlight'` gives it its marks' hover cue and leaves
+the other groups as drawn, `'spotlight'` also dims them to `dimOpacity`, and `'auto'` (the
+default) highlights a group drawn as a line and spotlights points, bars, and slices, whose own
+cue cannot carry a scattered group. A hollow point's cue fills it with its own colour. Its preview clears on pointer exit and does not replace retained click or brush state. Assisted acquisition
 finds a nearby mark within the preset's default 6-pixel radius. Separately, the default 8-pixel
 `tolerance` keeps the last resolved cohort stable across narrow gaps; set it to zero to disable
 that gap retention.

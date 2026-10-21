@@ -1,12 +1,11 @@
 import { useCallback, useDeferredValue, useMemo, useRef, useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 import type {
-  FlintInteractionEventDetail,
+  ChartChange,
   InteractionDef,
-  InteractiveChartSurface,
-  SemanticElement,
   UpdateTarget,
 } from 'flint-chart/interactive';
+import type { FlintChartHandle } from 'flint-chart/react';
 import {
   brushY,
   clickGroupFocus,
@@ -22,13 +21,13 @@ import './interaction-dashboard-lab.css';
 
 type Row = Record<string, unknown>;
 
-interface DashboardChart {
+export interface DashboardChart {
   id: string;
   fixture: InteractionDemoFixture;
   interaction: InteractionDef;
 }
 
-interface DashboardSelection {
+export interface DashboardSelection {
   ids: string[];
 }
 
@@ -41,7 +40,7 @@ const focusCountries = new Set([
 ]);
 
 type DashboardMetric = 'Life expectancy' | 'GDP per capita';
-const DASHBOARD_SELECTION_ID = 'dashboard-selection';
+export const DASHBOARD_SELECTION_ID = 'dashboard-selection';
 const DASHBOARD_LINKED_SELECTION_ID = 'dashboard-linked-selection';
 
 const semanticTypes = {
@@ -57,13 +56,15 @@ const semanticTypes = {
   'GDP per capita': 'Currency',
 };
 
-const dashboardTheme = {
+export const dashboardTheme = {
   extends: 'economist',
   ink: {
     series: {
       categoricalExtended: [
         '#006ba2', '#3ebcd2', '#ebb434', '#379a8b', '#9a3d5b', '#a17ba5',
         '#003f5c', '#d46b27', '#5f8f3b', '#c75146', '#d66aa5', '#74624f',
+        '#7fb2d0', '#e8c76a', '#8fc7b9', '#c99bb0', '#a8b85a', '#e7a37c',
+        '#5a6e8c', '#9c8a73',
       ],
     },
   },
@@ -79,7 +80,7 @@ function recordObservationIds(record: Row): string[] {
     : [String(record.Observation)];
 }
 
-function dashboardFixture(
+export function dashboardFixture(
   id: string,
   title: string,
   chartType: string,
@@ -196,12 +197,6 @@ function buildDashboardCharts(
   ];
 }
 
-function observationIds(elements: readonly SemanticElement[]): string[] {
-  return [...new Set(elements.flatMap((element) =>
-    element.records?.flatMap(recordObservationIds) ?? []))]
-    .filter((id) => id !== 'undefined');
-}
-
 function linkedTargets(chartId: string, observationIds: readonly string[]): UpdateTarget[] {
   const selected = new Set(observationIds);
   const selectedRows = gapminderRows.filter((row) => selected.has(row.Observation));
@@ -210,14 +205,14 @@ function linkedTargets(chartId: string, observationIds: readonly string[]): Upda
   return [...values].map((value) => ({ select: { key: { [field]: value } } }));
 }
 
-function DashboardPanel({
+export function DashboardPanel({
   chart,
-  registerSurface,
-  routeEvent,
+  registerChart,
+  routeSelection,
 }: {
   chart: DashboardChart;
-  registerSurface: (id: string, surface: InteractiveChartSurface | null) => void;
-  routeEvent: (detail: FlintInteractionEventDetail) => void;
+  registerChart: (id: string, handle: FlintChartHandle | null) => void;
+  routeSelection: (sourceId: string, change: ChartChange) => void;
 }) {
   const interactions = useMemo(() => [
     chart.interaction,
@@ -238,27 +233,68 @@ function DashboardPanel({
       },
     }),
   ], [chart.id, chart.interaction]);
-  const handleSurface = useCallback(
-    (surface: InteractiveChartSurface | null) => registerSurface(chart.id, surface),
-    [chart.id, registerSurface],
+  const handleRef = useCallback(
+    (handle: FlintChartHandle | null) => registerChart(chart.id, handle),
+    [chart.id, registerChart],
+  );
+  const handleChange = useCallback(
+    (change: ChartChange) => routeSelection(chart.id, change),
+    [chart.id, routeSelection],
   );
 
   return (
     <article className={`idash-panel idash-panel-${chart.id}`}>
       <InteractionDemoChart
+        ref={handleRef}
         fixture={chart.fixture}
         interactions={interactions}
         chartId={`dashboard-${chart.id}`}
-        onSurface={handleSurface}
-        onSemanticEvent={routeEvent}
+        onChange={handleChange}
       />
     </article>
   );
 }
 
-export function InteractionDashboardLab() {
-  const surfaces = useRef(new Map<string, InteractiveChartSurface>());
+/**
+ * Links dashboard panels: a reader gesture in one panel is routed to every other
+ * registered panel through its external interaction, and kept as the selection.
+ */
+export function useLinkedDashboard() {
+  const charts = useRef(new Map<string, FlintChartHandle>());
   const [selection, setSelection] = useState<DashboardSelection | null>(null);
+
+  const dispatchSelection = useCallback((ids: string[], excludeId?: string) => {
+    for (const [id, chart] of charts.current) {
+      if (id === excludeId) continue;
+      void chart.dispatch(DASHBOARD_LINKED_SELECTION_ID, { observationIds: ids });
+    }
+  }, []);
+
+  // A gesture in one chart routes to the others. Routed writes are host
+  // changes, so they do not route again.
+  const routeSelection = useCallback((sourceId: string, change: ChartChange) => {
+    if (change.phase !== 'commit' || change.source !== 'reader' || !change.interactionId || change.action?.endsWith('-viewport')) return;
+    const ids = [...new Set((change.target?.elements ?? []).map((element) => element.value).flatMap(recordObservationIds))]
+      .filter((id) => id !== 'undefined');
+    dispatchSelection(ids, sourceId);
+    setSelection(ids.length > 0 ? { ids } : null);
+  }, [dispatchSelection]);
+
+  const registerChart = useCallback((id: string, handle: FlintChartHandle | null) => {
+    if (handle) charts.current.set(id, handle);
+    else charts.current.delete(id);
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    dispatchSelection([]);
+    setSelection(null);
+  }, [dispatchSelection]);
+
+  return { selection, registerChart, routeSelection, clearSelection };
+}
+
+export function InteractionDashboardLab() {
+  const { selection, registerChart, routeSelection, clearSelection } = useLinkedDashboard();
   const [snapshotYear, setSnapshotYear] = useState(2007);
   const [metric, setMetric] = useState<DashboardMetric>('Life expectancy');
   const deferredYear = useDeferredValue(snapshotYear);
@@ -267,31 +303,6 @@ export function InteractionDashboardLab() {
     () => buildDashboardCharts(deferredYear, deferredMetric),
     [deferredMetric, deferredYear],
   );
-
-  const registerSurface = useCallback((id: string, surface: InteractiveChartSurface | null) => {
-    if (surface) surfaces.current.set(id, surface);
-    else surfaces.current.delete(id);
-  }, []);
-
-  const dispatchSelection = useCallback((ids: string[], excludeId?: string) => {
-    for (const [id, surface] of surfaces.current) {
-      if (id === excludeId) continue;
-      void surface.dispatch(DASHBOARD_LINKED_SELECTION_ID, { observationIds: ids });
-    }
-  }, []);
-
-  const routeEvent = useCallback((detail: FlintInteractionEventDetail) => {
-    if (detail.event.phase !== 'commit') return;
-    const ids = observationIds(detail.event.target?.elements ?? []);
-    const source = dashboardCharts.find((chart) => `dashboard-${chart.id}` === detail.chartId);
-    dispatchSelection(ids, source?.id);
-    setSelection(ids.length > 0 ? { ids } : null);
-  }, [dashboardCharts, dispatchSelection]);
-
-  const clearSelection = useCallback(() => {
-    dispatchSelection([]);
-    setSelection(null);
-  }, [dispatchSelection]);
 
   const changeYear = useCallback((year: number) => {
     clearSelection();
@@ -369,16 +380,16 @@ export function InteractionDashboardLab() {
           <DashboardPanel
             key={chart.id}
             chart={chart}
-            registerSurface={registerSurface}
-            routeEvent={routeEvent}
+            registerChart={registerChart}
+            routeSelection={routeSelection}
           />
         ))}
         {dashboardCharts.slice(2).map((chart) => (
           <DashboardPanel
             key={chart.id}
             chart={chart}
-            registerSurface={registerSurface}
-            routeEvent={routeEvent}
+            registerChart={registerChart}
+            routeSelection={routeSelection}
           />
         ))}
       </div>

@@ -8,6 +8,7 @@ import {
 } from '../../interactive/interactions';
 import { toCanvasInteractionEvent } from '../../interactive/canvas-interaction';
 import { admitInteractions, navigationAxesFor } from '../../interactive/spec/admission';
+import { INTERACTION_ROW } from '../../core/interaction-semantics';
 import { affordsTarget } from '../../interactive/affordances';
 import { DEFAULT_DIM_OPACITY } from '../../interactive/presets/utils';
 import { INTERACTION_PROVENANCE, type InteractionProvenance } from '../interaction-provenance';
@@ -35,11 +36,15 @@ import {
     LEGEND_SELECTION_STORE,
     STYLE_SIGNAL,
 } from './stores';
+import type { TemporalAxisPlanInputs } from '../instantiate-spec';
+import { bindTemporalAxisTicks, navigationDomainSignal, walkVegaGroups } from './live-layout';
 import {
     GEO_AXIS_SCALES,
     GEO_EXTENT_SIGNAL,
     GEO_PROJECTION_SIGNAL,
+    GEO_ROTATE_SIGNAL,
     geoLevelGate,
+    isGlobeProjection,
     type GeoLevelConfig,
     type GeoPreProjection,
 } from './navigation-geo';
@@ -61,6 +66,8 @@ interface TemplateInteractionSemantics {
     resolveGroupValue?: InteractionContext['resolveGroupValue'];
     legendFields?: Record<string, string>;
     axisFields?: Partial<Record<'x' | 'y', { field: string; type: string }>>;
+    /** The axis the series run along; `inspect-index` reads along it unless the author names one. */
+    indexAxis?: 'x' | 'y';
     rangeLegendChannels?: readonly string[];
     selectableMarks: string[];
     annotationMarkType?: string;
@@ -104,7 +111,28 @@ function expandInteractiveLinePoints(spec: Record<string, any>): void {
             { mark: typeof point === 'object' ? { type: 'point', ...point } : { type: 'point', filled: true } },
         ];
         delete spec.mark;
+        const { facet, row, column, ...encoding } = spec.encoding ?? {};
+        if (facet || row || column) {
+            // A layer drops facet channels, so the facet becomes the operator around it.
+            if (facet) {
+                const { columns, ...field } = facet;
+                spec.facet = field;
+                if (columns !== undefined) spec.columns = columns;
+            } else {
+                spec.facet = { ...(row ? { row } : {}), ...(column ? { column } : {}) };
+            }
+            const inner: Record<string, any> = { layer: spec.layer, encoding };
+            for (const key of ['width', 'height', 'params', 'projection', 'view'] as const) {
+                if (spec[key] === undefined) continue;
+                inner[key] = spec[key];
+                delete spec[key];
+            }
+            delete spec.layer;
+            delete spec.encoding;
+            spec.spec = inner;
+        }
     }
+    if (spec.spec && typeof spec.spec === 'object') expandInteractiveLinePoints(spec.spec);
     for (const property of ['layer', 'hconcat', 'vconcat', 'concat'] as const) {
         if (!Array.isArray(spec[property])) continue;
         for (const child of spec[property]) expandInteractiveLinePoints(child);
@@ -117,6 +145,40 @@ function keyExpression(fields: readonly string[]): string {
         .join(` + '|' + `);
 }
 
+/** Dots, whichever glyph draws them: a house that redraws a template's circles as squares keeps them selectable. */
+const DOT_MARKS = new Set(['point', 'circle', 'square']);
+
+/** Vega-Lite's opacity for unaggregated dots and ticks that state none. */
+const VEGA_LITE_REDUCED_OPACITY = 0.7;
+
+/** A mark property as Vega-Lite resolves it: the mark's own, then its styles (later wins), then `config[type]`, then `config.mark`. */
+function markPropOrConfig(node: Record<string, any>, type: string, property: string, config: Record<string, any> | undefined): unknown {
+    const mark = typeof node.mark === 'object' && node.mark !== null ? node.mark : {};
+    if (mark[property] !== undefined) return mark[property];
+    const styles = [type, ...(Array.isArray(mark.style) ? mark.style : mark.style ? [mark.style] : [])];
+    const styled = styles.reduce<unknown>((value, style) => config?.style?.[style]?.[property] ?? value, undefined);
+    return styled ?? config?.[type]?.[property] ?? config?.mark?.[property];
+}
+
+/**
+ * The opacity an unencoded mark is drawn at, which focus keeps for the marks it does not dim: the
+ * mark's or its config's, else Vega-Lite's 0.7 for unaggregated dots and ticks, else 1. A theme
+ * that fades its dots, or leaves them at Vega-Lite's fade, keeps the fade once interactive.
+ */
+function idleMarkOpacity(node: Record<string, any>, type: string, encoding: Record<string, any>, config: Record<string, any> | undefined): number {
+    const opacity = markPropOrConfig(node, type, 'opacity', config);
+    if (typeof opacity === 'number') return opacity;
+    if (opacity !== undefined || markPropOrConfig(node, type, 'fillOpacity', config) !== undefined) return 1;
+    const aggregated = Object.values(encoding).some((definition) =>
+        (Array.isArray(definition) ? definition : [definition]).some((entry) => entry && typeof entry === 'object' && entry.aggregate));
+    return ['point', 'circle', 'square', 'tick'].includes(type) && !aggregated ? VEGA_LITE_REDUCED_OPACITY : 1;
+}
+
+function isSelectable(type: string, selectableMarks: ReadonlySet<string>): boolean {
+    if (selectableMarks.has(type)) return true;
+    return DOT_MARKS.has(type) && [...DOT_MARKS].some((dot) => selectableMarks.has(dot));
+}
+
 function instrumentNode(
     node: Record<string, any>,
     inherited: Record<string, any>,
@@ -124,11 +186,17 @@ function instrumentNode(
     dimOpacity: number,
     continuousColorFocus: ContinuousColorFocusStyle | undefined,
     selectableMarks: ReadonlySet<string>,
+    config: Record<string, any> | undefined,
 ): boolean {
     const type = markType(node.mark);
-    const selectable = !!type && SUPPORTED_SPEC_MARKS.has(type) && selectableMarks.has(type);
+    const selectable = !!type && SUPPORTED_SPEC_MARKS.has(type) && isSelectable(type, selectableMarks);
     const provenance = node[INTERACTION_PROVENANCE] as InteractionProvenance | undefined;
-    if (provenance?.role === 'decorative') return false;
+    if (provenance?.role === 'decorative') {
+        // Chrome drawn from the chart's rows — a panel's floor rule keeps its first one — must not
+        // carry that row's identity: keyed upstream, it would answer the pointer as the data point.
+        node.transform = [...(Array.isArray(node.transform) ? node.transform : []), { calculate: 'null', as: INTERACTION_KEY }];
+        return false;
+    }
     const textLabel = provenance?.role === 'text-label';
     const legendLabel = provenance?.role === 'legend-label';
     if (!selectable && !textLabel && !legendLabel) return false;
@@ -159,9 +227,7 @@ function instrumentNode(
         || encoding.fillOpacity || encoding.strokeOpacity) return false;
     const authoredOpacity = typeof encodedOpacity?.value === 'number'
         ? encodedOpacity.value
-        : typeof node.mark === 'object' && typeof node.mark.opacity === 'number'
-        ? node.mark.opacity
-        : 1;
+        : idleMarkOpacity(node, type!, encoding, config);
     if (typeof node.mark === 'object' && typeof node.mark.opacity === 'number') {
         node.mark = { ...node.mark };
         delete node.mark.opacity;
@@ -210,6 +276,7 @@ function instrumentMarks(
     dimOpacity: number,
     continuousColorFocus: ContinuousColorFocusStyle | undefined,
     selectableMarks: ReadonlySet<string>,
+    config: Record<string, any> | undefined,
 ): boolean {
     const encoding = { ...inherited, ...(spec.encoding ?? {}) };
     let instrumented = instrumentNode(
@@ -219,6 +286,7 @@ function instrumentMarks(
         dimOpacity,
         continuousColorFocus,
         selectableMarks,
+        config,
     );
     for (const property of ['layer', 'hconcat', 'vconcat', 'concat'] as const) {
         if (!Array.isArray(spec[property])) continue;
@@ -230,6 +298,7 @@ function instrumentMarks(
                 dimOpacity,
                 continuousColorFocus,
                 selectableMarks,
+                config,
             ) || instrumented;
         }
     }
@@ -241,21 +310,52 @@ function instrumentMarks(
             dimOpacity,
             continuousColorFocus,
             selectableMarks,
+            config,
         ) || instrumented;
     }
     return instrumented;
 }
 
-function inlineRows(spec: Record<string, any>): Record<string, any>[] {
-    if (Array.isArray(spec?.data?.values)) return spec.data.values;
+/** The node that owns the inline rows, searched the way `inlineRows` reads them. */
+function inlineDataNode(spec: Record<string, any>): Record<string, any> | undefined {
+    if (Array.isArray(spec?.data?.values)) return spec;
     for (const property of ['layer', 'hconcat', 'vconcat', 'concat'] as const) {
         if (!Array.isArray(spec[property])) continue;
         for (const child of spec[property]) {
-            const rows = inlineRows(child);
-            if (rows.length > 0) return rows;
+            const node = inlineDataNode(child);
+            if (node && node.data.values.length > 0) return node;
         }
     }
-    return spec.spec && typeof spec.spec === 'object' ? inlineRows(spec.spec) : [];
+    return spec.spec && typeof spec.spec === 'object' ? inlineDataNode(spec.spec) : undefined;
+}
+
+function inlineRows(spec: Record<string, any>): Record<string, any>[] {
+    return inlineDataNode(spec)?.data.values ?? [];
+}
+
+function sameRow(left: Record<string, unknown>, right: Record<string, unknown>): boolean {
+    const fields = Object.keys(left);
+    return fields.length === Object.keys(right).length
+        && fields.every((field) => field in right && Object.is(left[field], right[field]));
+}
+
+/**
+ * Number the inline rows before any other transform, so each rendered datum
+ * names its source row and provenance needs no matching. Only when the inline
+ * rows are the source records, row for row; a template that reshapes its data
+ * keeps the field match.
+ */
+function stampSourceRows(spec: Record<string, any>, sourceRecords: readonly Record<string, unknown>[]): boolean {
+    const node = inlineDataNode(spec);
+    const rows: Record<string, unknown>[] = node?.data.values ?? [];
+    if (!node || rows.length !== sourceRecords.length || !rows.every((row, index) => sameRow(row, sourceRecords[index]))) {
+        return false;
+    }
+    node.transform = [
+        { window: [{ op: 'row_number', as: INTERACTION_ROW }] },
+        ...(Array.isArray(node.transform) ? node.transform : []),
+    ];
+    return true;
 }
 
 function pinChannelDomain(
@@ -346,7 +446,7 @@ function addLocalKeyTransforms(
     if (provenance?.role === 'decorative') return;
     // A composition can hoist `data` to an ancestor, so a unit is keyed on its
     // own mark rather than on owning a data source.
-    if (type && SUPPORTED_SPEC_MARKS.has(type) && selectableMarks.has(type)) {
+    if (type && SUPPORTED_SPEC_MARKS.has(type) && isSelectable(type, selectableMarks)) {
         spec.transform = [
             ...(Array.isArray(spec.transform) ? spec.transform : []),
             ...keyTransforms(fields),
@@ -458,9 +558,12 @@ export function addVegaLiteInteractions(
             spec, {}, fields, dimOpacity,
             templateSemantics.neutralizeContinuousColor ? templateSemantics.continuousColorFocus : undefined,
             selectableMarks,
+            spec.config,
         )
         : false;
     if (needsSemanticPresentation && !instrumented) return null;
+    const sourceRecords = templateSemantics.sourceRecords ?? inlineRows(spec).map((record) => ({ ...record }));
+    const rowIndexed = instrumented ? stampSourceRows(spec, sourceRecords) : false;
     if (instrumented) addLocalKeyTransforms(spec, fields, selectableMarks);
     if (instrumented && admitted.some((interaction) => affordsTarget(interaction, 'legend-item'))) {
         pinLegendDomains(spec, templateSemantics.legendFields);
@@ -474,15 +577,19 @@ export function addVegaLiteInteractions(
     }
     return {
         fields,
-        sourceRecords: templateSemantics.sourceRecords ?? inlineRows(spec).map((record) => ({ ...record })),
+        sourceRecords,
+        rowIndexed,
         provenanceFields: templateSemantics.provenanceFields ?? fields,
         temporalProvenanceFields: templateSemantics.temporalProvenanceFields ?? [],
         rangeProvenance: templateSemantics.rangeProvenance ?? [],
         categoryField: templateSemantics.categoryField,
         seriesField: templateSemantics.seriesField,
+        // A line drawn wider stands out on its own; a point's ring or a bar's contrast step does not.
+        groupHoverEmphasis: templateSemantics.renderHoverStyles?.line ? 'highlight' : 'spotlight',
         resolveGroupValue: templateSemantics.resolveGroupValue,
         legendFields: templateSemantics.legendFields,
         axisFields: templateSemantics.axisFields,
+        indexAxis: templateSemantics.indexAxis,
         rangeLegendChannels: templateSemantics.rangeLegendChannels,
         annotationMarkType: templateSemantics.annotationMarkType,
         semanticStores: instrumented,
@@ -543,6 +650,7 @@ export function injectVegaReorderSignal(
 export function injectVegaNavigationSignals(
     vegaSpec: Record<string, any>,
     channels: readonly ('x' | 'y')[] = [],
+    temporalPlans: Partial<Record<'x' | 'y', TemporalAxisPlanInputs>> = {},
 ): Partial<Record<'x' | 'y', import('./contracts').VegaNavigationAxis>> {
     const result: Partial<Record<'x' | 'y', import('./contracts').VegaNavigationAxis>> = {};
     for (const channel of channels) {
@@ -550,12 +658,51 @@ export function injectVegaNavigationSignals(
         if (!scale || !['linear', 'log', 'time', 'utc'].includes(scale.type)) {
             throw new Error(`Vega navigation requires a top-level continuous "${channel}" scale.`);
         }
-        const signal = `__flint_navigation_${channel}_domain`;
+        const signal = navigationDomainSignal(channel);
         vegaSpec.signals = [...(vegaSpec.signals ?? []), { name: signal, value: null }];
         scale.domainRaw = { signal };
+        const inputs = temporalPlans[channel];
+        if (inputs && (scale.type === 'time' || scale.type === 'utc')) {
+            bindTemporalAxisTicks(vegaSpec, channel, scale, inputs);
+        } else if (scale.type === 'linear') {
+            // A zoomed window needs its own ticks: past the planned view, the values give way to a count of the same density.
+            walkVegaGroups(vegaSpec, (group) => {
+                for (const axis of group.axes ?? []) {
+                    if (axis.scale !== scale.name || !Array.isArray(axis.values)) continue;
+                    axis.tickCount = axis.tickCount ?? axis.values.length;
+                    axis.values = { signal: `${signal} ? null : ${JSON.stringify(axis.values)}` };
+                }
+            });
+        }
         result[channel] = { scale: scale.name, signal, type: scale.type };
     }
+    if (channels.length > 0) clipStackGroups(vegaSpec);
     return result;
+}
+
+/**
+ * Rounded stacked bars draw each stack as a faceted group, and Vega-Lite puts a mark's clip
+ * on the rects inside it, which clips them to the stack group instead of the plot. The clip
+ * belongs on the stack group, whose items then clip to the plot that holds it. A group that
+ * fills the plot, such as the one a multi-series line draws its paths in, keeps its marks'
+ * own clip.
+ */
+function clipStackGroups(group: Record<string, any>): void {
+    const unclip = (mark: Record<string, any>): boolean => {
+        let clipped = mark.clip === true;
+        delete mark.clip;
+        for (const child of mark.marks ?? []) clipped = unclip(child) || clipped;
+        return clipped;
+    };
+    for (const mark of group.marks ?? []) {
+        if (mark.type !== 'group') continue;
+        const update = mark.encode?.update ?? {};
+        if (mark.from?.facet && (update.x || update.xc || update.y || update.yc)) {
+            if ((mark.marks ?? []).map(unclip).some(Boolean)) mark.clip = true;
+        } else {
+            clipStackGroups(mark);
+        }
+    }
 }
 
 /**
@@ -582,11 +729,44 @@ export function injectVegaGeoNavigationSignals(
     ];
     projection.extent = { signal: `${GEO_EXTENT_SIGNAL} || [[0, 0], [width, height]]` };
     delete projection.size;
+    // A globe turns: its rotation becomes a signal the navigation drives. Its
+    // fit (the whole sphere) does not depend on the rotation, so it holds its size.
+    if (isGlobeProjection(projection.type)) {
+        const authored = Array.isArray(projection.rotate) ? projection.rotate : [0, 0, 0];
+        vegaSpec.signals.push({ name: GEO_ROTATE_SIGNAL, value: authored });
+        projection.rotate = { signal: GEO_ROTATE_SIGNAL };
+    }
     const result: Partial<Record<'x' | 'y', import('./contracts').VegaNavigationAxis>> = {};
     for (const channel of channels) {
         result[channel] = { scale: GEO_AXIS_SCALES[channel], signal: GEO_EXTENT_SIGNAL, type: 'geo' };
     }
     return result;
+}
+
+/**
+ * The dataset a single-level map's focus and region viewports read: the
+ * regions the reader can point at, which are the shapes the chart keys for
+ * interaction. Structure drawn under them (a globe's no-data land) carries no
+ * key, so it is passed over; without any key, the last shape layer drawn is
+ * taken, since data sits over its base map.
+ */
+export function vegaGeoFocusSource(vegaSpec: Record<string, any>): string | undefined {
+    const datasets: any[] = Array.isArray(vegaSpec.data) ? vegaSpec.data : [];
+    const byName = new Map(datasets.map((dataset) => [dataset.name, dataset]));
+    const keyed = (name: string | undefined): boolean => {
+        const seen = new Set<string>();
+        for (let dataset = name ? byName.get(name) : undefined; dataset && !seen.has(dataset.name);
+            dataset = byName.get(dataset.source)) {
+            seen.add(dataset.name);
+            // Decorative structure carries the key too, but always null.
+            if ((dataset.transform ?? []).some((transform: any) => transform?.as === INTERACTION_KEY
+                && transform.expr !== 'null')) return true;
+        }
+        return false;
+    };
+    const shapes = (Array.isArray(vegaSpec.marks) ? vegaSpec.marks : [])
+        .filter((mark: any) => mark?.type === 'shape' && typeof mark.from?.data === 'string');
+    return (shapes.find((mark: any) => keyed(mark.from.data)) ?? shapes[shapes.length - 1])?.from.data;
 }
 
 /**
@@ -651,8 +831,18 @@ export function collectVegaAxisTargets(
                     + `data('${AXIS_HOVER_STORE}')[0].scale === ${JSON.stringify(axis.scale)} && `
                     + `data('${AXIS_HOVER_STORE}')[0].value === datum.value`
                 : undefined;
+            // The label's own colour, so the hover rule does not repaint a themed axis in the default ink.
+            const config = vegaSpec.config ?? {};
+            const orient = String(axis.orient);
+            const themedLabelColor = [
+                axis.labelColor,
+                config[`axis${orient[0].toUpperCase()}${orient.slice(1)}`]?.labelColor,
+                config[`axis${channel.toUpperCase()}`]?.labelColor,
+                config.axis?.labelColor,
+            ].find((color) => color !== undefined);
             const existingLabelFill = hoverColor
-                ? axis.encode?.labels?.update?.fill ?? axis.encode?.labels?.enter?.fill ?? { value: '#4a4a4a' }
+                ? axis.encode?.labels?.update?.fill ?? axis.encode?.labels?.enter?.fill
+                    ?? (typeof themedLabelColor === 'string' ? { value: themedLabelColor } : themedLabelColor ?? { value: '#4a4a4a' })
                 : undefined;
             const existingFontWeight = hoverColor
                 ? axis.encode?.labels?.update?.fontWeight ?? axis.encode?.labels?.enter?.fontWeight ?? { value: 'normal' }
@@ -692,9 +882,10 @@ export function collectVegaAxisTargets(
 function applyCompiledHoverStyles(
     marks: Record<string, any>[],
     renderHoverStyles: Readonly<Record<string, HoverStyle>>,
+    config: Record<string, any> | undefined,
 ): void {
     for (const mark of marks) {
-        if (Array.isArray(mark.marks)) applyCompiledHoverStyles(mark.marks, renderHoverStyles);
+        if (Array.isArray(mark.marks)) applyCompiledHoverStyles(mark.marks, renderHoverStyles, config);
         const style = renderHoverStyles[mark.type];
         const update = mark.encode?.update;
         if (!style || !update || !JSON.stringify(mark.encode).includes(INTERACTION_KEY)) continue;
@@ -703,7 +894,28 @@ function applyCompiledHoverStyles(
             ? `datum.${INTERACTION_KEY} + '${PATH_KEY_SUFFIX}'`
             : `datum.${INTERACTION_KEY}`;
         const hoverTest = `indata('${HOVER_STORE}', 'key', ${hoverKey})`;
-        for (const [channel, value] of Object.entries(style)) {
+        // A hover outline is drawn at the width of the outline the mark already has: a wider one
+        // reaches past the mark's bounds, and a legend or a title laid out from the drawing's
+        // bounds would move with every hover at the edge.
+        // A mark with no stroke of its own takes a transparent one, which its width already counts.
+        const idleWidth = idleConstant(update.strokeWidth ?? mark.encode?.enter?.strokeWidth
+            ?? configuredEntry(mark, 'strokeWidth', config) ?? { value: defaultStrokeWidth(mark.type) });
+        const hoverStyle: Record<string, unknown> = typeof style.strokeWidth === 'number' && idleWidth !== undefined && idleWidth > 0
+            ? { ...style, strokeWidth: idleWidth }
+            : { ...style };
+        // A hollow point is drawn by its outline, so recolouring the outline would grey the point out
+        // as if it were muted; it fills with its own colour instead.
+        const idleStroke = lastEntry(update.stroke ?? mark.encode?.enter?.stroke);
+        const idleFill = lastEntry(update.fill ?? mark.encode?.enter?.fill);
+        if (mark.type === 'symbol' && hoverStyle.stroke !== undefined && idleStroke
+            && (idleFill?.value === 'transparent' || idleFill?.value === 'none')) {
+            const { test: _test, ...colour } = idleStroke as Record<string, unknown>;
+            const existingFill = update.fill ?? mark.encode?.enter?.fill;
+            update.fill = [{ test: hoverTest, ...colour }, ...(Array.isArray(existingFill) ? existingFill : [existingFill])];
+            delete hoverStyle.stroke;
+            delete hoverStyle.fill;
+        }
+        for (const [channel, value] of Object.entries(hoverStyle)) {
             if (channel === 'opacity' && (value === 'contrast' || value === 'spotlight')) {
                 const currentOpacity = Array.isArray(update.opacity) ? update.opacity : [update.opacity];
                 if (value === 'spotlight' && currentOpacity.some((entry: any) =>
@@ -726,11 +938,11 @@ function applyCompiledHoverStyles(
                 ];
                 continue;
             }
-            const existing = update[channel] ?? mark.encode?.enter?.[channel] ?? (
+            const existing = update[channel] ?? mark.encode?.enter?.[channel] ?? configuredEntry(mark, channel, config) ?? (
                 channel === 'stroke'
                     ? { value: mark.type === 'line' || mark.type === 'rule' ? 'black' : 'transparent' }
                     : channel === 'strokeWidth'
-                    ? { value: mark.type === 'line' ? 2 : mark.type === 'rule' ? 1 : mark.type === 'symbol' ? 1.5 : 0 }
+                    ? { value: defaultStrokeWidth(mark.type) }
                     : undefined
             );
             if (existing === undefined) continue;
@@ -740,6 +952,31 @@ function applyCompiledHoverStyles(
             ];
         }
     }
+}
+
+/** A channel a Vega mark takes from its config rather than its encoding: its styles (later wins), then `config[type]`. */
+function configuredEntry(mark: Record<string, any>, channel: string, config: Record<string, any> | undefined): { value: unknown } | undefined {
+    const styles = Array.isArray(mark.style) ? mark.style : mark.style ? [mark.style] : [];
+    const value = styles.reduce<unknown>((found, style) => config?.style?.[style]?.[channel] ?? found, undefined)
+        ?? config?.[mark.type]?.[channel];
+    return value === undefined ? undefined : { value };
+}
+
+/** The width Vega strokes a mark at when it states none. */
+function defaultStrokeWidth(type: string): number {
+    return type === 'line' ? 2 : type === 'rule' ? 1 : type === 'symbol' ? 1.5 : 0;
+}
+
+/** An encoding's entry when nothing tests it: its last one. */
+function lastEntry(encoding: unknown): Record<string, any> | undefined {
+    const last = Array.isArray(encoding) ? encoding[encoding.length - 1] : encoding;
+    return last && typeof last === 'object' ? last as Record<string, any> : undefined;
+}
+
+/** An encoding's value when nothing tests it: its last entry, where that is a constant number. */
+function idleConstant(encoding: unknown): number | undefined {
+    const value = lastEntry(encoding)?.value;
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
 function applyCompiledStyleChannels(marks: Record<string, any>[]): void {
@@ -881,7 +1118,7 @@ export function injectVegaInteractionStore(
     };
     instrumentLegends(vegaSpec);
     if (!Array.isArray(vegaSpec.marks)) return;
-    if (plan?.renderHoverStyles) applyCompiledHoverStyles(vegaSpec.marks, plan.renderHoverStyles);
+    if (plan?.renderHoverStyles) applyCompiledHoverStyles(vegaSpec.marks, plan.renderHoverStyles, vegaSpec.config);
     applyCompiledStyleChannels(vegaSpec.marks);
     vegaSpec.marks.unshift({
         type: 'rect',

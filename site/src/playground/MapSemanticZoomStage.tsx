@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import type { ChartAssemblyInput } from 'flint-chart';
 import {
-  buildInteractiveChart,
   clickTrigger,
   navigate,
   type CanvasInteractionDef,
   type FlintInteractionEventDetail,
-  type InteractiveChartSurface,
 } from 'flint-chart/interactive';
+import { FlintChart, type FlintChartHandle } from 'flint-chart/react';
 import { expressionInterpreter } from 'vega-interpreter';
 import { ScaleToFit } from '../components/ScaleToFit';
 import mobility from '../data/county-mobility.json';
@@ -37,6 +37,31 @@ const CLICK_ID = 'map-semantic-zoom-click';
 /** Milliseconds a fly into a state, or back home, takes. */
 const FLY_MS = 700;
 
+/** A two-level US table for the stage, with the credit the footer shows. */
+export type MapDataset = {
+  input: () => ChartAssemblyInput;
+  measure: string;
+  source: string;
+  ariaLabel: string;
+  chartId: string;
+  /** Hide the chips, the Reset button, and the data credit; a double-click flies home. */
+  bare?: boolean;
+};
+
+const MOBILITY_DATASET: MapDataset = {
+  input: chartInput,
+  measure: mobility.measure,
+  source: mobility.source,
+  ariaLabel: 'US map of childhood income gain by place',
+  chartId: 'map-semantic-zoom',
+};
+
+/** What the reader has reached on the map: a state (by click or by the state under the centre), a county (by click), or home. */
+export type MapSelection =
+  | { kind: 'state'; key: string }
+  | { kind: 'county'; key: string | number }
+  | { kind: 'home' };
+
 const CLICK_REGION: CanvasInteractionDef = {
   id: CLICK_ID,
   eventSource: clickTrigger,
@@ -46,80 +71,72 @@ const CLICK_REGION: CanvasInteractionDef = {
   },
 };
 
-export function MapSemanticZoomStage() {
+export function MapSemanticZoomStage({ compact = false, dataset = MOBILITY_DATASET, onSelect, maxScale = 1 }: {
+  compact?: boolean;
+  dataset?: MapDataset;
+  onSelect?: (selection: MapSelection) => void;
+  /** Largest scale applied to the map's designed size, so a wide frame can enlarge it. */
+  maxScale?: number;
+} = {}) {
   const [level, setLevel] = useState<Level>('state');
   const [lonSpan, setLonSpan] = useState<number | undefined>(undefined);
   const [focusState, setFocusState] = useState<string | undefined>(undefined);
-  const mountRef = useRef<HTMLDivElement>(null);
-  const surfaceRef = useRef<InteractiveChartSurface | null>(null);
+  const chartRef = useRef<FlintChartHandle>(null);
   const levelRef = useRef<Level>('state');
-  levelRef.current = level;
 
   /** Fly the viewport to a region, or home with an empty value. */
-  const flyTo = useCallback((value: { region: { key: Record<string, unknown> } } | Record<string, never>) => {
-    void surfaceRef.current?.applyUpdate(
+  const flyTo = (value: { region: { key: Record<string, unknown> } } | Record<string, never>) => {
+    void chartRef.current?.applyUpdate(
       { id: 'map-semantic-zoom-fly', ops: [{ op: 'set-viewport', axes: 'xy', value }] },
       { transition: { duration: FLY_MS } },
     );
-  }, []);
+  };
 
-  const handleInteraction = useCallback((event: Event) => {
-    const detail = (event as CustomEvent<FlintInteractionEventDetail>).detail;
+  const spec = useMemo(() => dataset.input(), [dataset]);
+
+  const interactions = useMemo(() => [
+    navigate({
+      domainGuard: { minVisibleFraction: 0.04, maxVisibleFraction: 1, overscrollFraction: 0 },
+      // A click on empty map flies home; the bare stage keeps the double-click.
+      reset: dataset.bare ? ['double-click'] : ['click-none'],
+      resetTransition: { duration: FLY_MS },
+    }),
+    CLICK_REGION,
+  ], [dataset.bare]);
+
+  const handleInteraction = (detail: FlintInteractionEventDetail) => {
     const { phase, action, operation, geometry, target } = detail.event;
     if (phase === 'start' || phase === 'cancel') return;
     if (detail.interactionId === CLICK_ID) {
-      // A state at the overview level flies in; a county click is a plain
-      // click, and a click on empty map resets through navigate() itself.
-      if (phase !== 'commit' || target?.visual.kind !== 'region' || levelRef.current !== 'state') return;
+      // A state at the overview level flies in; a county click is reported to
+      // the host, and a click on empty map resets through navigate() itself.
+      if (phase !== 'commit' || target?.visual.kind !== 'region') return;
       const code = target.elements[0]?.value?.Region;
+      if (levelRef.current !== 'state') {
+        if (typeof code === 'string' || typeof code === 'number') onSelect?.({ kind: 'county', key: code });
+        return;
+      }
       if (typeof code !== 'string') return;
+      onSelect?.({ kind: 'state', key: code });
       flyTo({ region: { key: { Region: code } } });
       return;
     }
     if (!action.endsWith('-viewport')) return;
     // Every navigation event reports the level the chart settled on; the swap
     // itself already happened inside the chart.
-    if (isLevel(geometry.domain?.level)) setLevel(geometry.domain.level);
-    // A fly home reports each frame as a reset; the span counts down until the last one.
+    if (isLevel(geometry.domain?.level)) {
+      levelRef.current = geometry.domain.level;
+      setLevel(geometry.domain.level);
+    }
     const home = operation === 'reset' && phase === 'commit';
     setLonSpan(home ? undefined : longitudeSpan(geometry.domain));
-    // The state under the plot centre, read from the state layer's joined row.
     const place = geometry.domain?.focus?.Place;
     setFocusState(!home && typeof place === 'string' ? place : undefined);
-  }, [flyTo]);
-
-  useEffect(() => {
-    const mount = mountRef.current;
-    if (!mount) return undefined;
-    mount.addEventListener('flint-interaction', handleInteraction);
-    const surface = buildInteractiveChart(mount, chartInput(), {
-      backend: 'vegalite',
-      // Thousands of county shapes redraw on every pan/zoom frame; canvas
-      // avoids the per-path SVG DOM churn.
-      renderer: 'canvas',
-      interactions: [
-        navigate({
-          domainGuard: { minVisibleFraction: 0.04, maxVisibleFraction: 1, overscrollFraction: 0.15 },
-          // A click on empty map, not a double-click, flies home.
-          reset: ['click-none'],
-          resetTransition: { duration: FLY_MS },
-        }),
-        CLICK_REGION,
-      ],
-      expressionInterpreter,
-      ariaLabel: 'US map of childhood income gain by place',
-      chartId: 'map-semantic-zoom',
-    });
-    surfaceRef.current = surface;
-    void surface.ready.catch((error) => {
-      console.error('Semantic zoom stage failed to build', error);
-    });
-    return () => {
-      mount.removeEventListener('flint-interaction', handleInteraction);
-      surfaceRef.current = null;
-      surface.destroy();
-    };
-  }, [handleInteraction]);
+    if (home) onSelect?.({ kind: 'home' });
+    else if (phase === 'commit' && levelRef.current === 'county' && typeof geometry.domain?.focus?.Region === 'string') {
+      onSelect?.({ kind: 'state', key: geometry.domain.focus.Region });
+    }
+  };
 
   const reset = () => flyTo({});
 
@@ -129,7 +146,7 @@ export function MapSemanticZoomStage() {
 
   return (
     <div className="ic-flint-dimpvis-shell map-semantic-zoom-shell">
-      <div className="ic-stage-meta">
+      {!compact && <div className="ic-stage-meta">
         <strong>Semantic zoom on a two-level US choropleth</strong>
         <span>
           Wheel or pinch to zoom, drag to pan. One chart holds a state layer and a
@@ -138,24 +155,38 @@ export function MapSemanticZoomStage() {
           or a click on empty map flies back. The host only reads the level, the visible box, and the state under the
           centre from each event.
         </span>
-      </div>
-      <div className="ic-toolbar">
+      </div>}
+      {!dataset.bare && <div className="ic-toolbar">
         <span className="ic-pill" data-active="true">Level: {levelLabel}</span>
         <span className="ic-pill" data-active={lonSpan !== undefined}>
           {lonSpan !== undefined ? `Visible: ${lonSpan.toFixed(1)}° of longitude` : 'Visible: full frame'}
         </span>
         <button type="button" className="ic-pill" onClick={reset}>Reset</button>
-      </div>
+      </div>}
       <div className="ic-flint-dimpvis-panel">
-        <ScaleToFit height={800} minHeight={320} adaptiveHeight padding={8}>
-          <div className="ic-flint-dimpvis-mount map-semantic-zoom-mount" ref={mountRef} />
+        <ScaleToFit height={compact ? 300 : 800} adaptiveHeight={!compact} padding={8} maxScale={maxScale}>
+          <div className="ic-flint-dimpvis-mount map-semantic-zoom-mount">
+            <FlintChart
+              ref={chartRef}
+              spec={spec}
+              interactions={interactions}
+              // Thousands of county shapes redraw on every pan/zoom frame; canvas
+              // avoids the per-path SVG DOM churn.
+              renderer="canvas"
+              expressionInterpreter={expressionInterpreter}
+              ariaLabel={dataset.ariaLabel}
+              chartId={dataset.chartId}
+              onInteraction={handleInteraction}
+              onError={(error) => console.error('Semantic zoom stage failed to build', error)}
+            />
+          </div>
         </ScaleToFit>
       </div>
-      <div className="map-semantic-zoom-credit">
+      {!dataset.bare && <div className="map-semantic-zoom-credit">
         <strong>Data</strong>
-        <span>{mobility.measure}</span>
-        <span>{mobility.source}</span>
-      </div>
+        <span>{dataset.measure}</span>
+        <span>{dataset.source}</span>
+      </div>}
     </div>
   );
 }

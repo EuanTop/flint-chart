@@ -1,0 +1,230 @@
+{
+  "id": "cfpb",
+  "org": "Consumer Financial Protection Bureau (CFPB)",
+  "urls": [
+    "https://cfpb.github.io/design-system/guidelines/data-visualization-guidelines",
+    "https://github.com/cfpb/design-system/blob/main/docs/pages/data-visualization-1.md",
+    "https://github.com/cfpb/design-system/blob/main/docs/pages/color.md",
+    "https://github.com/cfpb/consumerfinance.gov/blob/main/cfgov/unprocessed/js/routes/on-demand/simple-chart/common-styles.js",
+    "https://github.com/cfpb/consumerfinance.gov/blob/main/cfgov/unprocessed/js/routes/on-demand/simple-chart/bar-styles.js",
+    "https://github.com/cfpb/consumerfinance.gov/blob/main/cfgov/unprocessed/js/routes/on-demand/simple-chart/line-styles.js",
+    "https://github.com/cfpb/consumerfinance.gov/blob/main/cfgov/unprocessed/css/on-demand/simple-chart.scss",
+    "https://raw.githubusercontent.com/cfpb/design-system/main/docs/images/uploads/data_visualization_required_information.png",
+    "https://raw.githubusercontent.com/cfpb/design-system/main/docs/images/uploads/simple_line_chart.png",
+    "https://raw.githubusercontent.com/cfpb/design-system/main/docs/images/uploads/stacked_bar_chart.png",
+    "https://raw.githubusercontent.com/cfpb/design-system/main/docs/images/uploads/vertical_bar_chart.png"
+  ],
+  "access": "full",
+  "accessNotes": "The design-system page is JS/YAML driven and web_fetch returned only a fragment, so the full content was read from the Markdown/YAML source in github.com/cfpb/design-system (data-visualization-1.md and color.md). Exact Highcharts settings came from the production 'simple chart' organism in github.com/cfpb/consumerfinance.gov (common-styles.js, bar-styles.js, line-styles.js, simple-chart.scss).",
+  "summary": "US federal agency design system: accessible, plain Highcharts charts on consumerfinance.gov. Five-colour brand palette led by CFPB Green #20aa3f then Navy, each series also distinguished by a pattern (line dashes, dotted/hatched bar fills). Grey #5a5d61 Source Sans 3 text at 16px, light-grey #d2d3d5 horizontal gridlines and axis lines, rotated y-axis title, and an editorial wrapper of uppercase 'FIGURE 1' eyebrow, bold title, intro text, then Source / Date published / Download / Notes below.",
+  "context": "government",
+  "colors": {
+    "categorical": [
+      "#20aa3f",
+      "#254b87",
+      "#7eb7e8",
+      "#ffb858",
+      "#c55998"
+    ],
+    "categoricalNotes": "Main palette in this order: CFPB Green #20aa3f (first data type), Navy #254b87, Pacific 60 #7eb7e8, Gold 80 #ffb858, Purple 80 #c55998 (same order as Highcharts 'colors' in common-styles.js). No more than five data types per chart. Differentiate data types with patterning as well as colour. Cool palette: Green 60 #addc91, Mid Dark Green #1fa040, Pacific 60 #7eb7e8, Pacific #0072ce, Teal 60 #89b6b5, Teal #257675, Navy 50 #9daecc, Navy #254b87. Warm palette: Gold 80 #ffb858, Dark Gold #dc731c, Neutral 60 #baa496, Dark Neutral #745745, Purple 50 #dc9cbf, Dark Purple #a01b68, Red 60 #e79e8e, Red #d14124.",
+    "sequential": [],
+    "diverging": [
+      "#257675",
+      "#89b6b5",
+      "#e79e8e",
+      "#d14124"
+    ],
+    "highlight": "#20aa3f",
+    "context": "#b4b5b6",
+    "positive": "#257675",
+    "negative": "#d14124",
+    "background": "#ffffff",
+    "text": "#5a5d61",
+    "textSecondary": "#5a5d61",
+    "gridline": "#d2d3d5",
+    "axis": "#d2d3d5",
+    "notes": "Diverging: use teal/red instead of green/red for pro/con, yes/no, positive/negative (colour-blind safe and keeps green for the brand): Teal 60 #89b6b5, Teal #257675, Red 60 #e79e8e, Red #d14124. Single-series bar charts are CFPB Green #20aa3f with hover Green 60 #addc91. Tooltip border Gray 60 #919395, shadow Gray 40 #b4b5b6 at 0.2 opacity, tooltip box #f7f8f9. Range-selector buttons #d6e8fa, hover/pressed #7eb7e8. Hidden legend items #ccc. Tile-map borders #919395, labels #101820. Contrast: 4.5:1 normal text, 3:1 large text. 'context' grey is Gray 40 from the chart code (not a stated de-emphasis colour)."
+  },
+  "typography": {
+    "family": "Source Sans 3 Variable",
+    "fallback": "Arial, sans-serif",
+    "title": {
+      "size": null,
+      "weight": "bold/demi (h2-style heading)",
+      "align": "left",
+      "case": "sentence",
+      "color": "#101820"
+    },
+    "subtitle": {
+      "size": null,
+      "weight": "regular",
+      "style": "normal",
+      "color": null
+    },
+    "axisLabel": {
+      "size": 16,
+      "color": "#5a5d61"
+    },
+    "axisTitle": {
+      "size": 16,
+      "weight": "regular",
+      "placement": "y title rotated 270° centred left of axis (on <=540px screens horizontal, left-aligned above the axis); x title centred below labels"
+    },
+    "dataLabel": {
+      "size": 12,
+      "weight": "regular"
+    },
+    "source": {
+      "size": 12,
+      "style": "footnote at 0.75em; bold labels 'Source:', 'Date published:', 'Download:', 'Notes:'",
+      "color": null
+    },
+    "notes": "Chart base font 16px, line-height 1.375, colour Gray #5a5d61. Legend items 16px regular weight. Tooltip 16px. Range-selector buttons 14px. Tile-map labels 12px (10px mobile). Title max one line at desktop (~95 characters). Figure number is an uppercase bold eyebrow above the title. Brand docs images use Avenir Next for headings; current production code uses Source Sans 3."
+  },
+  "structure": {
+    "gridlines": "Horizontal y-axis gridlines only, solid 1px Gray 20 #d2d3d5 (Highcharts y grid styled in simple-chart.scss); line-chart examples show them, while the bar/stacked-bar documentation images (Excel template) show none.",
+    "axisLine": "x-axis line Gray 20 #d2d3d5; y-axis line drawn in #d2d3d5 (very faint).",
+    "ticks": "Tick stroke #d2d3d5 (Highcharts defaults otherwise).",
+    "zeroLine": "Line chart axes should always start at 0.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "rotated vertical, centred; horizontal at top-left on narrow screens",
+    "unitPlacement": "In y-axis title (e.g. 'Credit card debt (in dollars)', 'Thousands'); y labels abbreviated K/M/B.",
+    "frame": "none",
+    "background": "white",
+    "notes": "Chart height 500px; container max-width 670px; no Highcharts credits; scrollbar disabled."
+  },
+  "legend": {
+    "placement": "Code default: floating, vertical, top-right; documentation examples show a horizontal legend above the plot (required-info figure) or centred below (line/stacked examples); bars with one series have no legend. On <=540px screens left-aligned.",
+    "directLabels": "Not used.",
+    "title": "no",
+    "swatchShape": "wide (30px) rectangle/line symbol showing the series' pattern (dash style or fill pattern)",
+    "notes": "Legend items clickable to show/hide series; hidden items turn #ccc; hover #000."
+  },
+  "marks": {
+    "bars": "Columns with gap roughly equal to bar width; no rounding or outline; single-series columns CFPB Green. Stacked segments use fill patterns (green solid, navy with dots, light blue with diagonal hatching).",
+    "lines": "2px lines (3px on hover), no point markers in production; each series has a distinct dash pattern (solid, short dash, dotted, long dash, long-dash-gap) built into CMS/Excel; crosshair on hover.",
+    "areas": "Area charts available in Excel template only.",
+    "points": null,
+    "pies": "Allowed (Excel template): slices must add to 100%, no more than five slices.",
+    "notes": "Patterns available: square dot, round dot, dash and long dash."
+  },
+  "labels": {
+    "dataLabels": "Not printed on bars/lines; values available in tooltip.",
+    "numberFormat": "Y axis labels abbreviated: >=1,000 -> K, >=1,000,000 -> M, >=1,000,000,000 -> B; thousands separators with comma in examples (1,000).",
+    "dates": "Abbreviated month + year on x axis (Jan 2024, Sept 2018).",
+    "notes": ""
+  },
+  "furniture": {
+    "title": "Required, descriptive, no more than one line at desktop (~95 characters). Optional uppercase 'FIGURE n' eyebrow above it and optional intro text (max ~3 lines / 250 characters) calling out key takeaways.",
+    "source": "Below the chart after a thin grey rule: 'Source:' (bold) citation, 'Date published:', 'Download:' link to a source-data spreadsheet (required, Excel/CSV), 'Notes:' — in small text.",
+    "logo": null,
+    "other": "Required: title, one labelled X axis and one labelled Y axis, downloadable source data with descriptive link text, alt text (chart type, data type, main takeaway; <=250 characters). Supporting text in the body paragraphs after the chart."
+  },
+  "annotations": null,
+  "layout": "Simple chart max-width 670px, height 500px; responsive rule at max-width 540px moves the y-axis title horizontal above the axis and left-aligns the legend. Large spacing (60px) below chart.",
+  "interaction": "Highcharts tooltip: not shared/split, 15px padding, 15px distance, border #919395, soft shadow #b4b5b6 at 20%, background #f7f8f9, 16px text, HTML links inside. Line charts: crosshair, line thickens to 3px on hover, no halo. Bar hover turns Green 60 #addc91. Date/time chart has 1/3/5-year range buttons ('Select time range') and a navigator slider. Legend click toggles series (tracked in analytics). Filters above chart for tile-grid maps.",
+  "accessibility": "Max five data types; colour plus pattern for every series; teal/red instead of green/red; contrast 4.5:1 / 3:1; alt text required; downloadable accessible data table; supporting body text.",
+  "chartTypes": {
+    "preferred": [
+      "vertical bar",
+      "horizontal bar",
+      "grouped bar",
+      "stacked bar",
+      "100% stacked bar",
+      "simple line",
+      "date/time line chart",
+      "pie",
+      "area",
+      "tile grid map"
+    ],
+    "discouraged": [
+      "more than five series/slices (split into multiple charts)",
+      "green/red diverging"
+    ],
+    "notes": "Sometimes a sentence or table is better than a chart."
+  },
+  "distinctiveRules": [
+    {
+      "rule": "Series colours in fixed order: CFPB Green #20aa3f first, then Navy #254b87, Pacific 60 #7eb7e8, Gold 80 #ffb858, Purple 80 #c55998.",
+      "source": "https://cfpb.github.io/design-system/foundation/color",
+      "quote": "Use these colors in the following order with your first data type being CFPB Green followed by Navy."
+    },
+    {
+      "rule": "No more than five series, lines or slices per chart; otherwise split into small charts.",
+      "source": "https://cfpb.github.io/design-system/guidelines/data-visualization-guidelines",
+      "quote": "Include no more than five data types in your chart"
+    },
+    {
+      "rule": "Every series also gets a pattern: lines use different dash styles (solid, dashed, dotted, long dash), bars use dot/hatch fills; legend swatches are wide 30px samples of the pattern.",
+      "source": "https://cfpb.github.io/design-system/guidelines/data-visualization-guidelines",
+      "quote": "We've built the following patterns into our CMS and Excel template: square dot, round dot, dash, and long dash."
+    },
+    {
+      "rule": "Positive/negative uses teal #257675 / red #d14124, never green/red, keeping green for the brand.",
+      "source": "https://cfpb.github.io/design-system/foundation/color",
+      "quote": "Instead of a green/red color combination, use a teal/red color combination"
+    },
+    {
+      "rule": "All chart text is Source Sans 3 at 16px in Gray #5a5d61.",
+      "source": "https://github.com/cfpb/consumerfinance.gov/blob/main/cfgov/unprocessed/js/routes/on-demand/simple-chart/common-styles.js",
+      "quote": "fontFamily: '\"Source Sans 3 Variable\", Arial, sans-serif', fontSize: '16px', color: #5a5d61"
+    },
+    {
+      "rule": "Gridlines, axis lines and ticks are all Gray 20 #d2d3d5; gridlines horizontal only (omitted in the bar-chart examples).",
+      "source": "https://github.com/cfpb/consumerfinance.gov/blob/main/cfgov/unprocessed/css/on-demand/simple-chart.scss",
+      "quote": ".highcharts-axis-line, .highcharts-tick, .highcharts-grid-line { stroke: var(--gray-20); }"
+    },
+    {
+      "rule": "Y-axis title rotated 270° and centred on desktop; on screens <=540px it becomes horizontal, left-aligned above the axis.",
+      "source": "https://github.com/cfpb/consumerfinance.gov/blob/main/cfgov/unprocessed/js/routes/on-demand/simple-chart/common-styles.js",
+      "quote": "rotation: 270 ... maxWidth: 540 -> align: 'high', rotation: 0, textAlign: 'left'"
+    },
+    {
+      "rule": "Y-axis tick labels abbreviate thousands/millions/billions as K/M/B.",
+      "source": "https://github.com/cfpb/consumerfinance.gov/blob/main/cfgov/unprocessed/js/routes/on-demand/simple-chart/common-styles.js",
+      "quote": "If chart data is above 1 thousand return \"K\" in y-axis"
+    },
+    {
+      "rule": "Lines are 2px with no point markers; hovered line thickens to 3px.",
+      "source": "https://github.com/cfpb/consumerfinance.gov/blob/main/cfgov/unprocessed/css/on-demand/simple-chart.scss",
+      "quote": ".highcharts-graph { stroke-width: 2px; } ... series-hover ... 3px"
+    },
+    {
+      "rule": "Each chart requires a title (one line, ~95 chars), labelled X and Y axes, a downloadable data file with descriptive link text, and alt text <=250 characters.",
+      "source": "https://cfpb.github.io/design-system/guidelines/data-visualization-guidelines",
+      "quote": "you must include a title, axis labels, downloadable source data, and alt text"
+    },
+    {
+      "rule": "Uppercase 'FIGURE n' eyebrow above the title; below the chart a rule then bold-labelled 'Source:', 'Date published:', 'Download:', 'Notes:' lines.",
+      "source": "https://cfpb.github.io/design-system/guidelines/data-visualization-guidelines",
+      "quote": "Figure number ... will appear as text above the chart's title"
+    },
+    {
+      "rule": "Line chart value axis always starts at 0.",
+      "source": "https://cfpb.github.io/design-system/guidelines/data-visualization-guidelines",
+      "quote": "A line chart's axis should always start at 0."
+    },
+    {
+      "rule": "Tooltips: single-point, 15px padding, #919395 border, faint grey shadow, #f7f8f9 background, 16px text.",
+      "source": "https://github.com/cfpb/consumerfinance.gov/blob/main/cfgov/unprocessed/js/routes/on-demand/simple-chart/common-styles.js",
+      "quote": "borderColor: gray-60, padding: 15, shadow: { color: gray-40, opacity: 0.2 }"
+    }
+  ],
+  "referenceImages": [
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/cfpb/data_visualization_required_information.png",
+      "url": "https://raw.githubusercontent.com/cfpb/design-system/main/docs/images/uploads/data_visualization_required_information.png",
+      "describes": "Full chart module: small uppercase bold letter-spaced 'FIGURE 1' eyebrow, large bold dark title 'Average credit card debt' (Avenir-like sans), regular-weight subtitle/intro below, all left-aligned. Legend horizontal above the plot with wide pattern swatches (solid green, dashed navy, dotted light blue, long-dash gold, dash pink). Five 2px lines with small round markers in green #20aa3f, navy #254b87, light blue #7eb7e8, gold #ffb858, pink #c55998, each with its own dash pattern. Light-grey horizontal gridlines, y labels with comma thousands (1,000-8,000), rotated y-title 'Credit card debt (in dollars)', x labels like 'June 2018', x-title 'Date'. Below a thin grey rule: bold 'Source:', 'Date published:', 'Download: Source data spreadsheet' (link with icon), 'Notes:' in small text. Required items highlighted in pink."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/cfpb/simple_line_chart.png",
+      "url": "https://raw.githubusercontent.com/cfpb/design-system/main/docs/images/uploads/simple_line_chart.png",
+      "describes": "Highcharts line chart: five series with dash patterns (green solid, navy short dash, light-blue dotted, gold dashed, purple long dash) and round markers; light-grey horizontal gridlines; grey 16px labels; rotated y title 'Thousands'; x labels 'Jul 2024'...'Dec 2024' with 'Date' title; legend centred below the plot with wide pattern swatches; no chart title in the image; no plot border."
+    },
+    {
+      "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/cfpb/stacked_bar_chart.png",
+      "url": "https://raw.githubusercontent.com/cfpb/design-system/main/docs/images/uploads/stacked_bar_chart.png",
+      "describes": "Stacked column chart: wide columns (gap ≈ 0.4 of band) with base segment solid green, middle segment navy with white dot pattern, top segment light blue with white diagonal hatching. No gridlines visible, light-grey baseline and faint y axis line, grey y labels 0-700, rotated y-title 'Total cost', x labels 'Sep 2024'... and 'Date' title; legend centred below with rectangular pattern swatches 'Base fare / Taxes / Fees'."
+    }
+  ]
+}

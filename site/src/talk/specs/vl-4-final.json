@@ -1,0 +1,222 @@
+{
+  "data": {
+    "url": "data/games.json"
+  },
+  "vconcat": [
+    {
+      "width": 420,
+      "height": 50,
+      "data": {
+        "values": [
+          {}
+        ]
+      },
+      "layer": [
+        {
+          "mark": {
+            "type": "rect",
+            "x": -118,
+            "x2": -78,
+            "y": 0,
+            "y2": 7,
+            "color": "#e3120b"
+          }
+        },
+        {
+          "mark": {
+            "type": "text",
+            "x": -118,
+            "y": 26,
+            "align": "left",
+            "text": "Net new users by game",
+            "fontSize": 17,
+            "fontWeight": "bold",
+            "color": "#0c0c0c"
+          }
+        },
+        {
+          "mark": {
+            "type": "text",
+            "x": -118,
+            "y": 45,
+            "align": "left",
+            "text": "Monthly net change in active users, 2025",
+            "fontSize": 13,
+            "color": "#3f5661"
+          }
+        }
+      ]
+    },
+    {
+      "width": 420,
+      "height": 240,
+      "params": [
+        {
+          "name": "pick",
+          "select": {
+            "type": "point",
+            "fields": [
+              "game"
+            ],
+            "on": "click",
+            "clear": "dblclick"
+          }
+        },
+        {
+          "name": "hover",
+          "select": {
+            "type": "point",
+            "encodings": [
+              "x",
+              "y"
+            ],
+            "on": "pointerover",
+            "clear": "pointerout"
+          }
+        }
+      ],
+      "mark": {
+        "type": "rect",
+        "stroke": "#ffffff",
+        "strokeWidth": 1
+      },
+      "encoding": {
+        "x": {
+          "field": "period",
+          "type": "ordinal",
+          "timeUnit": "utcyearmonth",
+          "title": null,
+          "axis": {
+            "format": "%b",
+            "labelAngle": 0
+          }
+        },
+        "y": {
+          "field": "game",
+          "type": "nominal",
+          "title": null,
+          "axis": {
+            "labelLimit": 120,
+            "labelColor": {
+              "condition": {
+                "test": "!length(data('pick_store')) || vlSelectionTest('pick_store', {game: datum.value})",
+                "value": "#0c0c0c"
+              },
+              "value": "#b7c6cf"
+            }
+          }
+        },
+        "color": {
+          "aggregate": "sum",
+          "field": "newUsers",
+          "type": "quantitative",
+          "title": "Net new users",
+          "scale": {
+            "domainMid": 0,
+            "range": [
+              "#db444b",
+              "#f2f2f2",
+              "#006ba2"
+            ]
+          },
+          "legend": {
+            "format": "~s",
+            "orient": "top",
+            "direction": "horizontal",
+            "gradientLength": 180
+          }
+        },
+        "opacity": {
+          "condition": {
+            "param": "pick",
+            "value": 1
+          },
+          "value": 0.25
+        },
+        "stroke": {
+          "condition": {
+            "param": "hover",
+            "empty": false,
+            "value": "#0c0c0c"
+          },
+          "value": "#ffffff"
+        },
+        "strokeWidth": {
+          "condition": {
+            "param": "hover",
+            "empty": false,
+            "value": 2
+          },
+          "value": 1
+        },
+        "tooltip": [
+          {
+            "field": "game",
+            "title": "Game"
+          },
+          {
+            "field": "period",
+            "timeUnit": "utcyearmonth",
+            "format": "%b %Y",
+            "title": "Month"
+          },
+          {
+            "aggregate": "sum",
+            "field": "newUsers",
+            "format": "+,",
+            "title": "Net new users"
+          }
+        ]
+      }
+    },
+    {
+      "width": 420,
+      "height": 14,
+      "data": {
+        "values": [
+          {}
+        ]
+      },
+      "mark": {
+        "type": "text",
+        "x": -118,
+        "y": 10,
+        "align": "left",
+        "text": "Source: studio telemetry",
+        "fontSize": 11,
+        "color": "#595959"
+      }
+    }
+  ],
+  "resolve": {
+    "legend": {
+      "color": "independent"
+    }
+  },
+  "config": {
+    "font": "Helvetica Neue",
+    "view": {
+      "stroke": null
+    },
+    "concat": {
+      "spacing": 6
+    },
+    "axis": {
+      "domain": false,
+      "ticks": false,
+      "grid": false,
+      "labelColor": "#0c0c0c",
+      "labelFontSize": 12,
+      "labelPadding": 6
+    },
+    "axisX": {
+      "orient": "top"
+    },
+    "legend": {
+      "labelColor": "#3f5661",
+      "titleColor": "#3f5661",
+      "titleFontWeight": "normal",
+      "gradientThickness": 8
+    }
+  }
+}

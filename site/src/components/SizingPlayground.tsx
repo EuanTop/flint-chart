@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
-import { assembleVegaLite, assembleECharts, type ChartAssemblyInput } from 'flint-chart';
-import { VegaLiteView } from './VegaLiteView';
-import { EChartsView } from './EChartsView';
+import { useCallback, useMemo, useState } from 'react';
+import type { ChartAssemblyInput } from 'flint-chart';
+import type { InteractiveChartSurface } from 'flint-chart/interactive';
+import { FlintView } from './FlintView';
 import { SiteRange } from './SiteRange';
 import { siteTheme } from '../shared/theme';
 
@@ -41,23 +41,23 @@ function categoryRows(n: number, seed: number): { Category: string; Value: numbe
   }));
 }
 
+type Row = Record<string, string | number>;
+
 type BuildArgs = {
-  count: number;
-  seriesCount: number;
   canvas: { width: number; height: number };
   elasticity: number;
 };
 
-function buildDiscreteInput({ count, canvas, elasticity }: BuildArgs): ChartAssemblyInput {
+function buildDiscreteInput(values: Row[], { canvas, elasticity }: BuildArgs): ChartAssemblyInput {
   return {
-    data: { values: categoryRows(count, 1234) },
+    data: { values },
     semantic_types: { Category: 'Category', Value: 'Quantity' },
     chart_spec: { chartType: 'Bar Chart', encodings: { x: 'Category', y: 'Value' }, baseSize: canvas },
     options: { elasticity },
   };
 }
 
-function buildContinuousInput({ count, seriesCount, canvas, elasticity }: BuildArgs): ChartAssemblyInput {
+function seriesRows(count: number, seriesCount: number): Row[] {
   const rng = mulberry32(5678);
   const start = Date.UTC(2020, 0, 1);
   const dayMs = 86400000;
@@ -74,6 +74,10 @@ function buildContinuousInput({ count, seriesCount, canvas, elasticity }: BuildA
       });
     }
   }
+  return values;
+}
+
+function buildContinuousInput(values: Row[], { canvas, elasticity }: BuildArgs): ChartAssemblyInput {
   return {
     data: { values },
     semantic_types: { Date: 'Date', Series: 'Category', Value: 'Quantity' },
@@ -82,17 +86,17 @@ function buildContinuousInput({ count, seriesCount, canvas, elasticity }: BuildA
   };
 }
 
-function buildCircumferenceInput({ count, canvas }: BuildArgs): ChartAssemblyInput {
+function buildCircumferenceInput(values: Row[], { canvas }: BuildArgs): ChartAssemblyInput {
   return {
-    data: { values: categoryRows(count, 4321) },
+    data: { values },
     semantic_types: { Category: 'Category', Value: 'Quantity' },
     chart_spec: { chartType: 'Pie Chart', encodings: { color: 'Category', size: 'Value' }, baseSize: canvas },
   };
 }
 
-function buildAreaInput({ count, canvas }: BuildArgs): ChartAssemblyInput {
+function buildAreaInput(values: Row[], { canvas }: BuildArgs): ChartAssemblyInput {
   return {
-    data: { values: categoryRows(count, 8765) },
+    data: { values },
     semantic_types: { Category: 'Category', Value: 'Quantity' },
     chart_spec: { chartType: 'Treemap', encodings: { color: 'Category', size: 'Value' }, baseSize: canvas },
   };
@@ -102,7 +106,8 @@ type Control = 'elasticity';
 
 interface ModeConfig {
   backend: 'vl' | 'echarts';
-  build: (args: BuildArgs) => ChartAssemblyInput;
+  rows: (count: number, seriesCount: number) => Row[];
+  build: (values: Row[], args: BuildArgs) => ChartAssemblyInput;
   countLabel: string;
   countMin: number;
   countMax: number;
@@ -120,6 +125,7 @@ interface ModeConfig {
 const MODES: Record<Mode, ModeConfig> = {
   discrete: {
     backend: 'vl',
+    rows: (count) => categoryRows(count, 1234),
     build: buildDiscreteInput,
     countLabel: 'Number of items',
     countMin: 3, countMax: 120, countStep: 1, countDefault: 12,
@@ -128,6 +134,7 @@ const MODES: Record<Mode, ModeConfig> = {
   },
   continuous: {
     backend: 'vl',
+    rows: seriesRows,
     build: buildContinuousInput,
     countLabel: 'Points per series',
     countMin: 8, countMax: 600, countStep: 4, countDefault: 60,
@@ -138,6 +145,7 @@ const MODES: Record<Mode, ModeConfig> = {
   },
   circumference: {
     backend: 'vl',
+    rows: (count) => categoryRows(count, 4321),
     build: buildCircumferenceInput,
     countLabel: 'Number of slices',
     countMin: 2, countMax: 40, countStep: 1, countDefault: 6,
@@ -146,6 +154,7 @@ const MODES: Record<Mode, ModeConfig> = {
   },
   area: {
     backend: 'echarts',
+    rows: (count) => categoryRows(count, 8765),
     build: buildAreaInput,
     countLabel: 'Number of cells',
     countMin: 3, countMax: 120, countStep: 1, countDefault: 12,
@@ -200,21 +209,17 @@ export function SizingPlayground({ mode }: { mode: Mode }) {
   const showSeries = cfg.seriesLabel != null;
   const showElasticity = cfg.controls.includes('elasticity');
 
-  const { spec, resolvedWidth, resolvedHeight, error } = useMemo(() => {
-    const canvas = { width, height };
-    try {
-      const input = cfg.build({ count, seriesCount, canvas, elasticity });
-      const s = (cfg.backend === 'vl' ? assembleVegaLite(input) : assembleECharts(input)) as any;
-      return {
-        spec: s,
-        resolvedWidth: typeof s._width === 'number' ? Math.round(s._width) : null,
-        resolvedHeight: typeof s._height === 'number' ? Math.round(s._height) : null,
-        error: null as string | null,
-      };
-    } catch (err) {
-      return { spec: null, resolvedWidth: null, resolvedHeight: null, error: String((err as Error)?.message ?? err) };
-    }
-  }, [cfg, count, seriesCount, elasticity, width, height]);
+  const rows = useMemo(() => cfg.rows(count, seriesCount), [cfg, count, seriesCount]);
+
+  const input = useMemo(
+    () => cfg.build(rows, { canvas: { width, height }, elasticity }),
+    [cfg, rows, elasticity, width, height],
+  );
+  // The plot size the mounted chart reports; a chart that does not report one shows none.
+  const [plot, setPlot] = useState<{ width: number; height: number } | undefined>();
+  const onRender = useCallback((surface: InteractiveChartSurface) => setPlot(surface.layout?.plot), []);
+  const resolvedWidth = plot ? Math.round(plot.width) : null;
+  const resolvedHeight = plot ? Math.round(plot.height) : null;
 
   const stretchedW = resolvedWidth != null ? Math.round((resolvedWidth / width) * 100) : null;
   const help = PARAM_HELP.filter((p) =>
@@ -303,13 +308,9 @@ export function SizingPlayground({ mode }: { mode: Mode }) {
         {resolvedHeight != null && <span>plot height: {resolvedHeight} px</span>}
       </div>
 
-      {error ? (
-        <div style={{ color: siteTheme.error, fontFamily: siteTheme.fontMono, fontSize: 13 }}>{error}</div>
-      ) : (
-        <div style={{ overflowX: 'auto', maxWidth: '100%' }}>
-          {spec && (cfg.backend === 'vl' ? <VegaLiteView spec={spec} /> : <EChartsView option={spec} />)}
-        </div>
-      )}
+      <div style={{ overflowX: 'auto', maxWidth: '100%' }}>
+        <FlintView spec={input} backend={cfg.backend === 'vl' ? 'vegalite' : 'echarts'} onRender={onRender} />
+      </div>
     </div>
   );
 }

@@ -1,11 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import type { ChartAssemblyInput } from 'flint-chart';
 import {
-  buildInteractiveChart,
   inspectTrigger,
   type CanvasInteractionDef,
   type ChartUpdate,
 } from 'flint-chart/interactive';
+import { FlintChart } from 'flint-chart/react';
 import { ScaleToFit } from '../components/ScaleToFit';
 import { CLIMATE_CITIES, CLIMATE_MONTHS } from './climate-phase-data';
 import './exploded-detail-stage.css';
@@ -230,82 +230,67 @@ function freeformUpdate(scene: VectorScene, focus: PlotPoint, scale: number): Ch
 
 export function FreeformExplodedDetailStage() {
   const mountRef = useRef<HTMLDivElement>(null);
+  const sceneRef = useRef<VectorScene | null>(null);
+  const focusRef = useRef<PlotPoint | null>(null);
+  const detailScaleRef = useRef(DETAIL_SCALE);
 
-  useEffect(() => {
-    const mount = mountRef.current;
-    if (!mount) return undefined;
-    let scene: VectorScene | null = null;
-    let focus: PlotPoint | null = null;
-    let detailScale = DETAIL_SCALE;
-    const interaction: CanvasInteractionDef = {
-      id: 'freeform-exploded-detail',
-      eventSource: {
-        ...inspectTrigger('xy', undefined, undefined, false),
-        zoom: true,
-        wheelSensitivity: 0.004,
-      },
-      affordances: { plot: { cursor: 'inspect' } },
-      handle(event) {
-        if (event.phase === 'cancel') return null;
-        if (event.action === 'zoom-viewport') {
-          const viewport = event.geometry.plot;
-          if (viewport?.kind !== 'viewport' || viewport.factor === undefined || !scene || !focus) return null;
-          detailScale = Math.min(
-            DETAIL_MAX_SCALE,
-            Math.max(DETAIL_MIN_SCALE, detailScale * viewport.factor),
-          );
-          return freeformUpdate(scene, focus, detailScale);
-        }
-        if (event.action !== 'inspect-xy') return null;
-        const geometry = event.geometry.plot;
-        if (geometry?.kind !== 'point') return null;
-        scene ??= captureScene(mount);
-        if (!scene) return null;
-        focus = {
-          x: geometry.point.x + scene.origin.x,
-          y: geometry.point.y + scene.origin.y,
-        };
-        return freeformUpdate(scene, focus, detailScale);
-      },
-    };
-    const surface = buildInteractiveChart(mount, CHART_INPUT, {
-      backend: 'vegalite',
-      renderer: 'svg',
-      interactions: [interaction],
-      ariaLabel: 'Seasonal temperature profiles with freeform exploded neighborhood detail',
-      chartId: 'freeform-exploded-detail-lines',
-    });
-    void surface.ready.then(() => {
-      scene = captureScene(mount);
-    });
-    return () => {
-      surface.destroy();
-    };
+  // The handler returns the overlay update itself, so the lens state lives in refs rather than React state.
+  const interactions = useMemo<CanvasInteractionDef[]>(() => [{
+    id: 'freeform-exploded-detail',
+    eventSource: {
+      ...inspectTrigger('xy', undefined, undefined, false),
+      zoom: true,
+      wheelSensitivity: 0.004,
+    },
+    affordances: { plot: { cursor: 'inspect' } },
+    handle(event) {
+      if (event.phase === 'cancel') return null;
+      const scene = sceneRef.current ?? (mountRef.current && captureScene(mountRef.current));
+      sceneRef.current = scene;
+      if (event.action === 'zoom-viewport') {
+        const viewport = event.geometry.plot;
+        const focus = focusRef.current;
+        if (viewport?.kind !== 'viewport' || viewport.factor === undefined || !scene || !focus) return null;
+        detailScaleRef.current = Math.min(
+          DETAIL_MAX_SCALE,
+          Math.max(DETAIL_MIN_SCALE, detailScaleRef.current * viewport.factor),
+        );
+        return freeformUpdate(scene, focus, detailScaleRef.current);
+      }
+      if (event.action !== 'inspect-xy') return null;
+      const geometry = event.geometry.plot;
+      if (geometry?.kind !== 'point' || !scene) return null;
+      focusRef.current = {
+        x: geometry.point.x + scene.origin.x,
+        y: geometry.point.y + scene.origin.y,
+      };
+      return freeformUpdate(scene, focusRef.current, detailScaleRef.current);
+    },
+  }], []);
+
+  // Snapshot the rendered chart once it is ready; the overlay redraws from this copy.
+  const handleRender = useCallback(() => {
+    if (mountRef.current) sceneRef.current = captureScene(mountRef.current);
   }, []);
 
   return (
     <div className="ic-flint-dimpvis-shell exploded-detail-shell">
-      <div className="ic-stage-meta">
-        <strong>The same treatment through set-freeform-overlay</strong>
-        <span>
-          A standard Flint inspect event produces the identical focus, clone, bubble, bridge, and
-          eccentric labels as one renderer-space freeform SVG update. Scroll changes the local
-          magnification without zooming the chart.
-        </span>
-      </div>
-      <div className="ic-toolbar">
-        <span className="ic-pill">Flint inspect event</span>
-        <span className="ic-pill">InteractionDef → set-freeform-overlay</span>
-        <span className="ic-pill">Scroll to zoom detail</span>
-      </div>
       <div className="ic-flint-dimpvis-panel exploded-detail-panel">
-        <ScaleToFit height={540} minHeight={400} adaptiveHeight padding={8}>
+        <ScaleToFit height={540} adaptiveHeight padding={8}>
           <div className="exploded-detail-stack">
-            <div className="ic-flint-dimpvis-mount exploded-detail-mount" ref={mountRef} />
+            <div className="ic-flint-dimpvis-mount exploded-detail-mount" ref={mountRef}>
+              <FlintChart
+                spec={CHART_INPUT}
+                interactions={interactions}
+                renderer="svg"
+                ariaLabel="Seasonal temperature profiles with freeform exploded neighborhood detail"
+                chartId="freeform-exploded-detail-lines"
+                onRender={handleRender}
+              />
+            </div>
           </div>
         </ScaleToFit>
       </div>
-      <div className="exploded-detail-source">NASA POWER · MERRA-2 · 1991–2020 monthly climatology</div>
     </div>
   );
 }

@@ -189,13 +189,12 @@ export const cartoon: ThemePreset = {
         labels: {
             truncation: 'never',
             flush: true,
-            angle: 'auto',
         },
         legend: {
             show: 'always',
             placement: ['top'],
             direction: 'horizontal',
-            title: 'omit',
+            title: 'whenAmbiguous',
             suppressWhenAxisNames: true,
         },
         dataLabels: {

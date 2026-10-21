@@ -1,0 +1,110 @@
+{
+  "id": "wwf",
+  "org": "WWF (World Wide Fund for Nature) - brand guidelines: infographics, charts and maps",
+  "urls": [
+    "https://wwf-brand.azurewebsites.net/brand-guidelines/data-visualisations-infographics/",
+    "https://wwfbrand.panda.org/",
+    "https://wwfbrand.panda.org/infographics/",
+    "https://wwfbrand.panda.org/colour-palette/",
+    "https://wwfbrand.panda.org/typography/",
+    "http://wwf-international.github.io/colour-palette/",
+    "https://raw.githubusercontent.com/wwf-international/colour-palette/master/_scss/_colours.scss",
+    "https://data.panda.org/visual-library/power-bi-data-visualisation-guidelines"
+  ],
+  "access": "partial",
+  "accessNotes": "The given host wwf-brand.azurewebsites.net no longer resolves (DNS failure). The brand guidelines now live at wwfbrand.panda.org; its 'Infographics' page (icons, maps, charts sections with do/don't examples), 'Colour palette' and 'Typography' pages were read in full. The older 11-colour x 3-tone palette comes from WWF International's GitHub colour-palette repo (SCSS). The WWF Power BI Data Visualisation Guidelines page on data.panda.org only exposes a summary/glossary (documents behind Microsoft login). Chart guidance is short and qualitative; no axis/gridline/size specs exist.",
+  "summary": "Brand-led infographic style for an environmental NGO's reports (e.g. Living Planet Report), social graphics and presentations. Black and white are the principal colours; one (at most two) nature-inspired secondary colours plus its tints carry the data, in flat, solid, effect-free graphics. Headlines use the bold condensed upper-case WWF font, with Open Sans/Georgia for legends, captions and data text; charts are often combined with solid monochrome silhouette icons and big key numbers, and must have a clear legend ('Key') and a stated source.",
+  "context": "brand",
+  "colors": {
+    "categorical": ["#f5d200", "#f07d00", "#da1d52", "#9a0064", "#812990", "#00728f", "#009191", "#007932", "#7b8427", "#8cc63f", "#552f25", "#9a681c", "#c4bc8e"],
+    "categoricalNotes": "Current secondary palette in guide order: Yellow #f5d200, Orange #f07d00, Red #da1d52, Red-violet #9a0064, Berry #812990, Blue #00728f, Aqua #009191, Green #007932, Olive #7b8427, Medium green #8cc63f, Dark-brown #552f25, Brown #9a681c, Base #c4bc8e. These are NOT meant to be used all together: 'Avoid using more than two colours from the secondary palette in a single layout'; charts should use a single colour scheme (one hue plus its tints). The secondary colour must be relevant to the subject/complement the image. Older WWF International palette (GitHub) gives 11 hues x dark/medium/light tones: red #DA1D52/#F37043/#F9B5B2, orange #F68C50/#FAA61A/#FDBC5F, yellow #F5D200/#FFF200/#FFE96C, green #007932/#8CC63F/#B8DB9B, earth #7B8427/#AFAD0C/#D3E27E, brown #9A681C/#D09B2C/#E9CE86, blue #00728F/#44C8F5/#71CEEA, aqua #007476/#00ACCD/#B1DFDC, pink #9A0064/#ED037C/#F9C1D2, berry #743873/#812990/#C78EBF, grey #552F25/#BCB9B8/#D9D6D6, base #F5F5EB/#EBEBD8.",
+    "sequential": [],
+    "diverging": [],
+    "highlight": null,
+    "context": "#D9D6D6",
+    "positive": null,
+    "negative": null,
+    "background": "#ffffff",
+    "text": "#000000",
+    "textSecondary": null,
+    "gridline": null,
+    "axis": "#000000",
+    "notes": "Principal colours are black and white - the basis of every design; title boxes and brand elements are black and white; colour is used for highlights, navigation and pull-out features. A full-strength secondary colour must be used (a layout cannot use black, white and only a tint); tints (percentage tints) are allowed once the full-strength colour is present. Maps: grey base with one highlight colour from the secondary palette. 'context' value is the light grey tone from the GitHub palette (#D9D6D6); example donuts use light grey for the remainder. Base cream #F5F5EB/#EBEBD8 used as infographic background in examples (rhino infographic)."
+  },
+  "typography": {
+    "family": "WWF (proprietary bold condensed display font) for headings; Open Sans for chart data, legends and captions",
+    "fallback": "Arial (Arial Bold Condensed substitutes for the WWF font); Georgia for body/narrative text",
+    "title": { "size": null, "weight": "bold condensed (WWF font)", "align": "left", "case": "upper", "color": "#000000" },
+    "subtitle": { "size": null, "weight": "regular", "style": "normal", "color": null },
+    "axisLabel": { "size": null, "color": "#000000" },
+    "axisTitle": { "size": null, "weight": null, "placement": null },
+    "dataLabel": { "size": null, "weight": "bold condensed (WWF font) for key numbers, white inside coloured segments" },
+    "source": { "size": null, "style": "Open Sans small caption", "color": null },
+    "notes": "WWF font must be upper case in headings; used for short bold headings, key numbers and labels on infographics. Open Sans (all weights) is for caption text for charts, maps, tables and credit lines and for legends; the usage chart lists 'Data (charts and tables)' as a usage category. Arial replaces WWF font/Open Sans where fonts can't be embedded (PowerPoint, Word, email). Georgia (incl. bold italic) appears for chart titles/keys in Living Planet Report examples."
+  },
+  "structure": {
+    "gridlines": "None in examples (flat style).",
+    "axisLine": "Thin black y-axis line and x baseline in bar examples.",
+    "ticks": "Small tick marks on the y axis in examples.",
+    "zeroLine": null,
+    "yAxisPlacement": "left",
+    "yAxisTitle": null,
+    "unitPlacement": "Key numbers with large % or unit text (e.g. '67%', '>9,300%').",
+    "frame": "none",
+    "background": "white or brand base cream for infographics",
+    "notes": "Flat, solid-coloured graphics only; no 3D, shadows or other effects."
+  },
+  "legend": {
+    "placement": "below the chart, left-aligned, headed 'Key' with a black rule beneath",
+    "directLabels": "Values printed directly on donut segments / above icon stacks.",
+    "title": "'Key' (italic Georgia in LPR example) under an italic bold chart title",
+    "swatchShape": "rectangle",
+    "notes": "'Make sure you add a clear legend and reference your source if needed.'"
+  },
+  "marks": {
+    "bars": "Flat solid bars in one hue and its tints; no 3D or gradients.",
+    "lines": "Solid lines; uncertainty bands as semi-transparent fills in scientific (LPR) charts.",
+    "areas": null,
+    "points": null,
+    "pies": "Donut charts allowed and common, in a single colour scheme with white percentage labels in segments; a single-value donut uses one colour against light grey.",
+    "notes": "Charts can be combined with solid monochrome silhouette icons (e.g. stacked rhino icons as a pictogram bar chart)."
+  },
+  "labels": {
+    "dataLabels": "Big key numbers in the bold condensed WWF font; percentages printed on donut segments in white.",
+    "numberFormat": "Comma thousands separator in examples ('>9,300%', '670,000+').",
+    "dates": null,
+    "notes": "Combine icons with words and key numbers."
+  },
+  "furniture": {
+    "title": "Short bold upper-case WWF-font headline stating the fact (e.g. 'RHINO POACHING INCREASES >9,300%').",
+    "source": "Always state your sources (e.g. '©WWF, Living Planet Report 2020', 'Sourced from ...').",
+    "logo": "WWF panda logo in the top-left corner of standalone infographics (examples).",
+    "other": "Map disclaimer text required where territorial claims may be disputed; UN naming conventions."
+  },
+  "annotations": "Short bold condensed headings and key numbers placed beside icons/charts; flat solid icon silhouettes, no outlines.",
+  "layout": "Use colour and layout to set the tone; don't mix and match illustration styles or colours within a single layout.",
+  "interaction": "Power BI guidelines (summary only): grid-based layout, consistent navigation with logo and 'Return to Home Page' placement, WWF report template.",
+  "accessibility": "Legibility is paramount when using light tints for type or reversing type out of a tint; Power BI guidelines call for appropriate colour and contrast and readable fonts.",
+  "chartTypes": {
+    "preferred": ["donut", "bar/column", "pictogram (icon stacks)", "line with uncertainty bands", "silhouette maps with highlight colour", "key-number callouts"],
+    "discouraged": ["3D charts", "charts with effects", "multi-coloured charts", "outlined icons", "cartoony or 3D maps"],
+    "notes": null
+  },
+  "distinctiveRules": [
+    { "rule": "Charts use flat, solid colour in a single colour scheme (one secondary hue plus its tints) - no multiple colours, 3D or effects.", "source": "https://wwfbrand.panda.org/infographics/", "quote": "To remain clear and simple, we recommend using flat, solid coloured graphics. Avoid multiple colours or effects." },
+    { "rule": "Never use more than two secondary-palette colours in one layout; black and white form the base.", "source": "https://wwfbrand.panda.org/colour-palette/", "quote": "Avoid using more than two colours from the secondary palette in a single layout." },
+    { "rule": "A full-strength secondary colour must appear before any of its tints are used.", "source": "https://wwfbrand.panda.org/colour-palette/", "quote": "A full-strength colour must be used. For example, you cannot have a layout that uses black, white and a single tint." },
+    { "rule": "Every chart has a clear legend and states its source.", "source": "https://wwfbrand.panda.org/infographics/", "quote": "Make sure you add a clear legend and reference your source if needed." },
+    { "rule": "Short bold headings and key numbers use the WWF bold condensed font in upper case; legends, captions and data text use Open Sans (Arial fallback).", "source": "https://wwfbrand.panda.org/infographics/", "quote": "should use our WWF font for short bold headings and other fonts, such as Open Sans for additional categories such as legends." },
+    { "rule": "Legend appears below the chart as a 'Key' heading over a thin black rule with rectangular swatches (Living Planet Report style).", "source": "https://wwfbrand.panda.org/infographics/", "quote": "Do example: 'Humanity's Ecological Footprint by activities / Key' (©WWF, Living Planet Report 2020)" },
+    { "rule": "Single-value donuts: one full-strength colour arc against light grey with a big bold condensed percentage in the centre.", "source": "https://wwfbrand.panda.org/infographics/", "quote": "Use flat graphics, with a single colour scheme. You can combine charts and icons for a more impactful communication." },
+    { "rule": "Maps are solid grey silhouettes with a single highlight colour from the secondary palette; avoid drawing disputed borders.", "source": "https://wwfbrand.panda.org/infographics/", "quote": "maps are often coloured grey with a highlight colour (see our secondary colour palette) for highlighted information." },
+    { "rule": "Icons combined with charts must be solid, monochrome, realistic silhouettes - never outlined, never multi-coloured.", "source": "https://wwfbrand.panda.org/infographics/", "quote": "Do not use 'outlined' icons. Always use solid colours." },
+    { "rule": "Do not use colours or typefaces outside the brand identity.", "source": "https://wwfbrand.panda.org/infographics/", "quote": "Do not use colours or typefaces outside of our brand identity. Do not use 3D or any other effects." }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/wwf/single-colour-scheme-do.png", "url": "https://wwfbrand.panda.org/wp-content/uploads/2023/06/wwf-infographics-img_9.webp", "describes": "'Do' example (tick): teal single-colour scheme. Left: donut with teal arc and light grey remainder, centre '67%' in huge black bold condensed WWF font with smaller %. Middle: column chart, four flat bars in teal and its tints (dark teal, very pale teal, light teal, mid teal), thin black y-axis line with small ticks 0-100 in condensed font, black baseline, no gridlines. Right: headline 'Drivers linked to food production cause 50% of freshwater biodiversity loss' in teal bold condensed, ring with white fish icon in dark teal circle and '50% FRESHWATER BIODIVERSITY LOSS' in teal condensed caps." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/wwf/lpr-donut-key.png", "url": "https://wwfbrand.panda.org/wp-content/uploads/2023/06/wwf-infographics-img_8.webp", "describes": "Living Planet Report 2020 donut: thick donut in a berry/pink family (purple #812990-ish, magenta #ED037C-ish, light lilac, dark red-violet, pale pink) with white bold condensed % labels inside segments (29%, 25%, 15%, 14%, 17%), clockwise from 12 o'clock. Below: bold italic serif (Georgia) title 'Humanity's Ecological Footprint by activities', italic 'Key' with a black rule beneath, then rectangular swatches with serif labels Food, Housing, Personal transportation, Goods, Services." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/wwf/rhino-poaching-infographic.png", "url": "https://wwfbrand.panda.org/wp-content/uploads/2023/06/wwf-infographics-img_2.webp", "describes": "Standalone infographic on cream background: WWF panda logo top-left, small brown tag '2007-2014', huge headline 'RHINO POACHING INCREASES >9,300%' in brown/gold (#9A681C / #D09B2C) upper-case bold condensed WWF font, large solid rhino silhouette; pictogram bar chart of stacked small rhino icons per year with values 13 ... 1215 in condensed numerals above year tags (brown boxes, white text); small caps caption 'NUMBER OF RHINOS POACHED IN SOUTH AFRICA'. Monochrome brown scheme, no axes or gridlines." }
+  ]
+}

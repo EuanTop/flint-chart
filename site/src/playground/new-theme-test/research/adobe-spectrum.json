@@ -1,0 +1,117 @@
+{
+  "id": "adobe-spectrum",
+  "org": "Adobe Spectrum",
+  "urls": [
+    "https://spectrum.adobe.com/page/data-visualization-fundamentals/",
+    "https://spectrum.adobe.com/page/color-for-data-visualization/",
+    "https://web.archive.org/web/2024id_/https://spectrum.adobe.com/page/data-visualization-fundamentals/",
+    "https://github.com/adobe/react-spectrum-charts/blob/main/packages/core-s2/src/tokens/spectrum2Theme.ts",
+    "https://github.com/adobe/react-spectrum-charts/blob/main/packages/core-s2/src/tokens/categoricalColorPalette.ts",
+    "https://github.com/adobe/react-spectrum-charts/blob/main/packages/core-s2/src/tokens/colorSchemes.ts",
+    "https://github.com/adobe/react-spectrum-charts/blob/main/packages/core-s2/src/tokens/spectrumColors.ts",
+    "https://github.com/adobe/react-spectrum-charts/blob/main/packages/core-s2/src/tokens/sequentialColorPalette.ts",
+    "https://github.com/adobe/react-spectrum-charts/blob/main/packages/core-s2/src/tokens/divergingColorPalette.ts",
+    "https://github.com/adobe/react-spectrum-charts/blob/main/packages/core-s2/src/constants/constants.ts",
+    "https://github.com/adobe/react-spectrum-charts/blob/main/packages/constants/constants.ts",
+    "https://github.com/adobe/react-spectrum-charts/tree/main/packages/docs/static/img"
+  ],
+  "access": "partial",
+  "accessNotes": "The legacy spectrum.adobe.com/page/data-visualization-fundamentals/ and /page/color-for-data-visualization/ pages now redirect/serve the new 'Spectrum Hub' home page with no data-viz content, and the Wayback Machine returned 503 (temporarily offline). All concrete values were therefore taken from Adobe's official open-source implementation, React Spectrum Charts (github.com/adobe/react-spectrum-charts, Vega-based), whose Spectrum 2 Vega config, colour tokens and constants encode the Spectrum data-viz guidance; plus its documentation screenshots. Prose guidance (e.g. do/don't rules on pies, ordering) could not be read first-hand.",
+  "summary": "Spectrum is Adobe's product design system; its charts are clean, airy product-UI visualisations set in Adobe Clean on a transparent/light-grey surface. Characteristic traits are a 16-colour categorical palette that opens with seafoam, indigo, orange and magenta, no axis domain lines or ticks (just light grey gridlines and a dark baseline rule), rounded-square legend swatches centred below the chart, rounded bar ends and thick 2.5px lines. Light and dark themes are first-class.",
+  "context": "product-ui",
+  "colors": {
+    "categorical": ["#0FB5AE", "#4046CA", "#F68511", "#DE3D82", "#7E84FA", "#72E06A", "#147AF3", "#7326D3", "#E8C600", "#CB5D00", "#008F5D", "#BCE931", "#5AA9FA", "#C038CC", "#F56BB7", "#FFE22E"],
+    "categoricalNotes": "Tokens categorical-100…categorical-1600 used strictly in this order. Count-specific palettes are prefixes: categorical6 (first 6), categorical12 (first 12), categorical16 (all). Spectrum 2 adds categorical-1700…2000 for a 20-colour set (categorical-1700 = #12B0DA). Default single-series colour is categorical-100 (#0FB5AE seafoam).",
+    "sequential": ["#FDE725", "#D2E21B", "#7AD151", "#35B779", "#1F988B", "#2A788E", "#39568C", "#472F7D", "#440154"],
+    "diverging": ["#49021E", "#9E2B46", "#DE6F86", "#F7C4D9", "#FAF0FF", "#C7D1F1", "#6095C9", "#29538F", "#0C1B4B"],
+    "highlight": null,
+    "context": null,
+    "positive": null,
+    "negative": null,
+    "background": "transparent",
+    "text": "#222222",
+    "textSecondary": "#464646",
+    "gridline": "#D5D5D5",
+    "axis": "#222222",
+    "notes": "Default sequential ramp is Viridis (sequentialViridis9 shown, light→dark yellow→purple); other sequential ramps: magma, rose, cerulean (#EAFFF1→#180055), forest. Diverging schemes: red-blue (shown, 9-step), red-yellow-blue, orange-yellow-seafoam (#580000 … #FFFFE0 … #002C2D; the default Vega 'diverging' range). Text = gray-800 (#222222 light / #EBEBEB dark); axis labels and titles = gray-700 (#464646 light / #D0D0D0 dark); gridlines = gray-300 (#D5D5D5 light / #4B4B4B dark); baseline/rule = gray-800. Dark mode swaps the gray ramp (gray-50 = #000000, gray-100 = #1D1D1D) but keeps the same categorical hues. Hover/selection uses blue-400 strokes. Non-hovered series fade to opacity factor 0.2 (FADE_FACTOR)."
+  },
+  "typography": {
+    "family": "Adobe Clean",
+    "fallback": "adobe-clean, 'Source Sans Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Ubuntu, 'Trebuchet MS', 'Lucida Grande', sans-serif",
+    "title": { "size": 22, "weight": "bold", "align": "left", "case": "sentence", "color": "#222222" },
+    "subtitle": { "size": null, "weight": null, "style": null, "color": null },
+    "axisLabel": { "size": 14, "color": "#464646" },
+    "axisTitle": { "size": 14, "weight": "normal (docs screenshots render bold)", "placement": "rotated, centred on the y axis; centred below the x axis with 16px padding" },
+    "dataLabel": { "size": 14, "weight": "normal (segment/direct labels bold)" },
+    "source": { "size": null, "style": null, "color": null },
+    "notes": "One uniform font size, 14px, for axis labels, axis titles, legend labels/titles and text marks; chart title 22px anchored start (left) to the plot group. Responsive chart-size tiers scale fonts/strokes by 0.75 (S, <400px), 1 (M), 1.25 (L, ≥800px). Large numbers abbreviated with K (e.g. '4K', '40K')."
+  },
+  "structure": {
+    "gridlines": "Value-axis gridlines only (horizontal for column/line charts, vertical for horizontal bars), solid 1px gray-300 #D5D5D5.",
+    "axisLine": "Axis domain lines off (domain: false); a solid dark gray-800 1px baseline rule is drawn at zero / the category axis (see screenshots).",
+    "ticks": "Tick marks off by default (ticks: false); when enabled 8px, gray-300, round cap.",
+    "zeroLine": "Yes — zero baseline drawn as a dark 1px rule (#222222) over the light grid.",
+    "yAxisPlacement": "left",
+    "yAxisTitle": "rotated 90°, centred, 16px from labels",
+    "unitPlacement": "Abbreviated in tick labels (K/M); time axes show day on first row and month as a second label line under the first tick (e.g. '8' / 'Nov').",
+    "frame": "none (transparent background; meant to sit inside a Spectrum card/view)",
+    "background": "transparent (screenshots on white or very light grey #F8F8F8)",
+    "notes": "Axis label padding 8px; band axes centre labels on bands (bandPosition 0.5); labelOverlap true."
+  },
+  "legend": {
+    "placement": "bottom (horizontal, centred, 24px offset); left/right legends vertical",
+    "directLabels": "Supported: line end labels in the series colour, bold, right-aligned at line end; donut segment labels outside the ring with bold category + percentage and value.",
+    "title": "Shown above legend entries in bold when supplied (e.g. 'Operating system').",
+    "swatchShape": "rounded square (ROUNDED_SQUARE_PATH, symbol size 250 ≈ 16px)",
+    "notes": "Legend entries spaced 20px column padding, 8px row padding, label limit 184px. Legends are interactive: hover highlights a series (others fade), click toggles visibility; legend tooltips after 350ms."
+  },
+  "marks": {
+    "bars": "Rounded ends: corner radius 6px on the outer end of the bar/stack only; band padding ratio 0.4; no outline (strokeWidth 0); stacked segments separated by thin white gaps.",
+    "lines": "strokeWidth 2.5 (theme) / 2px base scaled by size tier; hover stroke +0.5; no points by default; linear interpolation; line types cycle solid, dashed, dotted, dotDash, longDash, twoDash for secondary encodings.",
+    "areas": "Fill opacity 0.8, default colour categorical-100.",
+    "points": "Default symbol size 100 (≈8px diameter), stroke width 2, rounded-square default shape.",
+    "pies": "Donut is the provided form (react-spectrum-charts 'Donut'): thin ring, white separators between segments, optional large centred summary metric with a label beneath (hidden if inner radius < 45px), segment labels outside; semicircle variant available.",
+    "notes": "Trellis (small multiples) padding 0.2."
+  },
+  "labels": {
+    "dataLabels": "Optional direct labels: bar value labels at the bar end, line end labels in series colour, donut segment labels outside ring (bold name, then '26%  10K').",
+    "numberFormat": "Compact abbreviations K/M (e.g. 4K, 8.3K, 40K); percentages without decimals in donut labels; locale default en-US.",
+    "dates": "Multi-line time axis: day number per tick, month name under the first tick of each month (e.g. '8' then 'Nov').",
+    "notes": null
+  },
+  "furniture": {
+    "title": "Optional 22px title anchored left to the plot group, 10px offset.",
+    "source": null,
+    "logo": "none",
+    "other": "Charts are embedded in product UI, so no chart numbering or source lines; reference lines and annotations supported."
+  },
+  "annotations": "Reference lines drawn as gray-800 1px rules with labels; bar annotations print text at bar ends; metric-range bands shown as translucent areas around a trend line.",
+  "layout": "autosize 'fit' to container, resize true. Chart size tiers by width: S < 400px, M 400–800px, L ≥ 800px with scale ratios 0.75 / 1 / 1.25 for strokes, fonts, point sizes and label gaps (base label gap 12px).",
+  "interaction": "Rich product interactivity: hover highlights the hovered series/item and fades others to 20% (FADE_FACTOR 0.2); hover stroke width +0.5px; selection ring (blue-400) on donuts and bars; tooltips and popovers on marks; legend hover-highlight and click-to-hide.",
+  "accessibility": "Palettes designed to contrast on both light and dark themes; full dark mode via gray-ramp inversion; line dash patterns and symbol shapes available as secondary encodings so colour is not the only cue.",
+  "chartTypes": {
+    "preferred": ["bar (vertical/horizontal, stacked, dodged)", "line", "area", "donut", "scatter", "bullet", "trellis/small multiples"],
+    "discouraged": [],
+    "notes": "Chart set taken from React Spectrum Charts components; first-hand Spectrum prose on discouraged types was not reachable."
+  },
+  "distinctiveRules": [
+    { "rule": "Categorical colours are applied in fixed token order starting seafoam #0FB5AE, indigo #4046CA, orange #F68511, magenta #DE3D82, periwinkle #7E84FA, green #72E06A.", "source": "https://github.com/adobe/react-spectrum-charts/blob/main/packages/core-s2/src/tokens/categoricalColorPalette.ts", "quote": "categorical6 = [categorical-100 … categorical-600]; categorical12/16 extend the same list" },
+    { "rule": "No axis domain lines and no tick marks; only light grey #D5D5D5 gridlines plus a dark #222222 zero/baseline rule.", "source": "https://github.com/adobe/react-spectrum-charts/blob/main/packages/core-s2/src/tokens/spectrum2Theme.ts", "quote": "domain: false … gridColor: gray300 … ticks: false … rule: { stroke: gray800, strokeWidth: 1 }" },
+    { "rule": "Single uniform 14px font size in Adobe Clean for all axis labels, axis titles, legend text and data text; axis text in gray-700 #464646, non-bold.", "source": "https://github.com/adobe/react-spectrum-charts/blob/main/packages/core-s2/src/constants/constants.ts", "quote": "DEFAULT_FONT_SIZE = 14; labelColor: gray700; titleFontWeight: 'normal'" },
+    { "rule": "Chart title 22px, left-anchored to the plot group.", "source": "https://github.com/adobe/react-spectrum-charts/blob/main/packages/core-s2/src/tokens/spectrum2Theme.ts", "quote": "title: { fontSize: 22, anchor: 'start', frame: 'group', offset: 10 }" },
+    { "rule": "Legend below the chart, horizontal and centred, with rounded-square swatches (~16px) and optional bold legend title above the entries.", "source": "https://github.com/adobe/react-spectrum-charts/blob/main/packages/core-s2/src/tokens/spectrum2Theme.ts", "quote": "horizontalLegendLayout { direction: 'horizontal', center: true, offset: 24 }; symbolType: ROUNDED_SQUARE_PATH; symbolSize 250" },
+    { "rule": "Bars have 6px rounded corners on the value end only, band padding 0.4, no outline; stacked segments separated by thin white gaps.", "source": "https://github.com/adobe/react-spectrum-charts/blob/main/packages/constants/constants.ts", "quote": "CORNER_RADIUS = 6; PADDING_RATIO = 0.4; rect strokeWidth: 0" },
+    { "rule": "Lines are thick (2.5px) with no point markers; areas filled at 0.8 opacity.", "source": "https://github.com/adobe/react-spectrum-charts/blob/main/packages/core-s2/src/tokens/spectrum2Theme.ts", "quote": "line: { strokeWidth: 2.5 } … area: { opacity: 0.8 }" },
+    { "rule": "Default sequential ramp is Viridis (yellow #FDE725 → purple #440154); default diverging is orange-yellow-seafoam.", "source": "https://github.com/adobe/react-spectrum-charts/blob/main/packages/core-s2/src/tokens/spectrum2Theme.ts", "quote": "range: { diverging: divergentOrangeYellowSeafoam15, ramp: sequentialViridis16 }" },
+    { "rule": "Hovering a series or legend entry fades all other marks to 20% opacity.", "source": "https://github.com/adobe/react-spectrum-charts/blob/main/packages/core-s2/src/constants/constants.ts", "quote": "FADE_FACTOR = 0.2" },
+    { "rule": "Donuts are thin rings with white segment separators and a large centred summary metric (e.g. '40K' over 'Visitors'); segment labels outside the ring with bold category name and 'pct  value' beneath.", "source": "https://github.com/adobe/react-spectrum-charts/blob/main/packages/docs/static/img/donut_segmentLabelSummary_light.png", "quote": "screenshot: '40K Visitors' centre; 'Chrome 26% 10K'" },
+    { "rule": "Responsive size tiers: below 400px width strokes/fonts/points scale ×0.75, above 800px ×1.25.", "source": "https://github.com/adobe/react-spectrum-charts/blob/main/packages/core-s2/src/constants/constants.ts", "quote": "CHART_SIZE_BREAKPOINTS = { M: 400, L: 800 }; CHART_SIZE_SCALE_RATIOS = { S: 0.75, M: 1, L: 1.25 }" },
+    { "rule": "Dark mode inverts the gray ramp (text #EBEBEB, axis labels #D0D0D0, gridlines #4B4B4B) while keeping the same categorical hues; chart background is transparent.", "source": "https://github.com/adobe/react-spectrum-charts/blob/main/packages/core-s2/src/tokens/spectrumColors.ts", "quote": "dark: { 'gray-300': 'rgb(75, 75, 75)', 'gray-700': 'rgb(208, 208, 208)', 'gray-800': 'rgb(235, 235, 235)' }; DEFAULT_BACKGROUND_COLOR = 'transparent'" },
+    { "rule": "Line series can be direct-labelled at the right end in the series colour, bold, in addition to the bottom legend.", "source": "https://github.com/adobe/react-spectrum-charts/blob/main/packages/docs-s2/static/img/s2_line_directLabel_light.png", "quote": "screenshot: 'Add Freeform table' label in magenta at line end" }
+  ],
+  "referenceImages": [
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/adobe-spectrum/bar_stackedHorizontal_light.png", "url": "https://raw.githubusercontent.com/adobe/react-spectrum-charts/main/packages/docs/static/img/bar_stackedHorizontal_light.png", "describes": "Horizontal stacked bar chart on white, no title. Three thick bars (Chrome, Firefox, Safari) with category labels left in dark grey Adobe Clean ~14px; bold rotated y-axis title 'Browser'. Stacks: orange #F68511 'Other', indigo #4046CA 'Mac', seafoam #0FB5AE 'Windows', separated by thin white gaps, with rounded corners only on the right end of each stack. Thin light-grey vertical gridlines at each integer 0–10; a solid black vertical baseline at 0; no other axis lines or ticks. Bold x-axis title 'Downloads' centred below. Legend at bottom centre with bold title 'Operating system' and rounded-square swatches. No source line or logo." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/adobe-spectrum/s2_line_directLabel_light.png", "url": "https://raw.githubusercontent.com/adobe/react-spectrum-charts/main/packages/docs-s2/static/img/s2_line_directLabel_light.png", "describes": "Spectrum 2 multi-line chart on very light grey (#F8F8F8) background. Four ~2.5px straight-segment lines (indigo-violet, magenta-red, orange, light blue — S2 categorical hues) with no point markers. Direct labels in bold, coloured to match each series, right-aligned at line ends ('Add Freeform table', 'Add Bar viz'…). Light grey horizontal gridlines at 2K/4K, dark baseline at 0; y tick labels '0, 2K, 4K' on the left; rotated y-axis title 'Users' in regular weight. x axis shows day numbers 8–14 with 'Nov' on a second line under the first tick, small tick marks. Legend centred below with rounded-square swatches, wrapping to two rows. No title, source or logo." },
+    { "file": "/Users/chenwang/.copilot/session-state/86038611-3930-46cf-af6d-24a4a5cf3420/files/theme-refs/adobe-spectrum/donut_segmentLabelSummary_light.png", "url": "https://raw.githubusercontent.com/adobe/react-spectrum-charts/main/packages/docs/static/img/donut_segmentLabelSummary_light.png", "describes": "Thin donut ring on white, segments in palette order clockwise from 12 o'clock: seafoam Chrome, indigo Firefox, orange Safari, magenta Opera, periwinkle Other, green Brave, blue small slice; white separators between segments. Large centred summary '40K' (~40px, regular) with 'Visitors' beneath. Outside labels: bold category name, then '26%  10K' in regular weight, positioned next to each segment. No legend, no title." }
+  ]
+}

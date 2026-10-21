@@ -7,6 +7,8 @@ import { createCanvas, joinSession } from "@github/copilot-sdk/extension";
 const extensionDirectory = dirname(fileURLToPath(import.meta.url));
 const chartAppPath = join(extensionDirectory, "assets", "flint-app.html");
 const skillDirectory = join(extensionDirectory, "skills");
+const manifest = JSON.parse(await readFile(join(extensionDirectory, ".plugin", "plugin.json"), "utf8"));
+const { mcpServers } = JSON.parse(await readFile(join(extensionDirectory, ".mcp.json"), "utf8"));
 const canvases = new Map();
 
 function defaultInput() {
@@ -86,15 +88,18 @@ function renderBridgeHtml(instance) {
             id: message.id,
             result: {
               protocolVersion: message.params.protocolVersion,
-              hostInfo: { name: "Copilot Flint plugin", version: "0.2.2" },
+              hostInfo: { name: "Copilot Flint plugin", version: ${scriptSafeJson(manifest.version)} },
               hostCapabilities: { message: { text: {} } },
               hostContext: { theme: "dark", displayMode: "inline" }
             }
           }, "*");
           event.source.postMessage({
             jsonrpc: "2.0",
-            method: "ui/notifications/tool-input",
-            params: { arguments: chartInput }
+            method: "ui/notifications/tool-result",
+            params: {
+              content: [],
+              _meta: { flint: { board: { id: "chart", kind: "chart", version: 1, charts: [{ id: "chart", input: chartInput }] } } }
+            }
           }, "*");
           return;
         }
@@ -167,8 +172,9 @@ const session = await joinSession({
     mcpServers: {
         flint: {
             type: "local",
-            command: "npx",
-            args: ["--yes", "flint-chart-mcp"],
+            command: mcpServers.flint.command,
+            args: mcpServers.flint.args,
+            cwd: extensionDirectory,
             tools: ["*"],
         },
     },
