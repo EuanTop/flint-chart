@@ -40,6 +40,7 @@ import {
   chartReport,
   viewReport,
   boardSnapshot,
+  fitsInResult,
   shownText,
   linkSpecShape,
   relink,
@@ -716,9 +717,12 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
     async (args: any) => {
       try {
         const board = boards.get(args.id);
+        const snapshot = boardSnapshot(board);
         return {
           content: [{ type: 'text' as const, text: shownText(board) }],
-          _meta: { flint: { board: boardSnapshot(board) } },
+          // A small board also rides in structuredContent, which a host keeps when it draws the card again.
+          ...(fitsInResult(snapshot) ? { structuredContent: { flint: { board: snapshot } } } : {}),
+          _meta: { flint: { board: snapshot } },
         };
       } catch (err) {
         return errorResult(err);

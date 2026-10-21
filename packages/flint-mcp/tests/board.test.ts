@@ -1,8 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { VIEW_RESOURCE_URI, createServer } from '../src/server.js';
+import { RESULT_COPY_LIMIT } from '../src/board.js';
 
 const rows = [
   { country: 'Japan', region: 'Asia', gdp: 4.2, life: 84 },
@@ -315,6 +319,42 @@ describe('board tools', () => {
     const summed = { ...sliced, chart_spec: { ...sliced.chart_spec, encodings: { y: 'country', x: { field: 'gdp', aggregate: 'sum' }, color: 'region' } } };
     const fixed: any = await client.callTool({ name: 'create_board', arguments: { title: 'T', subtitle: 'S', charts: [summed] } });
     expect(text(fixed)).not.toContain('stack of slices');
+  });
+
+  it('show also puts a small inline chart in structuredContent, for a host that drops _meta', async () => {
+    const small: any = await client.callTool({ name: 'create_chart', arguments: { data: bars.data, semantic_types: bars.semantic_types, chart_spec: bars.chart_spec } });
+    const id = text(small).match(/^Chart (chart-[0-9a-f]+)/)![1];
+    const result: any = await client.callTool({ name: 'show', arguments: { id } });
+    expect(result.structuredContent.flint.board).toEqual(result._meta.flint.board);
+    expect(result.structuredContent.flint.board.charts[0].input.data.values).toHaveLength(4);
+  });
+
+  it('show keeps a large chart, or one read from a local file, out of structuredContent', async () => {
+    const many = Array.from({ length: 200 }, (_, i) => ({ country: `Country ${i}`, gdp: i * 1000 }));
+    const big: any = await client.callTool({ name: 'create_chart', arguments: { data: { values: many }, semantic_types: bars.semantic_types, chart_spec: bars.chart_spec } });
+    const bigId = text(big).match(/^Chart (chart-[0-9a-f]+)/)![1];
+    const bigShown: any = await client.callTool({ name: 'show', arguments: { id: bigId } });
+    expect(JSON.stringify(bigShown._meta.flint.board).length).toBeGreaterThan(RESULT_COPY_LIMIT);
+    expect(bigShown.structuredContent).toBeUndefined();
+    expect(bigShown._meta.flint.board.charts[0].input.data.values).toHaveLength(200);
+
+    const dir = mkdtempSync(join(tmpdir(), 'flint-show-'));
+    try {
+      const file = join(dir, 'gdp.json');
+      writeFileSync(file, JSON.stringify(rows));
+      const local: any = await client.callTool({ name: 'create_chart', arguments: { data: { url: file }, semantic_types: bars.semantic_types, chart_spec: bars.chart_spec } });
+      const localId = text(local).match(/^Chart (chart-[0-9a-f]+)/)![1];
+      const localShown: any = await client.callTool({ name: 'show', arguments: { id: localId } });
+      expect(localShown.structuredContent).toBeUndefined();
+      expect(localShown._meta.flint.board.charts[0].input.data.values).toHaveLength(rows.length);
+      // An update that leaves the data alone still knows the rows came from the file.
+      await client.callTool({ name: 'update_chart', arguments: { id: localId, chart_spec: { ...bars.chart_spec, title: 'Retitled' } } });
+      const retitled: any = await client.callTool({ name: 'show', arguments: { id: localId } });
+      expect(retitled._meta.flint.board.charts[0].input.chart_spec.title).toBe('Retitled');
+      expect(retitled.structuredContent).toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('takes back a board a restarted server lost, under its own id', async () => {

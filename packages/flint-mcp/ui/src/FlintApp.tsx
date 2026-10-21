@@ -19,7 +19,7 @@ declare const __FLINT_MCP_VERSION__: string;
 /** How long the card waits for its result before it says it cannot be redrawn here. */
 const RESULT_WAIT_MS = 6000;
 const NOT_REDRAWN =
-  'This cannot be redrawn here: the call that showed it did not reach this card again, as can happen when a conversation is reopened. Ask Claude to show it again.';
+  'This cannot be redrawn here: the host drew the card again without the chart, as can happen when a conversation is reopened. Ask the assistant to show it again.';
 
 export function FlintApp() {
   const [shown, setShown] = useState<Board | null>(null);
@@ -37,12 +37,17 @@ export function FlintApp() {
       app.onerror = (err) => console.error(err);
       app.onhostcontextchanged = (params) => setHostContext((prev) => ({ ...prev, ...params }));
       app.ontoolresult = (result) => {
-        const { _meta, content } = result as { _meta?: { flint?: { board?: Board } }; content?: { type: string; text?: string }[] };
+        const { _meta, structuredContent, content } = result as {
+          _meta?: { flint?: { board?: Board } };
+          structuredContent?: { flint?: { board?: Board } };
+          content?: { type: string; text?: string }[];
+        };
         if (result.isError) {
           setFailed(content?.find((part) => part.type === 'text')?.text ?? '');
           return;
         }
-        const next = _meta?.flint?.board;
+        // A host that rebuilds the result for a card it draws again keeps structuredContent but not _meta.
+        const next = _meta?.flint?.board ?? structuredContent?.flint?.board;
         if (next) {
           setFailed(null);
           setShown(next);

@@ -21,6 +21,8 @@ export interface BoardChart {
   layout?: ChartLayout;
   /** The view the cell opens in; the reader's switch holds until the agent sets it again. */
   view?: ChartView;
+  /** The rows were read from a local data.url file, so they never passed through the conversation. */
+  fromFile?: true;
 }
 
 export interface Board {
@@ -168,8 +170,10 @@ export async function prepareChart(
   validate: Validate,
   board: Pick<Board, 'theme_spec'>,
 ): Promise<{ chart?: BoardChart; outcome: ChartOutcome; errors?: string }> {
-  const { id, updates, layout, view, ...rest } = args;
+  const { id, updates, layout, view, fromFile: keptFromFile, ...rest } = args as BoardChartArgs & { fromFile?: true };
   const own = toAssemblyInput(rest as AssemblyInputArgs);
+  // An update that leaves the data alone rebuilds from rows already read, so the file origin carries over.
+  const fromFile = typeof own.data?.url === 'string' || keptFromFile === true;
   const { result, input } = await validate(withBoardTheme(own, board), updates);
   if (!result.valid) {
     const errors = result.errors.map((e) => e.message).join('; ');
@@ -180,7 +184,10 @@ export async function prepareChart(
   // The board's theme stays the board's: a later update_board theme reaches every chart that set none.
   const stored = { ...input, theme_spec: own.theme_spec };
   return {
-    chart: { id, input: stored, ...(updates ? { updates } : {}), ...(layout ? { layout } : {}), ...(opensAsTable ? { view } : {}) },
+    chart: {
+      id, input: stored, ...(updates ? { updates } : {}), ...(layout ? { layout } : {}), ...(opensAsTable ? { view } : {}),
+      ...(fromFile ? { fromFile: true as const } : {}),
+    },
     outcome: { id, drawn: true, text: report },
   };
 }
@@ -324,6 +331,23 @@ function boardReport(board: Board, outcomes: readonly ChartOutcome[], notes: rea
 }
 
 /** The board as the card reads it. */
+/**
+ * The largest board `show` also returns in structuredContent, in bytes of JSON. VS Code's agent
+ * sessions rebuild a card's result from content and structuredContent alone, dropping _meta, so a
+ * card drawn again finds its chart only there; but that copy also reaches the model, so only small
+ * boards ride along (about 1k tokens at most).
+ */
+export const RESULT_COPY_LIMIT = 4096;
+
+/**
+ * Whether `show` may also put the board in structuredContent: every chart's rows came inline, so they
+ * are in the conversation already, and the board is small. Rows read from a local file never are.
+ */
+export function fitsInResult(board: Board): boolean {
+  if (board.charts.some((chart) => chart.fromFile)) return false;
+  return Buffer.byteLength(JSON.stringify(board), 'utf8') <= RESULT_COPY_LIMIT;
+}
+
 export function boardSnapshot(board: Board): Board {
   return {
     ...board,
@@ -354,6 +378,7 @@ export function mergeChartArgs(chart: BoardChart, patch: Partial<BoardChartArgs>
   if (patch.updates !== undefined) next.updates = patch.updates;
   if (patch.layout !== undefined) next.layout = patch.layout;
   if (patch.view !== undefined) next.view = patch.view;
+  if (chart.fromFile && patch.data === undefined) next.fromFile = true;
   return next as BoardChartArgs;
 }
 
