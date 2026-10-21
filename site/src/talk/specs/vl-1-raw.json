@@ -1,0 +1,20 @@
+{
+  "data": {
+    "url": "data/games.json"
+  },
+  "mark": "rect",
+  "encoding": {
+    "x": {
+      "field": "period",
+      "type": "temporal"
+    },
+    "y": {
+      "field": "game",
+      "type": "nominal"
+    },
+    "color": {
+      "aggregate": "sum",
+      "field": "newUsers"
+    }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "data": {
+    "url": "data/games.json"
+  },
+  "width": 420,
+  "height": 240,
+  "mark": "rect",
+  "encoding": {
+    "x": {
+      "field": "period",
+      "type": "ordinal",
+      "timeUnit": "yearmonth",
+      "title": null,
+      "axis": {
+        "format": "%b",
+        "labelAngle": 0
+      }
+    },
+    "y": {
+      "field": "game",
+      "type": "nominal",
+      "title": null,
+      "axis": {
+        "labelLimit": 120
+      }
+    },
+    "color": {
+      "aggregate": "sum",
+      "field": "newUsers",
+      "type": "quantitative",
+      "title": "Net new users",
+      "scale": {
+        "scheme": "redblue",
+        "domainMid": 0
+      },
+      "legend": {
+        "format": "~s",
+        "orient": "top",
+        "direction": "horizontal",
+        "gradientLength": 180
+      }
+    }
+  }
+}
