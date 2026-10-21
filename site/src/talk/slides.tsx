@@ -120,9 +120,10 @@ const BESPOKE_ROWS: CodeRow[] = [
   { text: '    const points = event.geometry.domain.points;' },
   { text: '    const guess = extendPath(drawn, points);' },
   { text: '    if (isComplete(guess)) reveal();' },
-  { text: '    // answer with an update: the guess as an overlay', gap: true },
+  { text: '    // answer with an update: an overlay', gap: true },
   { text: '    return { ops: [', hot: true },
-  { text: '      { op: "set-overlay", name: "guess", value: guess },', hot: true },
+  { text: '      { op: "set-overlay",', hot: true },
+  { text: '        name: "guess", value: guess },', hot: true },
   { text: '    ] };', hot: true },
   { text: '  },' },
   { text: '};' },
@@ -134,7 +135,9 @@ const BESPOKE_ROWS: CodeRow[] = [
 /** The World Cup demo's own wiring, condensed: the chart says what was clicked, the page does the rest. */
 const APP_ROWS: CodeRow[] = [
   { text: 'const spec = {' },
-  { text: '  data, semantic_types: { Team: "Category", Goals: "Count" },' },
+  { text: '  data,' },
+  { text: '  semantic_types: {' },
+  { text: '    Team: "Category", Goals: "Count" },' },
   { text: '  chart_spec: { chartType: "Bar Chart",' },
   { text: '    encodings: { x: "Goals", y: "Team" } },' },
   { text: '  interaction_spec: { interactions: [' },
@@ -144,7 +147,7 @@ const APP_ROWS: CodeRow[] = [
   { text: '' },
   { text: '<FlintChart', hot: true },
   { text: '  spec={spec}', hot: true },
-  { text: '  onChange={(change) => setTeam(pinnedTeam(change))}', hot: true },
+  { text: '  onChange={(c) => setTeam(pinnedTeam(c))}', hot: true },
   { text: '/>', hot: true },
   { text: '<ScorerList team={team} />' },
 ];
