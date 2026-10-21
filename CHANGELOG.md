@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking (MCP):** the server keeps nothing between calls, so it runs
+  stateless. `show` takes the spec itself, as `chart` or `board`, and draws it;
+  `validate_chart` and the new `validate_board` check a spec and return the
+  same report without drawing. `create_chart`, `create_board`, `add_chart`,
+  `update_chart`, `remove_chart`, `update_board` and the card-only
+  `restore_board`, `set_board_theme` and `set_board_layout` are removed. To
+  change what is on screen, the agent changes the spec and calls `show` again.
+  The reader's theme, arrangement and panel edits stay on the card, and its
+  context gives the fields (`theme_spec`, `grid`, `chart_spec`) that keep them in
+  the next `show`. A card the host draws again without its result calls `show`
+  with the spec it was given.
+
 ## [1.0.1] - 2026-10-21
 
 Released together for `flint-chart`, `flint-chart-mcp`, and the Copilot Canvas plugin.

@@ -61,7 +61,7 @@ const editUpdates: ChartUpdate[] = [
 ] as ChartUpdate[];
 
 function chartCard(input: ChartAssemblyInput, updates?: ChartUpdate[]): Board {
-  return { id: 'temperature', kind: 'chart', version: 1, charts: [{ id: 'chart', input, ...(updates ? { updates } : {}) }] };
+  return { id: 'temperature', kind: 'chart', charts: [{ id: 'chart', input, ...(updates ? { updates } : {}) }] };
 }
 
 /* ------------------------------------------------------------------ */
@@ -109,7 +109,7 @@ const coffeeNotes: ChartUpdate[] = [
 
 /** The MCP page's one chart: themed and interactive from the first ask. */
 export const SIMPLE_CHART: Board = {
-  id: 'coffee', kind: 'chart', version: 1, charts: [{ id: 'chart', input: coffeeByCountry, updates: coffeeNotes }],
+  id: 'coffee', kind: 'chart', charts: [{ id: 'chart', input: coffeeByCountry, updates: coffeeNotes }],
 };
 
 export type ChartSlideKey = 'create' | 'theme' | 'interact' | 'select' | 'edit';
