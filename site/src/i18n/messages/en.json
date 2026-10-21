@@ -402,6 +402,8 @@
     "ctaDocs": "Read the docs",
     "news": {
       "title": "Updates",
+      "video": "Video",
+      "watchVideo": "Watch the Flint 1.0 demo video on YouTube",
       "release100": {
         "date": "October 19, 2026",
         "dateTime": "2026-10-19",

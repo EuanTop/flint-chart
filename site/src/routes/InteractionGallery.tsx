@@ -960,7 +960,7 @@ function DemoVideo() {
     {locale === 'zh-CN'
       ? <video controls preload="metadata" playsInline src={DEMO_VIDEO.zh} title="Flint-interactive demo" />
       : <iframe
-          src={`https://www.youtube-nocookie.com/embed/${DEMO_VIDEO.youtube}?rel=0`}
+          src={`https://www.youtube-nocookie.com/embed/${DEMO_VIDEO.youtube}?rel=0&vq=hd1080&cc_load_policy=0&iv_load_policy=3`}
           title="Flint-interactive demo"
           loading="lazy"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"

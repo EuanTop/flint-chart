@@ -402,6 +402,8 @@
     "ctaDocs": "阅读文档",
     "news": {
       "title": "更新",
+      "video": "视频",
+      "watchVideo": "在 YouTube 观看 Flint 1.0 演示视频",
       "release100": {
         "date": "2026 年 10 月 19 日",
         "dateTime": "2026-10-19",

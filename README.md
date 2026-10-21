@@ -34,7 +34,11 @@ with the Flint API.
 
 https://github.com/user-attachments/assets/c1cda0fa-3ea7-41af-b3fd-a127bc83d641
 
-<p align="center"><sub>Also on <a href="https://youtu.be/JAJy7ToczMs">YouTube</a>.</sub></p>
+<p align="center">
+  <sub>🔊 Click the speaker icon for sound</sub>
+  &nbsp;
+  <a href="https://youtu.be/JAJy7ToczMs"><img src="https://img.shields.io/badge/Watch%20on-YouTube-FF0000?logo=youtube&logoColor=white" alt="Watch on YouTube" align="absmiddle"></a>
+</p>
 
 ## Updates
 
