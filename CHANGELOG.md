@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-21
+
+Released together for `flint-chart`, `flint-chart-mcp`, and the Copilot Canvas plugin.
+
 ### Fixed
 
 - Plotly: a Line or Area Chart's `chartProperties.interpolate` now outranks the theme's line
@@ -503,7 +507,8 @@ Released together for `flint-chart`, `flint-chart-mcp`, and the Copilot Canvas p
 - Treated only lowercase `start` and `end` Waterfall Type values as total
   anchors in Vega-Lite; other values now remain floating deltas colored by sign.
 
-[Unreleased]: https://github.com/microsoft/flint-chart/compare/1.0.0...HEAD
+[Unreleased]: https://github.com/microsoft/flint-chart/compare/1.0.1...HEAD
+[1.0.1]: https://github.com/microsoft/flint-chart/compare/1.0.0...1.0.1
 [1.0.0]: https://github.com/microsoft/flint-chart/compare/0.5.1...1.0.0
 [0.5.1]: https://github.com/microsoft/flint-chart/compare/0.5...0.5.1
 [0.5.0]: https://github.com/microsoft/flint-chart/compare/0.4.0...0.5.0
