@@ -11,10 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Target release: **1.0.0** for `flint-chart`, `flint-chart-mcp`, and the Copilot
-Canvas plugin. This release has not been published.
-Planned work is tracked in the [1.0 working plan](.github/release-notes/1.0.0-todo.md);
-the entries below describe implemented changes, not the remaining checklist.
+## [1.0.0] - 2026-10-19
+
+Released together for `flint-chart`, `flint-chart-mcp`, and the Copilot Canvas plugin.
 
 ### Added
 
@@ -493,7 +492,8 @@ the entries below describe implemented changes, not the remaining checklist.
 - Treated only lowercase `start` and `end` Waterfall Type values as total
   anchors in Vega-Lite; other values now remain floating deltas colored by sign.
 
-[Unreleased]: https://github.com/microsoft/flint-chart/compare/0.5.1...HEAD
+[Unreleased]: https://github.com/microsoft/flint-chart/compare/1.0.0...HEAD
+[1.0.0]: https://github.com/microsoft/flint-chart/compare/0.5.1...1.0.0
 [0.5.1]: https://github.com/microsoft/flint-chart/compare/0.5...0.5.1
 [0.5.0]: https://github.com/microsoft/flint-chart/compare/0.4.0...0.5.0
 [0.4.1]: https://github.com/microsoft/flint-chart/compare/0.4.0...0.4.1
