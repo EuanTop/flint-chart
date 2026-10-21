@@ -12,7 +12,11 @@
 [**中文主页**](https://microsoft.github.io/flint-chart/#/zh) ·
 [**MCP server**](https://microsoft.github.io/flint-chart/#/mcp)
 
-Flint is a visualization intermediate language that lets **AI agents reliably
+<p align="center">
+  <img src="docs/figs/chartwall.png" alt="A wall of charts produced by Flint across its supported visualization backends." width="100%">
+</p>
+
+Flint is a visualization language that lets **AI agents reliably
 create expressive, good-looking and interactive charts from simple,
 human-editable chart specs**. It is available as an
 [MCP server](https://microsoft.github.io/flint-chart/#/mcp) for everyday use
@@ -176,10 +180,6 @@ adapts sizing, spacing, labels, and legends to the data, for example as it gets
 denser, and the same spec renders across Vega-Lite, ECharts, Chart.js, and
 Plotly, or as native Excel charts. See the [API reference](docs/api-reference.md)
 and the [gallery](https://microsoft.github.io/flint-chart/#/gallery).
-
-<p align="center">
-  <img src="docs/figs/chartwall.png" alt="A wall of charts produced by Flint across its supported visualization backends." width="100%">
-</p>
 
 ### 3. Unify the look with a theme spec
 
