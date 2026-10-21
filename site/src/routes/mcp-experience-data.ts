@@ -2,7 +2,7 @@ import type { ChartAssemblyInput, ChartUpdate } from 'flint-chart';
 import type { Board, BoardChart } from '../../../packages/flint-mcp/ui/src/BoardView';
 import { monthRows, yearRows } from './mcp-experience-range';
 import { gapminderRows } from '../playground/gapminder-dashboard-data';
-import timeUse from '../data/time-use-companions.json';
+import coffee from '../data/usda-coffee-consumption.json';
 
 /* ------------------------------------------------------------------ */
 /* Part 1: one chart, NASA GISTEMP global temperature                 */
@@ -65,50 +65,51 @@ function chartCard(input: ChartAssemblyInput, updates?: ChartUpdate[]): Board {
 }
 
 /* ------------------------------------------------------------------ */
-/* The intro: who Americans spend their day with, BLS time use         */
+/* The intro: coffee drinking by country, USDA PSD                     */
 /* ------------------------------------------------------------------ */
 
-const companionRows = timeUse.values
-  .filter((row) => row.Group === 'All people')
-  .map(({ Age, Who, Hours }) => ({ Age, Who, Hours }));
-const peakOf = (who: string) => companionRows.filter((row) => row.Who === who).reduce((top, row) => (row.Hours > top.Hours ? row : top));
-const aloneLate = peakOf('Alone');
-const childrenPeak = peakOf('Children');
-const noteAt = (row: { Age: number; Who: string }) => ({ select: { key: { Age: row.Age, Who: row.Who } } });
+const coffeeRows = coffee.values;
+const bagsIn = (country: string, year: number) => coffeeRows.find((row) => row.Country === country && row.Year === year)!.Bags;
+const chinaGrowth = bagsIn('China', 2025) / bagsIn('China', 2010);
 
-const companions: ChartAssemblyInput = {
-  data: { values: companionRows },
-  semantic_types: { Age: 'Quantity', Hours: 'Quantity', Who: 'Category' },
-  field_display_names: { Hours: 'Hours per day', Who: 'Time spent with' },
+const coffeeByCountry: ChartAssemblyInput = {
+  data: { values: coffeeRows },
+  semantic_types: { Year: 'Year', Bags: 'Quantity', Country: 'Country' },
+  field_display_names: { Bags: 'Million 60-kg bags' },
   theme_spec: 'nyt',
   chart_spec: {
     chartType: 'Line Chart',
-    encodings: { x: { field: 'Age' }, y: { field: 'Hours' }, color: { field: 'Who' } },
-    title: 'As we age, more of the day is spent alone',
-    subtitle: 'Average hours a day spent with each group, by age, United States, 2010–2024',
-    source: 'American Time Use Survey, U.S. Bureau of Labor Statistics, via Our World in Data',
+    encodings: { x: { field: 'Year' }, y: { field: 'Bags' }, color: { field: 'Country' } },
+    title: 'Asia is learning to love coffee',
+    // Wider than tall: the card holds 480px of chart, and the legend takes two rows above the plot.
+    baseSize: { width: 520, height: 280 },
+    subtitle: 'Coffee consumed in each country, million 60-kg bags, 2005–2025',
+    source: 'USDA Foreign Agricultural Service, PSD database',
   },
   interaction_spec: {
     interactions: [
-      { type: 'inspect-index', options: { axis: 'x', show: 'all', seriesBy: 'Who', displayValue: true } },
+      { type: 'inspect-index', options: { axis: 'x', show: 'all', seriesBy: 'Country', displayValue: true } },
       { type: 'legend-toggle' },
     ],
   } as ChartAssemblyInput['interaction_spec'],
 } as ChartAssemblyInput;
 
-const companionNotes: ChartUpdate[] = [
+const coffeeNotes: ChartUpdate[] = [
   {
     id: 'agent',
     ops: [
-      { op: 'set-annotation', target: noteAt(aloneLate), value: { text: `Alone: ${Math.round(aloneLate.Hours)} hours a day by ${aloneLate.Age}` } },
-      { op: 'set-annotation', target: noteAt(childrenPeak), value: { text: `Time with children peaks at ${childrenPeak.Hours} hours, age ${childrenPeak.Age}` } },
+      {
+        op: 'set-annotation',
+        target: { select: { key: { Year: 2025, Country: 'China' } } },
+        value: { text: `China: ${chinaGrowth >= 5.5 ? 'nearly 6×' : `${chinaGrowth.toFixed(1)}×`} since 2010` },
+      },
     ],
   },
 ] as ChartUpdate[];
 
 /** The MCP page's one chart: themed and interactive from the first ask. */
 export const SIMPLE_CHART: Board = {
-  id: 'time-use', kind: 'chart', version: 1, charts: [{ id: 'chart', input: companions, updates: companionNotes }],
+  id: 'coffee', kind: 'chart', version: 1, charts: [{ id: 'chart', input: coffeeByCountry, updates: coffeeNotes }],
 };
 
 export type ChartSlideKey = 'create' | 'theme' | 'interact' | 'select' | 'edit';
