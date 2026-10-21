@@ -108,6 +108,31 @@ npm install flint-chart
 The library compiles Flint specs into backend-native chart specs and provides
 React and vanilla JavaScript APIs for embedding interactive charts.
 
+A Flint spec describes the data, semantic types, and field mappings, with
+optional theme and interaction settings. In React, pass it to `<FlintChart>`
+to embed an interactive chart:
+
+```tsx
+import type { ChartAssemblyInput } from 'flint-chart';
+import { FlintChart } from 'flint-chart/react';
+
+const spec: ChartAssemblyInput = {
+  data: { values: [
+    { Month: '2026-01', Users: 1200 },
+    { Month: '2026-02', Users: 1800 },
+  ] },
+  semantic_types: { Month: 'YearMonth', Users: 'Quantity' },
+  chart_spec: {
+    chartType: 'Line Chart',
+    encodings: { x: 'Month', y: 'Users' },
+  },
+  theme_spec: 'economist',
+  interaction_spec: { interactions: [{ type: 'inspect-index' }] },
+};
+
+<FlintChart spec={spec} />
+```
+
 You can copy the following instruction to your coding agent to build a chart
 with Flint, then adapt it to your data and app:
 
@@ -123,13 +148,6 @@ Let readers hover to compare regions at each month, and add a region selector
 that updates the chart.
 Integrate it with the app's existing layout and verify it works.
 ```
-
-The skills guide the agent to choose a chart type, map fields, and describe
-their semantic types, then integrate the result using `<FlintChart>` in React
-or `mountChart` in other web apps. Flint handles the low-level chart
-configuration; the agent handles your app's data, UI, and event wiring.
-You can then iterate in natural language: change the theme, link another
-chart, or connect a selection to the rest of the app.
 
 The agent can also generate backend-native specs or editable Excel charts
 for reports and documents. See the [API reference](docs/api-reference.md),
