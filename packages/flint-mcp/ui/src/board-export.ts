@@ -2,15 +2,15 @@
 // Licensed under the MIT License.
 
 /**
- * The board as one PNG, drawn as it looks: its paper, the theme's furniture and rules, the headline and the cell
- * headings in their own type, the rules between rows, and every chart's SVG or table at its place. The
+ * The board as one PNG, drawn as it looks: its paper, the theme's furniture and rules, the headline in its
+ * own type, the rules between rows, and every chart's SVG or table at its place. The
  * controls (the bar, the selection chip, edit outlines) are left out.
  */
 
 import { drawTable } from './table-export';
 
 const SCALE = 2;
-const TEXT = '.board-title, .board-subtitle, .board-cell-title, .board-cell-subtitle, .board-source';
+const TEXT = '.board-title, .board-subtitle, .board-source';
 const RULED = '.board-header, .board-cell, .board-tile, .board-source';
 
 function svgImage(svg: SVGSVGElement): Promise<HTMLImageElement> {

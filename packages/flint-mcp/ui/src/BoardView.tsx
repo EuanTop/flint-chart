@@ -185,33 +185,21 @@ function ruleStyle(rule: ClosingRule, ink: string): CSSProperties {
   return { height: rule.height, background: rule.color ?? ink, ...(rule.stated ? { width: rule.width } : {}) };
 }
 
-/** The chart with its heading lifted out to the cell, as the chart card plans it for a room up to `height` tall. */
+/** The chart as the chart card plans it for a room up to `height` tall. */
 function roomSpec(input: ChartAssemblyInput, height: number): ChartAssemblyInput {
-  const { title: _title, subtitle: _subtitle, ...chartSpec } = input.chart_spec;
-  return withAppPreviewDefaults(
-    { ...input, theme_spec: withoutFurniture(input.theme_spec), chart_spec: chartSpec },
-    { width: APP_PREVIEW_CANVAS_SIZE.width, height },
-  );
-}
-
-/** The theme without its branding marks, which the board draws once on its frame. */
-function withoutFurniture(theme: ChartAssemblyInput['theme_spec']): ChartAssemblyInput['theme_spec'] {
-  if (theme === undefined) return theme;
-  return (typeof theme === 'string' ? { extends: theme, furniture: [] } : { ...theme, furniture: [] }) as ChartAssemblyInput['theme_spec'];
+  return withAppPreviewDefaults(input, { width: APP_PREVIEW_CANVAS_SIZE.width, height });
 }
 
 /** The widest a KPI tile is planned, so a tile alone in a wide cell stays a tile. */
 const MAX_TILE_WIDTH = 260;
 
-/** The chart as a cell draws it: its heading taken out to the cell, sized to the cell's room. */
+/** The chart as a cell draws it, sized to the cell's room. */
 function cellSpec(input: ChartAssemblyInput, width: number, height: number): ChartAssemblyInput {
-  const { title: _title, subtitle: _subtitle, ...chartSpec } = input.chart_spec;
   const size = { width: isKpi(input.chart_spec.chartType) ? Math.min(width, MAX_TILE_WIDTH) : width, height };
   return {
     ...input,
-    theme_spec: withoutFurniture(input.theme_spec),
     chart_spec: {
-      ...chartSpec,
+      ...input.chart_spec,
       ...(input.chart_spec.baseSize ? {} : { baseSize: size, canvasSize: size }),
     },
     options: { ...input.options, bandStepFit: input.options?.bandStepFit ?? 1 },
@@ -292,18 +280,14 @@ function BoardCell({
   const handleWarnings = useCallback((warnings: readonly ChartWarning[]) => onWarnings(chart.id, warnings), [chart.id, onWarnings]);
   const table = useCellTable(chart.id, spec, view, onTable);
   const tableType = drawsAsTable(input.chart_spec.chartType);
-  const { title, subtitle } = input.chart_spec;
+  const { title } = input.chart_spec;
   return (
     <section
       className={kpi ? 'board-cell board-cell-kpi' : 'board-cell'}
       data-chart-id={chart.id}
       style={{ gridColumn: `span ${units}` }}
     >
-      <header className="board-cell-header">
-        {title && <h2 className="board-cell-title">{title}</h2>}
-        {subtitle && <p className="board-cell-subtitle">{subtitle}</p>}
-        {!tableType && <ViewSwitch view={view} onView={(next) => onView(chart.id, next)} name={title ?? chart.id} />}
-      </header>
+      {!tableType && <ViewSwitch view={view} onView={(next) => onView(chart.id, next)} name={title ?? chart.id} />}
       <div
         className={cellBodyClass('board-cell-chart', tableType, table)}
         style={tableType ? { height } : undefined}
@@ -385,24 +369,8 @@ function useDrawInputs(
 
 /** The space between arranged charts, below each one. */
 const GRID_ROW_GAP = 16;
-/** A tile's height besides its heading and chart: the rule and padding above, the gap under the heading. */
-const TILE_CHROME = 19;
-
-/** The height of an element, read as it changes; null until the element is first measured. */
-function useHeight<T extends HTMLElement>(): [(node: T | null) => void, number | null] {
-  const [height, setHeight] = useState<number | null>(null);
-  const observer = useRef<ResizeObserver | null>(null);
-  const ref = useCallback((node: T | null) => {
-    observer.current?.disconnect();
-    if (!node) return;
-    const read = () => setHeight((prev) => (prev === node.offsetHeight ? prev : node.offsetHeight));
-    read();
-    observer.current = new ResizeObserver(read);
-    observer.current.observe(node);
-  }, []);
-  useEffect(() => () => observer.current?.disconnect(), []);
-  return [ref, height];
-}
+/** A tile's height besides its chart: the rule and the padding above. */
+const TILE_CHROME = 11;
 
 type GridGesture = 'move' | 'right' | 'bottom' | 'corner' | 'corner-left';
 
@@ -443,10 +411,8 @@ function GridTile({
   onChange: (id: string, change: ChartChange) => void;
   onWarnings: (id: string, warnings: readonly ChartWarning[]) => void;
 }) {
-  const [measureHeader, measuredHeader] = useHeight<HTMLElement>();
-  const headerHeight = measuredHeader ?? 0;
-  const chartHeight = Math.max(60, box.height - headerHeight - TILE_CHROME);
-  const settledHeight = Math.max(60, settled.height - headerHeight - TILE_CHROME);
+  const chartHeight = Math.max(60, box.height - TILE_CHROME);
+  const settledHeight = Math.max(60, settled.height - TILE_CHROME);
   const [fit, setFit] = useState<Fit | null>(null);
   const current = fit && fit.input === input && fit.width === settled.width && fit.height === settledHeight ? fit : null;
   const spec = useMemo(
@@ -466,7 +432,7 @@ function GridTile({
   }, [chart.id, onRender, current, dragging, input, settled.width, settledHeight]);
   const handleChange = useCallback((change: ChartChange) => onChange(chart.id, change), [chart.id, onChange]);
   const handleWarnings = useCallback((warnings: readonly ChartWarning[]) => onWarnings(chart.id, warnings), [chart.id, onWarnings]);
-  const { title, subtitle } = input.chart_spec;
+  const { title } = input.chart_spec;
   const handle = (kind: GridGesture) => ({ onPointerDown: (event: ReactPointerEvent<HTMLElement>) => onGesture(kind, chart.id, event) });
   const table = useCellTable(chart.id, spec, view, onTable);
   const tableType = drawsAsTable(input.chart_spec.chartType);
@@ -476,17 +442,12 @@ function GridTile({
       data-chart-id={chart.id}
       style={box}
     >
-      <header className="board-cell-header board-tile-header" ref={measureHeader}>
-        {title && <h2 className="board-cell-title">{title}</h2>}
-        {subtitle && <p className="board-cell-subtitle">{subtitle}</p>}
-        {editing && !title && !subtitle && <span className="board-tile-grip">{chart.id}</span>}
-        {!editing && !tableType && <ViewSwitch view={view} onView={(next) => onView(chart.id, next)} name={title ?? chart.id} />}
-      </header>
+      {!editing && !tableType && <ViewSwitch view={view} onView={(next) => onView(chart.id, next)} name={title ?? chart.id} />}
       <div
         className={cellBodyClass('board-cell-chart board-tile-chart', tableType, table)}
         style={tableType ? { height: chartHeight } : undefined}
       >
-        {!tableType && measuredHeader !== null && (
+        {!tableType && (
           <FlintChart
             className="chart-interactive"
             spec={spec}
@@ -791,12 +752,16 @@ export function BoardView({ app, initial, hostContext }: { app: App; initial: Bo
     document.documentElement.style.background = style.background;
     document.body.style.background = style.background;
   }, [style.background]);
-  // The card is sized to the board, so the page never scrolls. A scrollbar would appear while the host
-  // catches up with a new height, narrow the board, lay every chart out again, and change the height again.
+  // Inline, the card is sized to the board, so the page never scrolls. A scrollbar would appear while the
+  // host catches up with a new height, narrow the board, lay every chart out again, and change the height
+  // again. In a pane the host sets the height, so a taller board scrolls, with its gutter kept so the
+  // scrollbar never narrows it.
+  const paned = hostContext?.displayMode === 'fullscreen' || hostContext?.displayMode === 'pip';
   useEffect(() => {
-    document.documentElement.style.overflow = 'hidden';
-    document.body.style.overflow = 'hidden';
-  }, []);
+    document.documentElement.style.overflow = paned ? 'hidden auto' : 'hidden';
+    document.documentElement.style.scrollbarGutter = paned ? 'stable' : '';
+    document.body.style.overflow = paned ? 'visible' : 'hidden';
+  }, [paned]);
   const byId = useMemo(() => new Map(charts.map((chart) => [chart.id, chart])), [charts]);
 
   const grid = draft ?? board.grid;
