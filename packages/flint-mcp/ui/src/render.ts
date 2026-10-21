@@ -185,6 +185,8 @@ export async function renderFlintSvg(
   if (patterns.length) {
     // A canvas cannot draw a pattern fill: the PNG is rasterised from the finished SVG instead.
     const ctx = canvas.getContext('2d') as CanvasRenderingContext2D | null;
+    // Vega leaves its pixel ratio and padding origin on the context; this draws in the canvas's own pixels.
+    ctx?.setTransform(1, 0, 0, 1, 0, 0);
     const image = new Image();
     image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
     await image.decode().catch(() => undefined);
@@ -196,6 +198,8 @@ export async function renderFlintSvg(
   if (furniture.length && !patterns.length) {
     const ctx = canvas.getContext('2d') as CanvasRenderingContext2D | null;
     if (ctx) {
+      // Vega leaves its pixel ratio and padding origin on the context; items are placed in canvas pixels.
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
       // Placed against the canvas's own width, as in the SVG: a rule on the top edge runs edge to edge.
       const width = canvas.width / pngScale;
       const height = canvas.height / pngScale;

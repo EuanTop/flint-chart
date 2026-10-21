@@ -13,14 +13,19 @@ const SCALE = 2;
 const TEXT = '.board-title, .board-subtitle, .board-source';
 const RULED = '.board-header, .board-cell, .board-tile, .board-source';
 
-function svgImage(svg: SVGSVGElement): Promise<HTMLImageElement> {
+function svgImage(svg: SVGSVGElement, size?: { width: number; height: number }): Promise<HTMLImageElement> {
   const copy = svg.cloneNode(true) as SVGSVGElement;
   copy.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(copy)], { type: 'image/svg+xml' }));
+  if (size) {
+    copy.setAttribute('width', String(size.width));
+    copy.setAttribute('height', String(size.height));
+  }
+  // A data URL, not a blob one: an MCP App's sandbox allows images from `data:` only.
+  const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(copy))}`;
   return new Promise((resolve, reject) => {
     const image = new Image();
-    image.onload = () => { URL.revokeObjectURL(url); resolve(image); };
-    image.onerror = () => { URL.revokeObjectURL(url); reject(new Error('A chart could not be drawn')); };
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('A chart could not be drawn'));
     image.src = url;
   });
 }
@@ -102,10 +107,13 @@ export async function boardPng(root: HTMLElement): Promise<Blob> {
 
   for (const svg of root.querySelectorAll<SVGSVGElement>('.board-cell-chart svg')) {
     if (svg.parentElement?.closest('svg') || getComputedStyle(svg).visibility === 'hidden') continue;
+    // A chart's furniture is a 1px layer over the chart that draws past its box: it is drawn at the chart's size.
+    const chart = svg.classList.contains('flint-canvas-furniture') ? svg.previousElementSibling : null;
     const rect = svg.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) continue;
+    const size = chart ? chart.getBoundingClientRect() : rect;
+    if (size.width === 0 || size.height === 0) continue;
     const { x, y } = at(rect);
-    ctx.drawImage(await svgImage(svg), x, y, rect.width, rect.height);
+    ctx.drawImage(await svgImage(svg, chart ? size : undefined), x, y, size.width, size.height);
   }
 
   for (const table of root.querySelectorAll<HTMLElement>('.board-cell-chart .flint-table')) drawTable(ctx, table, origin);
