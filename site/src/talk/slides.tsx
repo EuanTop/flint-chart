@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { ChartAssemblyInput, ThemeSpec } from 'flint-chart';
 import { THEME_PRESETS } from 'flint-chart';
+import { TYPE_TREE } from './sketches';
 import { SizingPlayground } from '../components/SizingPlayground';
 import { ThemeExplorer } from './ThemeExplorer';
 import { WorldCupScorersDemo } from '../playground/WorldCupScorersDemo';
@@ -16,7 +17,7 @@ import {
   penguins, picked, withData, type FlintState,
 } from './data';
 import {
-  Chart, Code, Demo, FitTable, Stable, MINIMAPS, Minimap, Sketch, VegaLite, fullLayout, lineDiff, plainLayout, specLayout, stepLayout, textRows,
+  Chart, Code, Demo, FitTable, FlawList, FlawedVegaLite, Stable, MINIMAPS, Minimap, Sketch, VegaLite, fullLayout, type Flaw, lineDiff, plainLayout, specLayout, stepLayout, textRows,
   type CodeRow, type CodeSource,
 } from './parts';
 import glue from './specs/vl-final-glue.txt?raw';
@@ -39,9 +40,9 @@ const Cell = ({ caption, children, framed }: { caption?: string; children: React
 );
 
 /** One step of the traditional way: the code and chart before, then the code and chart after. */
-const Step = ({ before, beforeSpec, after, afterSpec, note }: { before: CodeSource; beforeSpec: unknown; after: CodeSource; afterSpec: unknown; note?: ReactNode }) => (<>
+const Step = ({ before, beforeSpec, after, afterSpec, note, flaws }: { before: CodeSource; beforeSpec: unknown; after: CodeSource; afterSpec: unknown; note?: ReactNode; flaws?: Flaw[] }) => (<>
   <div className="talk-body talk-step">
-    <div className="talk-col"><Code rows={before} tone="vl" /><VegaLite spec={beforeSpec} /></div>
+    <div className="talk-col"><Code rows={before} tone="vl" />{flaws ? <FlawedVegaLite spec={beforeSpec} flaws={flaws} /> : <VegaLite spec={beforeSpec} />}</div>
     <div className="talk-arrow">→</div>
     <div className="talk-col"><Code rows={after} tone="vl" /><VegaLite spec={afterSpec} /></div>
   </div>
@@ -63,6 +64,13 @@ const DIFF = {
   final: lineDiff(STEPS.theme, STEPS.final, 72),
 };
 const GLUE_LINES = glue.trimEnd().split('\n').length;
+
+/** What is wrong with the raw chart, circled on it. */
+const RAW_FLAWS: Flaw[] = [
+  { role: 'marks', label: 'The chart runs far too wide for the page.' },
+  { role: 'x-axis', label: 'Months show as raw numbers like 202101.' },
+  { role: 'legend', label: 'Losses and gains share one color ramp, with no midpoint at zero.' },
+];
 
 /** A brand theme an agent might write from a short style guide; the slide shows this exact object. */
 const BRAND_THEME = {
@@ -109,6 +117,24 @@ const TLDR_SPEC = `{
 // After the Flint version: one request at a time, each starting where the last one left off.
 const FLINT_W = 52;
 
+/**
+ * The type tree: the drawn boxes and connectors from the sketch, with the branch text set over them in
+ * the deck's own type. Both sit on the same 1000 × 720 frame, so the text stays on its line at any size.
+ */
+const TypeTree = () => (
+  <div className="talk-fit">
+    <div className="talk-frame" style={{ aspectRatio: '1000 / 720' }}>
+      <Sketch name="typesTree" />
+      {TYPE_TREE.flatMap((r) => r.leaves).map((l) => (
+        <span key={l.text} className={`talk-leaf${l.mono ? ' mono' : ''}${l.tone ? ` ${l.tone}` : ''}`}
+          style={{ left: `${((l.mono ? 436 : 396) / 1000) * 100}%`, top: `${(l.y / 720) * 100}%` }}>
+          {l.text}
+        </span>
+      ))}
+    </div>
+  </div>
+);
+
 /** The three use cases, labelled under the sketch's three panels. */
 const USE_CASES = [
   { title: 'Explore data', short: 'A chart or a dashboard, right in your chat.', long: 'Ask, and a live chart or dashboard opens in your chat through the Flint MCP server.' },
@@ -116,20 +142,33 @@ const USE_CASES = [
   { title: 'Design', short: 'One theme for every chart.', long: 'Write your house style once as a theme, and every chart in every library follows it.' },
 ];
 
-/** The use-case sketch with readable labels under its panels; `focus` circles one and spells it out. */
-const UseCases = ({ focus }: { focus?: number }) => (
+/** The three specs, labelled under the sketch's three panels, each in its section color. */
+const SPECS = [
+  { title: 'The chart spec', short: 'What the data means.', long: 'Semantic types and a layout engine take care of what the data means.', color: '#2f6db5' },
+  { title: 'The theme spec', short: 'How it looks.', long: 'A formal specification of style, written once for every chart.', color: '#e8954a' },
+  { title: 'The interaction spec', short: 'How it behaves.', long: 'Semantic events and update operators describe how a chart behaves.', color: '#d9534f' },
+];
+
+/**
+ * A three-panel sketch with readable labels under its panels. With `focus`, the sketch circles that
+ * panel, its label is spelled out, and the other two fade back.
+ */
+const Trio = ({ sketch, items, focus }: {
+  sketch: string; items: { title: string; short: string; long: string; color?: string }[]; focus?: number;
+}) => (
   <div className="talk-body column" style={{ gap: 8 }}>
-    <div className="talk-fit"><Sketch name={focus === undefined ? 'useCases' : `useCase${focus + 1}`} /></div>
+    <div className="talk-fit"><Sketch name={focus === undefined ? `${sketch}s` : `${sketch}${focus + 1}`} /></div>
     <div className="talk-usecases">
-      {USE_CASES.map((u, i) => (
+      {items.map((u, i) => (
         <div key={u.title} className={focus === undefined ? undefined : focus === i ? 'on' : 'off'}>
-          <h3>{i + 1}. {u.title}</h3>
+          <h3 style={focus === i && u.color ? { color: u.color } : undefined}>{i + 1}. {u.title}</h3>
           <p>{focus === i ? u.long : u.short}</p>
         </div>
       ))}
     </div>
   </div>
 );
+const UseCases = ({ focus }: { focus?: number }) => <Trio sketch="useCase" items={USE_CASES} focus={focus} />;
 
 /** The "draw your guess" demo's interaction, condensed: a trigger, and a handler that answers with an update. */
 const BESPOKE_ROWS: CodeRow[] = [
@@ -174,16 +213,6 @@ const APP_ROWS: CodeRow[] = [
   { text: '<ScorerList team={team} />' },
 ];
 
-/** The semantic types Flint knows, from its type registry, grouped as the registry groups them. */
-const SEMANTIC_TYPES: [string, string][] = [
-  ['Points in time', 'DateTime, Date, Time, Timestamp'],
-  ['Time units', 'Year, Quarter, Month, Week, Day, Hour, YearMonth, YearQuarter, YearWeek, Decade, Duration'],
-  ['Measures', 'Quantity, Count, Amount, Price, Percentage, Temperature'],
-  ['Signed measures', 'Profit, PercentageChange, Sentiment, Correlation'],
-  ['Ordered numbers', 'Rank, Score, ID'],
-  ['Places', 'Country, State, City, Region, Address, ZipCode, Latitude, Longitude'],
-  ['Categories', 'Category, Name, Status, Boolean, Direction, Range'],
-];
 
 /** The parts of the real "economist" preset that the theme slides talk about. */
 const ECON = (THEME_PRESETS as Record<string, { spec: Record<string, any> }>).economist.spec;
@@ -258,7 +287,7 @@ export const SLIDES: SlideDef[] = [
   {
     id: 'title', kind: 'title', render: () => (<>
       <h1>Flint: a visualization language for the AI era</h1>
-      <p className="talk-lead"><strong>Chenglong Wang</strong>, Yuwei Xiao, Kecheng Lu, Yunhai Wang, Alper Sarikaya, Michel Galley, Chris Quirk, Jianfeng Gao<br />Deep Learning Group, Microsoft Research</p>
+      <p className="talk-lead"><a href="https://microsoft.github.io/flint-chart">microsoft.github.io/flint-chart</a></p>
       <div className="talk-grid" style={{ gridTemplateColumns: 'minmax(0, 1.45fr) minmax(0, 1fr) minmax(0, 0.7fr)', marginTop: 20 }}>
         <Cell><Chart spec={linkedYears} /></Cell>
         <Cell><Demo width={560}><GlobeWarmingStage layout="stacked" /></Demo></Cell>
@@ -269,7 +298,7 @@ export const SLIDES: SlideDef[] = [
 
   {
     id: 'tldr', render: () => (<>
-      <h2>Flint in short</h2>
+      <h2>Conclusion</h2>
       <div className="talk-body">
         <div className="talk-col" style={{ flex: '0.9 1 0' }}>
           <p className="talk-lead">Flint is a visualization language for AI agents to <strong>reliably create polished data visualizations</strong>. The agent writes a short, simple spec, and Flint's compiler takes care of the rest.</p>
@@ -291,14 +320,9 @@ export const SLIDES: SlideDef[] = [
 
   // ======================================================== Act 1
   {
-    id: 'act1', kind: 'section', render: () => (<>
-      <h1>Authoring a chart the traditional way</h1>
-      <p className="talk-lead">We'll build one chart with a declarative grammar, Vega-Lite, step by step.</p>
-    </>),
-  },
-  {
     id: 'ideal', render: () => (<>
-      <h2>Ideally, a chart is a few lines that are easy to change</h2>
+      <h2 className="is-act">Authoring with Vega-Lite</h2>
+      <p className="talk-callout">Ideally, a chart is a few lines that are easy to change.</p>
       <div className="talk-body">
         <div className="talk-col"><Code rows={stepLayout(CARS.cars)} max={26} tone="vl" /></div>
         <div className="talk-col"><VegaLite spec={VL.cars} /></div>
@@ -316,7 +340,7 @@ export const SLIDES: SlideDef[] = [
   },
   {
     id: 'reality', render: () => (<>
-      <h2>In reality, our charts ask for more</h2>
+      <h2>Let's try a slightly more complicated example</h2>
       <div className="talk-body" style={{ gap: 64 }}>
         <div className="talk-col" style={{ flex: '1.15 1 0' }}>
           <p className="talk-task"><strong>Task:</strong> "Make a heatmap of net new users by game and month for our report page, in The Economist style, and let me click a game to highlight it next to our table."</p>
@@ -324,30 +348,26 @@ export const SLIDES: SlideDef[] = [
             rows={LONG_ROWS.map((r) => [r.game, r.region, r.period.replace('-', ''), r.newUsers])} />
           <p className="talk-note">Rows: 60 months × 24 games × 4 regions = 5,760.</p>
         </div>
-        <div className="talk-col" style={{ gap: 16 }}>
-          <Code rows={ROWS.raw} max={20} tone="vl" />
-          <VegaLite spec={withData(STEPS.raw)} />
-        </div>
+        <div className="talk-col"><Code rows={ROWS.raw} max={22} tone="vl" /></div>
+      </div>
+    </>),
+  },
+  {
+    id: 'broken', render: () => (<>
+      <h2>Plug the data in, and the chart breaks</h2>
+      <div className="talk-body column">
+        <FlawedVegaLite spec={withData(STEPS.raw)} flaws={RAW_FLAWS} />
+        <FlawList flaws={RAW_FLAWS} />
       </div>
     </>),
   },
   {
     id: 'attempt-1', render: () => (<>
-      <h2>Attempt one: plug the data in, and it breaks</h2>
+      <h2>Let's fix parsing and layout</h2>
       <Step
         before={ROWS.raw} beforeSpec={withData(STEPS.raw)}
-        after={ROWS.parse} afterSpec={withData(STEPS.parse)}
-        note={<>The same few lines give a valid spec and a wrong chart. To fix it we parse 202101 into a date, sum the four regions in each cell, and centre the colours on zero, adding {DIFF.parse.plus} lines.</>}
-      />
-    </>),
-  },
-  {
-    id: 'attempt-2', render: () => (<>
-      <h2>Attempt two: five years of months need a new layout</h2>
-      <Step
-        before={plainLayout(ROWS.parse)} beforeSpec={withData(STEPS.parse)}
-        after={ROWS.layout} afterSpec={withData(STEPS.layout)}
-        note={<>Sixty months crowd the axis with Jan to Dec five times over. We widen the chart, label each year once, give long game names room, and move the legend to the top. That adds {DIFF.layout.plus} lines and changes {DIFF.layout.minus}.</>}
+        after={stepLayout(STEPS.layout, STEPS.raw)} afterSpec={withData(STEPS.layout)}
+        note={<>Parse 202101 into a date, sum the four regions, centre the colours on zero, then widen the chart and label each year once: {lineDiff(STEPS.raw, STEPS.layout).plus} lines.</>}
       />
     </>),
   },
@@ -355,7 +375,7 @@ export const SLIDES: SlideDef[] = [
     id: 'theme-vl', render: () => (<>
       <h2>Making it look like The Economist is mostly new work</h2>
       <Step
-        before={plainLayout(ROWS.layout)} beforeSpec={withData(STEPS.layout)}
+        before={plainLayout(stepLayout(STEPS.layout, STEPS.raw))} beforeSpec={withData(STEPS.layout)}
         after={ROWS.theme} afterSpec={withData(STEPS.theme)}
         note={<>Fonts and axes go into the config, the house colours into the encoding, and the red tab, headline, and source line become extra views placed by hand. The spec grows by {DIFF.theme.plus} lines.</>}
       />
@@ -384,7 +404,7 @@ export const SLIDES: SlideDef[] = [
           </table>
         </div>
       </div>
-      <p className="talk-note">A click filters the table and a picker selects a game. These {GLUE_LINES} lines talk in signal names and internal stores, not in terms of the data.</p>
+      <p className="talk-note">{GLUE_LINES} lines, all in signal names.</p>
     </>),
   },
   {
@@ -413,16 +433,10 @@ export const SLIDES: SlideDef[] = [
     </>),
   },
 
-  // ======================================================== Act 2
-  {
-    id: 'act2', kind: 'section', render: () => (<>
-      <h1>Just let an AI agent do it?</h1>
-      <p className="talk-lead">Today we would hand this to an agent. It can do it, but then we notice five problems.</p>
-    </>),
-  },
+  // Act 1, continued: handing it to an agent
   {
     id: 'five-problems', render: () => (<>
-      <h2>Five problems with letting the agent write it all</h2>
+      <h2>Just let an AI agent do it? Five problems show up</h2>
       <div className="talk-body column">
         <div className="talk-fit" style={{ flex: '1.2 1 0' }}><Sketch name="agentProblems" /></div>
         <ul style={{ flex: '1 1 0', columns: 2, columnGap: 56 }}>
@@ -438,23 +452,16 @@ export const SLIDES: SlideDef[] = [
   {
     id: 'root-cause', render: () => (<>
       <h2>The root cause is <em>the language</em></h2>
-      <div className="talk-body">
-        <div className="talk-col middle">
-          <p className="talk-lead">Low-level configuration ties together what the data means, how the chart looks, and how it behaves. Every change ripples into the others.</p>
-          <p className="talk-quote">"The logic depends on coordinates, pixels, and SVG paths, all tangled together. So the agent reasons, writes, debugs, and goes around again, and still hands you something fragile."</p>
-        </div>
-        <div className="talk-col"><Sketch name="entangle" /></div>
-      </div>
+      <div className="talk-body column"><div className="talk-fit"><Sketch name="entangle" /></div></div>
     </>),
   },
 
   // ======================================================== Act 3
   {
     id: 'lifting', render: () => (<>
-      <h2>Flint is a language for AI agents that disentangles visual and interaction logic</h2>
+      <h2 className="is-act">Flint is a language for AI agents that disentangles visual and interaction logic</h2>
       <div className="talk-body column">
         <div className="talk-fit"><Sketch name="lifting" /></div>
-        <p className="talk-note">You and your agent work with the high-level specs, without losing control. The compiler takes care of data parsing, layout, events, design tokens, and the dependencies between them.</p>
       </div>
     </>),
   },
@@ -465,7 +472,6 @@ export const SLIDES: SlideDef[] = [
         <div className="talk-col"><Code rows={stepLayout(flintShown(FLINT_BASE))} /></div>
         <div className="talk-col">
           <Chart spec={flintInput(FLINT_BASE)} />
-          <p className="talk-caption">A few lines on the raw data, with the same look. Click a game to try it.</p>
         </div>
       </div>
     </>),
@@ -475,34 +481,34 @@ export const SLIDES: SlideDef[] = [
 
   // Section A
   {
-    id: 'sec-a', kind: 'section', render: () => (<>
-      <div className="talk-bar meaning" />
-      <h1>The chart spec</h1>
-      <p className="talk-lead">Semantic types and a layout engine take care of what the data means.</p>
+    id: 'sec-a', render: () => (<>
+      <h2>1. The chart spec</h2>
+      <Trio sketch="spec" items={SPECS} focus={0} />
     </>),
   },
+  { id: 'a-how', render: () => (<><h2>Semantic types: say what the data means, and the compiler does the rest</h2><div className="talk-body"><div className="talk-fit"><Sketch name="typesHow" /></div></div></>) },
   {
     id: 'a-what', render: () => (<>
-      <h2>Say what each field means, and the compiler does the rest</h2>
+      <h2>What each type decides for this chart</h2>
       <div className="talk-body">
-        <div className="talk-col" style={{ flex: '0.75 1 0' }}><Code rows={specLayout(TYPES_FLINT, /YearMonth|Category|Profit|semantic_types/)} /></div>
-        <div className="talk-col" style={{ flex: '1.25 1 0' }}><div className="talk-fit"><Sketch name="typesTree" /></div></div>
+        <div className="talk-col" style={{ flex: '0.75 1 0', gap: 22 }}>
+          <Code rows={specLayout(TYPES_FLINT, /YearMonth|Category|Profit|semantic_types/)} />
+          <p className="talk-callout talk-callout-inline">Semantic types decide data processing, axes, and colors, so the compiler can infer the low-level configuration reliably, without heuristics.</p>
+        </div>
+        <div className="talk-col" style={{ flex: '1.25 1 0' }}><TypeTree /></div>
       </div>
     </>),
   },
-  { id: 'a-how', render: () => (<><h2>How it works: from what the data means to the chart</h2><div className="talk-body"><div className="talk-fit"><Sketch name="typesHow" /></div></div></>) },
   {
     id: 'a-vl', render: () => (<>
       <h2>And this is what the compiler wrote in Vega-Lite</h2>
       <div className="talk-body talk-step">
         <div className="talk-col" style={{ flex: '0.85 1 0' }}>
           <Code rows={specLayout(TYPES_FLINT, /YearMonth|Category|Profit|semantic_types/)} />
-          <p className="talk-caption">The Flint spec, on the raw rows.</p>
         </div>
         <div className="talk-arrow">→</div>
         <div className="talk-col" style={{ flex: '1.15 1 0' }}>
           <Code rows={TYPES_COMPILED} tone="vl" />
-          <p className="talk-caption">What the compiler wrote in Vega-Lite because of the three types.</p>
         </div>
       </div>
     </>),
@@ -511,11 +517,7 @@ export const SLIDES: SlideDef[] = [
     id: 'a-types', render: () => (<>
       <h2>Semantic types: a small vocabulary with a lot behind it</h2>
       <div className="talk-body column" style={{ gap: 22 }}>
-        <table className="talk-table talk-wrap" style={{ flex: 'none' }}>
-          <tbody>
-            {SEMANTIC_TYPES.map(([family, types]) => <tr key={family}><th style={{ width: 260 }}>{family}</th><td>{types}</td></tr>)}
-          </tbody>
-        </table>
+        <div className="talk-fit"><Sketch name="typeCloud" /></div>
         <p className="talk-task"><strong>Agents are really good at this.</strong> Saying that a column is a month, a profit, or a country is just reading the data, and it is far easier than writing parsing, scale, and format code.</p>
       </div>
     </>),
@@ -525,7 +527,6 @@ export const SLIDES: SlideDef[] = [
       <h2>The layout engine: the data pushes out, the canvas pushes back</h2>
       <div className="talk-body column">
         <div className="talk-fit"><Sketch name="springModel" /></div>
-        <p className="talk-note">Each item is a spring that wants its own room, and the canvas is a stiffer spring that resists growing. The plot settles where the two balance, never past the most it may stretch.</p>
       </div>
     </>),
   },
@@ -546,7 +547,6 @@ export const SLIDES: SlideDef[] = [
       <h2>One spec, five rendering libraries</h2>
       <div className="talk-body">
         <div className="talk-col narrow">
-          <p className="talk-lead">Each library structures its parameters differently. The same chart spec compiles to all of them.</p>
           <ul>
             <li>Vega-Lite, with 39 chart types</li>
             <li>ECharts, with 37</li>
@@ -569,10 +569,9 @@ export const SLIDES: SlideDef[] = [
 
   // Section B
   {
-    id: 'sec-b', kind: 'section', render: () => (<>
-      <div className="talk-bar look" />
-      <h1>The theme spec</h1>
-      <p className="talk-lead">A formal specification of style, written once for every chart.</p>
+    id: 'sec-b', render: () => (<>
+      <h2>2. The theme spec</h2>
+      <Trio sketch="spec" items={SPECS} focus={1} />
     </>),
   },
   {
@@ -582,7 +581,6 @@ export const SLIDES: SlideDef[] = [
         <div className="talk-col" style={{ flex: '0.95 1 0' }}><div className="talk-fit"><Sketch name="themeBeforeNow" /></div></div>
         <div className="talk-col" style={{ flex: '1.1 1 0' }}>
           <Code rows={ECONOMIST_ROWS} max={20} />
-          <p className="talk-caption">The "economist" definition, from the theme library.</p>
         </div>
       </div>
     </>),
@@ -596,10 +594,9 @@ export const SLIDES: SlideDef[] = [
   },
   // Section C
   {
-    id: 'sec-c', kind: 'section', render: () => (<>
-      <div className="talk-bar behavior" />
-      <h1>The interaction spec</h1>
-      <p className="talk-lead">Semantic events and update operators describe how a chart behaves.</p>
+    id: 'sec-c', render: () => (<>
+      <h2>3. The interaction spec</h2>
+      <Trio sketch="spec" items={SPECS} focus={2} />
     </>),
   },
   {
@@ -641,7 +638,7 @@ export const SLIDES: SlideDef[] = [
   // ======================================================== Act 4
   {
     id: 'act4', render: () => (<>
-      <h2>What you can build with it</h2>
+      <h2 className="is-act">Applications: what can you build with Flint?</h2>
       <UseCases />
     </>),
   },
@@ -744,7 +741,7 @@ export const SLIDES: SlideDef[] = [
   // ======================================================== Act 5
   {
     id: 'recap', render: () => (<>
-      <h2>Flint: a visualization language for AI agents</h2>
+      <h2 className="is-act">Flint: a visualization language for AI agents</h2>
       <div className="talk-body column" style={{ gap: 20 }}>
         <div className="talk-fit"><Sketch name="lifting" /></div>
         <p className="talk-task" style={{ margin: 0 }}><strong>Open source, MIT license.</strong> <code>flint-chart</code> on npm and PyPI, and the <code>flint-chart-mcp</code> server for your agent, at <a href="https://github.com/microsoft/flint-chart">github.com/microsoft/flint-chart</a>.</p>
