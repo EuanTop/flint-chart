@@ -10,7 +10,7 @@ A theme in Flint is a formal specification that describes how a chart system beh
 
 `theme_spec` sits beside `chart_spec` in a `ChartAssemblyInput`. The chart spec says **what the chart means**. The theme spec says **how that meaning should be presented**.
 
-> ThemeSpec currently affects Vega-Lite output. Other backend assemblers ignore it.
+> ThemeSpec applies to Vega-Lite and Plotly output. The ECharts, Chart.js, and Excel assemblers ignore it.
 
 ## Three ways to use `theme_spec`
 

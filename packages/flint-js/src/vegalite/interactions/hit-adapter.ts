@@ -1,4 +1,5 @@
 import * as vega from 'vega';
+import { INTERACTION_KEY, INTERACTION_ROLE, INTERACTION_LEGEND_CHANNEL, INTERACTION_LEGEND_FIELD } from './stores';
 import {
     semanticVisualFamily,
     type RenderHit,
@@ -40,10 +41,7 @@ export function vegaRendererOrigin(view: any): PlotPoint {
     return { x: x + (padding.left ?? 0), y: y + (padding.top ?? 0) };
 }
 
-export const INTERACTION_KEY = '__flint_interaction_key';
-export const INTERACTION_ROLE = '__flint_interaction_role';
-export const INTERACTION_LEGEND_CHANNEL = '__flint_legend_channel';
-export const INTERACTION_LEGEND_FIELD = '__flint_legend_field';
+export { INTERACTION_KEY, INTERACTION_ROLE, INTERACTION_LEGEND_CHANNEL, INTERACTION_LEGEND_FIELD } from './stores';
 export const PATH_KEY_SUFFIX = '|__flint_path';
 
 const SUPPORTED_RENDER_MARKS = new Set(['arc', 'area', 'bar', 'line', 'rect', 'rule', 'shape', 'symbol', 'text']);

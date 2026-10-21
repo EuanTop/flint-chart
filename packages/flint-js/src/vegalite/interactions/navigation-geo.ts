@@ -21,6 +21,9 @@
  */
 
 import { projection as vegaProjection } from 'vega';
+import { GEO_LEVEL_SIGNAL, geoLevelGate, isGlobeProjection, type GeoLevel, type GeoPreProjection } from './geo-levels';
+
+export { GEO_LEVEL_SIGNAL, geoLevelGate, isGlobeProjection, type GeoLevel, type GeoPreProjection };
 import type { UpdateRegionSelector } from '../../core/interaction-contracts';
 import type { NavigationDomainGuard, NavigationUpdate } from '../../interactive/interactions';
 import type { VegaNavigationAxis } from './contracts';
@@ -38,24 +41,7 @@ export const GEO_PROJECTION_SIGNAL = '__flint_geo_projection';
 /** The rotation of a globe's projection, which a drag turns. Present only on a globe. */
 export const GEO_ROTATE_SIGNAL = '__flint_geo_rotate';
 
-/** A globe: the one projection a drag turns rather than slides. */
-export function isGlobeProjection(type: unknown): boolean {
-    return type === 'orthographic';
-}
 export const GEO_AXIS_SCALES = { x: '__flint_geo_x', y: '__flint_geo_y' } as const;
-/** Names the detail level a multi-level projected chart currently draws. */
-export const GEO_LEVEL_SIGNAL = '__flint_geo_level';
-
-/**
- * One runtime detail level of a projected chart. A finer level is entered
- * once the visible longitude span drops to `enter` degrees and left again only
- * above `exit`, so a view that rests near the threshold does not flicker.
- */
-export interface GeoLevel {
-    name: string;
-    enter?: number;
-    exit?: number;
-}
 
 /** Runtime detail levels, coarsest first, and the signal that selects one. */
 export interface GeoLevelConfig {
@@ -67,19 +53,6 @@ export interface GeoLevelConfig {
 
 type Ring = readonly (readonly number[])[];
 
-/**
- * The projection a pre-projected base map was built with. The chart draws
- * such a map with an identity projection, so navigation converts between
- * the map's frame and longitude/latitude through this one.
- */
-export interface GeoPreProjection {
-    type: string;
-    scale?: number;
-    translate?: readonly [number, number];
-    rotate?: readonly number[];
-    center?: readonly [number, number];
-    parallels?: readonly [number, number];
-}
 
 function createPreProjection(config: GeoPreProjection): GeoProjection | undefined {
     const factory = (vegaProjection as any)(config.type);
@@ -246,10 +219,6 @@ function describeFeature(datum: Record<string, unknown>): Record<string, unknown
     };
 }
 
-/** The filter expression that gates one level's features behind the level signal. */
-export function geoLevelGate(signal: string, level: string): string {
-    return `${signal} === ${JSON.stringify(level)}`;
-}
 
 /** Pick the level for a visible longitude span, with hysteresis about the current level. */
 export function resolveGeoLevel(

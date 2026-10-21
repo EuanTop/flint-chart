@@ -6,7 +6,7 @@ import type { SemanticAnnotation } from '../core/field-semantics';
 import { CHART_UPDATE_OPS, type ChartOverlaySpec, type ChartUpdate, type ChartUpdateOp, type UpdateTarget } from '../core/interaction-contracts';
 import { temporalFieldValue } from '../core/resolve-semantics';
 import { isWhereSelector, selectorConditions, selectorRowTest, selectorText, type RowComparison } from '../core/target-selector';
-import { overlayChannels } from '../vegalite/interactions/presentation/data-overlay';
+import { overlayChannels } from '../vegalite/interactions/presentation/overlay-channels';
 import { navigationAxesFor } from '../interactive/spec/admission';
 import type { CanvasInteractionDef } from '../interactive/interactions';
 

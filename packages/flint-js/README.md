@@ -11,7 +11,8 @@ assignments, and a **semantic type** per field (e.g. `Revenue`, `Rank`,
 (sizing, zero-baseline, number formatting, color schemes, mark templates) so
 charts look good and stay editable without another model call.
 
-Pure TypeScript. No UI framework dependencies. Data in, spec out.
+Pure TypeScript. Data in, spec out, with optional interactive charts for your
+own apps (React is an optional peer dependency).
 
 ## Install
 
@@ -51,9 +52,10 @@ const themedSpec = assembleVegaLite({
 });
 ```
 
-Flint ships ten presets and also accepts a custom `ThemeSpec`, or an object
-that `extends` a preset and overrides selected fields. ThemeSpec currently
-affects Vega-Lite output. See
+Flint ships 14 presets and also accepts a custom `ThemeSpec`, or an object
+that `extends` a preset and overrides selected fields. Themes apply to
+Vega-Lite and Plotly output; the ECharts, Chart.js, and Excel assemblers ignore
+them. See
 [Using themes](https://microsoft.github.io/flint-chart/#/documentation/theme-spec)
 and the [live theme wall](https://microsoft.github.io/flint-chart/#/themes).
 
@@ -69,6 +71,34 @@ const pl = assemblePlotly(input);      // Plotly.js figure
 const xl = assembleExcel(input);       // Native Excel chart artifact
 ```
 
+## Interactive charts
+
+Add `interaction_spec` to make a chart interactive with any of 23 presets, such
+as `click-highlight`, `brush-x`, `inspect-index`, `navigate`, or `legend-toggle`.
+Interactions run on the Vega-Lite surface, so install `vega`, `vega-lite`, and
+`vega-tooltip` alongside Flint:
+
+```bash
+npm install flint-chart vega vega-lite vega-tooltip
+```
+
+```tsx
+import { FlintChart } from 'flint-chart/react';
+
+<FlintChart
+  spec={{ ...input, interaction_spec: { interactions: [{ type: 'click-highlight' }] } }}
+  onChange={({ phase, state }) => {
+    if (phase === 'commit') console.log(state.selected);
+  }}
+/>
+```
+
+Without React, `mountChart(element, input, { backend: 'vegalite' })` from
+`flint-chart/interactive` mounts the same chart in any page. Bespoke interactions map semantic events to chart
+updates with the [interaction API](https://microsoft.github.io/flint-chart/#/documentation/interaction-api);
+see the [interaction presets](https://microsoft.github.io/flint-chart/#/interactions/gallery)
+and [advanced interactions](https://microsoft.github.io/flint-chart/#/interactions/advanced).
+
 ## Subpath exports
 
 | Import | Contents |
@@ -81,6 +111,10 @@ const xl = assembleExcel(input);       // Native Excel chart artifact
 | `flint-chart/plotly` | Plotly backend |
 | `flint-chart/excel` | Native Excel / Office.js backend |
 | `flint-chart/validate` | `validateChart` — per-problem input validation for agent loops |
+| `flint-chart/interactive` | `mountChart`, interaction presets, and update helpers |
+| `flint-chart/react` | `<FlintChart>` component (React is an optional peer dependency) |
+| `flint-chart/render` | `renderSvg` — static SVG output (Vega-Lite or ECharts) |
+| `flint-chart/image-charts` | Image-Charts URL backend |
 | `flint-chart/test-data` | Sample data generators used by the gallery and tests |
 | `flint-chart/gallery` | Curated example specs |
 
@@ -101,6 +135,7 @@ The Excel backend instead produces a native-chart artifact: use
 
 - [Project overview & docs](https://github.com/microsoft/flint-chart#readme)
 - [Using themes](https://microsoft.github.io/flint-chart/#/documentation/theme-spec)
+- [Interaction spec](https://microsoft.github.io/flint-chart/#/documentation/interaction-spec) and [API](https://microsoft.github.io/flint-chart/#/documentation/interaction-api)
 - [Semantic-type model & rationale](src/docs/design-semantics.md)
 - [Stretch / banking layout model](src/docs/design-stretch-model.md)
 - [Agent authoring skill](https://github.com/microsoft/flint-chart/blob/main/agent-skills/flint-chart-author/SKILL.md)

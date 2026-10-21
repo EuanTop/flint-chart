@@ -13,7 +13,7 @@ import {
     isGlobeProjection,
     type GeoLevel,
     type GeoPreProjection,
-} from '../interactions/navigation-geo';
+} from '../interactions/geo-levels';
 import { withInteractionDecorative } from '../interaction-provenance';
 import {
     fieldsFromEncodingChannels,

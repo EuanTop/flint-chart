@@ -12,7 +12,7 @@ import {
     comparisonAnnotationText,
     presentAnnotationUpdate,
 } from '../../interactive/presentation/annotation';
-import { INTERACTION_ROLE } from '../interactions/hit-adapter';
+import { INTERACTION_ROLE } from '../interactions/stores';
 
 /**
  * Bullet chart — a compact KPI panel: one row per label, each showing a measure

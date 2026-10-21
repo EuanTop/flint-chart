@@ -3,6 +3,9 @@ import type { SemanticTarget } from '../../../core/interaction-semantics';
 import type { PlotPoint } from '../../../interactive/language/geometry';
 import type { PathProjection } from '../../../interactive/language/projections';
 import { pointInClip, type RendererCoordinateSpace } from '../hit-adapter';
+import { overlayChannels } from './overlay-channels';
+
+export { overlayChannels };
 
 export interface DataOverlayController {
     render(overlays: ReadonlyMap<string, ChartOverlaySpec>): void;
@@ -23,21 +26,6 @@ export interface DataOverlayOptions {
     clipToPlot?: boolean;
 }
 
-type OverlayChannel = 'x' | 'x2' | 'y' | 'y2';
-
-/** The channels an overlay projects, or undefined when its mark cannot be drawn from them. */
-export function overlayChannels(spec: ChartOverlaySpec): readonly OverlayChannel[] | undefined {
-    const has = (channel: OverlayChannel): boolean => !!spec.encodings[channel];
-    if (spec.mark !== 'rule' && spec.mark !== 'rect') return has('x') && has('y') ? ['x', 'y'] : undefined;
-    if (has('x') && has('y') && has('x2') && has('y2')) return ['x', 'y', 'x2', 'y2'];
-    const span = (start: OverlayChannel, end: OverlayChannel): OverlayChannel[] | undefined =>
-        spec.mark === 'rect'
-            ? (has(start) && has(end) ? [start, end] : undefined)
-            : (has(start) && !has(end) ? [start] : undefined);
-    if (!has('y') && !has('y2')) return span('x', 'x2');
-    if (!has('x') && !has('x2')) return span('y', 'y2');
-    return undefined;
-}
 
 export function orderedOverlayRows(spec: ChartOverlaySpec): readonly Record<string, unknown>[] {
     const rows = [...spec.data.values];

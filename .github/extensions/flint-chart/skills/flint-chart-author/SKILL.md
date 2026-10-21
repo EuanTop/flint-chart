@@ -284,7 +284,7 @@ many series keep the requested brand palette.
 
 Do not copy an entire preset or invent theme keys. A theme controls
 presentation; fields, aggregation, filtering, and sorting still belong in the
-chart input. ThemeSpec currently affects Vega-Lite only.
+chart input. ThemeSpec applies to Vega-Lite and Plotly; ECharts, Chart.js, and Excel ignore it.
 
 Full reference:
 https://microsoft.github.io/flint-chart/#/documentation/theme-spec
