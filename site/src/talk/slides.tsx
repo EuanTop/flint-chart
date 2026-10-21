@@ -116,15 +116,19 @@ const BESPOKE_ROWS: CodeRow[] = [
   { text: '  eventSource: lassoTrigger("contain"),', hot: true },
   { text: '  affordances: { plot: { cursor: "draw" } },' },
   { text: '  handle(event) {', hot: true },
-  { text: '    // the stroke arrives as points in the data, not pixels', gap: true },
-  { text: '    const guess = extendPath(drawn, event.geometry.domain.points);' },
+  { text: '    // the stroke arrives in data units, not pixels', gap: true },
+  { text: '    const points = event.geometry.domain.points;' },
+  { text: '    const guess = extendPath(drawn, points);' },
   { text: '    if (isComplete(guess)) reveal();' },
-  { text: '    // answer with an update: draw the guess as an overlay', gap: true },
-  { text: '    return { ops: [{ op: "set-overlay", name: "guess", value: guess }] };', hot: true },
+  { text: '    // answer with an update: the guess as an overlay', gap: true },
+  { text: '    return { ops: [', hot: true },
+  { text: '      { op: "set-overlay", name: "guess", value: guess },', hot: true },
+  { text: '    ] };', hot: true },
   { text: '  },' },
   { text: '};' },
   { text: '' },
-  { text: '<FlintChart spec={coalShare} interactions={[draw, reveal]} />' },
+  { text: '<FlintChart spec={coalShare}' },
+  { text: '  interactions={[draw, reveal]} />' },
 ];
 
 /** The World Cup demo's own wiring, condensed: the chart says what was clicked, the page does the rest. */
@@ -177,7 +181,8 @@ const ECONOMIST_ROWS = specLayout({
 const INTERACTION_ROWS: CodeRow[] = [
   { text: '"interaction_spec": {' },
   { text: '  "interactions": [' },
-  { text: '    { "type": "click-group-focus", "options": { "groupBy": "game" } }', hot: true },
+  { text: '    { "type": "click-group-focus",', hot: true },
+  { text: '      "options": { "groupBy": "game" } }', hot: true },
   { text: '  ]' },
   { text: '}' },
   { text: '' },
@@ -187,8 +192,10 @@ const INTERACTION_ROWS: CodeRow[] = [
   { text: '' },
   { text: '// the update it can send back', gap: true },
   { text: '{ "ops": [' },
-  { text: '  { "op": "set-style", "targets": [target], "value": { "state": "emphasized" } },', hot: true },
-  { text: '  { "op": "set-annotation", "target": target, "value": { "text": "Launch month" } }', hot: true },
+  { text: '  { "op": "set-style", "targets": [target],', hot: true },
+  { text: '    "value": { "state": "emphasized" } },', hot: true },
+  { text: '  { "op": "set-annotation", "target": target,', hot: true },
+  { text: '    "value": { "text": "Launch month" } }', hot: true },
   { text: '] }' },
 ];
 const TYPES_COMPILED = typesCompiled();
