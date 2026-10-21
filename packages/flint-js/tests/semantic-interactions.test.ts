@@ -4035,6 +4035,30 @@ describe('Vega-Lite semantic interactions', () => {
         expect(view.scale(colorScale.name).domain()).toEqual([26, 100]);
     });
 
+    it.each([
+        ['no theme', undefined, { opacity: 0.7 }],
+        ['a fading theme', { extends: 'economist', geometry: { point: { opacity: 0.5 } } }, { opacity: 0.5 }],
+        ['a halo theme', { extends: 'economist', geometry: { point: { halo: { presence: 'full', width: 1 } } } },
+            { opacity: 1, stroke: '#ffffff', strokeWidth: 1 }],
+    ])('draws idle dots as the static chart does under %s', async (_name, theme, idle) => {
+        const assemble = () => assembleVegaLite({
+            data: { values: Array.from({ length: 40 }, (_, i) => ({ a: i % 7, b: (i * 13) % 11, g: `G${i % 3}` })) },
+            semantic_types: { a: 'Quantity', b: 'Quantity', g: 'Category' },
+            chart_spec: { chartType: 'Scatter Plot', encodings: { x: 'a', y: 'b', color: 'g' } },
+            ...(theme ? { theme_spec: theme } : {}),
+        } as any) as any;
+        const dot = async (compiled: Record<string, any>) => {
+            const view = new View(parse(compiled), { renderer: 'none' });
+            await view.runAsync();
+            return allSceneItems(view).find((item) => item.mark.marktype === 'symbol' && item.datum?.a !== undefined);
+        };
+        const still = await dot(compile(assemble()).spec as Record<string, any>);
+        const live = await dot(instrument(assemble()).compiled);
+
+        expect(still).toMatchObject(idle);
+        expect(live).toMatchObject(idle);
+    });
+
     it('neutralizes muted continuous color only for geographic maps', () => {
         const spec = assembleVegaLite({
             data: { values: [
@@ -4059,7 +4083,8 @@ describe('Vega-Lite semantic interactions', () => {
             condition: { field: 'temperature', type: 'quantitative' },
             value: style.mutedFill,
         });
-        expect(points.encoding.opacity).toEqual({ value: 1 });
+        // Interaction keeps the circles at the 0.7 Vega-Lite draws them at without it.
+        expect(points.encoding.opacity).toEqual({ value: 0.7 });
     });
 
     it('treats a Map quantitative size key as sampled ranges', () => {

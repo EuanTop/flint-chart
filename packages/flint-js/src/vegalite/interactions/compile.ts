@@ -148,6 +148,32 @@ function keyExpression(fields: readonly string[]): string {
 /** Dots, whichever glyph draws them: a house that redraws a template's circles as squares keeps them selectable. */
 const DOT_MARKS = new Set(['point', 'circle', 'square']);
 
+/** Vega-Lite's opacity for unaggregated dots and ticks that state none. */
+const VEGA_LITE_REDUCED_OPACITY = 0.7;
+
+/** A mark property as Vega-Lite resolves it: the mark's own, then its styles (later wins), then `config[type]`, then `config.mark`. */
+function markPropOrConfig(node: Record<string, any>, type: string, property: string, config: Record<string, any> | undefined): unknown {
+    const mark = typeof node.mark === 'object' && node.mark !== null ? node.mark : {};
+    if (mark[property] !== undefined) return mark[property];
+    const styles = [type, ...(Array.isArray(mark.style) ? mark.style : mark.style ? [mark.style] : [])];
+    const styled = styles.reduce<unknown>((value, style) => config?.style?.[style]?.[property] ?? value, undefined);
+    return styled ?? config?.[type]?.[property] ?? config?.mark?.[property];
+}
+
+/**
+ * The opacity an unencoded mark is drawn at, which focus keeps for the marks it does not dim: the
+ * mark's or its config's, else Vega-Lite's 0.7 for unaggregated dots and ticks, else 1. A theme
+ * that fades its dots, or leaves them at Vega-Lite's fade, keeps the fade once interactive.
+ */
+function idleMarkOpacity(node: Record<string, any>, type: string, encoding: Record<string, any>, config: Record<string, any> | undefined): number {
+    const opacity = markPropOrConfig(node, type, 'opacity', config);
+    if (typeof opacity === 'number') return opacity;
+    if (opacity !== undefined || markPropOrConfig(node, type, 'fillOpacity', config) !== undefined) return 1;
+    const aggregated = Object.values(encoding).some((definition) =>
+        (Array.isArray(definition) ? definition : [definition]).some((entry) => entry && typeof entry === 'object' && entry.aggregate));
+    return ['point', 'circle', 'square', 'tick'].includes(type) && !aggregated ? VEGA_LITE_REDUCED_OPACITY : 1;
+}
+
 function isSelectable(type: string, selectableMarks: ReadonlySet<string>): boolean {
     if (selectableMarks.has(type)) return true;
     return DOT_MARKS.has(type) && [...DOT_MARKS].some((dot) => selectableMarks.has(dot));
@@ -160,6 +186,7 @@ function instrumentNode(
     dimOpacity: number,
     continuousColorFocus: ContinuousColorFocusStyle | undefined,
     selectableMarks: ReadonlySet<string>,
+    config: Record<string, any> | undefined,
 ): boolean {
     const type = markType(node.mark);
     const selectable = !!type && SUPPORTED_SPEC_MARKS.has(type) && isSelectable(type, selectableMarks);
@@ -200,9 +227,7 @@ function instrumentNode(
         || encoding.fillOpacity || encoding.strokeOpacity) return false;
     const authoredOpacity = typeof encodedOpacity?.value === 'number'
         ? encodedOpacity.value
-        : typeof node.mark === 'object' && typeof node.mark.opacity === 'number'
-        ? node.mark.opacity
-        : 1;
+        : idleMarkOpacity(node, type!, encoding, config);
     if (typeof node.mark === 'object' && typeof node.mark.opacity === 'number') {
         node.mark = { ...node.mark };
         delete node.mark.opacity;
@@ -251,6 +276,7 @@ function instrumentMarks(
     dimOpacity: number,
     continuousColorFocus: ContinuousColorFocusStyle | undefined,
     selectableMarks: ReadonlySet<string>,
+    config: Record<string, any> | undefined,
 ): boolean {
     const encoding = { ...inherited, ...(spec.encoding ?? {}) };
     let instrumented = instrumentNode(
@@ -260,6 +286,7 @@ function instrumentMarks(
         dimOpacity,
         continuousColorFocus,
         selectableMarks,
+        config,
     );
     for (const property of ['layer', 'hconcat', 'vconcat', 'concat'] as const) {
         if (!Array.isArray(spec[property])) continue;
@@ -271,6 +298,7 @@ function instrumentMarks(
                 dimOpacity,
                 continuousColorFocus,
                 selectableMarks,
+                config,
             ) || instrumented;
         }
     }
@@ -282,6 +310,7 @@ function instrumentMarks(
             dimOpacity,
             continuousColorFocus,
             selectableMarks,
+            config,
         ) || instrumented;
     }
     return instrumented;
@@ -529,6 +558,7 @@ export function addVegaLiteInteractions(
             spec, {}, fields, dimOpacity,
             templateSemantics.neutralizeContinuousColor ? templateSemantics.continuousColorFocus : undefined,
             selectableMarks,
+            spec.config,
         )
         : false;
     if (needsSemanticPresentation && !instrumented) return null;
@@ -852,9 +882,10 @@ export function collectVegaAxisTargets(
 function applyCompiledHoverStyles(
     marks: Record<string, any>[],
     renderHoverStyles: Readonly<Record<string, HoverStyle>>,
+    config: Record<string, any> | undefined,
 ): void {
     for (const mark of marks) {
-        if (Array.isArray(mark.marks)) applyCompiledHoverStyles(mark.marks, renderHoverStyles);
+        if (Array.isArray(mark.marks)) applyCompiledHoverStyles(mark.marks, renderHoverStyles, config);
         const style = renderHoverStyles[mark.type];
         const update = mark.encode?.update;
         if (!style || !update || !JSON.stringify(mark.encode).includes(INTERACTION_KEY)) continue;
@@ -867,7 +898,8 @@ function applyCompiledHoverStyles(
         // reaches past the mark's bounds, and a legend or a title laid out from the drawing's
         // bounds would move with every hover at the edge.
         // A mark with no stroke of its own takes a transparent one, which its width already counts.
-        const idleWidth = idleConstant(update.strokeWidth ?? mark.encode?.enter?.strokeWidth ?? { value: defaultStrokeWidth(mark.type) });
+        const idleWidth = idleConstant(update.strokeWidth ?? mark.encode?.enter?.strokeWidth
+            ?? configuredEntry(mark, 'strokeWidth', config) ?? { value: defaultStrokeWidth(mark.type) });
         const hoverStyle: Record<string, unknown> = typeof style.strokeWidth === 'number' && idleWidth !== undefined && idleWidth > 0
             ? { ...style, strokeWidth: idleWidth }
             : { ...style };
@@ -906,7 +938,7 @@ function applyCompiledHoverStyles(
                 ];
                 continue;
             }
-            const existing = update[channel] ?? mark.encode?.enter?.[channel] ?? (
+            const existing = update[channel] ?? mark.encode?.enter?.[channel] ?? configuredEntry(mark, channel, config) ?? (
                 channel === 'stroke'
                     ? { value: mark.type === 'line' || mark.type === 'rule' ? 'black' : 'transparent' }
                     : channel === 'strokeWidth'
@@ -920,6 +952,14 @@ function applyCompiledHoverStyles(
             ];
         }
     }
+}
+
+/** A channel a Vega mark takes from its config rather than its encoding: its styles (later wins), then `config[type]`. */
+function configuredEntry(mark: Record<string, any>, channel: string, config: Record<string, any> | undefined): { value: unknown } | undefined {
+    const styles = Array.isArray(mark.style) ? mark.style : mark.style ? [mark.style] : [];
+    const value = styles.reduce<unknown>((found, style) => config?.style?.[style]?.[channel] ?? found, undefined)
+        ?? config?.[mark.type]?.[channel];
+    return value === undefined ? undefined : { value };
 }
 
 /** The width Vega strokes a mark at when it states none. */
@@ -1078,7 +1118,7 @@ export function injectVegaInteractionStore(
     };
     instrumentLegends(vegaSpec);
     if (!Array.isArray(vegaSpec.marks)) return;
-    if (plan?.renderHoverStyles) applyCompiledHoverStyles(vegaSpec.marks, plan.renderHoverStyles);
+    if (plan?.renderHoverStyles) applyCompiledHoverStyles(vegaSpec.marks, plan.renderHoverStyles, vegaSpec.config);
     applyCompiledStyleChannels(vegaSpec.marks);
     vegaSpec.marks.unshift({
         type: 'rect',

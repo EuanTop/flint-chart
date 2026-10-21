@@ -192,9 +192,9 @@ export function DensityLab() {
           <li>
             <b>A ring around dots is a theme option</b>: <code>geometry.point.halo</code>, already used for a line's
             dots, also rings a scatter's dots where the house declares it. It is not a default: of the houses we have
-            evidence for, only Nature asks for one (a 0.6 px hairline). The Economist guide draws scatter dots at 50%
-            opacity with no ring (0.3 px stroke on bubbles); Datawrapper draws solid dots, ringing only the labelled
-            ones in dark ink; NYT draws solid dots.
+            evidence for, Nature asks for one (a 0.6 px hairline) and NYT for a 1 px white ring on solid dots. The
+            Economist guide draws scatter dots at 50% opacity with no ring (0.3 px stroke on bubbles); Datawrapper
+            draws solid dots, ringing only the labelled ones in dark ink.
           </li>
           <li>
             <b>One overlap treatment per theme.</b> A theme fades its dots or rings them, never both, since rings break

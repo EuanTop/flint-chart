@@ -158,7 +158,11 @@ export const nyt: ThemePreset = {
                 "gap": 1
             },
             "point": {
-                "size": 58
+                "size": 58,
+                "halo": {
+                    "presence": "full",
+                    "width": 1
+                }
             },
             "zOrder": "summaryOverData",
             "redundantEncoding": "whenNeeded",
