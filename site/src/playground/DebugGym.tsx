@@ -689,7 +689,7 @@ function SPENDING_SAMPLE() {
 
 function CardCaseView({ item }: { item: CardCase }) {
   const board = useMemo(() => ({
-    id: `chart-${item.id}`, kind: 'chart', version: 1,
+    id: `chart-${item.id}`, kind: 'chart',
     charts: [{
       id: 'chart',
       input: {

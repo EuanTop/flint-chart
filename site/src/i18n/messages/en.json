@@ -708,11 +708,11 @@
       },
       "board": {
         "title": "Boards",
-        "body": "Build, change and show dashboards of linked charts."
+        "body": "Check and show dashboards of linked charts."
       },
       "static": {
         "title": "Static output",
-        "body": "Return a PNG or SVG, a backend spec, or a validation report."
+        "body": "Return a PNG or SVG, or a backend spec."
       },
       "skills": {
         "title": "Discovery and skills",
