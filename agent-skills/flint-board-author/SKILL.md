@@ -71,10 +71,9 @@ counts from 10,000 up. A value already scaled says so in `metric`
 
 ## Step 3 — give each chart a heading
 
-The card lifts each chart's `chart_spec.title` and `subtitle` out of the chart
-and sets them as the cell's heading, in the board's type. Write the title as
-that chart's own finding, short enough for one line at half width, and the
-subtitle as its units:
+Each chart draws its own `title` and `subtitle` in its theme, as on its own
+card. Write the title as the chart's finding, one line at half width (a
+wrapped title pushes its plot down), and the subtitle as its units:
 
 ```
 title:    "Europe climbed every month after the April dip"
@@ -168,10 +167,10 @@ after it.
 
 ## Step 6 — theme the board once
 
-Set `theme_spec` on the board, not on the charts. Every chart takes it, and
-the card takes its paper, ink and type for the headline, headings and footer;
-a theme's branding mark (the Economist's red tab) is drawn once, above the
-headline. Pick it with `list_themes` as for one chart.
+Set `theme_spec` on the board, not on the charts. Every chart takes it and
+draws its own furniture (the Economist's red tab); the board's headline and
+footer take its paper, ink and fonts, with the furniture above the headline.
+Pick it with `list_themes` as for one chart.
 
 ## Step 7 — read the report and refine
 

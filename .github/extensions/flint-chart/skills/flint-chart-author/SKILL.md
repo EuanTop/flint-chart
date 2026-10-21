@@ -574,6 +574,30 @@ understates what you know:
   `"lower-is-better"` for costs, errors, churn or delays, so their highs, not
   their lows, take the warm end, under any theme.
 
+## Step 4 — write the spec
+
+Put the three steps into one `ChartAssemblyInput`, with the data bound as in
+"How data gets bound" and a headline as in "Write a headline":
+
+```json
+{
+  "data": { "url": "sales.csv" },
+  "semantic_types": { "month": "YearMonth", "revenue": "Amount", "region": "Region" },
+  "chart_spec": {
+    "chartType": "Line Chart",
+    "title": "Europe climbed every month after the April dip",
+    "subtitle": "Revenue by region, $m",
+    "encodings": { "x": { "field": "month" }, "y": { "field": "revenue" }, "color": { "field": "region" } }
+  },
+  "theme_spec": "economist"
+}
+```
+
+Add `theme_spec`, `chartProperties`, `interaction_spec` or `updates` only when
+the request asks for them. With the MCP tools, send it to `create_chart`
+directly (it validates; skip `validate_chart`), fix what the report asks with
+`update_chart`, then `show`. Without them, run the "Validation checklist".
+
 ## Chart-level properties (`chartProperties`)
 
 `chartProperties` is an optional per-chart tuning map. Set a property only
