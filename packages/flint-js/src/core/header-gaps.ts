@@ -36,8 +36,11 @@ export const KEY_STACK_GAP_EM = 0.6;
 export const HEADER_TITLE_GAP_EM = 1;
 /** The header block to the plot, as a multiple of the title's gap to the keys: never less, never far more. */
 export const HEADER_PLOT_GAP = { least: 1.25, most: 2.5 };
-/** Between keys side by side: wide enough to tell one key from the next along a line, in em. */
-export const KEY_ROW_GAP_EM = 1.5;
+/**
+ * Between keys side by side, and keys one above another beside the plot: wide enough to tell one key
+ * from the next, about twice the air between two entries of one key, in em.
+ */
+export const KEY_ROW_GAP_EM = 2.25;
 /** A key's gap to the plot, in em of its labels, by the house's density. */
 export const KEY_GAP_EM: Record<Density, number> = { compact: 0.8, normal: 1, airy: 1.4 };
 

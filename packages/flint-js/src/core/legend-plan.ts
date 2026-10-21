@@ -218,15 +218,16 @@ function foldedColour(inputs: LegendInputs, field: string, design: DesignDecisio
  * theme that names series some other way (or not at all) drops the keys that name series and keeps
  * the keys to values, which nothing else explains; a theme that leaves series titles off drops
  * those titles, while a key to values keeps its title, a number naming nothing until it says what
- * it counts. A size key is sampled at round values, one for every 80 px of the edge it stands on,
+ * it counts, and every key keeps its title where a chart draws several. A size key is sampled at round values, one for every 80 px of the edge it stands on,
  * from three to five, never more than the house allows; an opacity key only where the house says how many. A horizontal ramp the house does not size runs 45% of the
  * block, between 80 and 200 px, and a top key clears a flat y title by its line and 12 px.
  */
 export function planLegend(inputs: LegendInputs): LegendPlan {
     const { placement, structure, design, rows, layout, plot, composite, flatYTitle } = inputs;
     const named = !design || (design.legend.show && placement.placement !== 'seriesEnd' && placement.placement !== 'inline');
-    const keys: PlannedKey[] = (structure.keys ?? []).map((key) => {
-        const valueKey = (key.channel === 'size' || key.channel === 'opacity') && key.type === 'quantitative';
+    const drafted: PlannedKey[] = (structure.keys ?? []).map((key) => {
+        // A size, an opacity or a colour ramp lists numbers, and a number names nothing until the key says what it counts.
+        const valueKey = (key.channel === 'size' || INK_CHANNELS.has(key.channel)) && key.type === 'quantitative';
         const governed = Boolean(design) && NAMING_CHANNELS.has(key.channel);
         const show = !governed || named || valueKey;
         // A key the template makes itself — a waterfall's total, increase and decrease — is explained
@@ -253,8 +254,12 @@ export function planLegend(inputs: LegendInputs): LegendPlan {
         const entries = show ? keyEntries(planned, key.entries, inputs) : undefined;
         return entries ? { ...planned, entries } : planned;
     });
+    // Several keys each say what they key: untitled, one key's names run on into the next's. Keys on
+    // one field merge into one key, so they count once.
+    const several = new Set(drafted.filter((key) => key.show).map((key) => key.field ?? key.channel)).size > 1;
+    const keys = several ? drafted.map((key) => (key.untitled ? { ...key, untitled: false } : key)) : drafted;
     const valueKeys = keys.filter((key) => key.show && key.valueKey && NAMING_CHANNELS.has(key.channel)).length;
-    const untitled = Boolean(design) && named && !design!.legend.title && valueKeys === 0;
+    const untitled = Boolean(design) && named && !design!.legend.title && valueKeys === 0 && !several;
     let gradient: LegendPlan['gradient'];
     if (design && named && !design.legend.gradientLength && (placement.direction ?? 'horizontal') === 'horizontal' && (!composite || inputs.viewsWidth)) {
         const field = structure.x?.derived ? undefined : structure.x?.fields[0];
@@ -317,7 +322,7 @@ function emphasisDots(design: DesignDecisions, structure: ChartStructure): boole
 
 /**
  * What each drawn key needs laid out: its labels or entry count, its title, how it is set, and the
- * edge it prefers. A theme sets keys in its label face and size, titles too, and seats them on its
+ * edge it prefers. A theme sets keys in its label face and size, titles in its key-title role, and seats them on its
  * edge; without one, keys take the layout's legend sizes on the right. Keys over a plot's corner
  * keep 4 px of padding; a ramp is a key to values on an ink channel the theme does not step.
  */
@@ -329,8 +334,9 @@ export function keysToLayout(plan: LegendPlan, inputs: KeyLayoutInputs): Array<K
     const styled = themed && Boolean(l) && (named || plan.keys.some((key) => key.show && key.valueKey));
     const orient = !styled ? 'right' : named ? (plan.orient ?? 'right') : (!plan.orient || plan.orient === 'none' ? 'right' : plan.orient);
     const labelFontSize = styled ? l!.label.fontSize ?? 10 : layout.legendFontSize;
-    const titleFontSize = styled ? l!.label.fontSize ?? 10 : layout.titleFontSize;
+    const titleFontSize = styled ? l!.titleText?.fontSize ?? l!.label.fontSize ?? 10 : layout.titleFontSize;
     const font = styled ? l!.label.font ?? 'sans-serif' : 'sans-serif';
+    const titleFont = styled ? l!.titleText?.font ?? font : font;
     const symbolSize = themed && design && emphasisDots(design, structure) ? ((l!.label.fontSize ?? 10) * 0.8) ** 2 : undefined;
     const corner = themed && named && (orient === 'top-right' || orient === 'top-left');
     const stated = new Map((structure.keys ?? []).map((key) => [key.channel, key.title]));
@@ -350,7 +356,8 @@ export function keysToLayout(plan: LegendPlan, inputs: KeyLayoutInputs): Array<K
             // Measured in the weight, slope and case the key is drawn in.
             labelFontWeight: (styled && l!.label.fontWeight) || 'normal', labelFontStyle: (styled && l!.label.fontStyle) || 'normal',
             ...(styled && l!.label.textCase ? { labelCase: l!.label.textCase } : {}),
-            titleFont: font, titleFontSize, titleFontWeight: 'bold', titleFontStyle: 'normal',
+            titleFont, titleFontSize,
+            titleFontWeight: (styled && l!.titleText?.fontWeight) || 'bold', titleFontStyle: (styled && l!.titleText?.fontStyle) || 'normal',
             ...(symbolSize !== undefined ? { symbolSize } : {}),
             padding: corner ? 4 : 0,
             ...(plan.gradient ? { gradientLength: plan.gradient.length } : l?.gradientLength ? { gradientLength: l.gradientLength } : {}),

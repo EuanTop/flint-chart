@@ -394,13 +394,14 @@ function fitKey(
  * its theme ranks, then right, bottom, top and left (an author's edge stays), at the full side or
  * half of it when keys share, with its title above or inline above or below the plot; a side that
  * fits rules out top and bottom rows over two entries or lines. Keys then share edges: those on one
- * edge stack one row each or stand side by side, 1.5 label sizes apart, whichever costs less
+ * edge stack one row each or stand side by side, 2.25 label sizes apart, whichever costs less
  * against the edge's budget (the plot along it, 40% of the plot's height or 48 px across a top or
  * bottom, 24 em and 14 px at a side). Moving off the preferred edge costs 0.25 (0.45 to the left),
- * or 0.75 to an edge a theme that ranks its edges did not rank; each extra edge costs 0.1, and each
+ * or 0.75 to an edge a theme that ranks its edges did not rank; each extra edge costs 0.3, and each
  * extra row above or below the plot 0.5. A theme's arrangement and title position are preferences:
  * the other costs 0.6 and 0.3, and a stacked key's title set inline above the plot costs 0.1 where
- * the theme states none; a row where some titles stand above and others do not costs 0.2. A
+ * the theme states none; a row where some titles stand above and others do not costs 1.2, and
+ * several keys too wide to stand at the theme's anchor 0.2. A
  * theme's alignment anchors each edge's keys, and a spread shares out the room the keys leave
  * where it is at least the narrowest key's length; where a preference gives way, the plan notes why.
  */
@@ -473,7 +474,16 @@ export function planKeyLayout(
         const plotSide = Math.min(plot.width, plot.height);
         const edgeGap = keyRowGap(laid[0].key.style.labelFontSize, plotSide, preferences.gaps);
         const stackGap = keyStackGap(laid[0].key.style.labelFontSize, plotSide, preferences.gaps);
-        type Candidate = Box & { orient: string; preference: number; titleAbove: boolean; symbolLines: number };
+        // Whether a row this wide stands at the house's anchor within the drawing, as `anchorOf` places it below.
+        const houseAnchor = preferences.align === 'center' ? 'middle' : preferences.align === 'end' ? 'end' : 'start';
+        const fitsAnchor = (width: number) => {
+            const start = preferences.besidePlot?.start ?? 0;
+            const end = preferences.besidePlot?.end ?? 0;
+            return houseAnchor === 'start' ? width <= plot.width + end
+                : houseAnchor === 'end' ? width <= plot.width + start
+                    : (width - plot.width) / 2 <= Math.min(start, end);
+        };
+        type Candidate = Box & { orient: string; preference: number; titleAbove: boolean; symbolLines: number; forced: boolean };
         const candidatesOf = laid.map(({ key }) => {
             const candidates: Candidate[] = [];
             // A box depends on its edge only through whether it runs across the plot, so opposite edges share one fit.
@@ -512,7 +522,7 @@ export function planKeyLayout(
                         const seat = !horizontal || !key.title || key.fixedTitle ? 0
                             : preferences.titlePosition ? (inline === (preferences.titlePosition === 'inline') ? 0 : K.offSeat)
                                 : orient === 'top' && inline ? K.quietInlineTop : 0;
-                        candidates.push({ ...box, orient, preference: edge + seat, titleAbove: Boolean(key.title) && !inline && at.titleOrient !== 'left', symbolLines: symbolLines * Math.max(1, box.entryRows) });
+                        candidates.push({ ...box, orient, preference: edge + seat, titleAbove: Boolean(key.title) && !inline && at.titleOrient !== 'left', symbolLines: symbolLines * Math.max(1, box.entryRows), forced: Boolean(key.moveTo) });
                     }
                 }
             }
@@ -534,7 +544,7 @@ export function planKeyLayout(
                     const width = direction === 'vertical' ? Math.max(...entries.map((entry) => entry.width))
                         : entries.reduce((sum, entry) => sum + entry.width, 0) + edgeGap * (entries.length - 1);
                     const height = direction === 'horizontal' ? Math.max(...entries.map((entry) => entry.height))
-                        : entries.reduce((sum, entry) => sum + entry.height, 0) + stackGap * (entries.length - 1);
+                        : entries.reduce((sum, entry) => sum + entry.height, 0) + (horizontal ? stackGap : edgeGap) * (entries.length - 1);
                     const overflow = Math.max(0, width / widthBudget - 1) + Math.max(0, height / heightBudget - 1);
                     const row = direction === 'horizontal';
                     // The rows of entries the edge takes, past what the house asked for, counted alike
@@ -552,15 +562,18 @@ export function planKeyLayout(
                     const stacked = horizontal && shared ? Math.max(0, lines + taller - natural) * K.stackedRow : 0;
                     const arrangement = asked && row !== (asked === 'row') ? K.offArrangement : 0;
                     const seats = horizontal && row && shared && entries.some((entry) => entry.titleAbove) && entries.some((entry) => !entry.titleAbove) ? K.mixedSeats : 0;
+                    const anchored = horizontal && shared && !fitsAnchor(width) ? K.offAnchor : 0;
                     return { orient, direction, width, height, widthBudget, heightBudget, overflow, asked, count: entries.length,
-                        cost: stacked + arrangement + seats + Math.max(0, height / heightBudget - 1) * K.overflowAcross
+                        cost: stacked + arrangement + seats + anchored + Math.max(0, height / heightBudget - 1) * K.overflowAcross
                             + Math.max(0, width / widthBudget - 1) * (horizontal ? K.overflowAcross : K.overflowBeside)
                             + K.edgeShare * (horizontal ? height / heightBudget : width / widthBudget) };
                 });
                 return alternatives.sort((first, second) => first.cost - second.cost)[0];
             });
+            // A canvas-fit treatment that moves a key to its own edge splits the keys on purpose.
+            const split = choices.some((choice) => choice.forced) ? 0 : Math.max(0, edges.length - 1) * K.extraEdge;
             const cost = edges.reduce((sum, edge) => sum + edge.cost, 0)
-                + choices.reduce((sum, choice) => sum + choice.cost + choice.preference, 0) + Math.max(0, edges.length - 1) * K.extraEdge;
+                + choices.reduce((sum, choice) => sum + choice.cost + choice.preference, 0) + split;
             return { cost, edges };
         };
         let plans: Array<{ choices: Candidate[]; cost: number }> = [{ choices: [], cost: 0 }];
@@ -601,7 +614,10 @@ export function planKeyLayout(
             const horizontal = edge.orient === 'top' || edge.orient === 'bottom';
             const entries = chosen.filter((choice) => choice.orient === edge.orient);
             const along = horizontal === (edge.direction === 'horizontal');
-            let gap = edge.direction === 'vertical' ? stackGap : edgeGap;
+            // Keys one above another in the header stand at its rhythm; beside the plot, each key's
+            // title stands over its own entries, so keys stand as far apart as keys in a row, clearly
+            // further than one entry from the next.
+            let gap = edge.direction === 'vertical' && horizontal ? stackGap : edgeGap;
             if (preferences.align === 'spread' && along && entries.length > 1) {
                 const extent = (entry: Candidate) => (horizontal ? entry.width : entry.height);
                 const spare = (horizontal ? plot.width : plot.height) - entries.reduce((sum, entry) => sum + extent(entry), 0);

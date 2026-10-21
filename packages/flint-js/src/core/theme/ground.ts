@@ -938,6 +938,22 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
     const deck = resolveType(theme.type?.deck, 11, text.secondary);
     const valueLabel = resolveType(theme.type?.valueLabel, 10, text.primary);
     const keyLabel = resolveType(theme.type?.keyLabel, 10, text.secondary);
+    // A key's title names a field, as an axis title does: it is set as the house sets those, at its
+    // labels' size, unless the house sets key titles apart.
+    const axisTitleRole = theme.type?.axisTitle;
+    const keyTitleRole = theme.type?.keyTitle;
+    const keyTitle: ResolvedText = {
+        ...resolveType({
+            family: axisTitleRole?.family ?? theme.type?.keyLabel?.family,
+            size: theme.type?.keyLabel?.size,
+            ...(axisTitleRole?.style ? { style: axisTitleRole.style } : {}),
+            ...(axisTitleRole?.color ? { color: axisTitleRole.color } : {}),
+            ...keyTitleRole,
+        }, 10, text.secondary),
+        // Never lighter than bold unless the house says so of key titles: the weight is what tells a
+        // title from the entries under it, set in the same face, size and often ink.
+        fontWeight: fontWeightOf(keyTitleRole?.weight) ?? Math.max(fontWeightOf(axisTitleRole?.weight) ?? 700, 700),
+    };
     // Roles read only where Flint draws their text: a statistic's note, a KPI's big number.
     const annotationText = theme.type?.annotation ? resolveType(theme.type.annotation, 10, text.secondary) : undefined;
     const displayText = theme.type?.display ? resolveType(theme.type.display, 28, text.primary) : undefined;
@@ -2072,6 +2088,7 @@ export function groundTheme(themeIn: ThemeSpec, ctx: GroundingContext): DesignDe
             title: legendTitle,
             titlePolicy,
             label: keyLabel,
+            titleText: keyTitle,
             gradientLength: legendSpec.gradientLength,
             maxSwatches: legendSpec.maxSwatches,
             ...(legendSpec.swatch && legendSpec.swatch !== 'auto' ? { swatch: legendSpec.swatch } : {}),

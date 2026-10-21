@@ -332,30 +332,30 @@ describe('the canvas judge', () => {
 });
 
 describe('a row of keys above the plot', () => {
-    it('stacks two keys each on one line rather than wrap one into a grid beside the other', () => {
+    it('stacks two keys rather than wrap one into a grid beside the other', () => {
         // Side by side, the size key would wrap into rows as tall as its largest bubbles; one above
-        // the other, each stands on a single line, and the edge takes less of the drawing.
+        // the other, neither wraps its entries, and the edge takes less of the drawing.
         const { plan } = vegaLiteStages(bubbles({ canvasFit: 'off' }, { width: 330, height: 240 }));
         const layout = plan.legend.layout!;
         expect(layout.edges.find((edge) => edge.orient === 'top')?.direction).toBe('vertical');
         const keys = layout.keys.filter(Boolean);
         expect(keys).toHaveLength(2);
-        const lineHeights = keys.map((key) => key!.height);
+        expect(keys.every((key) => key!.columns === undefined)).toBe(true);
         const top = layout.footprint.find((edge) => edge.orient === 'top')!;
-        // Two single lines and the gap between them.
-        expect(top.height).toBeLessThanOrEqual(lineHeights.reduce((sum, height) => sum + height, 0) + 12);
-        expect(Math.max(...lineHeights)).toBeLessThan(40);
+        expect(top.height).toBeLessThanOrEqual(keys.reduce((sum, key) => sum + key!.height, 0) + 12);
     });
 
-    it('spans the y labels as well as the plot, and moves the least that keeps it within the drawing', () => {
-        // Two keys in one row run wider than the plot: anchored at its start they would run past the
-        // drawing's right edge, so the row stands at the plot's end and runs back over the y labels.
-        // A size key on one line just wider than the plot: it runs past the plot's end, so it stands
-        // at that end and runs back over the y labels.
+    it('keeps several keys at the house anchor, seating a title above, rather than run them back over the y labels', () => {
+        // With its title inline the size key's line runs just past the plot: anchored at the plot's
+        // end, the stack would start out over the y labels, in line with nothing. The title stands
+        // above the entries instead, and the keys stay at the plot's start.
         const spec: any = assembleVegaLite(bubbles({ canvasFit: 'off' }, { width: 420, height: 240 }));
         const top = spec.config.legend.layout.top;
-        expect(top.anchor).toBe('end');
-        expect(spec._theme.report.some((r: any) => r.code === 'keys-anchor-moved')).toBe(true);
+        expect(top.anchor ?? 'start').toBe('start');
+        expect(spec._theme.report.some((r: any) => r.code === 'keys-anchor-moved')).toBe(false);
+        const plan = vegaLiteStages(bubbles({ canvasFit: 'off' }, { width: 420, height: 240 })).plan;
+        const footprint = plan.legend.layout!.footprint.find((edge) => edge.orient === 'top')!;
+        expect(footprint.width).toBeLessThanOrEqual(plan.legend.layout!.plot.width);
     });
 });
 

@@ -487,6 +487,17 @@ function applyDotHalo(spec: any, config: any, d: DesignDecisions, say: ReportDep
     });
 }
 
+/** A key title's Vega-Lite settings, from the house's resolved `keyTitle` role. */
+function keyTitleConfig(title: ResolvedText): Record<string, unknown> {
+    return {
+        titleFont: title.font,
+        titleFontSize: title.fontSize,
+        titleFontWeight: title.fontWeight ?? 'bold',
+        ...(title.fontStyle ? { titleFontStyle: title.fontStyle } : {}),
+        titleColor: title.color,
+    };
+}
+
 /** Vega's names for the house's glyphs. */
 const VEGA_POINT_SHAPE: Record<PointShape, string> = {
     circle: 'circle', square: 'square', diamond: 'diamond', triangle: 'triangle-up', cross: 'cross',
@@ -4088,9 +4099,7 @@ function applyLegend(
             ...(heavierThanNormal(l.label.fontWeight) ? { labelFontWeight: l.label.fontWeight } : {}),
             ...(l.label.fontStyle ? { labelFontStyle: l.label.fontStyle } : {}),
             labelColor: l.label.color,
-            titleFont: l.label.font,
-            titleFontSize: l.label.fontSize,
-            titleColor: d.text.muted,
+            ...keyTitleConfig(l.titleText),
         };
         say('legend.valueKey', 'value-key-kept',
             'no series legend, but the size key is a value scale — it stays so the bubble sizes can be read');
@@ -4106,9 +4115,7 @@ function applyLegend(
         ...(heavierThanNormal(l.label.fontWeight) ? { labelFontWeight: l.label.fontWeight } : {}),
         ...(l.label.fontStyle ? { labelFontStyle: l.label.fontStyle } : {}),
         labelColor: l.label.color,
-        titleFont: l.label.font,
-        titleFontSize: l.label.fontSize,
-        titleColor: d.text.muted,
+        ...keyTitleConfig(l.titleText),
         ...(l.gradientLength ? { gradientLength: l.gradientLength } : {}),
     };
     // A colour ramp is a caption, not an exhibit: the plan cuts it to a share of

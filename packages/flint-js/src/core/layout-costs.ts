@@ -54,14 +54,22 @@ export const LAYOUT_COSTS = {
          */
         offSeat: 0.3,
         quietInlineTop: 0,
-        /** A row of keys where some titles stand above and others do not. */
-        mixedSeats: 0.2,
+        /**
+         * A row of keys where some titles stand above and others do not: one key reads as wrapped
+         * and the other not, so a row seats its titles alike, or the keys stack.
+         */
+        mixedSeats: 1.2,
+        /**
+         * Several keys too wide to stand at the house's anchor, which moves them (`keys-anchor-moved`).
+         * Less than a key moved to another edge: keys standing apart are worse than a moved anchor.
+         */
+        offAnchor: 0.2,
         /** Keys standing against the house's stated arrangement. */
         offArrangement: 0.6,
         /** Each extra row of keys above or below the plot, where the house did not ask for a stack. */
         stackedRow: 0.5,
-        /** Each edge beyond the first that holds keys. */
-        extraEdge: 0.1,
+        /** Each edge beyond the first that holds keys: keys split across edges are read in two places. */
+        extraEdge: 0.3,
         /** Keys running past their edge's budget, per share past it: across the plot, beside it. */
         overflowAcross: 20,
         overflowBeside: 4,

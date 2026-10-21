@@ -29,6 +29,7 @@ const pages: NavEntry[] = [
       { to: 'categorical-temporal', label: 'Categorical temporal' },
       { to: 'canvas-squeeze', label: 'Canvas squeeze' },
       { to: 'density', label: 'Density' },
+      { to: 'legend', label: 'Legend' },
       { to: 'color', label: 'Color' },
     ],
   },
