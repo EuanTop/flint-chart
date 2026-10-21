@@ -150,7 +150,7 @@ infer parsing, scales, axes, formatting, and colors — a short Flint spec becom
 a complete backend spec.
 
 <p align="center">
-  <img src="docs/figs/flint-pipeline.png" alt="A Flint spec with semantic types, theme and interaction compiled into a Vega-Lite spec and rendered as a temperature heatmap." width="100%">
+  <img src="docs/figs/flint-compilation-pipeline.png" alt="A Flint spec with semantic types, theme and interaction compiled into a Vega-Lite spec and rendered as a temperature heatmap." width="100%">
 </p>
 
 ### 2. Build charts once, render on any backend
@@ -206,7 +206,7 @@ import { FlintChart } from 'flint-chart/react';
 
 <p align="center">
   <a href="https://microsoft.github.io/flint-chart/#/interactions">
-    <img src="docs/figs/flint-interactive-globe.png" alt="A Flint choropleth spec rendered as a draggable globe of warming by country, with the focused country's warming stripes read out beside it." width="100%">
+    <img src="docs/figs/flint-interactive-warming-globe.png" alt="A Flint choropleth spec rendered as a draggable globe of warming by country, with the focused country's warming stripes read out beside it." width="100%">
   </a>
 </p>
 
