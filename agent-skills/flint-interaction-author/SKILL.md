@@ -23,7 +23,7 @@ other backends leave `interaction_spec` and updates untouched.
 | A gesture or a behaviour on the chart: "highlight on click", "zoom", "brush a period", "make it interactive", "add behaviour to this chart". | One `interaction_spec`: `{ "interactions": [ ... ] }`, presets only. | Add interactions to the chart |
 | A change to a chart that is already on screen, from outside: "point out Japan", "frame 2010 to 2020", "note this value", "reorder by value", an agent answering a user with the chart. | One `ChartUpdate`: `{ "id", "ops": [ ... ] }`. | Update the chart |
 | Code around a chart: "in my app", "on click open the record", "a panel that follows the hover". | TypeScript against `flint-chart/interactive`: mount, presets as factories, `onChange`, `dispatch`. | Use Flint in an application |
-| Code across charts or over time: "link these two charts", "a table that follows the selection", "play the years". | `linkCharts` or `useLinkedCharts`; `dispatch` on a timer. On an MCP board, `link_spec` instead (board skill, "Step 5 — connect them"). | Link charts, and drive a chart over time |
+| Code across charts or over time: "link these two charts", "a table that follows the selection", "play the years". | `linkCharts` or `useLinkedCharts`; `dispatch` on a timer. On an MCP board, `link_spec` instead (board skill, "Step 5 — connect them"). | Link charts |
 | A gesture no preset gives: "drag along the path", "draw a guess", "a rule for the box", "a lens the app draws". | A `CanvasInteractionDef`: a trigger, affordances, a handler. | When no preset fits |
 
 - **DO** use only the names in this skill: preset types, options, ops, states,
@@ -832,7 +832,15 @@ canvas interaction, before the chart reacts: `detail.chartId`,
 a handler gets. It fires for a definition whose `handle` returns `null`, so it
 is the path for a host that draws its own response to a gesture.
 
-## Link charts, and drive a chart over time
+Things the surface holds fixed: no preset changes the layout, so a zoom never
+recomputes the bar step, the ticks, or the domain (filter the rows and mount
+again for that); the mute level is set at mount; Escape reaches a chart after
+a press on it, and only that chart; a preset's toggle (`select`,
+`click-highlight`) needs Shift, Ctrl, or Meta, and a plain second click
+replaces; a press on an overlay path resolves to no mark, so a `click-none`
+reset on the definition that drew the overlay clears it at that press.
+
+## Link charts
 
 `linkCharts` links mounted charts on the fields they share. A selection on one
 chart (a click, a brush, a group focus, a hover) becomes one condition, a part
@@ -909,18 +917,11 @@ source.onChange(({ phase, interactionId, state }) => {
 });
 ```
 
-`dispatch` is also how an application drives a chart over time: a playback
-loop dispatches one frame per animation frame, and the handler returns the
-whole layer for that frame. Linked charts share one `theme_spec` so a value
-has one colour everywhere.
+Linked charts share one `theme_spec` so a value has one colour everywhere.
 
-Things the surface holds fixed: no preset changes the layout, so a zoom never
-recomputes the bar step, the ticks, or the domain (filter the rows and mount
-again for that); the mute level is set at mount; Escape reaches a chart after
-a press on it, and only that chart; a preset's toggle (`select`,
-`click-highlight`) needs Shift, Ctrl, or Meta, and a plain second click
-replaces; a press on an overlay path resolves to no mark, so a `click-none`
-reset on the definition that drew the overlay clears it at that press.
+The same `dispatch` drives a chart over time: a playback loop dispatches one
+frame per animation frame, and the handler returns the whole layer for that
+frame.
 
 ## Worked examples
 

@@ -7,7 +7,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { ListRootsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { pathToFileURL } from 'node:url';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { createServer } from '../src/server.js';
+import { createServer, skillSection } from '../src/server.js';
 
 const barChart = {
   data: {
@@ -133,6 +133,15 @@ describe('MCP server', () => {
     });
     expect(bad.isError).toBe(true);
     expect(bad.content[0].text).toContain('"Update the chart"');
+  });
+
+  it('skillSection takes a heading by its start, or without case and punctuation, when only one heading fits', () => {
+    const text = '# Skill\n\n## Step 4 — write the spec\nA\n\n## Link charts, and more\nB\n\n## Update the chart\nC\n\n## Update the board\nD\n';
+    expect(skillSection(text, 'step 4 write the spec')).toBe('## Step 4 — write the spec\nA\n');
+    expect(skillSection(text, '## Link charts')).toBe('## Link charts, and more\nB\n');
+    expect(() => skillSection(text, 'Update')).toThrow('No section "Update"');
+    expect(() => skillSection(text, 'Upd')).toThrow('No section "Upd"');
+    expect(skillSection(text, 'Update the board')).toBe('## Update the board\nD\n');
   });
 
   it('render_chart returns inline PNG image content', async () => {

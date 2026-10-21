@@ -94,11 +94,23 @@ function skillSections(text: string): { heading: string; start: number }[] {
   return sections;
 }
 
-/** One `## ` section of a skill, from its heading up to the next `## ` heading. */
+/** A heading as it is compared: no `#` marks, case, punctuation or extra spaces. */
+function headingKey(heading: string): string {
+  return heading.replace(/^#+\s*/, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+}
+
+/**
+ * One `## ` section of a skill, from its heading up to the next `## ` heading. The heading matches
+ * exactly, or else as the start of one heading only, so a shortened name ("Link charts") finds it.
+ */
 export function skillSection(text: string, heading: string): string {
   const sections = skillSections(text);
-  const wanted = heading.replace(/^#+\s*/, '').trim().toLowerCase();
-  const index = sections.findIndex((section) => section.heading.toLowerCase() === wanted);
+  const wanted = headingKey(heading);
+  let index = sections.findIndex((section) => headingKey(section.heading) === wanted);
+  if (index < 0 && wanted) {
+    const starting = sections.flatMap((section, at) => (`${headingKey(section.heading)} `.startsWith(`${wanted} `) ? [at] : []));
+    if (starting.length === 1) index = starting[0];
+  }
   if (index < 0) {
     throw new Error(
       `No section "${heading}". Sections: ${sections.map((section) => `"${section.heading}"`).join(', ')}.`,
