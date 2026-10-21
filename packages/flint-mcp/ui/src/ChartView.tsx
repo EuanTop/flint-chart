@@ -20,7 +20,7 @@ import { expressionInterpreter } from 'vega-interpreter';
 
 import { ActionButton, ThemeControl } from './controls';
 import type { Board } from './BoardView';
-import { assemblePreviewSpec, renderFlintSvg, usesAutoPreviewSize, withAppPreviewDefaults } from './render';
+import { APP_PREVIEW_CANVAS_SIZE, assemblePreviewSpec, renderFlintSvg, usesAutoPreviewSize, withAppPreviewDefaults } from './render';
 import { chartIconFor } from './chart-icons';
 import { SelectionChips, chipText, impliedParts, partText, type SelectionChip } from './selection-chips';
 import { VIEW_SWITCH_LABEL, ViewSwitchIcon, useChartTable, type CellView } from './chart-table-view';
@@ -579,9 +579,12 @@ export function ChartView({ app, shown, hostContext }: { app: App; shown: Board;
   const tableType = drawsAsTable(current.chart_spec.chartType);
   // The width the chart actually has. Rendering into the real width means the
   // finished SVG is shown at 1:1 rather than being scaled down to fit, which
-  // is what otherwise shrinks every label below the app's own chrome. Height
-  // is deliberately not measured: the frame grows to the chart.
+  // is what otherwise shrinks every label below the app's own chrome. The
+  // frame grows to the chart, up to the preview's canvas ceiling; a chart laid
+  // out taller than that is handed the ceiling as its box and scaled into it.
   const [chartWidth, setChartWidth] = useState<number | null>(null);
+  const [overCeiling, setOverCeiling] = useState(false);
+  const chartBox = useRef<HTMLDivElement | null>(null);
   const chartBoxObserver = useRef<ResizeObserver | null>(null);
 
   // Measure the chart frame, quantised so a scrollbar appearing and vanishing
@@ -589,6 +592,7 @@ export function ChartView({ app, shown, hostContext }: { app: App; shown: Board;
   const measureChartBox = useCallback((node: HTMLDivElement | null) => {
     chartBoxObserver.current?.disconnect();
     chartBoxObserver.current = null;
+    chartBox.current = node;
     if (!node || typeof ResizeObserver === 'undefined') return;
     const read = () => {
       const style = window.getComputedStyle(node);
@@ -606,6 +610,17 @@ export function ChartView({ app, shown, hostContext }: { app: App; shown: Board;
     chartBoxObserver.current = observer;
   }, []);
   useEffect(() => () => chartBoxObserver.current?.disconnect(), []);
+
+  // Inline, the card is sized to the chart, so the page never scrolls: a scrollbar shown while the host
+  // catches up with a new height would narrow the chart and lay it out again. In a pane the host sets
+  // the height and the chart is laid out for what the pane leaves it; the page scrolls only past that,
+  // with its gutter kept so the scrollbar never narrows the chart.
+  const paned = hostContext?.displayMode === 'fullscreen' || hostContext?.displayMode === 'pip';
+  useEffect(() => {
+    document.documentElement.style.overflow = paned ? 'hidden auto' : 'hidden';
+    document.documentElement.style.scrollbarGutter = paned ? 'stable' : '';
+    document.body.style.overflow = paned ? 'visible' : 'hidden';
+  }, [paned]);
 
   // Re-seed when a new tool input arrives from the host.
   useEffect(() => setCurrent(input), [input]);
@@ -764,6 +779,9 @@ export function ChartView({ app, shown, hostContext }: { app: App; shown: Board;
     if (state || tableType) sendContext(state);
   }, [table, tableType, sendContext]);
   const handleRender = useCallback(async (surface: InteractiveChartSurface) => {
+    // The scaler keeps the chart's laid-out size whatever scale it is drawn at.
+    const scaler = chartBox.current?.querySelector<HTMLElement>('.chart-interactive > div:last-child');
+    if (scaler) setOverCeiling(scaler.offsetHeight > APP_PREVIEW_CANVAS_SIZE.height);
     const mounted = shownSurface.current !== surface;
     if (mounted) {
       gestures.current.clear();
@@ -836,13 +854,13 @@ export function ChartView({ app, shown, hostContext }: { app: App; shown: Board;
 
   return (
     <main
-      className="app"
+      className={paned ? 'app app-paned' : 'app'}
       style={{
-        paddingTop: hostContext?.safeAreaInsets?.top,
-        paddingRight: hostContext?.safeAreaInsets?.right,
-        paddingBottom: hostContext?.safeAreaInsets?.bottom,
-        paddingLeft: hostContext?.safeAreaInsets?.left,
-      }}
+        '--inset-top': `${hostContext?.safeAreaInsets?.top ?? 0}px`,
+        '--inset-right': `${hostContext?.safeAreaInsets?.right ?? 0}px`,
+        '--inset-bottom': `${hostContext?.safeAreaInsets?.bottom ?? 0}px`,
+        '--inset-left': `${hostContext?.safeAreaInsets?.left ?? 0}px`,
+      } as React.CSSProperties}
     >
       <div className="preview">
         {shownError ? (
@@ -871,6 +889,7 @@ export function ChartView({ app, shown, hostContext }: { app: App; shown: Board;
                   expressionInterpreter={expressionInterpreter}
                   chartId="flint-chart-view"
                   width="100%"
+                  height={paned ? '100%' : overCeiling ? APP_PREVIEW_CANVAS_SIZE.height : undefined}
                   fit={autoSize ? 'relayout' : 'scale-down'}
                   fallback={<span className="chart-pending">Rendering…</span>}
                   onWarnings={setSurfaceWarnings}

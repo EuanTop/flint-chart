@@ -18,8 +18,7 @@ declare const __FLINT_MCP_VERSION__: string;
 
 /** How long the card waits for its result before it says it cannot be redrawn here. */
 const RESULT_WAIT_MS = 6000;
-const NOT_REDRAWN =
-  'This cannot be redrawn here: the host drew the card again without the chart, as can happen when a conversation is reopened. Ask the assistant to show it again.';
+const NOT_REDRAWN = 'The chart cannot be redrawn here. Ask the agent to show it again.';
 
 /** The board a show result hands the card: in _meta, or in structuredContent where a host kept only that. */
 function boardOf(result: { _meta?: unknown; structuredContent?: unknown }): Board | undefined {
