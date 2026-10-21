@@ -6,7 +6,7 @@ import { TEST_GENERATORS, makeField, makeEncodingItem, buildMetadata, type TestC
 import { INTERACTION_PRESET_TYPES, THEME_PRESETS, type ChartAssemblyInput, type InteractionSpec } from 'flint-chart';
 import { FlintChart } from 'flint-chart/react';
 import type { ChartChange } from 'flint-chart/interactive';
-import { SiteNavBar, MicrosoftDisclosures, GitHubIcon } from '../components/SiteShell';
+import { SiteNavBar, MicrosoftDisclosures, GitHubIcon, DiscordIcon } from '../components/SiteShell';
 import { WallChart } from '../components/WallChart';
 import { ScaleToFit } from '../components/ScaleToFit';
 import { GalleryOptionsBar, ThemeControl } from '../components/GalleryOptionsBar';
@@ -28,7 +28,7 @@ import {
   getSupportedBackends,
   type PreviewBackend,
 } from '../shared/supported-backends';
-import { GITHUB_REPO, LANDING_SCROLL_TO_KEY, WECHAT_SECTION_ID, siteTheme } from '../shared/theme';
+import { DISCORD_INVITE, GITHUB_REPO, LANDING_SCROLL_TO_KEY, WECHAT_SECTION_ID, siteTheme } from '../shared/theme';
 import { scrollToHeading } from '../shared/scroll-to-heading';
 import flintLogo from '../assets/flint-logo.svg';
 import wechatQr from '../../../docs/figs/QR-code.png';
@@ -317,23 +317,42 @@ export function Landing() {
           </div>
         </section>
 
-        {/* ---- WeChat community -------------------------------------- */}
+        {/* ---- Community: WeChat and Discord, side by side ------------- */}
         <section
-          id={WECHAT_SECTION_ID}
-          style={{ ...sectionStyle, paddingTop: 20, paddingBottom: 72, textAlign: 'center' }}
+          style={{
+            ...sectionStyle,
+            paddingTop: 20,
+            paddingBottom: 72,
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))',
+            gap: 48,
+            alignItems: 'start',
+            textAlign: 'center',
+          }}
         >
-          <h2 style={{ fontSize: 22, margin: '0 0 10px', fontWeight: 500 }}>
-            {t('landing.wechatTitle')}
-          </h2>
-          <p style={{ margin: '0 0 24px', color: siteTheme.text, fontSize: 15, lineHeight: 1.6 }}>
-            {t('landing.wechatBody')}
-          </p>
-          <img
-            src={wechatQr}
-            alt={t('landing.wechatAlt')}
-            width={220}
-            style={{ display: 'block', margin: '0 auto', maxWidth: '100%', height: 'auto' }}
-          />
+          <div id={WECHAT_SECTION_ID}>
+            <h2 style={communityTitleStyle}>{t('landing.wechatTitle')}</h2>
+            <p style={communityBodyStyle}>{t('landing.wechatBody')}</p>
+            <img
+              src={wechatQr}
+              alt={t('landing.wechatAlt')}
+              width={180}
+              style={{ display: 'block', margin: '0 auto', maxWidth: '100%', height: 'auto' }}
+            />
+          </div>
+          <div>
+            <h2 style={communityTitleStyle}>{t('landing.discordTitle')}</h2>
+            <p style={communityBodyStyle}>{t('landing.discordBody')}</p>
+            <a
+              href={DISCORD_INVITE}
+              target="_blank"
+              rel="noreferrer"
+              style={{ ...secondaryBtn, display: 'inline-flex', alignItems: 'center', gap: 8 }}
+            >
+              <DiscordIcon size={17} />
+              {t('landing.discordCta')}
+            </a>
+          </div>
         </section>
       </main>
       <MicrosoftDisclosures />
@@ -2821,6 +2840,9 @@ const codeStyle: CSSProperties = {
   fontSize: '0.9em',
   fontFamily: siteTheme.fontMono,
 };
+
+const communityTitleStyle: CSSProperties = { fontSize: 22, margin: '0 0 10px', fontWeight: 500 };
+const communityBodyStyle: CSSProperties = { margin: '0 auto 24px', maxWidth: 380, color: siteTheme.text, fontSize: 15, lineHeight: 1.6 };
 
 const primaryBtn: CSSProperties = {
   display: 'inline-block',

@@ -698,7 +698,7 @@ const curatedExamples: readonly CuratedExample[] = [
     caption: 'Moving over the temperature lines magnifies nearby points with labels; scrolling changes the lens magnification without zooming the chart.',
     render: () => <FreeformExplodedDetailStage /> },
   { label: 'Re-index', mode: 'index-chart', group: 'custom', implementation: 'Custom API',
-    interactionLabel: 'Re-index from any date', icon: Crosshair,
+    interactionLabel: 'Re-index by date', icon: Crosshair,
     caption: 'Moving over the dates re-indexes five tech stocks to the price on the date under the pointer, 2013–2017.',
     render: () => <IndexChartStage /> },
   { label: 'Timebox', mode: 'timebox', group: 'custom', implementation: 'Custom API',
@@ -945,8 +945,33 @@ const CHAT_SPEC = {
   interaction_spec: { interactions: [{ type: 'inspect-index', options: { show: 'all' } }] },
 } as ChartAssemblyInput;
 
+/**
+ * The Flint-interactive demo: Microsoft Research's YouTube upload, streamed at the reader's size; for
+ * Chinese readers, the Chinese cut attached to the 1.0 release, since YouTube does not reach them.
+ */
+const DEMO_VIDEO = {
+  youtube: 'JAJy7ToczMs',
+  zh: 'https://github.com/user-attachments/assets/7ad75177-1bd4-464e-bf28-cd36d8b503a1',
+};
+
+function DemoVideo() {
+  const { locale } = useLocale();
+  return <div className="ig-video">
+    {locale === 'zh-CN'
+      ? <video controls preload="metadata" playsInline src={DEMO_VIDEO.zh} title="Flint-interactive demo" />
+      : <iframe
+          src={`https://www.youtube-nocookie.com/embed/${DEMO_VIDEO.youtube}?rel=0`}
+          title="Flint-interactive demo"
+          loading="lazy"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          referrerPolicy="strict-origin-when-cross-origin"
+          allowFullScreen
+        />}
+  </div>;
+}
+
 export function FlintInteractive() {
-  const [selectedExample, setSelectedExample] = useState<CuratedExampleMode>('linked-brush');
+  const [selectedExample, setSelectedExample] = useState<CuratedExampleMode>('globe');
   return <div className="ig-article-page" style={{ fontFamily: siteTheme.fontSans, color: siteTheme.text }}>
     <SiteNavBar flush />
     <main className="ig-article-main">
@@ -967,6 +992,10 @@ export function FlintInteractive() {
           </LocaleLink>
         </nav>
         <InteractionExamples selected={selectedExample} onSelect={setSelectedExample} />
+        <section className="ig-overview-intro" aria-labelledby="ig-video-title">
+          <h2 id="ig-video-title">See it in action</h2>
+          <DemoVideo />
+        </section>
         <section className="ig-overview-intro" aria-labelledby="ig-usage-title">
           <h2 id="ig-usage-title">How to use</h2>
           <section className="ig-usage-row" aria-labelledby="ig-usage-chat">

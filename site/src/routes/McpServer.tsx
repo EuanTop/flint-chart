@@ -310,10 +310,9 @@ function CodeBlock({ children, copyable = false }: { children: string; copyable?
 
 const setupPrompt = `Help me set up Flint as an MCP server named "flint"!
 
-1. Add it to my client config. If my client supports local (stdio) MCP servers, use the local server, which runs:
-     npx -y flint-chart-mcp
-   Otherwise, connect to the hosted server over HTTP:
-     ${HOSTED_MCP_URL}
+1. Add it to my client config, using whichever option my client supports:
+   - a local (stdio) server: npx -y flint-chart-mcp
+   - the hosted server over HTTP: ${HOSTED_MCP_URL}
 2. Verify the setup by listing the available Flint chart types.
 3. Show me a fun first chart: how many moons each planet has, in a Flint theme you like.`;
 

@@ -1,15 +1,14 @@
-import type { CSSProperties, KeyboardEvent, MouseEvent, ReactNode } from 'react';
+import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { Star } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
+import { ChartColumn, Code, LayoutGrid, Pencil, Scaling, Star } from 'lucide-react';
 import { LocaleLink } from '../i18n/LocaleLink';
 import { useLocale } from '../i18n/LocaleContext';
 import { stripLocale } from '../i18n/paths';
 import type { Locale } from '../i18n/locales';
-import { CONTENT_MAX_WIDTH, DISCORD_INVITE, GITHUB_REPO, LANDING_SCROLL_TO_KEY, WECHAT_SECTION_ID, siteTheme } from '../shared/theme';
-import { scrollToHeading } from '../shared/scroll-to-heading';
+import { CONTENT_MAX_WIDTH, GITHUB_REPO, siteTheme } from '../shared/theme';
 
 const GITHUB_REPO_API = 'https://api.github.com/repos/microsoft/flint-chart';
 const GITHUB_STARS_CACHE_KEY = 'flint-chart.github-stars';
@@ -87,9 +86,9 @@ export function SiteNavBar(_props: { flush?: boolean } = {}) {
           active={logical.startsWith('/gallery') || logical.startsWith('/wall')
             || logical.startsWith('/interactions/')}
           items={[
-            { to: '/gallery', label: t('nav.chartGallery') },
-            { to: '/interactions/gallery', label: t('nav.interactionGallery') },
-            { to: '/interactions/advanced', label: t('nav.advancedInteractions') },
+            { to: '/gallery', label: t('nav.chartGallery'), icon: <ChartColumn size={15} /> },
+            { to: '/interactions/gallery', label: t('nav.interactionGallery'), icon: <LayoutGrid size={15} /> },
+            { to: '/interactions/advanced', label: t('nav.advancedInteractions'), icon: <Pencil size={15} /> },
           ]}
         />
         <NavLink
@@ -104,19 +103,15 @@ export function SiteNavBar(_props: { flush?: boolean } = {}) {
           active={logical.startsWith('/editor') || logical.startsWith('/theme-lab')
             || logical.startsWith('/playgrounds/')}
           items={[
-            { to: '/editor', label: t('nav.editor') },
-            { to: '/theme-lab', label: t('nav.themeLab'), icon: 'lab' },
-            { to: '/playgrounds/auto-layout', label: t('nav.autoLayoutPlayground') },
+            { to: '/editor', label: t('nav.editor'), icon: <Code size={15} /> },
+            { to: '/theme-lab', label: t('nav.themeLab'), icon: <LabIcon size={15} /> },
+            { to: '/playgrounds/auto-layout', label: t('nav.autoLayoutPlayground'), icon: <Scaling size={15} /> },
           ]}
         />
       </nav>
 
       <div className="site-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <LanguageSwitch />
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          <WeChatLink />
-          <DiscordLink />
-        </div>
         <GitHubLink />
       </div>
     </header>
@@ -127,7 +122,7 @@ function NavMenu({ logicalPath, label, active, items }: {
   logicalPath: string;
   label: string;
   active: boolean;
-  items: readonly { to: string; label: string; icon?: 'lab' }[];
+  items: readonly { to: string; label: string; icon?: ReactNode }[];
 }) {
   const [open, setOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -244,7 +239,7 @@ function NavMenu({ logicalPath, label, active, items }: {
             zIndex: 300,
             display: 'flex',
             flexDirection: 'column',
-            width: 180,
+            minWidth: 180,
             padding: 6,
             gap: 2,
             border: `1px solid ${siteTheme.border}`,
@@ -265,7 +260,7 @@ function NavMenu({ logicalPath, label, active, items }: {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 7,
+                gap: 9,
                 padding: '8px 10px',
                 borderRadius: 4,
                 color: siteTheme.text,
@@ -276,9 +271,9 @@ function NavMenu({ logicalPath, label, active, items }: {
                 whiteSpace: 'nowrap',
               }}
             >
-              {item.icon === 'lab' ? (
-                <span style={{ display: 'inline-flex', color: siteTheme.textMuted }}>
-                  <LabIcon size={14} />
+              {item.icon ? (
+                <span aria-hidden="true" style={{ display: 'inline-flex', flexShrink: 0, color: siteTheme.textMuted }}>
+                  {item.icon}
                 </span>
               ) : null}
               {item.label}
@@ -385,69 +380,6 @@ function LanguageSwitch() {
         );
       })}
     </div>
-  );
-}
-
-function WeChatLink() {
-  const { t } = useTranslation();
-  const { pathname } = useLocation();
-  const navigate = useNavigate();
-  const { lp } = useLocale();
-  const [hovered, setHovered] = useState(false);
-  const logical = stripLocale(pathname);
-
-  const onClick = (event: MouseEvent<HTMLAnchorElement>) => {
-    event.preventDefault();
-    if (logical === '/') {
-      scrollToHeading(WECHAT_SECTION_ID);
-      return;
-    }
-    try {
-      sessionStorage.setItem(LANDING_SCROLL_TO_KEY, WECHAT_SECTION_ID);
-    } catch {
-      // Privacy modes may block storage.
-    }
-    navigate(lp('/'));
-  };
-
-  return (
-    <a
-      href={lp(`/#${WECHAT_SECTION_ID}`)}
-      onClick={onClick}
-      aria-label={t('nav.wechatAria')}
-      title={t('nav.wechatTitle')}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        ...socialIconLinkStyle,
-        color: hovered ? siteTheme.accent : siteTheme.text,
-      }}
-    >
-      <WeChatIcon />
-    </a>
-  );
-}
-
-function DiscordLink() {
-  const { t } = useTranslation();
-  const [hovered, setHovered] = useState(false);
-
-  return (
-    <a
-      href={DISCORD_INVITE}
-      target="_blank"
-      rel="noreferrer"
-      aria-label={t('nav.discordAria')}
-      title={t('nav.discordTitle')}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        ...socialIconLinkStyle,
-        color: hovered ? siteTheme.accent : siteTheme.text,
-      }}
-    >
-      <DiscordIcon />
-    </a>
   );
 }
 
@@ -631,18 +563,6 @@ const navLinkStyle: CSSProperties = {
   letterSpacing: '0.01em',
   whiteSpace: 'nowrap',
   flexShrink: 0,
-};
-
-const socialIconLinkStyle: CSSProperties = {
-  ...navLinkStyle,
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: 28,
-  height: 28,
-  borderRadius: 6,
-  textDecoration: 'none',
-  transition: 'color 120ms ease, background 120ms ease',
 };
 
 /**

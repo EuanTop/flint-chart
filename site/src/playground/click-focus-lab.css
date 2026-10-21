@@ -222,6 +222,8 @@ nav.ig-breadcrumb [aria-current] { color: #1f2328; }
   .climate-phase-readout dd { grid-row: 2; margin-bottom: 0; font-size: 18px; }
   .climate-phase-unit { font-size: 12px; }
 }
+.ig-video { width: 100%; max-width: 832px; margin: 0 auto 8px; }
+.ig-video iframe, .ig-video video { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: 8px; background: #000; box-shadow: 0 4px 18px rgba(15, 23, 42, 0.12); }
 .ig-usage-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 28px; max-width: 832px; margin: 0 auto; padding: 24px 0; }
 .ig-usage-row + .ig-usage-row { border-top: 1px solid #d8dee4; }
 .ig-usage-description, .ig-usage-code { min-width: 0; }

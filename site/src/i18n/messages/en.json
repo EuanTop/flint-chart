@@ -467,6 +467,9 @@
     "wechatTitle": "Join the Flint WeChat group",
     "wechatBody": "Scan the QR code to join the Flint user WeChat group and chat with other users.",
     "wechatAlt": "QR code for the Flint WeChat user group",
+    "discordTitle": "Join the Flint Discord",
+    "discordBody": "Ask questions, share your charts, and follow releases with Flint users everywhere.",
+    "discordCta": "Join Discord",
     "features": {
       "semantic": {
         "title": "Describe data with <hl>semantic types</hl>",

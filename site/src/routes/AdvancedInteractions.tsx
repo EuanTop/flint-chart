@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  BarChart3, Braces, Brush, ChevronRight, Crosshair, Globe, Layers, Link2, Map as MapIcon, MessageSquare, MousePointerClick,
+  BarChart3, Braces, Brush, ChevronRight, Crosshair, Globe, Link2, Map as MapIcon, MessageSquare, MousePointerClick,
   Move, Pencil, PenLine, Play, Route, ScrollText, ShoppingBasket, Sigma, SquareDashed, Table2, Thermometer, TrendingUp, Users, ZoomIn,
   type LucideIcon,
 } from 'lucide-react';
@@ -119,8 +119,8 @@ const SECTIONS: { title: string; cases: Case[] }[] = [
       },
       {
         id: 'china-shrinking',
-        title: 'China grew, most of its counties shrank',
-        icon: Layers,
+        title: 'Shrinking counties',
+        icon: MapIcon,
         body: <>
           China grew by 5.6% between the 2010 and 2020 censuses, and only six provinces shrank, yet more than
           half of its counties lost people. Zoom from provinces to prefectures to counties to watch the totals
@@ -139,7 +139,7 @@ const SECTIONS: { title: string; cases: Case[] }[] = [
     cases: [
       {
         id: 'food-basket',
-        title: 'Food basket price navigator',
+        title: 'Food basket prices',
         icon: ShoppingBasket,
         body: 'How five U.S. average food prices compose a one-unit basket over time. The wheel narrows the month window, and Flint re-lays out the chart for the visible months, so the bar step, the price domain, and the tick labels all follow the data.',
         credit: { label: 'U.S. Bureau of Labor Statistics average price data for bananas, eggs, ground beef, white bread, and whole milk', url: 'https://www.bls.gov/cpi/data.htm' },
@@ -148,7 +148,7 @@ const SECTIONS: { title: string; cases: Case[] }[] = [
       },
       {
         id: 'semantic-lens',
-        title: 'Semantic lens and exploded detail',
+        title: 'Magnify and explode',
         icon: ZoomIn,
         body: <>
           A semantic lens beside a cloned-SVG exploded detail. The lens uses Palmer Penguins: flipper length
@@ -171,7 +171,7 @@ const SECTIONS: { title: string; cases: Case[] }[] = [
       },
       {
         id: 'index-cursor',
-        title: 'Re-index from any date',
+        title: 'Re-index by date',
         icon: Crosshair,
         body: 'Re-index the same stock series against the date under the pointer: Flint\u2019s inspect guide marks the date, and the host re-indexes the rows and names the date above the chart. Sampled AAPL, AMZN, GOOG, IBM, and MSFT prices from the D3/Vega index-chart reference dataset, 2013-2017.',
         demo: <IndexChartStage />,
@@ -184,7 +184,7 @@ const SECTIONS: { title: string; cases: Case[] }[] = [
     cases: [
       {
         id: 'climate-phase-portrait',
-        title: 'Climate phase portrait',
+        title: 'Climate loops',
         icon: Thermometer,
         body: <>
           Select or drag a city&apos;s annual climate loop; Play animates the same update from outside the chart.
@@ -195,7 +195,7 @@ const SECTIONS: { title: string; cases: Case[] }[] = [
       },
       {
         id: 'data-space-trajectory',
-        title: 'Drag along a trajectory',
+        title: 'Drag a trajectory',
         icon: Route,
         body: 'Select a country, then drag its historical path to update the shared year. Fertility, life expectancy, and population for eight countries, 1955-2005.',
         demo: <FlintDimpVisStage large />,
@@ -253,7 +253,7 @@ const SECTIONS: { title: string; cases: Case[] }[] = [
     cases: [
       {
         id: 'timebox',
-        title: 'Timebox the temperatures',
+        title: 'Timebox the weather',
         icon: SquareDashed,
         body: <>
           Drag a box over a date interval and temperature band; cities match only when every daily value in

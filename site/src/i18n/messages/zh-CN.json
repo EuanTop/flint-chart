@@ -467,6 +467,9 @@
     "wechatTitle": "加入 Flint 用户微信群",
     "wechatBody": "扫码加入 Flint 用户微信群，与其他用户交流。",
     "wechatAlt": "Flint 用户微信群二维码",
+    "discordTitle": "加入 Flint Discord 社区",
+    "discordBody": "提问、分享你的图表，并与各地的 Flint 用户一起关注版本更新。",
+    "discordCta": "加入 Discord",
     "features": {
       "semantic": {
         "title": "用<hl>语义类型</hl>描述数据",
