@@ -2,6 +2,7 @@ import type { ChartAssemblyInput, ChartUpdate } from 'flint-chart';
 import type { Board, BoardChart } from '../../../packages/flint-mcp/ui/src/BoardView';
 import { monthRows, yearRows } from './mcp-experience-range';
 import { gapminderRows } from '../playground/gapminder-dashboard-data';
+import timeUse from '../data/time-use-companions.json';
 
 /* ------------------------------------------------------------------ */
 /* Part 1: one chart, NASA GISTEMP global temperature                 */
@@ -63,8 +64,52 @@ function chartCard(input: ChartAssemblyInput, updates?: ChartUpdate[]): Board {
   return { id: 'temperature', kind: 'chart', version: 1, charts: [{ id: 'chart', input, ...(updates ? { updates } : {}) }] };
 }
 
-/** The MCP page's one chart: themed and brushable from the first ask. */
-export const SIMPLE_CHART = chartCard(themed);
+/* ------------------------------------------------------------------ */
+/* The intro: who Americans spend their day with, BLS time use         */
+/* ------------------------------------------------------------------ */
+
+const companionRows = timeUse.values
+  .filter((row) => row.Group === 'All people')
+  .map(({ Age, Who, Hours }) => ({ Age, Who, Hours }));
+const peakOf = (who: string) => companionRows.filter((row) => row.Who === who).reduce((top, row) => (row.Hours > top.Hours ? row : top));
+const aloneLate = peakOf('Alone');
+const childrenPeak = peakOf('Children');
+const noteAt = (row: { Age: number; Who: string }) => ({ select: { key: { Age: row.Age, Who: row.Who } } });
+
+const companions: ChartAssemblyInput = {
+  data: { values: companionRows },
+  semantic_types: { Age: 'Quantity', Hours: 'Quantity', Who: 'Category' },
+  field_display_names: { Hours: 'Hours per day', Who: 'Time spent with' },
+  theme_spec: 'nyt',
+  chart_spec: {
+    chartType: 'Line Chart',
+    encodings: { x: { field: 'Age' }, y: { field: 'Hours' }, color: { field: 'Who' } },
+    title: 'As we age, more of the day is spent alone',
+    subtitle: 'Average hours a day spent with each group, by age, United States, 2010–2024',
+    source: 'American Time Use Survey, U.S. Bureau of Labor Statistics, via Our World in Data',
+  },
+  interaction_spec: {
+    interactions: [
+      { type: 'inspect-index', options: { axis: 'x', show: 'all', seriesBy: 'Who', displayValue: true } },
+      { type: 'legend-toggle' },
+    ],
+  } as ChartAssemblyInput['interaction_spec'],
+} as ChartAssemblyInput;
+
+const companionNotes: ChartUpdate[] = [
+  {
+    id: 'agent',
+    ops: [
+      { op: 'set-annotation', target: noteAt(aloneLate), value: { text: `Alone: ${Math.round(aloneLate.Hours)} hours a day by ${aloneLate.Age}` } },
+      { op: 'set-annotation', target: noteAt(childrenPeak), value: { text: `Time with children peaks at ${childrenPeak.Hours} hours, age ${childrenPeak.Age}` } },
+    ],
+  },
+] as ChartUpdate[];
+
+/** The MCP page's one chart: themed and interactive from the first ask. */
+export const SIMPLE_CHART: Board = {
+  id: 'time-use', kind: 'chart', version: 1, charts: [{ id: 'chart', input: companions, updates: companionNotes }],
+};
 
 export type ChartSlideKey = 'create' | 'theme' | 'interact' | 'select' | 'edit';
 
