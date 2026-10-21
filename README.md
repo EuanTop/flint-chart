@@ -95,45 +95,47 @@ static PNG or SVG, or produce a backend-native spec.
   <img src="docs/figs/flint-mcp-chat.png" alt="An agent chat where the user asks for global temperatures since 1880 in a newspaper style with brushing, and Flint answers with a live, interactive line chart." width="520">
 </p>
 
-### In your apps (npm library, with your coding agent)
+### Build with your coding agent
 
-Build interactive charts into your own apps, dashboards, and data stories.
-Share the [agent skills](agent-skills/) with your coding agent
-([chart authoring](agent-skills/flint-chart-author/SKILL.md),
-[themes](agent-skills/flint-theme-author/SKILL.md), and
-[interactions](agent-skills/flint-interaction-author/SKILL.md)) and let it
-build with the library:
+Are you a developer building agent apps? Use
+[`flint-chart`](https://www.npmjs.com/package/flint-chart), Flint's npm library,
+to bring charts into your apps, dashboards, and data stories:
 
 ```bash
 npm install flint-chart
 ```
 
-```tsx
-import { FlintChart } from 'flint-chart/react';
+The library compiles Flint specs into backend-native chart specs and provides
+React and vanilla JavaScript APIs for embedding interactive charts.
 
-<FlintChart
-  spec={{
-    data: { values: rows },
-    semantic_types: { Month: 'YearMonth', Region: 'Category', Users: 'Quantity' },
-    chart_spec: { chartType: 'Line Chart', encodings: { x: 'Month', y: 'Users', color: 'Region' } },
-    theme_spec: 'economist',
-    interaction_spec: { interactions: [{ type: 'inspect-index' }] },
-  }}
-  onChange={({ phase, state }) => { /* update your app from the reader's selection */ }}
-/>
+You can copy the following instruction to your coding agent to build a chart
+with Flint, then adapt it to your data and app:
+
+```text
+Read Flint's chart authoring and interaction skills:
+https://github.com/microsoft/flint-chart/blob/main/agent-skills/flint-chart-author/SKILL.md
+https://github.com/microsoft/flint-chart/blob/main/agent-skills/flint-interaction-author/SKILL.md
+
+Use these skills to add a chart to this app.
+Install flint-chart and the renderer dependencies needed for this project.
+Plot monthly users by region from our data in Economist style.
+Let readers hover to compare regions at each month, and add a region selector
+that updates the chart.
+Integrate it with the app's existing layout and verify it works.
 ```
 
-- **Web apps and dashboards:** `<FlintChart>` for React, or `mountChart` from
-  `flint-chart/interactive` in any page. Charts respond to readers and to your
-  app's own events; see the [interaction API](docs/interaction-api.md).
-- **GitHub Copilot canvas:** the [Flint Chart Canvas plugin](.github/extensions/flint-chart)
-  opens live, editable Flint charts in a native canvas beside the Copilot CLI
-  conversation.
-- **Static specs and documents:** `assembleVegaLite`, `assembleECharts`,
-  `assembleChartjs`, `assemblePlotly`, and `assembleExcel` compile the same input
-  to each library's native spec or an editable Excel chart. See the
-  [API reference](docs/api-reference.md) and the
-  [live editor](https://microsoft.github.io/flint-chart/#/editor).
+The skills guide the agent to choose a chart type, map fields, and describe
+their semantic types, then integrate the result using `<FlintChart>` in React
+or `mountChart` in other web apps. Flint handles the low-level chart
+configuration; the agent handles your app's data, UI, and event wiring.
+You can then iterate in natural language: change the theme, link another
+chart, or connect a selection to the rest of the app.
+
+The agent can also generate backend-native specs or editable Excel charts
+for reports and documents. See the [API reference](docs/api-reference.md),
+[interaction API](docs/interaction-api.md), and
+[live editor](https://microsoft.github.io/flint-chart/#/editor) for the
+underlying APIs and examples.
 
 ## How it works
 
