@@ -25,6 +25,7 @@ const pages: NavEntry[] = [
       { to: 'zoom-clipping', label: 'Zoom clipping' },
       { to: 'band-stretching', label: 'Band stretching' },
       { to: 'axis-label', label: 'Axis labels' },
+      { to: 'title-wrap', label: 'Title wrap' },
       { to: 'calendar-axis', label: 'Calendar axes' },
       { to: 'categorical-temporal', label: 'Categorical temporal' },
       { to: 'canvas-squeeze', label: 'Canvas squeeze' },

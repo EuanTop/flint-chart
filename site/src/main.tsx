@@ -33,6 +33,7 @@ import { TalkDeck } from './talk/TalkDeck';
 import { BandStretchingLab } from './playground/BandStretchingLab';
 import { LabelExperimentLab } from './playground/LabelExperimentLab';
 import { AxisLabelLab } from './playground/AxisLabelLab';
+import { TitleWrapLab } from './playground/TitleWrapLab';
 import { CalendarAxisLab } from './playground/CalendarAxisLab';
 import { CategoricalTemporalLab } from './playground/CategoricalTemporalLab';
 import { ReleaseExamples100 } from './playground/release-examples/1.0.0';
@@ -124,6 +125,7 @@ function AppRoutes({ locale }: { locale: Locale }) {
           <Route path="band-stretching" element={<BandStretchingLab />} />
           <Route path="label-experiment" element={<LabelExperimentLab />} />
           <Route path="axis-label" element={<AxisLabelLab />} />
+          <Route path="title-wrap" element={<TitleWrapLab />} />
           <Route path="calendar-axis" element={<CalendarAxisLab />} />
           <Route path="categorical-temporal" element={<CategoricalTemporalLab />} />
           <Route path="release-examples">
