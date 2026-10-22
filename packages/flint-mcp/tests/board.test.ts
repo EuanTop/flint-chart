@@ -56,17 +56,19 @@ describe('board tools', () => {
     const result: any = await check(spec);
     expect(result.isError).toBeFalsy();
     expect(text(result)).toContain('2 charts (countries, by-country)');
-    expect(text(result)).toContain('Nothing is on screen: fix what this report asks in the spec, then call show with it.');
-    expect(text(result)).toContain('## countries');
-    expect(text(result)).toContain('Links (fields: country, region; one selection the whole board shares):');
-    expect(text(result)).toContain('✓ countries: sends region by select; receives region; leaves out country: its marks do not carry country');
-    expect(text(result)).toContain('✓ by-country: receives country; leaves out region: its marks do not carry region');
+    expect(text(result)).toContain('Nothing is on screen: fix what this report lists, then call show with the same spec.');
+    expect(text(result)).toContain('Layout: row 1 (standard): countries (half), by-country (half).');
+    expect(text(result)).toContain('Link notes (country, region); change nothing unless the user asked for that connection:');
+    expect(text(result)).toContain('- countries: leaves out country: its marks do not carry country');
+    expect(text(result)).toContain('- by-country: leaves out region: its marks do not carry region');
     expect(text(result)).toContain('sends nothing: no interaction that selects');
+    expect(text(result)).not.toContain('Encodings:');
+    expect(text(result)).not.toContain('User interactions');
     expect(result._meta).toBeUndefined();
 
     const shown: any = await showBoard(spec);
     expect(text(shown)).toContain('The board is on screen in a new card.');
-    expect(text(shown)).toContain('✓ countries: sends region by select');
+    expect(text(shown)).toContain('- countries: leaves out country');
     const board = shown._meta.flint.board;
     expect(board.charts.map((chart: any) => chart.id)).toEqual(['countries', 'by-country']);
     expect(board.linked['by-country']).toMatchObject({ sends: [], receives: ['country'] });
@@ -80,7 +82,7 @@ describe('board tools', () => {
 
   it('marks a chart that joins no field, honours receive: false, and names an unknown chart', async () => {
     const result: any = await check({ charts: [scatter, bars], link_spec: { fields: ['continent', 'region'], charts: { countries: { receive: false }, ghost: {} } } });
-    expect(text(result)).toContain('✓ countries: sends region by select; leaves out continent: no field continent in its data; receives nothing (receive: false)');
+    expect(text(result)).toContain('- countries: leaves out continent: no field continent in its data');
     expect(text(result)).toContain('✗ by-country: not linked; leaves out continent');
     expect(text(result)).toContain('✗ ghost: not linked; no chart "ghost" among the linked charts');
   });
@@ -91,12 +93,10 @@ describe('board tools', () => {
     expect(text(result)).toContain('✗ countries: not linked; leaves out country: its marks do not carry country; encode it, on detail');
     const detailed = { ...scatter, chart_spec: { ...scatter.chart_spec, encodings: { ...scatter.chart_spec.encodings, detail: 'country' } } };
     const fixed: any = await check({ charts: [detailed, clickable], link_spec: { fields: ['country'] } });
-    expect(text(fixed)).toContain('✓ countries: sends country by select; receives country');
-    expect(text(fixed)).toContain('✓ by-country: sends country by click-highlight; receives country');
+    expect(text(fixed)).not.toContain('Links');
 
     const hovering = { ...detailed, interaction_spec: { interactions: [{ type: 'select' }, { type: 'hover-group-focus', options: { groupBy: 'region' } }] } };
     const both: any = await showBoard({ charts: [hovering, clickable], link_spec: { fields: ['country', 'region'] } });
-    expect(text(both)).toContain('✓ countries: sends country + region by select, region by hover-group-focus (hover); receives country, region');
     expect(both._meta.flint.board.linked.countries.gestures['hover-group-focus']).toEqual({ preset: 'hover-group-focus', fields: ['region'], hover: true });
   });
 
@@ -104,7 +104,7 @@ describe('board tools', () => {
     const spec = { charts: [scatter, { ...bars, chart_spec: { ...bars.chart_spec, chartType: 'Not A Chart' } }] };
     const result: any = await check(spec);
     expect(text(result)).toContain('1 chart (countries)');
-    expect(text(result)).toMatch(/## by-country\n✗ not drawn: /);
+    expect(text(result)).toMatch(/by-country:\n- ✗ not drawn: /);
     const shown: any = await showBoard(spec);
     expect(shown.isError).toBe(true);
     expect(text(shown)).toMatch(/^Nothing was drawn: by-country ✗ not drawn: .*Fix the spec and call show again\.$/);
@@ -148,17 +148,15 @@ describe('board tools', () => {
     };
     const charts = [kpi('k1', 'Sales'), kpi('k2', 'Margin'), kpi('k3', 'Churn'), trend, scatter, { ...bars, theme_spec: 'nyt' }];
     const report = text(await check({ charts }));
-    expect(report).toContain('- row 1, KPI tiles (compact): k1 (a third), k2 (a third), k3 (a third)');
-    expect(report).toContain('- row 2 (tall): trend (full width)');
-    expect(report).toContain('- row 3 (standard): countries (half), by-country (half)');
+    expect(report).toContain('Layout: row 1, KPI tiles (compact): k1 (a third), k2 (a third), k3 (a third); row 2 (tall): trend (full width); row 3 (standard): countries (half), by-country (half).');
     expect(report).toContain('- No board title');
     expect(report).toContain('- No title on trend:');
-    expect(report).toContain('- trend, countries colour by region');
+    expect(report).not.toContain('colour by region');
 
     const themed = text(await check({ title: 'Countries', subtitle: 'GDP and life expectancy', theme_spec: 'economist', charts }));
     expect(themed).toContain('Charts set their own themes');
     const narrowed = text(await check({ charts: [kpi('k1', 'Sales'), { ...trend, layout: { span: 1, height: 'compact' } }, scatter] }));
-    expect(narrowed).toContain('- row 2 (standard): trend (half), countries (half)');
+    expect(narrowed).toContain('row 2 (standard): trend (half), countries (half)');
   });
 
   it('splits five KPI tiles three and two, and leaves a measure on colour alone', async () => {
@@ -169,8 +167,7 @@ describe('board tools', () => {
       chart_spec: { chartType: 'Heatmap', title: id, encodings: { x: 'year', y: 'country', color: 'gdp' } },
     });
     const report = text(await check({ title: 'T', subtitle: 'S', charts: [kpi('a'), kpi('b'), kpi('c'), kpi('d'), kpi('e'), heat('h1'), heat('h2')] }));
-    expect(report).toContain('- row 1, KPI tiles (compact): a (a third), b (a third), c (a third)');
-    expect(report).toContain('- row 2, KPI tiles (compact): d (half), e (half)');
+    expect(report).toContain('row 1, KPI tiles (compact): a (a third), b (a third), c (a third); row 2, KPI tiles (compact): d (half), e (half)');
     expect(report).not.toContain('colour by gdp');
   });
 
@@ -178,29 +175,41 @@ describe('board tools', () => {
     const grid = [{ id: 'by-country', x: 0, y: 0, w: 12, h: 17 }, { id: 'countries', x: 0, y: 17, w: 6, h: 17 }];
     const kept: any = await showBoard({ title: 'T', subtitle: 'S', charts: [scatter, bars], grid });
     expect(kept._meta.flint.board.grid).toEqual(grid);
-    expect(text(kept)).toContain('Arranged on a 12-column grid (grid), as the reader left it; keep passing it.');
-    expect(text(kept)).toContain('- by-country: columns 1–12, rows 1–17 (full width, 340px tall)');
+    expect(text(kept)).toContain("Layout: the reader's grid; keep passing it, or leave it out for rows. by-country: columns 1–12, rows 1–17 (full width, 340px tall)");
 
     const added: any = await check({ title: 'T', subtitle: 'S', charts: [scatter, bars, { ...bars, id: 'more' }], grid });
-    expect(text(added)).toContain('- more: columns 1–6, rows 35–51');
+    expect(text(added)).toContain('more: columns 1–6, rows 35–51');
     const fewer: any = await check({ title: 'T', subtitle: 'S', charts: [scatter], grid });
     expect(text(fewer)).not.toContain('by-country');
-    expect(text(fewer)).toContain('- countries: columns 1–6, rows 18–34');
+    expect(text(fewer)).toContain('countries: columns 1–6, rows 18–34');
 
     const clash: any = await check({ title: 'T', subtitle: 'S', charts: [scatter, bars], grid: [grid[0], { ...grid[1], y: 5 }] });
     expect(text(clash)).toContain('The grid was dropped for the rows: by-country overlaps another chart.');
-    expect(text(clash)).toContain('- row 1 (standard): countries (half), by-country (half)');
+    expect(text(clash)).toContain('Layout: row 1 (standard): countries (half), by-country (half).');
   });
 
   it('holds a Table of rows and a chart opened as its table', async () => {
     const table = { id: 'list', data: { values: rows }, chart_spec: { chartType: 'Table', title: 'Countries', encodings: {} } };
     const shown: any = await showBoard({ title: 'T', subtitle: 'S', charts: [table, { ...bars, view: 'table' }], link_spec: { fields: ['country'] } });
-    expect(text(shown)).toContain('Opens as the table of the rows it draws');
-    expect(text(shown)).toContain('list: receives country');
+    expect(text(shown)).toContain('- list: sends nothing: a Table does not send selections');
     expect(shown._meta.flint.board.charts.map((chart: any) => chart.view)).toEqual([undefined, 'table']);
 
     const encoded: any = await check({ charts: [{ ...table, id: 'bad', chart_spec: { chartType: 'Table', encodings: { x: 'country' } } }] });
     expect(text(encoded)).toContain('Table takes no encodings');
+  });
+
+  it('says a finding several charts share once, and that a clean board has nothing to fix', async () => {
+    const odd = { gdp: 'Wealth', life: 'Quantity', country: 'Country', region: 'Category' };
+    const report = text(await check({ title: 'T', subtitle: 'S', charts: [{ ...scatter, semantic_types: odd }, { ...bars, semantic_types: odd }] }));
+    expect(report).toContain('countries, by-country:\n- semantic_types.gdp "Wealth" is not a registered semantic type');
+    expect(report.match(/"Wealth"/g)).toHaveLength(1);
+
+    const noted = text(await check({ title: 'T', subtitle: 'S', charts: [scatter, { ...bars, interaction_spec: { interactions: [{ type: 'click-highlight' }] } }], link_spec: { fields: ['country', 'region'] } }));
+    expect(noted).toContain('Nothing to fix: call show with this spec.');
+    expect(noted).toContain('- by-country: leaves out region');
+
+    const clean = text(await check({ title: 'T', subtitle: 'S', charts: [scatter, bars] }));
+    expect(clean).toBe('Board "T": 2 charts (countries, by-country).\nNothing to fix: call show with this spec.\nLayout: row 1 (standard): countries (half), by-country (half).');
   });
 
   it('flags a chart that stacks repeated rows as slices, and not once it sums them', async () => {

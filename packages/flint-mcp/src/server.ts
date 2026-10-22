@@ -34,8 +34,7 @@ import {
   assembleBoard,
   boardChartShape,
   boardFieldsShape,
-  chartReport,
-  viewReport,
+  chartFindings,
   boardSnapshot,
   fitsInResult,
   gridShape,
@@ -43,6 +42,7 @@ import {
   type BoardChartArgs,
   type BoardSpec,
 } from './board.js';
+import { viewReport } from './report.js';
 export { VERSION };
 
 export const AGENT_SKILL_RESOURCE_URI = 'flint://agent-skill';
@@ -347,24 +347,24 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
     {
       title: 'Validate chart spec',
       description:
-        'Validate a Flint chart spec for a backend without rendering. Reports ' +
-        'whether it is valid, all warnings/errors, and the computed layout size. ' +
-        'With an interaction_spec it also reports the entries the chart would drop. ' +
-        'With updates it rejects a malformed layer and reports, op by op, whether ' +
-        'each will apply (✓) or why not (✗), in the same report show returns. ' +
-        'Call it before show and fix what it reports; nothing is kept between calls.',
+        'Validate a Flint chart spec for a backend without rendering. For vegalite, the report lists only ' +
+        'what to act on: errors, warnings, interaction_spec entries the chart drops, and update ops that ' +
+        'will not apply (✗), the same report show returns; "Nothing to fix" when it is clean. Other ' +
+        'backends return the validation result as JSON. Call it before show and fix what it reports; ' +
+        'nothing is kept between calls.',
       inputSchema: { ...assemblyInputShape, ...updatesShape, backend: backendEnum },
     },
     async (args: any) => {
       try {
-        const { result, input } = validateChart(toAssemblyInput(args as AssemblyInputArgs), args.backend as RenderBackend, {
+        const { result } = validateChart(toAssemblyInput(args as AssemblyInputArgs), args.backend as RenderBackend, {
           ...dataSourceOptions,
           roots: await clientRoots(),
           updates: args.updates,
         });
-        if (!result.valid || args.backend !== 'vegalite') return jsonResult(result);
-        const report = chartReport(input, args.updates, result);
-        return { content: [...jsonResult(result).content, { type: 'text' as const, text: report }] };
+        if (args.backend !== 'vegalite') return jsonResult(result);
+        const findings = result.valid ? chartFindings(args.updates, result) : result.errors.map((error) => `✗ ${error.message}`);
+        const chart = { id: 'chart', kind: 'chart' as const, charts: [] };
+        return { content: [{ type: 'text' as const, text: viewReport(chart, [{ id: 'chart', drawn: result.valid, findings }]) }] };
       } catch (err) {
         return errorResult(err);
       }
@@ -503,9 +503,10 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
     {
       title: 'Validate board',
       description:
-        'Check a board of several Flint charts without drawing it: the report gives the layout, each chart ' +
-        '(✓/✗ per update op), what each chart sends and receives under link_spec, and a review of what the ' +
-        'board should still fix. Nothing is kept: fix the spec, check it again if needed, then pass the same ' +
+        'Check a board of several Flint charts without drawing it. The report gives the layout in one line, ' +
+        'then only what to act on: each chart\'s errors, warnings and update ops that will not apply (✗), links ' +
+        'that join nothing or leave a field out, and a review of what the board should still fix; "Nothing to ' +
+        'fix" when it is clean. Nothing is kept: fix the spec, check it again if needed, then pass the same ' +
         'board to show. Before the first board, call get_flint_skill with skill "board".',
       inputSchema: boardSpec.shape,
     },
@@ -540,7 +541,7 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
         const { board, outcomes, notes } = await assemble(args);
         const failed = outcomes.filter((outcome) => !outcome.drawn);
         if (failed.length > 0) {
-          const text = `Nothing was drawn: ${failed.map((outcome) => `${outcome.id} ${outcome.text}`).join('; ')}. Fix the spec and call show again.`;
+          const text = `Nothing was drawn: ${failed.map((outcome) => `${outcome.id} ${outcome.findings.join('; ')}`).join('; ')}. Fix the spec and call show again.`;
           return { content: [{ type: 'text' as const, text }], _meta: { flint: { error: text } }, isError: true };
         }
         const snapshot = boardSnapshot(board);
