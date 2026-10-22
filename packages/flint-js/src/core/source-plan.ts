@@ -53,12 +53,24 @@ export interface SourceInputs {
 /** The space between words (and between runs of different weight), in em. */
 const WORD_SPACE = 0.25;
 
+/**
+ * The source's words without a lead-in the author already wrote: "Source: Gapminder" under a house that
+ * leads with "Source:" reads "Gapminder", so the line does not say it twice.
+ */
+export function withoutLeadIn(words: string | undefined, leadIn: string | undefined): string | undefined {
+    const lead = leadIn?.trim().replace(/[\s:：]+$/, '');
+    if (!words || !lead) return words;
+    const escaped = lead.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const rest = words.replace(new RegExp(`^${escaped}s?\\s*[:：]\\s*`, 'i'), '');
+    return rest || words;
+}
+
 /** The source line a chart draws, or undefined when it gives no source or the house draws none. */
 export function planSource(inputs: SourceInputs): SourcePlan | undefined {
     const { design, block, measure } = inputs;
     const s = design.source;
     const given = typeof inputs.source === 'string' ? { text: inputs.source } : inputs.source;
-    const words = given?.text?.trim();
+    const words = withoutLeadIn(given?.text?.trim(), s.leadIn);
     if (!s.show || !words) return undefined;
     const t = s.text;
     const fontSize = t.fontSize ?? 10;
