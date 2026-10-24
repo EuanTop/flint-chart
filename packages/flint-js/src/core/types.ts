@@ -1360,14 +1360,18 @@ export interface ChartAssemblyInput {
          */
         baseSize?: { width: number; height: number };
         /**
-         * Hard ceiling on the rendered size in pixels (optional).
+         * The box the host shows the chart in, in pixels (optional).
          *
-         * The final image — a single plot OR an entire facet grid — never exceeds
-         * this box. The per-dimension growth allowance is derived from the ratio
+         * The plot — a single plot OR an entire facet grid — never stretches past
+         * it. The per-dimension growth allowance is derived from the ratio
          * to `baseSize`: `βx = canvasSize.width / baseSize.width`,
          * `βy = canvasSize.height / baseSize.height` (each clamped to ≥ 1).
+         * The title, keys and axes stand in the same box: the canvas fit
+         * (`options.canvasFit`) lays the chart out to read well in it, and a
+         * drawing it leaves a little larger is the host's to scale down into
+         * the box — never past 70%, where the fit brings the plot down instead.
          *
-         * When omitted, the ceiling defaults to `baseSize × options.maxStretch`
+         * When omitted, the box defaults to `baseSize × options.maxStretch`
          * (default 1.5×) in each dimension.
          */
         canvasSize?: { width: number; height: number };
@@ -1456,6 +1460,11 @@ export interface CanvasTreatment {
     plotSpace?: { width?: number; height?: number };
     /** The headline and deck set at this share of their size, never below a legible floor. */
     titleScale?: number;
+    /**
+     * The axis labels on both axes set at this share of the house's size, never below its floor: names
+     * wrapped onto two lines then take shorter rows, and the chart enters its box with every name whole.
+     */
+    labelScale?: number;
     /** Long key names kept to this many px a column, wrapped onto lines before they are cut. */
     names?: { keyWidth: number };
     /**

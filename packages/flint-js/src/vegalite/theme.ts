@@ -567,6 +567,61 @@ function applyLegendSwatch(spec: any, d: DesignDecisions): void {
     });
 }
 
+/** Vega-Lite's own sort ops, as far as a band's order needs them. */
+const BAND_ORDER_OPS: Record<string, (values: number[]) => number> = {
+    count: (values) => values.length,
+    valid: (values) => values.length,
+    sum: (values) => values.reduce((total, value) => total + value, 0),
+    mean: (values) => values.reduce((total, value) => total + value, 0) / values.length,
+    average: (values) => values.reduce((total, value) => total + value, 0) / values.length,
+    min: (values) => Math.min(...values),
+    max: (values) => Math.max(...values),
+    median: (values) => {
+        const sorted = [...values].sort((a, b) => a - b);
+        const middle = sorted.length >> 1;
+        return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+    },
+};
+
+/**
+ * A band's order that the names' layer can share. The names draw from a table of their own, so the
+ * band's domain is a union, and a union can neither sort by a channel the names do not encode nor by
+ * a sum. A sort by another channel or field becomes the list of names in the order the bars stand,
+ * computed as Vega-Lite would; any other sort is already one every layer can state.
+ */
+function bandOrder(sort: any, field: string, enc: any, table: any[]): any {
+    let by: { field?: string; op: string; descending: boolean } | undefined;
+    const stacked = (['color', 'opacity', 'detail'] as const)
+        .some((channel) => enc[channel]?.field && enc[channel].field !== field);
+    const encodingSort = typeof sort === 'string' && /^-?[a-zA-Z]+$/.test(sort) && sort !== 'ascending' && sort !== 'descending'
+        ? { encoding: sort.replace(/^-/, ''), order: sort.startsWith('-') ? 'descending' : 'ascending' }
+        : sort && typeof sort === 'object' && !Array.isArray(sort) && sort.encoding ? sort : undefined;
+    if (encodingSort) {
+        const def = enc[encodingSort.encoding];
+        if (!def?.field && def?.aggregate !== 'count') return undefined;
+        const measureStacked = stacked && def.stack !== null && def.stack !== false && def.type === 'quantitative';
+        by = { field: def.field, op: def.aggregate ?? (measureStacked ? 'sum' : 'min'), descending: encodingSort.order === 'descending' };
+    } else if (sort && typeof sort === 'object' && !Array.isArray(sort) && (sort.field || sort.op === 'count')) {
+        by = { field: sort.field, op: sort.op ?? 'min', descending: sort.order === 'descending' };
+    }
+    if (!by) return sort;
+    const aggregate = BAND_ORDER_OPS[by.op];
+    if (!aggregate) return sort;
+    const groups = new Map<unknown, number[]>();
+    for (const row of table) {
+        const name = row?.[field];
+        if (name == null) continue;
+        if (!groups.has(name)) groups.set(name, []);
+        const value = by.op === 'count' ? 1 : Number(row?.[by.field!]);
+        if (by.op === 'count' || (row?.[by.field!] != null && Number.isFinite(value))) groups.get(name)!.push(value);
+    }
+    const keyed = [...groups].map(([name, values]) => ({ name, key: values.length ? aggregate(values) : undefined }));
+    const direction = by.descending ? -1 : 1;
+    // Stable, so ties keep the order the rows first meet them; names with nothing to sort by go last.
+    keyed.sort((a, b) => a.key === undefined ? (b.key === undefined ? 0 : 1) : b.key === undefined ? -1 : direction * (a.key - b.key));
+    return keyed.map(({ name }) => name);
+}
+
 /**
  * Names on their own line above each bar, as the plan set them: the band holds the name, a small gap
  * and the bar, so the bands carry no padding of their own; the bar is drawn at the thickness the
@@ -585,6 +640,8 @@ function placeRowNamesAbove(spec: any, d: DesignDecisions, table: any[], plan: N
     if (!bar) return;
     const y = mergedEncoding(bar, spec.encoding).y;
     const field: string = y.field;
+    const stated = y.sort;
+    const sort = bandOrder(stated, field, mergedEncoding(bar, spec.encoding), table);
     const centre = plan.step / 2;
     // From the band's middle, where Vega-Lite stands what it draws on a band.
     const barShift = Math.round(plan.top + plan.line + plan.gap + plan.bar / 2 - centre);
@@ -593,6 +650,7 @@ function placeRowNamesAbove(spec: any, d: DesignDecisions, table: any[], plan: N
         if (!banded(enc) || enc.y.field !== field) continue;
         const target = unit.encoding?.y ?? spec.encoding?.y;
         if (target) {
+            if (sort !== stated) target.sort = sort;
             target.scale = { ...(target.scale ?? {}), paddingInner: 0, paddingOuter: 0 };
             target.axis = target.axis === null ? null : { ...(target.axis ?? {}), labels: false, ticks: false, domain: false };
         }
@@ -624,7 +682,7 @@ function placeRowNamesAbove(spec: any, d: DesignDecisions, table: any[], plan: N
             limit: plan.width,
         },
         encoding: {
-            y: { field, type: y.type, ...(y.sort !== undefined ? { sort: y.sort } : {}), axis: { title: null, labels: false, ticks: false, domain: false } },
+            y: { field, type: y.type, ...(sort !== undefined ? { sort } : {}), axis: { title: null, labels: false, ticks: false, domain: false } },
             x: { value: 0 },
             text: { field: '__rowName', type: 'nominal' },
         },

@@ -806,6 +806,19 @@ const CHART_SHAPE_TOLERANCE = 1.15;
 /** The headline and deck shares a canvas-fit pass sets them at: one size down, then a second where one is not enough. */
 const TITLE_SCALE = 0.85;
 const TITLE_SCALE_DEEP = 0.72;
+
+/** The smallest the axis labels are set: the house's least size, and never under three-quarters of its own. */
+function axisLabelFloor(size: number, minSize: number | undefined): number {
+    return Math.max(minSize ?? 8, size * 0.75);
+}
+
+/** The axis labels at a share of the house's size, to the half px, never past the floor. */
+function scaledAxisLabelSize(size: number, scale: number, floor: number): number {
+    return Math.max(floor, Math.round(size * scale * 2) / 2);
+}
+
+/** The most sizes down a canvas fit tries for axis labels, one px each. */
+const LABEL_STEPS = 3;
 /**
  * How short a canvas-fit pass keeps long key names: 120 px a column, wrapped onto lines before they
  * are cut. Names down a y axis keep their readable gutter: a cut row name names nothing.
@@ -822,7 +835,8 @@ const SHORT_NAMES = { keyWidth: 120 };
  * A chart that meets them as planned is returned as it is. One that does not is mended with the
  * least edit to it a reader would notice ({@link culpritEdits}): each problem is put down to the
  * parts that cause it, and only their edits are tried — keys in a row on their edge, names wrapped,
- * the title a size down, keys to another edge, the title two sizes down — one at a time before any
+ * the title a size down, keys to another edge, the title two sizes down, names wrapped down the y
+ * axis set a size or two smaller — one at a time before any
  * two together. Of those that clear, the one that costs least wins: its edit, priced on the
  * planner's one scale ({@link LAYOUT_COSTS}), and what its result still costs in reading, which
  * tells edits alike apart. Where the box cannot hold the chart legibly, the plot comes down,
@@ -868,8 +882,9 @@ function fitToCanvas(plan: LayoutPlan, analysis: PlanAnalysis, context: PlanCont
         const strayed = Boolean(treatment.oneKey) && others(planned) !== others(plan);
         const cuts = (cutsKeyNames(planned) && !cutsKeyNames(plan)) || (rowOverruns(planned) && !rowOverruns(plan)) || moved || strayed;
         // Nor change the chart's own shape: the fit rebalances what is around the chart, not the chart.
+        // Labels set smaller shorten the rows they wrapped in, and that is the edit's whole point.
         const shapeOf = (e: CanvasFitEstimate) => e.designed.width / (e.designed.height || 1);
-        const reshaped = Math.abs(Math.log(shapeOf(estimate) / shapeOf(before))) > Math.log(CHART_SHAPE_TOLERANCE);
+        const reshaped = !treatment.labelScale && Math.abs(Math.log(shapeOf(estimate) / shapeOf(before))) > Math.log(CHART_SHAPE_TOLERANCE);
         // Nor, where the text is already too small, make it smaller still: a flag cleared for smaller text is no mend.
         const smaller = !legible && estimate.scale < before.scale - 0.005;
         if (!cuts && !reshaped && !smaller && ((!legible && !treatment.plotScale) || readable)) tries.push(tried);
@@ -964,8 +979,15 @@ function fitToCanvas(plan: LayoutPlan, analysis: PlanAnalysis, context: PlanCont
         keys: (layout?.footprint ?? []).filter((edge) => edge.orient === 'top' || edge.orient === 'bottom')
             .reduce((sum, edge) => sum + (layout?.offsets?.[edge.orient as 'top' | 'bottom'] ?? 0), 0),
     };
+    // Names down y wrapped onto two lines take rows tall enough for both: smaller, the rows come down with them.
+    const houseLabels = plan.axisLabelFontSize;
+    const rowsWrapped = rowNamed && houseLabels !== undefined
+        && Boolean(plan.layout.yLabel.labelLines?.some((lines) => lines.length > 1));
+    const labelSizes = rowsWrapped
+        ? { size: houseLabels!, floor: axisLabelFloor(houseLabels!, (context.theme as ThemeSpec | undefined)?.type?.minSize) }
+        : undefined;
     const edits = culpritEdits(before, canvasParts(plan, analysis.channelSemantics, context, box), box, {
-        keyed, titled, named, edge, keys: keyList, rowNamed, headerAir,
+        keyed, titled, named, edge, keys: keyList, rowNamed, headerAir, labelSizes,
     });
     // Of the edits that clear, the one that costs least: its edit, and what its result still costs
     // in reading — weighed so the result tells apart edits alike, and never makes a larger edit win
@@ -1025,7 +1047,7 @@ function fitToCanvas(plan: LayoutPlan, analysis: PlanAnalysis, context: PlanCont
     result.after = chosen.estimate;
     const report: ThemeReport = {
         stage: 'realize', path: 'layout.canvasFit', code: 'canvas-fit',
-        message: `the chart did not read well in its ${Math.round(box.width)} × ${Math.round(box.height)} canvas (${before.flags.join('; ')}) — laid out with ${describeTreatment(chosen.treatment)}${chosen.estimate.flags.length ? `, which helps but does not clear it (${chosen.estimate.flags.join('; ')})` : ''}`,
+        message: `the chart did not read well in its ${Math.round(box.width)} × ${Math.round(box.height)} canvas (${before.flags.length ? before.flags.join('; ') : `drawn larger than it, to be shown at ${Math.round(before.scale * 100)}%`}) — laid out with ${describeTreatment(chosen.treatment)}${chosen.estimate.flags.length ? `, which helps but does not clear it (${chosen.estimate.flags.join('; ')})` : ''}`,
     };
     return { ...chosen.plan, canvasFit: result, report: [...chosen.plan.report, report] };
 }
@@ -1405,6 +1427,15 @@ function rowNamesAboveTrial(first: LayoutPlan, prepared: PreparedPlan, pinned: F
         const note = say('row-names-beside', `the names stand beside their bars: above them, each band needs twice its room, which the canvas's stretch cannot give ${layout.yNominalCount} of them`);
         return { prepared: noted(prepared, note), first: { ...first, report: [...first.report, note] } };
     }
+    // The bands hold within the stretch, but the title, keys and axis stand in the same box: names
+    // above are kept where the whole drawing fits it, or is shrunk no more than with the names beside.
+    const box = boxOf(prepared.context);
+    const scaleOf = (plan: LayoutPlan) => judgeCanvas(canvasParts(plan, prepared.analysis.channelSemantics, prepared.context, box)).scale;
+    const aboveScale = scaleOf(laid);
+    if (aboveScale < SOFT_FIT_SCALE && aboveScale < scaleOf(first) - 0.005) {
+        const note = say('row-names-beside', `the names stand beside their bars: above them, the chart would be drawn larger than its ${Math.round(box.width)} × ${Math.round(box.height)} canvas, to be shown at ${Math.round(aboveScale * 100)}%`);
+        return { prepared: noted(prepared, note), first: { ...first, report: [...first.report, note] } };
+    }
     return { prepared: trial, first: laid };
 }
 
@@ -1537,9 +1568,14 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
             : profile.nestedBandPadding.inner;
         return step * (bands - inner + 2 * profile.nestedBandPadding.outer);
     };
-    const axisLabelFontSize = theme
+    const houseLabelFontSize = theme
         ? resolveThemeFontSize(theme as ThemeSpec, theme.type?.axisLabel?.size, 10, layoutResult.subplotWidth || size.baseSize.width)
         : undefined;
+    const labelFloor = theme ? axisLabelFloor(houseLabelFontSize ?? 10, (theme as ThemeSpec).type?.minSize) : undefined;
+    // A canvas fit may set the labels on both axes a size or two down, never past the floor.
+    const axisLabelFontSize = houseLabelFontSize !== undefined && treatment?.labelScale
+        ? scaledAxisLabelSize(houseLabelFontSize, treatment.labelScale, labelFloor!)
+        : houseLabelFontSize;
     if (context.bandLabels) {
         planBandLabels(
             { layout: layoutResult, canvasSize: size.baseSize, channelSemantics, assembleOptions: effectiveOptions, table: values },
@@ -1547,7 +1583,7 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
                 fontSize: axisLabelFontSize,
                 textCase: (theme as ThemeSpec | undefined)?.type?.axisLabel?.case,
                 // A themed chart's names are measured in the face they are drawn in, as its value labels are.
-                ...(theme ? { minFontSize: Math.max((theme as ThemeSpec).type?.minSize ?? 8, (axisLabelFontSize ?? 10) * 0.75) } : {}),
+                ...(theme ? { minFontSize: labelFloor } : {}),
                 ...(theme ? { measure: bandLabelMeasure(theme as ThemeSpec) } : {}),
                 // How x names that do not stand flat may be set, weighed by cost: the chart's ways, else the theme's, else the rule.
                 ...xLabelOverflow(theme as ThemeSpec | undefined, chartProperties, channelSemantics),
@@ -1673,6 +1709,12 @@ function planAroundPlot(prepared: PreparedPlan, reserve: FurnitureReserve): Layo
             deck: { ...design.title.deck, fontSize: scaled(design.title.deck.fontSize, TITLE_FLOOR.deck) },
         };
         layoutResult.titleFontSize = scaled(layoutResult.titleFontSize, TITLE_FLOOR.headline)!;
+    }
+    if (treatment?.labelScale && axisLabelFontSize !== undefined) {
+        for (const channel of ['x', 'y'] as const) {
+            const axis = design.axes[channel];
+            if (axis && (axis.label.fontSize ?? 0) > axisLabelFontSize) design.axes[channel] = { ...axis, label: { ...axis.label, fontSize: axisLabelFontSize } };
+        }
     }
 
     const axisLabels = planAxisLabels(layoutResult, declaration, axisLabelFontSize === undefined ? undefined : {
@@ -2114,6 +2156,8 @@ function culpritEdits(
         rowNamed?: boolean;
         /** The gaps under the title and beside keys above or below the plot, which no part is to blame for. */
         headerAir?: { title: number; keys: number };
+        /** The axis labels' house size and floor, where names down y wrap onto two lines and so set the rows' height. */
+        labelSizes?: { size: number; floor: number };
     },
 ): { single: CanvasTreatment[]; paired: CanvasTreatment[] } {
     const p = parts.reserve.parts;
@@ -2151,6 +2195,11 @@ function culpritEdits(
         if (keysToBlame && stackedKeys.length > 1) for (const key of [...stackedKeys].sort((a, b) => b.height - a.height)) oneKey(key, 'side');
         if (keysToBlame) add({ keys: 'side' });
         if (titleToBlame) add({ titleScale: TITLE_SCALE_DEEP });
+        // Rows of wrapped names: the labels a px down at a time, never past their floor, whole on their lines.
+        const labels = has.labelSizes;
+        for (let step = 1; labels && step <= LABEL_STEPS && labels.size - step >= labels.floor - 1e-9; step++) {
+            add({ labelScale: Math.round(((labels.size - step) / labels.size) * 1000) / 1000 });
+        }
     }
     // The chart area itself too wide for its box, or its names taking the plot's room: the names down
     // the y axis wrap, so the chart takes the width the box leaves it. Its plot is not touched.
@@ -2166,7 +2215,9 @@ function culpritEdits(
     const titleEdit = single.find((treatment) => treatment.titleScale);
     const oneKeyEdit = single.find((treatment) => treatment.oneKey);
     const rowEdit = single.find((treatment) => treatment.rowNames);
+    const labelEdit = single.find((treatment) => treatment.labelScale);
     if (keyEdit && titleEdit) paired.push({ ...keyEdit, ...titleEdit });
+    if (labelEdit && titleEdit) paired.push({ ...labelEdit, ...titleEdit });
     if (keyEdit?.keys === 'side' && has.named) paired.push({ keys: 'side', names: SHORT_NAMES });
     if (nameEdit && titleEdit) paired.push({ ...nameEdit, ...titleEdit });
     if (oneKeyEdit && titleEdit) paired.push({ ...oneKeyEdit, ...titleEdit });

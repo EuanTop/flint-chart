@@ -197,8 +197,9 @@ export function judgeCanvas(parts: CanvasParts): CanvasFitEstimate {
 
 /**
  * What a treatment costs the reader, on the planner's one scale ({@link LAYOUT_COSTS}): keys kept on
- * their house's edge in one row, least; long names wrapped, on keys or down the y axis; the title a
- * size down; one key moved to another edge; every key moved; the title two sizes down; a smaller plot, more the smaller it gets. `edge` is where
+ * their house's edge in one row, least; long names wrapped, on keys or down the y axis; the axis labels
+ * a size down; the title a size down; one key moved to another edge; every key moved; the title two
+ * sizes down; a smaller plot, more the smaller it gets. `edge` is where
  * the keys stood as planned: a row on that edge is the gentler edit.
  */
 /** The share of its designed height a plot may give a breaking title before the title counts as squeezing it. */
@@ -213,7 +214,8 @@ export function treatmentCost(treatment: CanvasTreatment, edge?: string): number
     const plot = treatment.plotScale ? C.plot + (1 - treatment.plotScale) * C.plotPerShare : 0;
     const oneKey = treatment.oneKey ? C.keyMoved : 0;
     const rowNames = treatment.rowNames ? C.rowNames : 0;
-    return keys + oneKey + names + rowNames + title + plot;
+    const labels = treatment.labelScale ? C.labels + (1 - treatment.labelScale) * C.labelsPerShare : 0;
+    return keys + oneKey + names + rowNames + labels + title + plot;
 }
 
 /**
@@ -240,6 +242,7 @@ export function describeTreatment(treatment: CanvasTreatment | undefined): strin
     if (treatment.rowNames) parts.push('row names wrapped');
     if (treatment.plotSpace) parts.push('plot laid out again in the room left');
     if (treatment.titleScale) parts.push(`title at ${Math.round(treatment.titleScale * 100)}%`);
+    if (treatment.labelScale) parts.push(`axis labels at ${Math.round(treatment.labelScale * 100)}%`);
     if (treatment.names) parts.push('narrower key names');
     if (treatment.plotScale) parts.push(`plot at ${Math.round(treatment.plotScale * 100)}%`);
     return parts.join(', ') || 'as planned';
