@@ -6,11 +6,10 @@ import { z } from 'zod';
 import type { ChartAssemblyInput, ChartLink, ChartUpdate, LinkSpec, ValidateResult } from 'flint-chart';
 import { drawsAsTable, validateLinks } from 'flint-chart';
 
-import { ROW_UNITS, boardColumns, boardRows, colorField, gridItemFor, gridLines, gridProblem, isKpi, layoutLines, sharedColorOrders, type ChartLayout, type GridItem } from './board-layout.js';
+import { ROW_UNITS, boardColumns, boardRows, gridItemFor, gridProblem, isKpi, type ChartLayout, type GridItem } from './board-layout.js';
 
 /** The characters of a chart title that fit on one line per row unit, at the card's heading size. */
 const TITLE_CHARS_PER_UNIT = 7.5;
-import { OPENS_AS_TABLE, chartContext } from './chart-context.js';
 import { toAssemblyInput, updatesShape, viewShape, type AssemblyInputArgs, type ChartView } from './tools/schemas.js';
 
 /** One chart on a board: the spec with its data inline, and the agent's update layers. */
@@ -97,21 +96,26 @@ export const linkSpecShape = z
   })
   .describe('How the charts on the board connect: by the fields they share. One selection holds at a time; a new one replaces the last.');
 
-/** The chart as the model reads it before it is drawn: the same report the drawn chart sends as its context. */
-export function chartReport(input: ChartAssemblyInput, updates: readonly ChartUpdate[] | undefined, result: ValidateResult): string {
-  const report = chartContext({ agent: input, shown: input, updates, checks: result.updates, warnings: result.warnings }).text;
+/** What one checked chart has to say: its warnings and the update ops that do not apply. */
+export function chartFindings(updates: readonly ChartUpdate[] | undefined, result: ValidateResult): string[] {
   const ops = (result.updates ?? []).flatMap((check) => check.ops);
   const failed = ops.filter((op) => !op.ok).length;
-  if (failed === 0) return report;
-  return `${failed} of ${ops.length} update ops do not apply (✗ below); the chart draws without them. ` +
-    `Fix each one, or tell the user what is missing.\n${report}`;
+  const lines: string[] = [];
+  if (failed > 0) {
+    lines.push(`${failed} of ${ops.length} update ops do not apply; the chart draws without them. Fix each one, or tell the user what is missing.`);
+  } else if ((updates?.length ?? 0) > 0) {
+    lines.push(`All ${ops.length} update ops apply.`);
+  }
+  lines.push(...result.warnings.map((warning) => warning.message));
+  return lines;
 }
 
 /** The outcome of one chart write: the chart drawn, or why it was not. */
 export interface ChartOutcome {
   id: string;
   drawn: boolean;
-  text: string;
+  /** What the model should act on or tell the user; empty when there is nothing to say. */
+  findings: string[];
 }
 
 /** The chart input as the card draws it: the board's theme where the chart sets none. */
@@ -131,10 +135,9 @@ export async function prepareChart(
   const { result, input } = await validate(withBoardTheme(own, board), updates);
   if (!result.valid) {
     const errors = result.errors.map((e) => e.message).join('; ');
-    return { errors, outcome: { id, drawn: false, text: `✗ not drawn: ${errors}` } };
+    return { errors, outcome: { id, drawn: false, findings: [`✗ not drawn: ${errors}`] } };
   }
   const opensAsTable = view === 'table' && !drawsAsTable(input.chart_spec.chartType);
-  const report = chartReport(input, updates, result) + (opensAsTable ? `\n${OPENS_AS_TABLE}` : '');
   // The board's theme stays the board's, so the card's theme switch reaches every chart that set none.
   const stored = { ...input, theme_spec: own.theme_spec };
   return {
@@ -142,7 +145,7 @@ export async function prepareChart(
       id, input: stored, ...(updates ? { updates } : {}), ...(layout ? { layout } : {}), ...(opensAsTable ? { view } : {}),
       ...(fromFile ? { fromFile: true as const } : {}),
     },
-    outcome: { id, drawn: true, text: report },
+    outcome: { id, drawn: true, findings: chartFindings(updates, result) },
   };
 }
 
@@ -155,18 +158,6 @@ export function relink(board: Board): void {
 
 function layoutCharts(board: Board) {
   return board.charts.map((chart) => ({ id: chart.id, chartType: chart.input.chart_spec.chartType, layout: chart.layout }));
-}
-
-/** The board's layout as the card draws it on a wide card. */
-export function boardLayoutLines(board: Board): string[] {
-  if (board.grid) {
-    return [
-      'Arranged on a 12-column grid (grid), as the reader left it; keep passing it. Leave grid out to lay the charts out in rows again.',
-      ...gridLines(board.grid),
-    ];
-  }
-  const charts = layoutCharts(board);
-  return layoutLines(boardRows(charts, boardColumns(charts, board.columns)));
 }
 
 /**
@@ -243,10 +234,6 @@ export function boardReview(board: Board): string[] {
   if (themes.size > 1 || (themes.size === 1 && board.theme_spec !== undefined)) {
     notes.push('Charts set their own themes; set theme_spec once on the board and drop it from the charts so the board reads as one piece.');
   }
-  for (const [field, values] of sharedColorOrders(board.charts.map((chart) => chart.input))) {
-    const users = board.charts.filter((chart) => colorField(chart.input) === field).map((chart) => chart.id);
-    notes.push(`${users.join(', ')} colour by ${field}; the card gives its ${values.length} values one order, so each keeps one colour across the board.`);
-  }
   return notes;
 }
 
@@ -256,37 +243,6 @@ export function themeName(theme: ChartAssemblyInput['theme_spec'] | null): strin
   if (typeof theme === 'string') return theme;
   const custom = theme as { label?: string; id?: string; extends?: string };
   return custom.label ?? custom.id ?? (custom.extends ? `custom (${custom.extends})` : 'custom');
-}
-
-/** What the model reads once a chart or board is on screen. */
-export function shownText(board: Board): string {
-  return `The ${board.kind === 'chart' ? 'chart' : 'board'} is on screen in a new card. What the reader does on it reaches you with their next message. ` +
-    'To change it, change the spec and call show again: a new card shows it, and earlier cards stay as they were.';
-}
-
-/** A chart or board as the model reads it: the checks of validate_chart or validate_board, or of show. */
-export function viewReport(board: Board, outcomes: readonly ChartOutcome[], notes: readonly string[] = [], shown = false): string {
-  const next = shown ? shownText(board) : 'Nothing is on screen: fix what this report asks in the spec, then call show with it.';
-  if (board.kind === 'board') return boardReport(board, outcomes, notes, next);
-  return [next, ...notes, ...outcomes.map((outcome) => outcome.text)].join('\n');
-}
-
-function boardReport(board: Board, outcomes: readonly ChartOutcome[], notes: readonly string[], next: string): string {
-  const lines = [
-    `Board${board.title ? ` "${board.title}"` : ''}: ${board.charts.length} chart${board.charts.length === 1 ? '' : 's'} (${board.charts.map((chart) => chart.id).join(', ') || 'none'}).`,
-    next,
-  ];
-  if (notes.length > 0) lines.push('', ...notes);
-  if (board.charts.length > 0) lines.push('', 'Layout:', ...boardLayoutLines(board));
-  for (const outcome of outcomes) {
-    lines.push('', `## ${outcome.id}`, outcome.text);
-  }
-  if (board.link_spec && board.linked) {
-    lines.push('', `Links (fields: ${board.link_spec.fields.join(', ')}; one selection the whole board shares):`, ...linkLines(board.linked));
-  }
-  const review = boardReview(board);
-  if (review.length > 0) lines.push('', 'Review:', ...review.map((note) => `- ${note}`));
-  return lines.join('\n');
 }
 
 /** The board as the card reads it. */
@@ -356,16 +312,3 @@ export type BoardSpec = BoardFields & { charts: BoardChartArgs[]; link_spec?: Li
 export const gridShape = z
   .array(z.object({ id: z.string(), x: z.number(), y: z.number(), w: z.number(), h: z.number() }))
   .describe('Where each chart sits on a 12-column grid, as the reader arranged it on a card; the card\'s context gives it. Leave it out for rows.');
-
-/** The link as the model reads it: what each chart sends, by which interaction, and receives, and what is left out. */
-function linkLines(links: Record<string, ChartLink>): string[] {
-  return Object.entries(links).map(([id, link]) => {
-    const sends = Object.entries(link.gestures).map(([gesture, info]) => `${info.fields.join(' + ')} by ${gesture}${info.hover ? ' (hover)' : ''}`);
-    const parts = [
-      sends.length > 0 ? `sends ${sends.join(', ')}` : '',
-      link.receives.length > 0 ? `receives ${link.receives.join(', ')}` : '',
-    ].filter(Boolean);
-    const mark = link.sends.length === 0 && link.receives.length === 0 ? '✗' : '✓';
-    return `${mark} ${id}: ${parts.join('; ') || 'not linked'}${link.notes.length > 0 ? `; ${link.notes.join('; ')}` : ''}`;
-  });
-}

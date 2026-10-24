@@ -44,8 +44,9 @@ First decide which workflow the user is asking for:
   renderer code unless asked.
 - **MCP chart output:** if Flint MCP tools are available, **default to
   `validate_chart` then `show`** whenever the user asks to see a chart.
-  `validate_chart` checks the spec and returns a report without drawing; fix
-  what it asks in the spec, then call `show({ "chart": … })` once with the
+  `validate_chart` checks the spec and returns a report without drawing: only
+  errors, warnings and update ops that will not apply, or "Nothing to fix". Fix
+  what it lists in the spec, then call `show({ "chart": … })` once with the
   whole spec, which opens an interactive, live-rendered card with a
   customization panel. The server keeps nothing between calls: the spec in
   the conversation is the chart. Only fall back to `render_chart` (PNG/SVG)

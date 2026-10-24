@@ -782,7 +782,7 @@ function applyTypography(config: any, d: DesignDecisions): void {
  * alone, because a graphic a little wider than its plot is normal and a break
  * there would be gratuitous; one that overhangs more is set down a size; only
  * a headline that still does not fit at the smaller size is broken, and then
- * over even lines rather than one full line and an orphan. Broken lines are
+ * over full lines with no orphan at the end. Broken lines are
  * taken out of the plot rather than added to the canvas.
  */
 /** Vega-Lite's offset between the plot and a key beside it, as the plan's profile measures it. */
@@ -928,7 +928,7 @@ function applyDeckFit(
     spec.title = { ...spec.title, subtitle: fit.lines };
     takeFromPlotHeight(spec, fit.taken);
     say('title.subtitle', 'deck-broken',
-        `the deck overhangs the ${Math.round(block)}px block, so it breaks over ${fit.lines.length} even lines`
+        `the deck overhangs the ${Math.round(block)}px block, so it breaks over ${fit.lines.length} lines`
         + ' — the height comes out of the plot, not out of the canvas the caller asked for');
 }
 

@@ -17,8 +17,8 @@ Each chart on a board is a full chart spec (`flint-chart-author`), plus an
 charts, where they sit, how they connect, and how they look as one piece.
 
 Work through the steps in order. A board is ready to show when its latest
-report shows no `✗` and its `Review:` section is empty or says only that a
-colour field is shared.
+report says "Nothing to fix", or what it still lists is something to tell the
+user rather than change.
 
 ## Step 1 — write the headline
 
@@ -173,19 +173,27 @@ Pick it with `list_themes` as for one chart.
 
 ## Step 7 — read the report and refine
 
-`validate_board` returns the board as the model must judge it, and `show`
-returns the same report:
+`validate_board` returns only what to act on, and `show` returns the same
+report after its on-screen line. It does not repeat the spec:
 
-- `Layout:` the rows as the card draws them. Check that the lead chart sits
-  where the headline points and no row holds an orphan.
-- `## <id>` per chart: its encodings and each update op, `✓` or `✗`.
-- `Links:` what each chart sends and receives, `✓`, or `✗` when it joins no field, with the fix.
+- `Layout:` the rows as the card draws them, in one line. Check that the lead
+  chart sits where the headline points and no row holds an orphan.
+- `<id>:` a chart's errors (`✗ not drawn`), warnings, and the update ops that
+  will not apply. A finding several charts share is listed once under all
+  their ids. A chart with nothing to say is not listed.
+- `Links:` a chart that joins no field (`✗`), with the fix.
+- `Link notes:` what linked charts leave out: a field a chart does not carry,
+  a selection a Table cannot send. These are not to fix; change `link_spec`
+  only when the user asked for that connection, and tell them when a chart
+  cannot take it.
 - `Review:` what the board should still fix: a missing headline, deck or chart
   title, too many tiles or charts, themes set per chart.
 
-Fix each `✗` and each review note in the spec, check it again if the fix was
-large, then call `show` once with the same spec. A chart with errors is left
-off the report's board, and `show` draws nothing until every chart is valid.
+When nothing is listed but link notes, the report says "Nothing to fix". Fix each item in the
+spec, check it again if the fix was large, then call `show` once with the same
+spec. A chart with errors is left off the report's board, and `show` draws
+nothing until every chart is valid. An item you cannot fix in the spec, such as
+an interaction a chart cannot take, is something to tell the user.
 
 What the reader then does on the card reaches the model with their next
 message: selections and link emphasis, one section per chart. The reader's
@@ -196,7 +204,7 @@ the next `show`:
   `theme_spec` on the board and leave it out of the charts.
 - **An arrangement** made with **Edit layout** (moving, swapping, resizing
   charts on a 12-column grid). To keep it, pass the `grid` the context gives.
-  `Layout:` then reads "Arranged on a 12-column grid". A chart added to the
+  `Layout:` then reads "the reader's grid". A chart added to the
   spec takes a place below the rest and a chart left out drops its place;
   leave `grid` out to lay the board out in rows again, only when the user asks
   for a new layout.
@@ -252,5 +260,5 @@ on a region's line lights that region on the bars and the scatter.
 - [ ] `layout` set where the default is wrong: the lead chart wide, a comparison at equal spans and heights.
 - [ ] `link_spec.fields` names the shared dimensions; each chart that should take part encodes them and, to send, has the interaction whose subject the reader asks about.
 - [ ] `theme_spec` on the board only.
-- [ ] `validate_board` reports no `✗` and no review note left but the shared colour field.
+- [ ] `validate_board` says "Nothing to fix", or only lists what to tell the user.
 - [ ] In a later turn: the reader's theme and `grid` from the context are kept unless the user asked to change them.

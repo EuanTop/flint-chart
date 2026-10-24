@@ -513,9 +513,9 @@ The y axis shows life from 70 to 86.
 The state is in field terms: what the chart is after the reader's panel edits,
 each op of your updates as applied (✓) or not and why (✗), what the reader
 selected, hid or filtered, and the viewport on view when the chart navigates.
-`validate_chart` and `show` return the same report before the
-reader touches the chart, with `User interactions: none.` From it, decide what the
-reader should see next: which rows stand out, what one note says, which range
+This is the drawn card's context. Before the chart is drawn, `validate_chart`
+and `show` report only what to act on: how many update ops apply, and each op
+that will not, with why. From these, decide what the reader should see next: which rows stand out, what one note says, which range
 frames them. The rows you were given are the source of every value; the chart
 hands over no copy of the data, and nothing is computed that the chart cannot
 verify.
